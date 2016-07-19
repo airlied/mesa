@@ -786,6 +786,9 @@ static VkResult radv_compute_pipeline_create(
 	pipeline = radv_alloc2(&device->alloc, pAllocator, sizeof(*pipeline), 8,
 			       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 
+	pipeline->device = device;
+	pipeline->layout = radv_pipeline_layout_from_handle(pCreateInfo->layout);
+
 	shader = radv_pipeline_compile(pipeline, module,
 				       pCreateInfo->stage.pName,
 				       MESA_SHADER_COMPUTE,
