@@ -643,6 +643,7 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		src[0] = to_float(ctx, src[0]);
 		result = LLVMBuildFDiv(ctx->builder, ctx->f32one, src[0], "");
 		break;
+	case nir_op_ieq:
 	case nir_op_seq:
 		result = emit_int_cmp(ctx, LLVMIntEQ, src[0], src[1]);
 		break;
@@ -684,6 +685,10 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_fsqrt:
 		result = emit_intrin_1f_param(ctx, "llvm.sqrt.f32", src[0]);
+		break;
+	case nir_op_frsq:
+		result = emit_intrin_1f_param(ctx, "llvm.sqrt.f32", src[0]);
+		result = LLVMBuildFDiv(ctx->builder, ctx->f32one, result, "");
 		break;
 	case nir_op_fpow:
 		result = emit_intrin_2f_param(ctx, "llvm.pow.f32", src[0], src[1]);
