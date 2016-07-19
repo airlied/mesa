@@ -246,15 +246,15 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	unsigned vgpr_comp_cnt = 0;
 	switch (shader->stage) {
 	case MESA_SHADER_VERTEX:
-		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_input_sgprs) |
+		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_user_sgprs) |
 			S_00B12C_SCRATCH_EN(scratch_enabled);
 		break;
 	case MESA_SHADER_FRAGMENT:
-		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_input_sgprs) |
+		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_user_sgprs) |
 			S_00B12C_SCRATCH_EN(scratch_enabled);
 		break;
 	case MESA_SHADER_COMPUTE:
-		variant->rsrc2 = S_00B84C_USER_SGPR(variant->info.num_input_sgprs) |
+		variant->rsrc2 = S_00B84C_USER_SGPR(variant->info.num_user_sgprs) |
 			S_00B84C_SCRATCH_EN(scratch_enabled) |
 			S_00B84C_TGID_X_EN(1) | S_00B84C_TGID_Y_EN(1) |
 			S_00B84C_TGID_Z_EN(1) | S_00B84C_TIDIG_COMP_CNT(2) |

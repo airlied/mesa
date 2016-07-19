@@ -341,6 +341,10 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	ctx->shader_info->num_input_vgprs = 0;
 
 	for (i = 0; i < user_sgpr_count; i++)
+		ctx->shader_info->num_user_sgprs += llvm_get_type_size(arg_types[i]) / 4;
+
+	ctx->shader_info->num_input_sgprs = ctx->shader_info->num_user_sgprs;
+	for (; i < sgpr_count; i++)
 		ctx->shader_info->num_input_sgprs += llvm_get_type_size(arg_types[i]) / 4;
 
 	if (nir->stage != MESA_SHADER_FRAGMENT)
@@ -1873,7 +1877,10 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 			shader_info->num_input_vgprs += 1;
 		if (G_0286CC_POS_FIXED_PT_ENA(config->spi_ps_input_addr))
 			shader_info->num_input_vgprs += 1;
-		config->num_vgprs = MAX2(config->num_vgprs,
-					 shader_info->num_input_vgprs);
 	}
+	config->num_vgprs = MAX2(config->num_vgprs, shader_info->num_input_vgprs);
+
+	/* +3 for scratch wave offset and VCC */
+	config->num_sgprs = MAX2(config->num_sgprs,
+	                         shader_info->num_input_sgprs + 3);
 }

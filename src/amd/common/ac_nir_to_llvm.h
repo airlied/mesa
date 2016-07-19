@@ -36,6 +36,7 @@ struct ac_nir_compiler_options {
 };
 
 struct ac_shader_variant_info {
+	unsigned num_user_sgprs;
 	unsigned num_input_sgprs;
 	unsigned num_input_vgprs;
 	union {
