@@ -28,6 +28,15 @@
 #include <assert.h>
 #include "r600d_common.h"
 
+static inline unsigned radeon_check_space(struct radeon_winsys *ws,
+                                      struct radeon_winsys_cs *cs,
+                                      unsigned needed)
+{
+        if (cs->max_dw - cs->cdw < needed)
+                ws->cs_grow(cs, needed);
+        return cs->cdw + needed;
+}
+
 static inline void radeon_set_config_reg_seq(struct radeon_winsys_cs *cs, unsigned reg, unsigned num)
 {
         assert(reg < R600_CONTEXT_REG_OFFSET);

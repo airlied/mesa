@@ -30,6 +30,7 @@
 #include "radv_radeon_winsys.h"
 #include "radv_amdgpu_cs.h"
 #include "radv_amdgpu_bo.h"
+#include "sid.h"
 
 struct amdgpu_cs {
 	struct radeon_winsys_cs base;
@@ -45,6 +46,12 @@ struct amdgpu_cs {
 	amdgpu_bo_handle            *handles;
 	uint8_t                     *priorities;
 	//  struct amdgpu_cs_buffer     *buffers;
+
+	struct radeon_winsys_bo     **old_ib_buffers;
+	unsigned                    num_old_ib_buffers;
+	unsigned                    max_num_old_ib_buffers;
+	unsigned                    *ib_size_ptr;
+	bool                        failed;
 };
 
 static inline struct amdgpu_cs *
@@ -70,6 +77,9 @@ static void amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
 {
 	struct amdgpu_cs *cs = amdgpu_cs(rcs);
 	cs->ws->base.buffer_destroy(cs->ib_buffer);
+	for (unsigned i = 0; i < cs->num_old_ib_buffers; ++i)
+		cs->ws->base.buffer_destroy(cs->old_ib_buffers[i]);
+	free(cs->old_ib_buffers);
 	free(cs->handles);
 	free(cs->priorities);
 	free(cs);
@@ -134,10 +144,76 @@ amdgpu_cs_create(struct radeon_winsys *ws,
 
 	cs->ib.ib_mc_address = amdgpu_winsys_bo(cs->ib_buffer)->va;
 	cs->base.buf = (uint32_t *)cs->ib_mapped;
-	cs->base.max_dw = ib_size / 4;
+	cs->base.max_dw = ib_size / 4 - 4;
 
 	ws->cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 	return &cs->base;
+}
+
+static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
+{
+	struct amdgpu_cs *cs = amdgpu_cs(_cs);
+	uint64_t ib_size = MAX2(min_size * 4 + 16, cs->base.max_dw * 4 * 2);
+
+	if (cs->failed) {
+		cs->base.cdw = 0;
+		return;
+	}
+
+	if (cs->ib_size_ptr)
+		*cs->ib_size_ptr = cs->base.cdw + 4;
+	else
+		cs->ib.size = cs->base.cdw + 4;
+
+	if (cs->num_old_ib_buffers == cs->max_num_old_ib_buffers) {
+		cs->max_num_old_ib_buffers = MAX2(1, cs->max_num_old_ib_buffers * 2);
+		cs->old_ib_buffers = realloc(cs->old_ib_buffers,
+					     cs->max_num_old_ib_buffers * sizeof(void*));
+	}
+
+	cs->old_ib_buffers[cs->num_old_ib_buffers++] = cs->ib_buffer;
+
+	cs->ib_buffer = cs->ws->base.buffer_create(&cs->ws->base, ib_size, 0,
+						   RADEON_DOMAIN_GTT,
+						   RADEON_FLAG_CPU_ACCESS);
+
+	if (!cs->ib_buffer) {
+		cs->base.cdw = 0;
+		cs->failed = true;
+		cs->ib_buffer = cs->old_ib_buffers[--cs->num_old_ib_buffers];
+	}
+
+	cs->ib_mapped = cs->ws->base.buffer_map(cs->ib_buffer);
+	if (!cs->ib_mapped) {
+		cs->ws->base.buffer_destroy(cs->ib_buffer);
+		cs->base.cdw = 0;
+		cs->failed = true;
+		cs->ib_buffer = cs->old_ib_buffers[--cs->num_old_ib_buffers];
+	}
+
+	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
+
+	cs->base.buf[cs->base.cdw++] = PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0);
+	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va;
+	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va >> 32;
+	cs->ib_size_ptr = cs->base.buf + cs->base.cdw;
+	cs->base.buf[cs->base.cdw++] = 0;
+
+	cs->base.buf = (uint32_t *)cs->ib_mapped;
+	cs->base.cdw = 0;
+	cs->base.max_dw = ib_size / 4 - 4;
+
+}
+
+static bool amdgpu_cs_finalize(struct radeon_winsys_cs *_cs)
+{
+	struct amdgpu_cs *cs = amdgpu_cs(_cs);
+	if (cs->ib_size_ptr)
+		*cs->ib_size_ptr = cs->base.cdw;
+	else
+		cs->ib.size = cs->base.cdw;
+
+	return !cs->failed;
 }
 
 static void amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
@@ -145,8 +221,16 @@ static void amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	struct amdgpu_cs *cs = amdgpu_cs(_cs);
 	cs->base.cdw = 0;
 	cs->num_buffers = 0;
+	cs->ib_size_ptr = NULL;
+	cs->failed = false;
 
 	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
+
+	for (unsigned i = 0; i < cs->num_old_ib_buffers; ++i)
+		cs->ws->base.buffer_destroy(cs->old_ib_buffers[i]);
+
+	cs->num_old_ib_buffers = 0;
+	cs->ib.ib_mc_address = amdgpu_winsys_bo(cs->ib_buffer)->va;
 }
 
 static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
@@ -186,8 +270,8 @@ static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
 	amdgpu_bo_list_handle bo_list;
 
-	if (!cs->base.cdw)
-		return true;
+	if (!cs->base.cdw || cs->failed)
+		return 0;
 
 	r = amdgpu_bo_list_create(cs->ws->dev, cs->num_buffers, cs->handles,
 				  cs->priorities, &bo_list);
@@ -197,7 +281,6 @@ static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 	}
 
 	cs->request.resources = bo_list;
-	cs->ib.size = cs->base.cdw;
 
 	if (getenv("RADV_DUMP_CS")) {
 		for (unsigned i = 0; i < cs->base.cdw; i++) {
@@ -283,6 +366,8 @@ void radv_amdgpu_cs_init_functions(struct amdgpu_winsys *ws)
 	ws->base.ctx_wait_idle = amdgpu_ctx_wait_idle;
 	ws->base.cs_create = amdgpu_cs_create;
 	ws->base.cs_destroy = amdgpu_cs_destroy;
+	ws->base.cs_grow = amdgpu_cs_grow;
+	ws->base.cs_finalize = amdgpu_cs_finalize;
 	ws->base.cs_reset = amdgpu_cs_reset;
 	ws->base.cs_add_buffer = amdgpu_cs_add_buffer;
 	ws->base.cs_submit = amdgpu_winsys_cs_submit;
