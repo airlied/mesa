@@ -72,7 +72,6 @@ struct nir_to_llvm_context {
 	LLVMValueRef vs_prim_id;
 	LLVMValueRef instance_id;
 
-	LLVMValueRef alpha_ref;
 	LLVMValueRef prim_mask;
 	LLVMValueRef persp_sample, persp_center, persp_centroid;
 	LLVMValueRef linear_sample, linear_center, linear_centroid;
@@ -306,7 +305,6 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		arg_types[arg_idx++] = ctx->i32; // instance id
 		break;
 	case MESA_SHADER_FRAGMENT:
-		arg_types[arg_idx++] = ctx->f32; /* alpha ref */
 		user_sgpr_count = arg_idx;
 		arg_types[arg_idx++] = ctx->i32; /* prim mask */
 		sgpr_count = arg_idx;
@@ -373,7 +371,6 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		ctx->instance_id = LLVMGetParam(ctx->main_function, arg_idx++);
 		break;
 	case MESA_SHADER_FRAGMENT:
-		ctx->alpha_ref = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->prim_mask = LLVMGetParam(ctx->main_function, arg_idx++);
 
 		ctx->persp_sample = LLVMGetParam(ctx->main_function, arg_idx++);
