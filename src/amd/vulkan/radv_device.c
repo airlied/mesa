@@ -67,7 +67,7 @@ radv_physical_device_init(struct radv_physical_device *device,
 	assert(strlen(path) < ARRAY_SIZE(device->path));
 	strncpy(device->path, path, ARRAY_SIZE(device->path));
 
-	device->ws = amdgpu_winsys_create(fd);
+	device->ws = radv_amdgpu_winsys_create(fd);
 	if (!device->ws) {
 		result = VK_ERROR_INCOMPATIBLE_DRIVER;
 		goto fail;

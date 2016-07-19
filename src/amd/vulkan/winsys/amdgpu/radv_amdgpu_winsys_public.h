@@ -27,4 +27,4 @@
  */
 #pragma once
 
-struct radeon_winsys *amdgpu_winsys_create(int fd);
+struct radeon_winsys *radv_amdgpu_winsys_create(int fd);
