@@ -261,7 +261,7 @@ static void amdgpu_winsys_query_info(struct radeon_winsys *rws,
 }
 
 struct radeon_winsys *
-amdgpu_winsys_create(int fd)
+radv_amdgpu_winsys_create(int fd)
 {
 	uint32_t drm_major, drm_minor, r;
 	amdgpu_device_handle dev;
