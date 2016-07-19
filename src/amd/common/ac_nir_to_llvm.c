@@ -289,8 +289,9 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	array_count = arg_idx;
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
+		user_sgpr_count  = arg_idx;
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3);
-		user_sgpr_count  = sgpr_count = arg_idx;
+		sgpr_count = arg_idx;
 
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3);
 		break;
