@@ -278,6 +278,10 @@ struct radeon_winsys {
 
 	void (*cs_reset)(struct radeon_winsys_cs *cs);
 
+	bool (*cs_finalize)(struct radeon_winsys_cs *cs);
+
+	void (*cs_grow)(struct radeon_winsys_cs * cs, size_t min_size);
+
 	int (*cs_submit)(struct radeon_winsys_ctx *ctx,
 			 struct radeon_winsys_cs *cs,
 			 struct radeon_winsys_fence *fence);
