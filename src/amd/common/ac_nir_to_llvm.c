@@ -976,6 +976,11 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 			values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx + chan], "");
 		}
 		return to_integer(ctx, build_gather_values(ctx, values, 4));
+	case nir_var_shader_out:
+		for (unsigned chan = 0; chan < 4; chan++) {
+			values[chan] = LLVMBuildLoad(ctx->builder, ctx->outputs[idx + chan], "");
+		}
+		return to_integer(ctx, build_gather_values(ctx, values, 4));
 	default:
 		break;
 	}
