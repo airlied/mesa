@@ -580,6 +580,14 @@ static LLVMValueRef emit_intrin_2f_param(struct nir_to_llvm_context *ctx,
 	return emit_llvm_intrinsic(ctx, intrin, ctx->f32, params, 2, LLVMReadNoneAttribute);
 }
 
+static LLVMValueRef emit_bcsel(struct nir_to_llvm_context *ctx,
+			       LLVMValueRef src0, LLVMValueRef src1, LLVMValueRef src2)
+{
+	LLVMValueRef v = LLVMBuildICmp(ctx->builder, LLVMIntNE, src0,
+				       ctx->i32zero, "");
+	return LLVMBuildSelect(ctx->builder, v, src1, src2, "");
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -608,6 +616,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_fneg:
 	        src[0] = to_float(ctx, src[0]);
 		result = LLVMBuildFNeg(ctx->builder, src[0], "");
+		break;
+	case nir_op_ineg:
+		result = LLVMBuildNeg(ctx->builder, src[0], "");
+		break;
+	case nir_op_inot:
+		result = LLVMBuildNot(ctx->builder, src[0], "");
 		break;
 	case nir_op_iadd:
 		result = LLVMBuildAdd(ctx->builder, src[0], src[1], "");
@@ -645,8 +659,14 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_iand:
 		result = LLVMBuildAnd(ctx->builder, src[0], src[1], "");
 		break;
+	case nir_op_ior:
+		result = LLVMBuildOr(ctx->builder, src[0], src[1], "");
+		break;
 	case nir_op_ilt:
 		result = emit_int_cmp(ctx, LLVMIntSLT, src[0], src[1]);
+		break;
+	case nir_op_ine:
+		result = emit_int_cmp(ctx, LLVMIntNE, src[0], src[1]);
 		break;
 	case nir_op_ieq:
 		result = emit_int_cmp(ctx, LLVMIntEQ, src[0], src[1]);
@@ -714,6 +734,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_u2f:
 		result = LLVMBuildUIToFP(ctx->builder, src[0], ctx->f32, "");
+		break;
+	case nir_op_bcsel:
+		result = emit_bcsel(ctx, src[0], src[1], src[2]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
