@@ -295,6 +295,69 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 	return nir;
 }
 
+static uint32_t si_translate_blend_function(VkBlendOp op)
+{
+	switch (op) {
+	case VK_BLEND_OP_ADD:
+		return V_028780_COMB_DST_PLUS_SRC;
+	case VK_BLEND_OP_SUBTRACT:
+		return V_028780_COMB_SRC_MINUS_DST;
+	case VK_BLEND_OP_REVERSE_SUBTRACT:
+		return V_028780_COMB_DST_MINUS_SRC;
+	case VK_BLEND_OP_MIN:
+		return V_028780_COMB_MIN_DST_SRC;
+	case VK_BLEND_OP_MAX:
+		return V_028780_COMB_MAX_DST_SRC;
+	default:
+		return 0;
+	}
+}
+
+static uint32_t si_translate_blend_factor(VkBlendFactor factor)
+{
+	switch (factor) {
+	case VK_BLEND_FACTOR_ZERO:
+		return V_028780_BLEND_ZERO;
+	case VK_BLEND_FACTOR_ONE:
+		return V_028780_BLEND_ONE;
+	case VK_BLEND_FACTOR_SRC_COLOR:
+		return V_028780_BLEND_SRC_COLOR;
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+		return V_028780_BLEND_ONE_MINUS_SRC_COLOR;
+	case VK_BLEND_FACTOR_DST_COLOR:
+		return V_028780_BLEND_DST_COLOR;
+	case VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+		return V_028780_BLEND_ONE_MINUS_DST_COLOR;
+	case VK_BLEND_FACTOR_SRC_ALPHA:
+		return V_028780_BLEND_SRC_ALPHA;
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
+		return V_028780_BLEND_ONE_MINUS_SRC_ALPHA;
+	case VK_BLEND_FACTOR_DST_ALPHA:
+		return V_028780_BLEND_DST_ALPHA;
+	case VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+		return V_028780_BLEND_ONE_MINUS_DST_ALPHA;
+	case VK_BLEND_FACTOR_CONSTANT_COLOR:
+		return V_028780_BLEND_CONSTANT_COLOR;
+	case VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
+		return V_028780_BLEND_ONE_MINUS_CONSTANT_COLOR;
+	case VK_BLEND_FACTOR_CONSTANT_ALPHA:
+		return V_028780_BLEND_CONSTANT_ALPHA;
+	case VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA:
+		return V_028780_BLEND_ONE_MINUS_CONSTANT_ALPHA;
+	case VK_BLEND_FACTOR_SRC_ALPHA_SATURATE:
+		return V_028780_BLEND_SRC_ALPHA_SATURATE;
+	case VK_BLEND_FACTOR_SRC1_COLOR:
+		return V_028780_BLEND_SRC1_COLOR;
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR:
+		return V_028780_BLEND_INV_SRC1_COLOR;
+	case VK_BLEND_FACTOR_SRC1_ALPHA:
+		return V_028780_BLEND_SRC1_ALPHA;
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
+		return V_028780_BLEND_INV_SRC1_ALPHA;
+	default:
+		return 0;
+	}
+}
 
 static void
 radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
@@ -315,6 +378,13 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 	for (i = 0; i < vkblend->attachmentCount; i++) {
 		const VkPipelineColorBlendAttachmentState *att = &vkblend->pAttachments[i];
 		unsigned blend_cntl = 0;
+		VkBlendOp eqRGB = att->colorBlendOp;
+		VkBlendFactor srcRGB = att->srcColorBlendFactor;
+		VkBlendFactor dstRGB = att->dstColorBlendFactor;
+		VkBlendOp eqA = att->alphaBlendOp;
+		VkBlendFactor srcA = att->srcAlphaBlendFactor;
+		VkBlendFactor dstA = att->dstAlphaBlendFactor;
+
 		blend->sx_mrt0_blend_opt[i] = S_028760_COLOR_COMB_FCN(V_028760_OPT_COMB_BLEND_DISABLED) | S_028760_ALPHA_COMB_FCN(V_028760_OPT_COMB_BLEND_DISABLED);
 
 		if (!att->colorWriteMask)
@@ -328,6 +398,15 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 
 		blend_cntl |= S_028780_ENABLE(1);
 
+		blend_cntl |= S_028780_COLOR_COMB_FCN(si_translate_blend_function(eqRGB));
+		blend_cntl |= S_028780_COLOR_SRCBLEND(si_translate_blend_factor(srcRGB));
+		blend_cntl |= S_028780_COLOR_DESTBLEND(si_translate_blend_factor(dstRGB));
+		if (srcA != srcRGB || dstA != dstRGB || eqA != eqRGB) {
+			blend_cntl |= S_028780_SEPARATE_ALPHA_BLEND(1);
+			blend_cntl |= S_028780_ALPHA_COMB_FCN(si_translate_blend_function(eqA));
+			blend_cntl |= S_028780_ALPHA_SRCBLEND(si_translate_blend_factor(srcA));
+			blend_cntl |= S_028780_ALPHA_DESTBLEND(si_translate_blend_factor(dstA));
+		}
 		blend->cb_blend_control[i] = blend_cntl;
 	}
 	for (i = vkblend->attachmentCount; i < 8; i++)
