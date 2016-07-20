@@ -1573,12 +1573,12 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 					      ctx->outputs[i][j], ""));
 	}
 
-	index = 0;
 	nir_foreach_variable(variable, &nir->outputs) {
+		index = variable->data.driver_location;
 		if (variable->data.location == VARYING_SLOT_POS)
 			target = V_008DFC_SQ_EXP_POS;
 		else if (variable->data.location >= VARYING_SLOT_VAR0) {
-			target = V_008DFC_SQ_EXP_PARAM + param_count;
+			target = V_008DFC_SQ_EXP_PARAM + (variable->data.location - VARYING_SLOT_VAR0);
 			param_count++;
 		}
 		si_llvm_init_export_args(ctx, outputs[index].values, target, args);
@@ -1593,7 +1593,6 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 					    LLVMVoidTypeInContext(ctx->context),
 					    args, 9, 0);
 		}
-		index++;
 	}
 
 	/* We need to add the position output manually if it's missing. */
