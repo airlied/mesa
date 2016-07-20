@@ -318,6 +318,13 @@ vk_format_is_depth_or_stencil(VkFormat format)
    return vk_format_has_depth(desc) ||
           vk_format_has_stencil(desc);
 }
+
+static inline bool
+vk_format_is_color(VkFormat format)
+{
+   return !vk_format_is_depth_or_stencil(format);
+}
+
 #ifdef __cplusplus
 } // extern "C" {
 #endif

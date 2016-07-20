@@ -32,6 +32,7 @@
 
 #include <unistd.h>
 #include "radv_wsi.h"
+#include "vk_format.h"
 #include "util/hash_table.h"
 
 struct wsi_x11_connection {
