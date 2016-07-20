@@ -132,13 +132,19 @@ radv_entrypoints.c : radv_entrypoints_gen.py $(vulkan_include_HEADERS)
 	$(AM_V_GEN)$(CPP) $(VULKAN_ENTRYPOINT_CPPFLAGS) $(top_srcdir)/include/vulkan/vulkan_intel.h |\
 	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py code > $@
 
+.PHONY: radv_timestamp.h
+
+radv_timestamp.h:
+	@echo "Updating radv_timestamp.h"
+	$(AM_V_GEN) echo "#define RADV_TIMESTAMP \"$(TIMESTAMP_CMD)\"" > $@
+
 vk_format_table.c: vk_format_table.py \
 		   vk_format_parse.py \
                    vk_format_layout.csv
 	$(PYTHON2) $(srcdir)/vk_format_table.py $(srcdir)/vk_format_layout.csv > $@
 
 BUILT_SOURCES = $(VULKAN_GENERATED_FILES)
-CLEANFILES = $(BUILT_SOURCES) dev_icd.json
+CLEANFILES = $(BUILT_SOURCES) dev_icd.json radv_timestamp.h
 EXTRA_DIST = \
 	$(top_srcdir)/include/vulkan/vk_icd.h \
 	radv_entrypoints_gen.py \

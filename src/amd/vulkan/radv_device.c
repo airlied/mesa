@@ -39,6 +39,7 @@
 #include "ac_llvm_util.h"
 #include "vk_format.h"
 #include "sid.h"
+#include "radv_timestamp.h"
 
 struct radv_dispatch_table dtable;
 
@@ -343,7 +344,7 @@ void
 radv_device_get_cache_uuid(void *uuid)
 {
 	memset(uuid, 0, VK_UUID_SIZE);
-	snprintf(uuid, VK_UUID_SIZE, "radv-%s", MESA_GIT_SHA1 + 4);
+	snprintf(uuid, VK_UUID_SIZE, "radv-%s", RADV_TIMESTAMP);
 }
 
 void radv_GetPhysicalDeviceProperties(
