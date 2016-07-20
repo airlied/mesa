@@ -1183,9 +1183,9 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 			   LLVMValueRef *fmask_ptr)
 {
 	*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
-	if (*samp_ptr && instr->sampler)
+	if (samp_ptr && instr->sampler)
 		*samp_ptr = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
-	if (*fmask_ptr && instr->sampler)
+	if (fmask_ptr && instr->sampler)
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_FMASK);
 }
 
