@@ -662,6 +662,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_ior:
 		result = LLVMBuildOr(ctx->builder, src[0], src[1], "");
 		break;
+	case nir_op_ishl:
+		result = LLVMBuildShl(ctx->builder, src[0], src[1], "");
+		break;
 	case nir_op_ilt:
 		result = emit_int_cmp(ctx, LLVMIntSLT, src[0], src[1]);
 		break;
