@@ -1383,10 +1383,11 @@ static void interp_fs_input(struct nir_to_llvm_context *ctx,
 {
 	const char *intr_name;
 	LLVMValueRef attr_number;
-
 	unsigned chan;
+	unsigned attr;
 
-	attr_number = LLVMConstInt(ctx->i32, input_index, false);
+	attr = var->data.location - VARYING_SLOT_VAR0;
+	attr_number = LLVMConstInt(ctx->i32, attr, false);
 
 	/* fs.constant returns the param from the middle vertex, so it's not
 	 * really useful for flat shading. It's meant to be used for custom
