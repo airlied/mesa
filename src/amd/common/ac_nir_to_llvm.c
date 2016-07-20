@@ -1273,6 +1273,24 @@ static void visit_ssa_undef(struct nir_to_llvm_context *ctx,
 	_mesa_hash_table_insert(ctx->defs, &instr->def, undef);
 }
 
+static void visit_jump(struct nir_to_llvm_context *ctx,
+		       nir_jump_instr *instr)
+{
+	switch (instr->type) {
+	case nir_jump_break:
+		LLVMBuildBr(ctx->builder, ctx->break_block);
+		break;
+	case nir_jump_continue:
+		LLVMBuildBr(ctx->builder, ctx->continue_block);
+		break;
+	default:
+		fprintf(stderr, "Unknown NIR jump instr: ");
+		nir_print_instr(&instr->instr, stderr);
+		fprintf(stderr, "\n");
+		abort();
+	}
+}
+
 static void visit_cf_list(struct nir_to_llvm_context *ctx,
                           struct exec_list *list);
 
@@ -1299,6 +1317,9 @@ static void visit_block(struct nir_to_llvm_context *ctx, nir_block *block)
 			break;
 		case nir_instr_type_ssa_undef:
 			visit_ssa_undef(ctx, nir_instr_as_ssa_undef(instr));
+			break;
+		case nir_instr_type_jump:
+			visit_jump(ctx, nir_instr_as_jump(instr));
 			break;
 		default:
 			fprintf(stderr, "Unknown NIR instr type: ");
