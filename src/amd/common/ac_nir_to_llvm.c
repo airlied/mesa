@@ -1376,7 +1376,7 @@ static LLVMValueRef lookup_interp_param(struct nir_to_llvm_context *ctx,
 
 static void interp_fs_input(struct nir_to_llvm_context *ctx,
 			    struct nir_variable *var,
-			    unsigned input_index,
+			    unsigned attr,
 			    LLVMValueRef interp_param,
 			    LLVMValueRef prim_mask,
 			    LLVMValueRef result[4])
@@ -1384,9 +1384,7 @@ static void interp_fs_input(struct nir_to_llvm_context *ctx,
 	const char *intr_name;
 	LLVMValueRef attr_number;
 	unsigned chan;
-	unsigned attr;
 
-	attr = var->data.location - VARYING_SLOT_VAR0;
 	attr_number = LLVMConstInt(ctx->i32, attr, false);
 
 	/* fs.constant returns the param from the middle vertex, so it's not
@@ -1421,16 +1419,18 @@ handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 {
 	int idx = ctx->num_inputs++;
 	LLVMValueRef interp_param = NULL;
+	unsigned attr;
 
 	variable->data.driver_location = idx;
+	attr = variable->data.location - VARYING_SLOT_VAR0;
 	interp_param = lookup_interp_param(ctx, variable->data.interpolation, 0);
 
-	interp_fs_input(ctx, variable, idx, interp_param, ctx->prim_mask,
+	interp_fs_input(ctx, variable, attr, interp_param, ctx->prim_mask,
 			&ctx->inputs[radeon_llvm_reg_index_soa(idx, 0)]);
 
 	if (!interp_param)
-		ctx->shader_info->fs.flat_shaded_mask |=
-		                           1u << ctx->shader_info->fs.num_interp;
+		ctx->shader_info->fs.flat_shaded_mask |= 1u << attr;
+	ctx->shader_info->fs.spi_mapping[ctx->shader_info->fs.num_interp] = attr;
 	++ctx->shader_info->fs.num_interp;
 }
 
