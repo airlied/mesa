@@ -72,8 +72,11 @@ radv_init_surface(struct radv_device *device,
 	surface->last_level = pCreateInfo->mipLevels - 1;
 
 	surface->bpe = vk_format_get_blocksize(pCreateInfo->format);
-
-	surface->nsamples = 1;
+	/* align byte per element on dword */
+	if (surface->bpe == 3) {
+		surface->bpe = 4;
+	}
+	surface->nsamples = pCreateInfo->samples ? pCreateInfo->samples : 1;
 	surface->flags = RADEON_SURF_SET(array_mode, MODE);
 
 	switch (pCreateInfo->imageType){
@@ -581,9 +584,9 @@ radv_image_view_init(struct radv_image_view *iview,
 				   pCreateInfo->format,
 				   swizzle,
 				   range->baseMipLevel,
-				   range->baseMipLevel,
+				   range->baseMipLevel + range->levelCount - 1,
 				   range->baseArrayLayer,
-				   range->baseArrayLayer + image->extent.depth - 1,
+				   range->baseArrayLayer + range->layerCount - 1,
 				   iview->extent.width,
 				   iview->extent.height,
 				   iview->extent.depth,
