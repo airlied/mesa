@@ -1255,6 +1255,21 @@ static void phi_post_pass(struct nir_to_llvm_context *ctx)
 	}
 }
 
+
+static void visit_ssa_undef(struct nir_to_llvm_context *ctx,
+			    nir_ssa_undef_instr *instr)
+{
+	unsigned num_components = instr->def.num_components;
+	LLVMValueRef undef;
+
+	if (num_components == 1)
+		undef = LLVMGetUndef(ctx->i32);
+	else {
+		undef = LLVMGetUndef(LLVMVectorType(ctx->i32, num_components));
+	}
+	_mesa_hash_table_insert(ctx->defs, &instr->def, undef);
+}
+
 static void visit_cf_list(struct nir_to_llvm_context *ctx,
                           struct exec_list *list);
 
@@ -1278,6 +1293,9 @@ static void visit_block(struct nir_to_llvm_context *ctx, nir_block *block)
 			break;
 		case nir_instr_type_phi:
 			visit_phi(ctx, nir_instr_as_phi(instr));
+			break;
+		case nir_instr_type_ssa_undef:
+			visit_ssa_undef(ctx, nir_instr_as_ssa_undef(instr));
 			break;
 		default:
 			fprintf(stderr, "Unknown NIR instr type: ");
