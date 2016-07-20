@@ -39,8 +39,8 @@ enum radeon_llvm_calling_convention {
 #define CONST_ADDR_SPACE 2
 #define LOCAL_ADDR_SPACE 3
 
-#define RADEON_LLVM_MAX_INPUTS 32 * 4
-#define RADEON_LLVM_MAX_OUTPUTS 32
+#define RADEON_LLVM_MAX_INPUTS (VARYING_SLOT_VAR31 + 1) * 4
+#define RADEON_LLVM_MAX_OUTPUTS (VARYING_SLOT_VAR31 + 1) * 4
 
 enum desc_type {
 	DESC_IMAGE,
@@ -104,7 +104,7 @@ struct nir_to_llvm_context {
 	gl_shader_stage stage;
 
 	LLVMValueRef inputs[RADEON_LLVM_MAX_INPUTS];
-	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS][4];
+	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS];
 	int num_inputs;
 	int num_outputs;
 	int num_locals;
@@ -972,13 +972,13 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 	switch (instr->variables[0]->var->data.mode) {
 	case nir_var_shader_in:
 		for (unsigned chan = 0; chan < ve; chan++) {
-			values[chan] = ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)];
+			values[chan] = ctx->inputs[idx + chan];
 		}
 		return to_integer(ctx, build_gather_values(ctx, values, ve));
 		break;
 	case nir_var_local:
 		for (unsigned chan = 0; chan < 4; chan++) {
-			values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx * 4 + chan], "");
+			values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx + chan], "");
 		}
 		return to_integer(ctx, build_gather_values(ctx, values, 4));
 	default:
@@ -999,7 +999,7 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 	case nir_var_shader_out:
 		for (unsigned chan = 0; chan < 4; chan++) {
 			if (writemask & (1 << chan)) {
-				temp_ptr = ctx->outputs[idx][chan];
+				temp_ptr = ctx->outputs[idx + chan];
 
 				value = LLVMBuildExtractElement(ctx->builder, src, LLVMConstInt(ctx->i32, chan, false), "");
 				LLVMBuildStore(ctx->builder, value, temp_ptr);
@@ -1009,7 +1009,7 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 	case nir_var_local:
 		for (unsigned chan = 0; chan < 4; chan++) {
 			if (writemask & (1 << chan)) {
-				temp_ptr = ctx->locals[radeon_llvm_reg_index_soa(idx, chan)];
+				temp_ptr = ctx->locals[idx + chan];
 
 				if (get_llvm_num_components(src) == 1)
 					value = src;
@@ -1448,7 +1448,7 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	if (variable->name)
 		fprintf(stderr, "vs input %s\n", variable->name);
 
-	variable->data.driver_location = idx;
+	variable->data.driver_location = idx * 4;
 	t_offset = LLVMConstInt(ctx->i32, index, false);
 
 	t_list = build_indexed_load_const(ctx, t_list_ptr, t_offset);
@@ -1532,7 +1532,7 @@ handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 	LLVMValueRef interp_param = NULL;
 	unsigned attr;
 
-	variable->data.driver_location = idx;
+	variable->data.driver_location = idx * 4;
 	attr = variable->data.location - VARYING_SLOT_VAR0;
 	interp_param = lookup_interp_param(ctx, variable->data.interpolation, 0);
 
@@ -1604,9 +1604,10 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 {
 	int idx = ctx->num_outputs;
 
-	variable->data.driver_location = idx;
+	variable->data.driver_location = idx * 4;
 	for (unsigned chan = 0; chan < 4; chan++)
-		ctx->outputs[idx][chan] = si_build_alloca_undef(ctx, ctx->f32, "");
+		ctx->outputs[radeon_llvm_reg_index_soa(idx, chan)] =
+		                       si_build_alloca_undef(ctx, ctx->f32, "");
 	ctx->num_outputs++;
 }
 
@@ -1617,7 +1618,7 @@ setup_locals(struct nir_to_llvm_context *ctx,
 	int i, j;
 	ctx->num_locals = 0;
 	nir_foreach_variable(variable, &func->impl->locals) {
-		variable->data.driver_location = ctx->num_locals;
+		variable->data.driver_location = ctx->num_locals * 4;
 		ctx->num_locals++;
 	}
 	ctx->locals = malloc(4 * ctx->num_locals * sizeof(LLVMValueRef));
@@ -1681,11 +1682,11 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 		for (unsigned j = 0; j < 4; j++)
 			outputs[i].values[j] =
 				to_float(ctx, LLVMBuildLoad(ctx->builder,
-					      ctx->outputs[i][j], ""));
+					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
 	}
 
 	nir_foreach_variable(variable, &nir->outputs) {
-		index = variable->data.driver_location;
+		index = variable->data.driver_location / 4;
 		if (variable->data.location == VARYING_SLOT_POS)
 			target = V_008DFC_SQ_EXP_POS;
 		else if (variable->data.location >= VARYING_SLOT_VAR0) {
@@ -1772,7 +1773,7 @@ handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 		int j;
 		for (j = 0; j < 4; j++)
 			color[j] = LLVMBuildLoad(ctx->builder,
-						 ctx->outputs[index][j], "");
+						 ctx->outputs[radeon_llvm_reg_index_soa(index, j)], "");
 		si_export_mrt_color(ctx, color, index, (index == ctx->num_outputs - 1));
 		index++;
 	}
