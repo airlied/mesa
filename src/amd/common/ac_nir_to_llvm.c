@@ -39,8 +39,8 @@ enum radeon_llvm_calling_convention {
 #define CONST_ADDR_SPACE 2
 #define LOCAL_ADDR_SPACE 3
 
-#define RADEON_LLVM_MAX_INPUTS (VARYING_SLOT_VAR31 + 1) * 4
-#define RADEON_LLVM_MAX_OUTPUTS (VARYING_SLOT_VAR31 + 1) * 4
+#define RADEON_LLVM_MAX_INPUTS (VARYING_SLOT_VAR31 + 1)
+#define RADEON_LLVM_MAX_OUTPUTS (VARYING_SLOT_VAR31 + 1)
 
 enum desc_type {
 	DESC_IMAGE,
@@ -103,10 +103,10 @@ struct nir_to_llvm_context {
 	LLVMValueRef const_md;
 	gl_shader_stage stage;
 
-	LLVMValueRef inputs[RADEON_LLVM_MAX_INPUTS];
-	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS];
-	int num_inputs;
-	int num_outputs;
+	LLVMValueRef inputs[RADEON_LLVM_MAX_INPUTS * 4];
+	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS * 4];
+	uint64_t input_mask;
+	uint64_t output_mask;
 	int num_locals;
 	LLVMValueRef *locals;
 };
@@ -115,11 +115,6 @@ struct ac_tex_info {
 	LLVMValueRef args[12];
 	int arg_count;
 	LLVMTypeRef dst_type;
-};
-
-struct si_shader_output_values
-{
-	LLVMValueRef values[4];
 };
 
 static LLVMValueRef
@@ -1444,7 +1439,7 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	LLVMValueRef input;
 	LLVMValueRef buffer_index;
 	int index = variable->data.location - 17;
-	int idx = ctx->num_inputs++;
+	int idx = variable->data.location;
 	if (variable->name)
 		fprintf(stderr, "vs input %s\n", variable->name);
 
@@ -1486,7 +1481,6 @@ static LLVMValueRef lookup_interp_param(struct nir_to_llvm_context *ctx,
 }
 
 static void interp_fs_input(struct nir_to_llvm_context *ctx,
-			    struct nir_variable *var,
 			    unsigned attr,
 			    LLVMValueRef interp_param,
 			    LLVMValueRef prim_mask,
@@ -1528,21 +1522,14 @@ static void
 handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 		     struct nir_variable *variable)
 {
-	int idx = ctx->num_inputs++;
-	LLVMValueRef interp_param = NULL;
-	unsigned attr;
+	int idx = variable->data.location;
 
 	variable->data.driver_location = idx * 4;
-	attr = variable->data.location - VARYING_SLOT_VAR0;
-	interp_param = lookup_interp_param(ctx, variable->data.interpolation, 0);
+	ctx->input_mask |= 1ull << variable->data.location;
 
-	interp_fs_input(ctx, variable, attr, interp_param, ctx->prim_mask,
-			&ctx->inputs[radeon_llvm_reg_index_soa(idx, 0)]);
+	ctx->inputs[radeon_llvm_reg_index_soa(idx, 0)] =
+	              lookup_interp_param(ctx, variable->data.interpolation, 0);
 
-	if (!interp_param)
-		ctx->shader_info->fs.flat_shaded_mask |= 1u << attr;
-	ctx->shader_info->fs.spi_mapping[ctx->shader_info->fs.num_interp] = attr;
-	++ctx->shader_info->fs.num_interp;
 }
 
 static void
@@ -1560,6 +1547,28 @@ handle_shader_input_decl(struct nir_to_llvm_context *ctx,
 		break;
 	}
 
+}
+
+static void
+handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
+		     struct nir_shader *nir)
+{
+	unsigned index = 0;
+	for (unsigned i = 0; i < RADEON_LLVM_MAX_INPUTS; ++i) {
+		LLVMValueRef interp_param;
+		unsigned attr = i - VARYING_SLOT_VAR0;
+		if (!(ctx->input_mask & (1ull << i)))
+			continue;
+
+		interp_param = ctx->inputs[radeon_llvm_reg_index_soa(i, 0)];
+		interp_fs_input(ctx, attr, interp_param, ctx->prim_mask,
+			&ctx->inputs[radeon_llvm_reg_index_soa(i, 0)]);
+
+		if (!interp_param)
+			ctx->shader_info->fs.flat_shaded_mask |= 1u << index;
+		++index;
+	}
+	ctx->shader_info->fs.num_interp = index;
 }
 
 static LLVMValueRef
@@ -1602,13 +1611,14 @@ static void
 handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 			  struct nir_variable *variable)
 {
-	int idx = ctx->num_outputs;
+	int idx = variable->data.location;
 
 	variable->data.driver_location = idx * 4;
-	for (unsigned chan = 0; chan < 4; chan++)
+	for (unsigned chan = 0; chan < 4; chan++) {
 		ctx->outputs[radeon_llvm_reg_index_soa(idx, chan)] =
 		                       si_build_alloca_undef(ctx, ctx->f32, "");
-	ctx->num_outputs++;
+	}
+	ctx->output_mask |= 1ull << variable->data.location;
 }
 
 static void
@@ -1674,26 +1684,23 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 	LLVMValueRef args[9];
 	LLVMValueRef pos_args[4][9] = { { 0 } };
 	int i;
-	outputs = malloc(ctx->num_outputs * sizeof(outputs[0]));
-	if (!outputs)
-		return;
 
-	for (i = 0; i < ctx->num_outputs; i++) {
+	for (unsigned i = 0; i < RADEON_LLVM_MAX_OUTPUTS; ++i) {
+		LLVMValueRef values[4];
+		if (!(ctx->output_mask & (1ull << i)))
+			continue;
+
 		for (unsigned j = 0; j < 4; j++)
-			outputs[i].values[j] =
-				to_float(ctx, LLVMBuildLoad(ctx->builder,
+			values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
 					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
-	}
 
-	nir_foreach_variable(variable, &nir->outputs) {
-		index = variable->data.driver_location / 4;
-		if (variable->data.location == VARYING_SLOT_POS)
+		if (i == VARYING_SLOT_POS)
 			target = V_008DFC_SQ_EXP_POS;
-		else if (variable->data.location >= VARYING_SLOT_VAR0) {
-			target = V_008DFC_SQ_EXP_PARAM + (variable->data.location - VARYING_SLOT_VAR0);
+		else if (i >= VARYING_SLOT_VAR0) {
+			target = V_008DFC_SQ_EXP_PARAM + param_count;
 			param_count++;
 		}
-		si_llvm_init_export_args(ctx, outputs[index].values, target, args);
+		si_llvm_init_export_args(ctx, values, target, args);
 
 		if (target >= V_008DFC_SQ_EXP_POS &&
 		    target <= (V_008DFC_SQ_EXP_POS + 3)) {
@@ -1765,16 +1772,21 @@ static void
 handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 		       struct nir_shader *nir)
 {
-	int index;
-	struct nir_variable *variable;
-	index = 0;
-	nir_foreach_variable(variable, &nir->outputs) {
-		LLVMValueRef color[4] = {};
-		int j;
-		for (j = 0; j < 4; j++)
-			color[j] = LLVMBuildLoad(ctx->builder,
-						 ctx->outputs[radeon_llvm_reg_index_soa(index, j)], "");
-		si_export_mrt_color(ctx, color, index, (index == ctx->num_outputs - 1));
+	unsigned index = 0;
+
+	for (unsigned i = 0; i < RADEON_LLVM_MAX_OUTPUTS; ++i) {
+		LLVMValueRef values[4];
+		bool last;
+		if (!(ctx->output_mask & (1ull << i)))
+			continue;
+
+		last = ctx->output_mask <= ((1ull << (i + 1)) - 1);
+
+		for (unsigned j = 0; j < 4; j++)
+			values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
+					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
+
+		si_export_mrt_color(ctx, values, index, last);
 		index++;
 	}
 }
@@ -1825,7 +1837,7 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
                                        struct ac_shader_variant_info *shader_info,
                                        const struct ac_nir_compiler_options *options)
 {
-	struct nir_to_llvm_context ctx = {};
+	struct nir_to_llvm_context ctx = {0};
 	struct nir_function *func;
 	ctx.options = options;
 	ctx.shader_info = shader_info;
@@ -1844,10 +1856,10 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 
 	create_function(&ctx, nir);
 
-	ctx.num_inputs = 0;
 	nir_foreach_variable(variable, &nir->inputs)
 		handle_shader_input_decl(&ctx, variable);
-	ctx.num_outputs = 0;
+	handle_fs_inputs_pre(&ctx, nir);
+
 	nir_foreach_variable(variable, &nir->outputs)
 		handle_shader_output_decl(&ctx, variable);
 

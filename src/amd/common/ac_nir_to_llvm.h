@@ -46,7 +46,6 @@ struct ac_shader_variant_info {
 		struct {
 			unsigned num_interp;
 			uint32_t flat_shaded_mask;
-			uint32_t spi_mapping[32];
 		} fs;
 	};
 };
