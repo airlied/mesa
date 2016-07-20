@@ -114,7 +114,6 @@ struct nir_to_llvm_context {
 struct ac_tex_info {
 	LLVMValueRef args[12];
 	int arg_count;
-	int coord_components;
 	LLVMTypeRef dst_type;
 };
 
@@ -804,6 +803,22 @@ emit_llvm_intrinsic(struct nir_to_llvm_context *ctx, const char *name,
 	}
 	return LLVMBuildCall(ctx->builder, function, params, param_count, "");
 }
+/**
+ * Given the i32 or vNi32 \p type, generate the textual name (e.g. for use with
+ * intrinsic names).
+ */
+static void build_int_type_name(
+	LLVMTypeRef type,
+	char *buf, unsigned bufsize)
+{
+	assert(bufsize >= 6);
+
+	if (LLVMGetTypeKind(type) == LLVMVectorTypeKind)
+		snprintf(buf, bufsize, "v%ui32",
+			 LLVMGetVectorSize(type));
+	else
+		strcpy(buf, "i32");
+}
 
 static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 					nir_tex_instr *instr,
@@ -827,10 +842,7 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	}
 
-	if (tinfo->coord_components > 1)
-		snprintf(type, 6, "v%ui32", tinfo->coord_components);
-	else
-		strcpy(type, "i32");
+	build_int_type_name(LLVMTypeOf(tinfo->args[0]), type, sizeof(type));
 	sprintf(intr_name, "%s%s.%s", name, infix, type);
 
 	return emit_llvm_intrinsic(ctx, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
@@ -1103,49 +1115,32 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 			       struct ac_tex_info *tinfo,
 			       nir_tex_instr *instr,
+			       LLVMValueRef res_ptr, LLVMValueRef samp_ptr,
+			       LLVMValueRef *param, unsigned count,
 			       unsigned dmask)
 {
 	int num_args;
 	unsigned is_rect = 0;
 	LLVMValueRef coord;
 	LLVMValueRef coord_vals[4];
-	LLVMValueRef masks[] = {
-	  LLVMConstInt(ctx->i32, 0, false), LLVMConstInt(ctx->i32, 1, false),
-	  LLVMConstInt(ctx->i32, 2, false), LLVMConstInt(ctx->i32, 3, false),
-	};
-	coord = get_src(ctx, instr->src[0].src);
-	coord = trim_vector(ctx, coord, instr->coord_components);
 
-	if (instr->coord_components >= 1)
-	  coord_vals[0] = LLVMBuildExtractElement(ctx->builder, coord, masks[0], "");
-	if (instr->coord_components >= 2)
-	  coord_vals[1] = LLVMBuildExtractElement(ctx->builder, coord, masks[1], "");
-	if (instr->coord_components >= 3)
-	  coord_vals[2] = LLVMBuildExtractElement(ctx->builder, coord, masks[2], "");
+	/* Pad to power of two vector */
+	while (count < util_next_power_of_two(count))
+		param[count++] = LLVMGetUndef(ctx->i32);
 
-	if (instr->op == nir_texop_txf || instr->op == nir_texop_txb) {
-		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
-		coord_vals[2] = lod;
-		tinfo->coord_components = 3;
-	} else
-		tinfo->coord_components = instr->coord_components;
+	if (count > 1)
+		tinfo->args[0] = build_gather_values(ctx, param, count);
+	else
+		tinfo->args[0] = param[0];
 
-	if (tinfo->coord_components == 3) {
-		coord_vals[3] = LLVMGetUndef(ctx->i32);
-		tinfo->coord_components = 4;
-	}
-
-	coord = build_gather_values(ctx, coord_vals, tinfo->coord_components);
-
-	tinfo->args[0] = coord; /* texture coordinate */
-	tinfo->args[1] = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
+	tinfo->args[1] = res_ptr;
 	num_args = 2;
 
 	if (instr->op == nir_texop_txf || instr->op == nir_texop_query_levels)
 		tinfo->dst_type = ctx->v4i32;
 	else {
 		tinfo->dst_type = ctx->v4f32;
-		tinfo->args[num_args++] = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
+		tinfo->args[num_args++] = samp_ptr;
 	}
 
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, dmask, 0);
@@ -1160,6 +1155,18 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->arg_count = num_args;
 }
 
+static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
+			   nir_tex_instr *instr,
+			   LLVMValueRef *res_ptr, LLVMValueRef *samp_ptr,
+			   LLVMValueRef *fmask_ptr)
+{
+	*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
+	if (*samp_ptr && instr->sampler)
+		*samp_ptr = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
+	if (*fmask_ptr && instr->sampler)
+		*fmask_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_FMASK);
+}
+
 static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 {
 	LLVMValueRef result = NULL;
@@ -1167,9 +1174,52 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	struct ac_tex_info tinfo = { 0 };
 	unsigned dmask = 0xf;
 	LLVMValueRef address[16];
+	LLVMValueRef coords[5];
+	LLVMValueRef coord;
 	LLVMTypeRef data_type = ctx->i32;
+	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL;
+	unsigned chan, count = 0;
+	LLVMValueRef masks[] = {
+		LLVMConstInt(ctx->i32, 0, false), LLVMConstInt(ctx->i32, 1, false),
+		LLVMConstInt(ctx->i32, 2, false), LLVMConstInt(ctx->i32, 3, false),
+	};
+	tex_fetch_ptrs(ctx, instr, &res_ptr, &samp_ptr, &fmask_ptr);
 
-	set_tex_fetch_args(ctx, &tinfo, instr, dmask);
+	coord = get_src(ctx, instr->src[0].src);
+
+	for (chan = 0; chan < instr->coord_components; chan++)
+		coords[chan] = LLVMBuildExtractElement(ctx->builder, coord, masks[chan], "");
+
+	/* TODO pack offsets */
+	/* pack LOD bias value */
+	if (instr->op == nir_texop_txb) {
+		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
+		address[count++] = lod;
+	}
+
+	/* pack derivatives */
+	address[count++] = coords[0];
+	if (instr->coord_components > 1)
+		address[count++] = coords[1];
+	if (instr->coord_components > 2)
+		address[count++] = coords[2];
+
+	if (instr->op == nir_texop_txl || instr->op == nir_texop_txf) {
+		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
+		address[count++] = lod;
+	}
+
+	for (chan = 0; chan < count; chan++) {
+		address[chan] = LLVMBuildBitCast(ctx->builder,
+						 address[chan], ctx->i32, "");
+	}
+
+	/* TODO sample FMASK magic */
+
+	/* TODO TXF offset support */
+
+	/* TODO TG4 support */
+	set_tex_fetch_args(ctx, &tinfo, instr, res_ptr, samp_ptr, address, count, dmask);
 
 	result = build_tex_intrinsic(ctx, instr, &tinfo);
 
