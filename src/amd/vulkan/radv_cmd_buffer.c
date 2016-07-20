@@ -342,9 +342,10 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_02823C_CB_SHADER_MASK, 0xf);
 
 	for (unsigned i = 0; i < ps->info.fs.num_interp; ++i) {
-		unsigned flat_shade = !!(ps->info.fs.flat_shaded_mask & (1u << i));
+		int attr = ps->info.fs.spi_mapping[i];
+		unsigned flat_shade = !!(ps->info.fs.flat_shaded_mask & (1u << attr));
 		radeon_set_context_reg(cmd_buffer->cs, R_028644_SPI_PS_INPUT_CNTL_0 + 4 * i,
-				       S_028644_OFFSET(i) | S_028644_FLAT_SHADE(flat_shade));
+				       S_028644_OFFSET(attr) | S_028644_FLAT_SHADE(flat_shade));
 	}
 }
 
