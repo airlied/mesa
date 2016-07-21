@@ -583,6 +583,24 @@ static LLVMValueRef emit_bcsel(struct nir_to_llvm_context *ctx,
 	return LLVMBuildSelect(ctx->builder, v, src1, src2, "");
 }
 
+
+static LLVMValueRef emit_flrp(struct nir_to_llvm_context *ctx,
+			      LLVMValueRef src0, LLVMValueRef src1, LLVMValueRef src2)
+{
+	LLVMValueRef result;
+
+	src0 = to_float(ctx, src0);
+	src1 = to_float(ctx, src1);
+	src2 = to_float(ctx, src2);
+	result = LLVMBuildFSub(ctx->builder, ctx->f32one, src2, "");
+	result = LLVMBuildFMul(ctx->builder, src0, result, "");
+	result = LLVMBuildFAdd(ctx->builder, result,
+		    LLVMBuildFMul(ctx->builder, src1, src2, ""), "");
+
+	return result;
+}
+
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -711,6 +729,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_fmin:
 		result = emit_intrin_2f_param(ctx, "llvm.minnum.f32", src[0], src[1]);
+		break;
+	case nir_op_flrp:
+		result = emit_flrp(ctx, src[0], src[1], src[2]);
 		break;
 	case nir_op_vec2:
 	case nir_op_vec3:
