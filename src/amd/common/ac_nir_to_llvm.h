@@ -31,8 +31,18 @@ struct ac_shader_config;
 struct nir_shader;
 struct radv_pipeline_layout;
 
+
+struct ac_vs_variant_key {
+	uint32_t instance_rate_inputs;
+};
+
+union ac_shader_variant_key {
+	struct ac_vs_variant_key vs;
+};
+
 struct ac_nir_compiler_options {
 	struct radv_pipeline_layout *layout;
+	union ac_shader_variant_key key;
 };
 
 struct ac_shader_variant_info {
@@ -42,6 +52,7 @@ struct ac_shader_variant_info {
 	union {
 		struct {
 			unsigned param_exports;
+			unsigned vgpr_comp_cnt;
 		} vs;
 		struct {
 			unsigned num_interp;
