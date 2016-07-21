@@ -1453,8 +1453,14 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 
 	t_list = build_indexed_load_const(ctx, t_list_ptr, t_offset);
 
-	buffer_index = LLVMBuildAdd(ctx->builder, ctx->vertex_id,
-				    ctx->base_vertex, "");
+	if (ctx->options->key.vs.instance_rate_inputs & (1u << index)) {
+		buffer_index = LLVMBuildAdd(ctx->builder, ctx->instance_id,
+					    ctx->start_instance, "");
+		ctx->shader_info->vs.vgpr_comp_cnt = MAX2(3,
+		                            ctx->shader_info->vs.vgpr_comp_cnt);
+	} else
+		buffer_index = LLVMBuildAdd(ctx->builder, ctx->vertex_id,
+					    ctx->base_vertex, "");
 	args[0] = t_list;
 	args[1] = LLVMConstInt(ctx->i32, 0, false);
 	args[2] = buffer_index;

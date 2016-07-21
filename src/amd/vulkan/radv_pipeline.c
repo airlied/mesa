@@ -229,7 +229,8 @@ static void radv_shader_variant_destroy(struct radv_device *device,
 static
 struct radv_shader_variant *radv_shader_variant_create(struct radv_device *device,
                                                        struct nir_shader *shader,
-                                                       struct radv_pipeline_layout *layout)
+                                                       struct radv_pipeline_layout *layout,
+                                                       union ac_shader_variant_key *key)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
 	if (!variant)
@@ -237,6 +238,9 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 
 	struct ac_nir_compiler_options options = {0};
 	options.layout = layout;
+	if (key)
+		options.key = *key;
+
 	struct ac_shader_binary binary;
 	ac_compile_nir_shader(device->target_machine, &binary, &variant->config,
 			      &variant->info, shader, &options);
@@ -247,6 +251,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	case MESA_SHADER_VERTEX:
 		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_user_sgprs) |
 			S_00B12C_SCRATCH_EN(scratch_enabled);
+		vgpr_comp_cnt = variant->info.vs.vgpr_comp_cnt;
 		break;
 	case MESA_SHADER_FRAGMENT:
 		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_user_sgprs) |
@@ -676,6 +681,25 @@ radv_pipeline_init_dynamic_state(struct radv_pipeline *pipeline,
 	pipeline->dynamic_state_mask = states;
 }
 
+static union ac_shader_variant_key
+radv_compute_vs_key(const VkGraphicsPipelineCreateInfo *pCreateInfo)
+{
+	union ac_shader_variant_key key;
+	const VkPipelineVertexInputStateCreateInfo *input_state =
+	                                         pCreateInfo->pVertexInputState;
+
+	memset(&key, 0, sizeof(key));
+	key.vs.instance_rate_inputs = 0;
+
+	for (unsigned i = 0; i < input_state->vertexAttributeDescriptionCount; ++i) {
+		unsigned binding;
+		binding = input_state->pVertexAttributeDescriptions[i].binding;
+		if (input_state->pVertexBindingDescriptions[binding].inputRate)
+			key.vs.instance_rate_inputs |= 1u << i;
+	}
+	return key;
+}
+
 VkResult
 radv_pipeline_init(struct radv_pipeline *pipeline,
 		   struct radv_device *device,
@@ -703,13 +727,16 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 
 	/* */
 	if (modules[MESA_SHADER_VERTEX]) {
+		union ac_shader_variant_key key = radv_compute_vs_key(pCreateInfo);
+
 		shader = radv_pipeline_compile(pipeline, modules[MESA_SHADER_VERTEX],
 					       pStages[MESA_SHADER_VERTEX]->pName,
 					       MESA_SHADER_VERTEX,
 					       pStages[MESA_SHADER_VERTEX]->pSpecializationInfo);
 		pipeline->shaders[MESA_SHADER_VERTEX] = radv_shader_variant_create(device,
 										   shader,
-										   pipeline->layout);
+										   pipeline->layout,
+										   &key);
 		fprintf(stderr, "Assign VS %p to %p\n", pipeline->shaders[MESA_SHADER_VERTEX], pipeline);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_VERTEX);
 	}
@@ -721,7 +748,8 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 					       pStages[MESA_SHADER_FRAGMENT]->pSpecializationInfo);
 		pipeline->shaders[MESA_SHADER_FRAGMENT] = radv_shader_variant_create(device,
 										     shader,
-										     pipeline->layout);
+										     pipeline->layout,
+										     NULL);
 		fprintf(stderr, "Assign FS %p to %p\n", pipeline->shaders[MESA_SHADER_FRAGMENT], pipeline);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
 	}
@@ -877,7 +905,8 @@ static VkResult radv_compute_pipeline_create(
 
 	pipeline->shaders[MESA_SHADER_COMPUTE] = radv_shader_variant_create(device,
 									    shader,
-									    pipeline->layout);
+									    pipeline->layout,
+									    NULL);
 
 	ralloc_free(shader);
 	*pPipeline = radv_pipeline_to_handle(pipeline);
