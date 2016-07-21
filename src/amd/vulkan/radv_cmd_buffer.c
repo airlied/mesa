@@ -543,6 +543,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	radeon_emit(cmd_buffer->cs, fui(0.0));
 	radeon_emit(cmd_buffer->cs, fui(1.0));
 	radeon_emit(cmd_buffer->cs, fui(0.0));
+	cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_VIEWPORT;
 	cmd_buffer->state.vertex_descriptors_dirty = false;
 	cmd_buffer->state.vb_dirty = 0;
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE)
