@@ -1001,7 +1001,10 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 			if (writemask & (1 << chan)) {
 				temp_ptr = ctx->outputs[idx + chan];
 
-				value = LLVMBuildExtractElement(ctx->builder, src, LLVMConstInt(ctx->i32, chan, false), "");
+				if (get_llvm_num_components(src) == 1)
+					value = src;
+				else
+					value = LLVMBuildExtractElement(ctx->builder, src, LLVMConstInt(ctx->i32, chan, false), "");
 				LLVMBuildStore(ctx->builder, value, temp_ptr);
 			}
 		}
