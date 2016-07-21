@@ -449,6 +449,16 @@ si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,
 {
 	int i;
 
+	if (count == 0) {
+		radeon_set_context_reg_seq(cs, R_02843C_PA_CL_VPORT_XSCALE, 6);
+		radeon_emit(cs, fui(1.0));
+		radeon_emit(cs, fui(0.0));
+		radeon_emit(cs, fui(1.0));
+		radeon_emit(cs, fui(0.0));
+		radeon_emit(cs, fui(1.0));
+		radeon_emit(cs, fui(0.0));
+		return;
+	}
 	radeon_set_context_reg_seq(cs, R_02843C_PA_CL_VPORT_XSCALE +
 				   first_vp * 4 * 6, count * 6);
 
