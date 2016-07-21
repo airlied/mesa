@@ -520,7 +520,7 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 		S_028BE4_PIX_CENTER(1) | // TODO verify
 		S_028BE4_QUANT_MODE(V_028BE4_X_16_8_FIXED_POINT_1_256TH);
 
-	raster->pa_sc_mode_cntl_0 = S_028A48_VPORT_SCISSOR_ENABLE(1);
+	raster->pa_sc_mode_cntl_0 = 0;
 	raster->pa_su_sc_mode_cntl =
 		S_028814_FACE(vkraster->frontFace) |
 		S_028814_CULL_FRONT(vkraster->cullMode & VK_CULL_MODE_FRONT_BIT) |
