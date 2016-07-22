@@ -1869,7 +1869,9 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 
 	nir_foreach_variable(variable, &nir->inputs)
 		handle_shader_input_decl(&ctx, variable);
-	handle_fs_inputs_pre(&ctx, nir);
+
+	if (nir->stage == MESA_SHADER_FRAGMENT)
+		handle_fs_inputs_pre(&ctx, nir);
 
 	nir_foreach_variable(variable, &nir->outputs)
 		handle_shader_output_decl(&ctx, variable);
