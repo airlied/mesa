@@ -566,6 +566,7 @@ radv_image_view_init(struct radv_image_view *iview,
 	}
 	iview->image = image;
 	iview->bo = image->bo;
+	iview->offset = image->offset;
 	iview->type = pCreateInfo->viewType;
 	iview->vk_format = pCreateInfo->format;
 	iview->aspect_mask = pCreateInfo->subresourceRange.aspectMask;
