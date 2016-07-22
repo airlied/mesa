@@ -53,9 +53,11 @@ struct ac_shader_variant_info {
 		struct {
 			unsigned param_exports;
 			unsigned vgpr_comp_cnt;
+			uint32_t export_mask;
 		} vs;
 		struct {
 			unsigned num_interp;
+			uint32_t input_mask;
 			uint32_t flat_shaded_mask;
 		} fs;
 	};
