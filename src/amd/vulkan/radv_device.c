@@ -856,8 +856,11 @@ VkResult radv_MapMemory(
 	}
 
 	*ppData = device->ws->buffer_map(mem->bo.bo);
-	if (*ppData)
+	if (*ppData) {
+		*ppData += offset;
 		return VK_SUCCESS;
+	}
+
 	return VK_ERROR_MEMORY_MAP_FAILED;
 }
 
