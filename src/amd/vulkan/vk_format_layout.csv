@@ -12,45 +12,45 @@ VK_FORMAT_B5G5R5A1_UNORM_PACK16      , plain, 1, 1, un5 , un5 , un5 , un1 , xyzw
 VK_FORMAT_A1R5G5B5_UNORM_PACK16      , plain, 1, 1, un1 , un5 , un5 , un5 , xyzw, rgb
 VK_FORMAT_R8_UNORM                   , plain, 1, 1, un8 ,     ,     ,     , x001, rgb
 VK_FORMAT_R8_SNORM                   , plain, 1, 1, sn8 ,     ,     ,     , x001, rgb
-VK_FORMAT_R8_USCALED,
-VK_FORMAT_R8_SSCALED,
+VK_FORMAT_R8_USCALED                 , plain, 1, 1, us8 ,     ,     ,     , x001, rgb
+VK_FORMAT_R8_SSCALED                 , plain, 1, 1, ss8 ,     ,     ,     , x001, rgb
 VK_FORMAT_R8_UINT                    , plain, 1, 1, up8 ,     ,     ,     , x001, rgb
 VK_FORMAT_R8_SINT                    , plain, 1, 1, sp8 ,     ,     ,     , x001, rgb
-VK_FORMAT_R8_SRGB,
+VK_FORMAT_R8_SRGB                    , plain, 1, 1, un8 ,     ,     ,     , x001, srgb
 VK_FORMAT_R8G8_UNORM                 , plain, 1, 1, un8 , un8 ,     ,     , xy01, rgb
-VK_FORMAT_R8G8_SNORM                 , plain, 1, 1, un8 , un8 ,     ,     , xy01, rgb
-VK_FORMAT_R8G8_USCALED,
-VK_FORMAT_R8G8_SSCALED,
+VK_FORMAT_R8G8_SNORM                 , plain, 1, 1, sn8 , sn8 ,     ,     , xy01, rgb
+VK_FORMAT_R8G8_USCALED               , plain, 1, 1, us8 , us8 ,     ,     , xy01, rgb
+VK_FORMAT_R8G8_SSCALED               , plain, 1, 1, ss8 , ss8 ,     ,     , xy01, rgb
 VK_FORMAT_R8G8_UINT                  , plain, 1, 1, up8 , up8 ,     ,     , xy01, rgb
 VK_FORMAT_R8G8_SINT                  , plain, 1, 1, sp8 , sp8 ,     ,     , xy01, rgb
-VK_FORMAT_R8G8_SRGB,
-VK_FORMAT_R8G8B8_UNORM,
-VK_FORMAT_R8G8B8_SNORM,
-VK_FORMAT_R8G8B8_USCALED,
-VK_FORMAT_R8G8B8_SSCALED,
+VK_FORMAT_R8G8_SRGB                  , plain, 1, 1, un8 , un8 ,     ,     , xy01, srgb
+VK_FORMAT_R8G8B8_UNORM               , plain, 1, 1, un8 , un8 , un8 ,     , xyz1, rgb
+VK_FORMAT_R8G8B8_SNORM               , plain, 1, 1, sn8 , sn8 , sn8 ,     , xyz1, rgb
+VK_FORMAT_R8G8B8_USCALED             , plain, 1, 1, us8 , us8 , us8 ,     , xyz1, rgb
+VK_FORMAT_R8G8B8_SSCALED             , plain, 1, 1, ss8 , ss8 , ss8 ,     , xyz1, rgb
 VK_FORMAT_R8G8B8_UINT                , plain, 1, 1, up8 , up8 , up8 ,     , xyz1, rgb
-VK_FORMAT_R8G8B8_SINT,
-VK_FORMAT_R8G8B8_SRGB,
-VK_FORMAT_B8G8R8_UNORM,
-VK_FORMAT_B8G8R8_SNORM,
-VK_FORMAT_B8G8R8_USCALED,
-VK_FORMAT_B8G8R8_SSCALED,
-VK_FORMAT_B8G8R8_UINT,
-VK_FORMAT_B8G8R8_SINT,
-VK_FORMAT_B8G8R8_SRGB,
+VK_FORMAT_R8G8B8_SINT                , plain, 1, 1, sp8 , sp8 , sp8 ,     , xyz1, rgb
+VK_FORMAT_R8G8B8_SRGB                , plain, 1, 1, un8 , un8 , un8 ,     , xyz1, srgb
+VK_FORMAT_B8G8R8_UNORM               , plain, 1, 1, un8 , un8 , un8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_SNORM               , plain, 1, 1, sn8 , sn8 , sn8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_USCALED             , plain, 1, 1, us8 , us8 , us8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_SSCALED             , plain, 1, 1, ss8 , ss8 , ss8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_UINT                , plain, 1, 1, up8 , up8 , up8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_SINT                , plain, 1, 1, sp8 , sp8 , sp8 ,     , zyx1, rgb
+VK_FORMAT_B8G8R8_SRGB                , plain, 1, 1, un8 , un8 , un8 ,     , zyx1, srgb
 VK_FORMAT_R8G8B8A8_UNORM             , plain, 1, 1, un8 , un8 , un8 , un8 , xyzw, rgb
 VK_FORMAT_R8G8B8A8_SNORM             , plain, 1, 1, sn8 , sn8 , sn8 , sn8 , xyzw, rgb
-VK_FORMAT_R8G8B8A8_USCALED,
-VK_FORMAT_R8G8B8A8_SSCALED,
-VK_FORMAT_R8G8B8A8_UINT,
-VK_FORMAT_R8G8B8A8_SINT,
-VK_FORMAT_R8G8B8A8_SRGB,
+VK_FORMAT_R8G8B8A8_USCALED           , plain, 1, 1, us8 , us8 , us8 , us8 , xyzw, rgb
+VK_FORMAT_R8G8B8A8_SSCALED           , plain, 1, 1, ss8 , ss8 , ss8 , ss8 , xyzw, rgb
+VK_FORMAT_R8G8B8A8_UINT              , plain, 1, 1, up8 , up8 , up8 , up8 , xyzw, rgb
+VK_FORMAT_R8G8B8A8_SINT              , plain, 1, 1, sp8 , sp8 , sp8 , sp8 , xyzw, rgb
+VK_FORMAT_R8G8B8A8_SRGB              , plain, 1, 1, un8 , un8 , un8 , un8 , xyzw, srgb
 VK_FORMAT_B8G8R8A8_UNORM             , plain, 1, 1, un8 , un8 , un8 , un8 , zyxw, rgb
-VK_FORMAT_B8G8R8A8_SNORM,
-VK_FORMAT_B8G8R8A8_USCALED,
-VK_FORMAT_B8G8R8A8_SSCALED,
-VK_FORMAT_B8G8R8A8_UINT,
-VK_FORMAT_B8G8R8A8_SINT,
+VK_FORMAT_B8G8R8A8_SNORM             , plain, 1, 1, sn8 , sn8 , sn8 , sn8 , zyxw, rgb
+VK_FORMAT_B8G8R8A8_USCALED           , plain, 1, 1, us8 , us8 , us8 , us8 , zyxw, rgb
+VK_FORMAT_B8G8R8A8_SSCALED           , plain, 1, 1, ss8 , ss8 , ss8 , ss8 , zyxw, rgb
+VK_FORMAT_B8G8R8A8_UINT              , plain, 1, 1, up8 , up8 , up8 , up8 , zyxw, rgb
+VK_FORMAT_B8G8R8A8_SINT              , plain, 1, 1, sp8 , sp8 , sp8 , sp8 , zyxw, rgb
 VK_FORMAT_B8G8R8A8_SRGB              , plain, 1, 1, un8 , un8 , un8 , un8 , zyxw, srgb
 VK_FORMAT_A8B8G8R8_UNORM_PACK32,
 VK_FORMAT_A8B8G8R8_SNORM_PACK32,
