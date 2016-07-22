@@ -1580,6 +1580,7 @@ handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
 		++index;
 	}
 	ctx->shader_info->fs.num_interp = index;
+	ctx->shader_info->fs.input_mask = ctx->input_mask >> VARYING_SLOT_VAR0;
 }
 
 static LLVMValueRef
@@ -1708,6 +1709,7 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 		if (i == VARYING_SLOT_POS)
 			target = V_008DFC_SQ_EXP_POS;
 		else if (i >= VARYING_SLOT_VAR0) {
+			ctx->shader_info->vs.export_mask |= 1u << (i - VARYING_SLOT_VAR0);
 			target = V_008DFC_SQ_EXP_PARAM + param_count;
 			param_count++;
 		}
