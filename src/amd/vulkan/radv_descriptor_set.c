@@ -97,8 +97,8 @@ VkResult radv_CreateDescriptorSetLayout(
 			alignment = 32;
 			break;
 		case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-			/* main descriptor + gap + sampler */
-			set_layout->binding[b].size = 64;
+			/* main descriptor + fmask descriptor + sampler */
+			set_layout->binding[b].size = 96;
 			set_layout->binding[b].buffer_count = 1;
 			alignment = 32;
 			break;
@@ -377,15 +377,10 @@ write_combined_image_sampler_descriptor(struct radv_device *device,
 					const VkDescriptorImageInfo *image_info)
 {
 	RADV_FROM_HANDLE(radv_sampler, sampler, image_info->sampler);
-	RADV_FROM_HANDLE(radv_image_view, iview, image_info->imageView);
-	memcpy(dst, iview->descriptor, 8 * 4);
-	/* copy over sampler state */
-	memset(dst + 8, 0, 4 * 4);
-	dst[11] = S_008F1C_DST_SEL_W(V_008F1C_SQ_SEL_1) |
-	  S_008F1C_TYPE(V_008F1C_SQ_RSRC_IMG_1D);
 
-	memcpy(dst + 12, sampler->state, 4 * 4);
-	*buffer_list = iview->bo;
+	write_image_descriptor(device, dst, buffer_list, image_info);
+	/* copy over sampler state */
+	memcpy(dst + 16, sampler->state, 16);
 }
 
 void radv_UpdateDescriptorSets(
