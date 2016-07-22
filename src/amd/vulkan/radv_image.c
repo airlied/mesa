@@ -135,7 +135,7 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 			       uint32_t *state)
 {
 	uint64_t gpu_address = device->ws->buffer_get_va(image->bo->bo);
-	uint64_t va = gpu_address + base_level_info->offset;
+	uint64_t va = gpu_address + base_level_info->offset + image->offset;
 	unsigned pitch = base_level_info->nblk_x * block_width;
 
 	state[1] &= C_008F14_BASE_ADDRESS_HI;
