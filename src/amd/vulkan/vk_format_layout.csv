@@ -71,34 +71,34 @@ VK_FORMAT_A2B10G10R10_USCALED_PACK32,
 VK_FORMAT_A2B10G10R10_SSCALED_PACK32,
 VK_FORMAT_A2B10G10R10_UINT_PACK32,
 VK_FORMAT_A2B10G10R10_SINT_PACK32,
-VK_FORMAT_R16_UNORM,
-VK_FORMAT_R16_SNORM,
-VK_FORMAT_R16_USCALED,
-VK_FORMAT_R16_SSCALED,
-VK_FORMAT_R16_UINT,
-VK_FORMAT_R16_SINT,
-VK_FORMAT_R16_SFLOAT,
-VK_FORMAT_R16G16_UNORM,
-VK_FORMAT_R16G16_SNORM,
-VK_FORMAT_R16G16_USCALED,
-VK_FORMAT_R16G16_SSCALED,
-VK_FORMAT_R16G16_UINT,
-VK_FORMAT_R16G16_SINT,
-VK_FORMAT_R16G16_SFLOAT,
+VK_FORMAT_R16_UNORM                  , plain, 1, 1, un16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_SNORM                  , plain, 1, 1, sn16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_USCALED                , plain, 1, 1, us16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_SSCALED                , plain, 1, 1, ss16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_UINT                   , plain, 1, 1, up16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_SINT                   , plain, 1, 1, sp16,     ,     ,     , x001, rgb
+VK_FORMAT_R16_SFLOAT                 , plain, 1, 1, f16 ,     ,     ,     , x001, rgb
+VK_FORMAT_R16G16_UNORM               , plain, 1, 1, un16, un16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_SNORM               , plain, 1, 1, sn16, sn16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_USCALED             , plain, 1, 1, us16, us16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_SSCALED             , plain, 1, 1, ss16, ss16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_UINT                , plain, 1, 1, up16, up16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_SINT                , plain, 1, 1, sp16, sp16,     ,     , xy01, rgb
+VK_FORMAT_R16G16_SFLOAT              , plain, 1, 1, f16 , f16 ,     ,     , xy01, rgb
 VK_FORMAT_R16G16B16_UNORM            , plain, 1, 1, un16, un16, un16,     , xyz1, rgb
-VK_FORMAT_R16G16B16_SNORM,
-VK_FORMAT_R16G16B16_USCALED,
-VK_FORMAT_R16G16B16_SSCALED,
-VK_FORMAT_R16G16B16_UINT,
-VK_FORMAT_R16G16B16_SINT,
-VK_FORMAT_R16G16B16_SFLOAT,
+VK_FORMAT_R16G16B16_SNORM            , plain, 1, 1, sn16, sn16, sn16,     , xyz1, rgb
+VK_FORMAT_R16G16B16_USCALED          , plain, 1, 1, us16, us16, us16,     , xyz1, rgb
+VK_FORMAT_R16G16B16_SSCALED          , plain, 1, 1, ss16, ss16, ss16,     , xyz1, rgb
+VK_FORMAT_R16G16B16_UINT             , plain, 1, 1, up16, up16, up16,     , xyz1, rgb
+VK_FORMAT_R16G16B16_SINT             , plain, 1, 1, sp16, sp16, sp16,     , xyz1, rgb
+VK_FORMAT_R16G16B16_SFLOAT           , plain, 1, 1, f16 , f16 , f16 ,     , xyz1, rgb
 VK_FORMAT_R16G16B16A16_UNORM         , plain, 1, 1, un16, un16, un16, un16, xyzw, rgb
 VK_FORMAT_R16G16B16A16_SNORM         , plain, 1, 1, sn16, sn16, sn16, sn16, xyzw, rgb
-VK_FORMAT_R16G16B16A16_USCALED,
-VK_FORMAT_R16G16B16A16_SSCALED,
-VK_FORMAT_R16G16B16A16_UINT          , plain, 1, 1, up16, up16, up16, up16 , xyzw, rgb
-VK_FORMAT_R16G16B16A16_SINT,
-VK_FORMAT_R16G16B16A16_SFLOAT,
+VK_FORMAT_R16G16B16A16_USCALED       , plain, 1, 1, us16, us16, us16, us16, xyzw, rgb
+VK_FORMAT_R16G16B16A16_SSCALED       , plain, 1, 1, ss16, ss16, ss16, ss16, xyzw, rgb
+VK_FORMAT_R16G16B16A16_UINT          , plain, 1, 1, up16, up16, up16, up16, xyzw, rgb
+VK_FORMAT_R16G16B16A16_SINT          , plain, 1, 1, sp16, sp16, sp16, sp16, xyzw, rgb
+VK_FORMAT_R16G16B16A16_SFLOAT        , plain, 1, 1, f16 , f16 , f16 , f16 , xyzw, rgb
 VK_FORMAT_R32_UINT                   , plain, 1, 1, up32,     ,     ,     , x001, rgb
 VK_FORMAT_R32_SINT                   , plain, 1, 1, sp32,     ,     ,     , x001, rgb
 VK_FORMAT_R32_SFLOAT                 , plain, 1, 1, f32 ,     ,     ,     , x001, rgb
