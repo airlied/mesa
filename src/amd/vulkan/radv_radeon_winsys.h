@@ -298,6 +298,9 @@ struct radeon_winsys {
 
 	struct radeon_winsys_fence *(*create_fence)();
 	void (*destroy_fence)(struct radeon_winsys_fence *fence);
+	bool (*fence_wait)(struct radeon_winsys *ws,
+			   struct radeon_winsys_fence *fence,
+			   uint64_t timeout);
 };
 
 static inline void radeon_emit(struct radeon_winsys_cs *cs, uint32_t value)

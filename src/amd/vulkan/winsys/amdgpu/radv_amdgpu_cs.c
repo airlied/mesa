@@ -73,6 +73,32 @@ static void amdgpu_destroy_fence(struct radeon_winsys_fence *_fence)
 	free(fence);
 }
 
+static bool amdgpu_fence_wait(struct radeon_winsys *_ws,
+			      struct radeon_winsys_fence *_fence,
+			      uint64_t timeout)
+{
+	struct amdgpu_winsys *ws = amdgpu_winsys(_ws);
+	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
+	int r;
+	uint32_t expired = 0;
+	/* Now use the libdrm query. */
+	r = amdgpu_cs_query_fence_status(fence,
+					 timeout,
+					 AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE,
+					 &expired);
+
+	if (r) {
+		fprintf(stderr, "amdgpu: amdgpu_cs_query_fence_status failed.\n");
+		return false;
+	}
+
+	if (expired) {
+		return true;
+	}
+	return false;
+
+}
+
 static void amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
 {
 	struct amdgpu_cs *cs = amdgpu_cs(rcs);
@@ -373,4 +399,5 @@ void radv_amdgpu_cs_init_functions(struct amdgpu_winsys *ws)
 	ws->base.cs_submit = amdgpu_winsys_cs_submit;
 	ws->base.create_fence = amdgpu_create_fence;
 	ws->base.destroy_fence = amdgpu_destroy_fence;
+	ws->base.fence_wait = amdgpu_fence_wait;
 }

@@ -1066,20 +1066,14 @@ VkResult radv_WaitForFences(
 
 	for (uint32_t i = 0; i < fenceCount; ++i) {
 		RADV_FROM_HANDLE(radv_fence, fence, pFences[i]);
-		uint32_t expired = 0;
+		bool expired = false;
 
+		
 		assert(fence->submitted);
 		if (fence->signalled)
 			continue;
 
-		int r = amdgpu_cs_query_fence_status(fence->fence, timeout,
-						     AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE,
-						     &expired);
-		if (r) {
-			fprintf(stderr, "radv: amdgpu_cs_query_fence_status failed\n");
-			/* TODO: find a suitable error code / action for the failure. */
-		}
-
+		expired = device->ws->fence_wait(device->ws, fence->fence, timeout);
 		if (!expired)
 			return VK_TIMEOUT;
 
