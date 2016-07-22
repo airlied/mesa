@@ -1139,12 +1139,13 @@ void radv_CmdDrawIndexed(
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 12);
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * 5, 2);
-	radeon_emit(cmd_buffer->cs, firstIndex);
+	radeon_emit(cmd_buffer->cs, vertexOffset);
 	radeon_emit(cmd_buffer->cs, firstInstance);
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_NUM_INSTANCES, 0, 0));
 	radeon_emit(cmd_buffer->cs, instanceCount);
 
 	index_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->state.index_buffer->bo->bo);
+	index_va += firstIndex * index_size;
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DRAW_INDEX_2, 4, false));
 	radeon_emit(cmd_buffer->cs, index_max_size);
 	radeon_emit(cmd_buffer->cs, index_va);
