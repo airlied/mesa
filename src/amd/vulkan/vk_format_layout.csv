@@ -126,11 +126,11 @@ VK_FORMAT_R64G64B64A64_SFLOAT        , plain, 1, 1, f64 , f64 , f64 , f64 , xyzw
 VK_FORMAT_B10G11R11_UFLOAT_PACK32,
 VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
 VK_FORMAT_D16_UNORM                  , plain, 1, 1, un16,     ,     ,     , x___, zs
-VK_FORMAT_X8_D24_UNORM_PACK32,
+VK_FORMAT_X8_D24_UNORM_PACK32        , plain, 1, 1, un24, x8  ,     ,     , x___, zs
 VK_FORMAT_D32_SFLOAT                 , plain, 1, 1, f32 ,     ,     ,     , x___, zs
 VK_FORMAT_S8_UINT                    , plain, 1, 1, up8 ,     ,     ,     , _x__, zs
-VK_FORMAT_D16_UNORM_S8_UINT,
-VK_FORMAT_D24_UNORM_S8_UINT,
+VK_FORMAT_D16_UNORM_S8_UINT          , plain, 1, 1, un16, up8 ,     ,     , xy__, zs
+VK_FORMAT_D24_UNORM_S8_UINT          , plain, 1, 1, un24, up8 ,     ,     , xy__, zs
 VK_FORMAT_D32_SFLOAT_S8_UINT         , plain, 1, 1, f32 , up8 ,     ,     , xy__, zs
 VK_FORMAT_BC1_RGB_UNORM_BLOCK,
 VK_FORMAT_BC1_RGB_SRGB_BLOCK,
