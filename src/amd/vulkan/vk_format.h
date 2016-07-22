@@ -110,7 +110,8 @@ struct vk_format_channel_description {
    unsigned type:5;
    unsigned normalized:1;
    unsigned pure_integer:1;
-   unsigned size:9;
+   unsigned scaled:1;
+   unsigned size:8;
    unsigned shift:16;
 };
 
