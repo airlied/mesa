@@ -44,6 +44,7 @@ static void radv_shader_variant_destroy(struct radv_device *device,
 static const struct nir_shader_compiler_options nir_options = {
 	.vertex_id_zero_based = true,
 	.lower_scmp = true,
+	.lower_flrp32 = true
 };
 
 VkResult radv_CreateShaderModule(
@@ -214,6 +215,7 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	nir_lower_global_vars_to_local(nir);
 	nir_remove_dead_variables(nir, nir_var_local);
 	nir_lower_alu_to_scalar(nir);
+	nir_opt_algebraic(nir);
 	nir_print_shader(nir, stderr);
    
 	return nir;
