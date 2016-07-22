@@ -1127,18 +1127,15 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 
 	switch (desc_type) {
 	case DESC_IMAGE:
-		/* The image is at [0:7]. */
 		type = ctx->v8i32;
 		type_size = 32;
 		break;
 	case DESC_FMASK:
-		/* The FMASK is at [8:15]. */
 		type = ctx->v8i32;
 		offset += 32;
 		type_size = 32;
 		break;
 	case DESC_SAMPLER:
-		/* The sampler state is at [12:15]. */
 		type = ctx->v4i32;
 		if (binding->type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			offset += 64;
