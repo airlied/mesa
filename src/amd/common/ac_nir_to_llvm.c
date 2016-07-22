@@ -1572,7 +1572,7 @@ handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
 			continue;
 
 		interp_param = ctx->inputs[radeon_llvm_reg_index_soa(i, 0)];
-		interp_fs_input(ctx, attr, interp_param, ctx->prim_mask,
+		interp_fs_input(ctx, index, interp_param, ctx->prim_mask,
 			&ctx->inputs[radeon_llvm_reg_index_soa(i, 0)]);
 
 		if (!interp_param)
