@@ -1141,7 +1141,7 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 		/* The sampler state is at [12:15]. */
 		type = ctx->v4i32;
 		if (binding->type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-			offset += 48;
+			offset += 32;
 
 		type_size = 16;
 		break;
