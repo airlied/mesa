@@ -111,18 +111,18 @@ VK_FORMAT_R32G32B32_SFLOAT           , plain, 1, 1, f32 , f32 , f32 ,     , xyz1
 VK_FORMAT_R32G32B32A32_UINT          , plain, 1, 1, up32, up32, up32, up32, xyzw, rgb
 VK_FORMAT_R32G32B32A32_SINT          , plain, 1, 1, sp32, sp32, sp32, sp32, xyzw, rgb
 VK_FORMAT_R32G32B32A32_SFLOAT        , plain, 1, 1, f32 , f32 , f32 , f32 , xyzw, rgb
-VK_FORMAT_R64_UINT,
-VK_FORMAT_R64_SINT,
-VK_FORMAT_R64_SFLOAT,
-VK_FORMAT_R64G64_UINT,
-VK_FORMAT_R64G64_SINT,
-VK_FORMAT_R64G64_SFLOAT,
-VK_FORMAT_R64G64B64_UINT,
-VK_FORMAT_R64G64B64_SINT,
-VK_FORMAT_R64G64B64_SFLOAT,
-VK_FORMAT_R64G64B64A64_UINT,
-VK_FORMAT_R64G64B64A64_SINT,
-VK_FORMAT_R64G64B64A64_SFLOAT,
+VK_FORMAT_R64_UINT                   , plain, 1, 1, up64,     ,     ,     , x001, rgb
+VK_FORMAT_R64_SINT                   , plain, 1, 1, sp64,     ,     ,     , x001, rgb
+VK_FORMAT_R64_SFLOAT                 , plain, 1, 1, f64 ,     ,     ,     , x001, rgb
+VK_FORMAT_R64G64_UINT                , plain, 1, 1, up64, up64,     ,     , xy01, rgb
+VK_FORMAT_R64G64_SINT                , plain, 1, 1, sp64, sp64,     ,     , xy01, rgb
+VK_FORMAT_R64G64_SFLOAT              , plain, 1, 1, f64 , f64 ,     ,     , xy01, rgb
+VK_FORMAT_R64G64B64_UINT             , plain, 1, 1, up64, up64, up64,     , xyz1, rgb
+VK_FORMAT_R64G64B64_SINT             , plain, 1, 1, sp64, sp64, sp64,     , xyz1, rgb
+VK_FORMAT_R64G64B64_SFLOAT           , plain, 1, 1, f64 , f64 , f64 ,     , xyz1, rgb
+VK_FORMAT_R64G64B64A64_UINT          , plain, 1, 1, up64, up64, up64, up64, xyzw, rgb
+VK_FORMAT_R64G64B64A64_SINT          , plain, 1, 1, sp64, sp64, sp64, sp64, xyzw, rgb
+VK_FORMAT_R64G64B64A64_SFLOAT        , plain, 1, 1, f64 , f64 , f64 , f64 , xyzw, rgb
 VK_FORMAT_B10G11R11_UFLOAT_PACK32,
 VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
 VK_FORMAT_D16_UNORM                  , plain, 1, 1, un16,     ,     ,     , x___, zs
