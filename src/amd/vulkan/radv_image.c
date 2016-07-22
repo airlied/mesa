@@ -527,6 +527,11 @@ radv_image_create(VkDevice _device,
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 
+	if (create_info->stride && create_info->stride != image->surface.level[0].pitch_bytes) {
+		image->surface.level[0].nblk_x = create_info->stride / image->surface.bpe;
+		image->surface.level[0].pitch_bytes = create_info->stride;
+		image->surface.level[0].slice_size = create_info->stride * image->surface.level[0].nblk_y;
+	}
 	*pImage = radv_image_to_handle(image);
 
 	return VK_SUCCESS;
