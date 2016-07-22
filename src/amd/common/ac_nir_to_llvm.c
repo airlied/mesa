@@ -1206,11 +1206,14 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 			   LLVMValueRef *res_ptr, LLVMValueRef *samp_ptr,
 			   LLVMValueRef *fmask_ptr)
 {
-	*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
-	if (samp_ptr && instr->sampler)
-		*samp_ptr = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
+	LLVMValueRef idx = LLVMConstInt(ctx->i32, instr->texture->var->data.binding, false);
+	*res_ptr = get_sampler_desc(ctx, instr->texture, idx, DESC_IMAGE);
+	if (samp_ptr && instr->sampler) {
+		LLVMValueRef samp_idx = LLVMConstInt(ctx->i32, instr->sampler->var->data.binding, false);
+		*samp_ptr = get_sampler_desc(ctx, instr->sampler, samp_idx, DESC_SAMPLER);
+	}
 	if (fmask_ptr && instr->sampler)
-		*fmask_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_FMASK);
+		*fmask_ptr = get_sampler_desc(ctx, instr->texture, idx, DESC_FMASK);
 }
 
 static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
