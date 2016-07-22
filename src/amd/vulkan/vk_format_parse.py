@@ -35,6 +35,7 @@ VOID, UNSIGNED, SIGNED, FIXED, FLOAT = range(5)
 SWIZZLE_X, SWIZZLE_Y, SWIZZLE_Z, SWIZZLE_W, SWIZZLE_0, SWIZZLE_1, SWIZZLE_NONE, = range(7)
 
 PLAIN = 'plain'
+SCALED = 'scaled'
 
 RGB = 'rgb'
 SRGB = 'srgb'
@@ -52,11 +53,12 @@ VERY_LARGE = 99999999999999999999999
 class Channel:
     '''Describe the channel of a color channel.'''
     
-    def __init__(self, type, norm, pure, size, name = ''):
+    def __init__(self, type, norm, pure, scaled, size, name = ''):
         self.type = type
         self.norm = norm
         self.pure = pure
         self.size = size
+        self.scaled = scaled
         self.sign = type in (SIGNED, FIXED, FLOAT)
         self.name = name
 
@@ -66,11 +68,13 @@ class Channel:
             s += 'n'
         if self.pure:
             s += 'p'
+        if self.scaled:
+            s += 's'
         s += str(self.size)
         return s
 
     def __eq__(self, other):
-        return self.type == other.type and self.norm == other.norm and self.pure == other.pure and self.size == other.size
+        return self.type == other.type and self.norm == other.norm and self.pure == other.pure and self.size == other.size and self.scaled == other.scaled
 
     def max(self):
         '''Maximum representable number.'''
@@ -158,6 +162,8 @@ class Format:
                     return None
                 if channel.pure != ref_channel.pure:
                     return None
+                if channel.scaled != ref_channel.scaled:
+                    return None
         return ref_channel
 
     def is_array(self):
@@ -176,6 +182,8 @@ class Format:
                 if channel.norm != ref_channel.norm:
                     return True
                 if channel.pure != ref_channel.pure:
+                    return True
+                if channel.scaled != ref_channel.scaled:
                     return True
         return False
 
@@ -293,21 +301,30 @@ def _parse_channels(fields, layout, colorspace, swizzles):
             if field[1] == 'n':
                 norm = True
                 pure = False
+                scaled = False
                 size = int(field[2:])
             elif field[1] == 'p':
                 pure = True
                 norm = False
+                scaled = False
+                size = int(field[2:])
+            elif field[1] == 's':
+                pure = False
+                norm = False
+                scaled = True
                 size = int(field[2:])
             else:
                 norm = False
                 pure = False
+                scaled = False
                 size = int(field[1:])
         else:
             type = VOID
             norm = False
             pure = False
+            scaled = False
             size = 0
-        channel = Channel(type, norm, pure, size, names[i])
+        channel = Channel(type, norm, pure, scaled, size, names[i])
         channels.append(channel)
 
     return channels
