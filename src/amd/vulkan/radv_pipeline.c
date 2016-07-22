@@ -44,7 +44,8 @@ static void radv_shader_variant_destroy(struct radv_device *device,
 static const struct nir_shader_compiler_options nir_options = {
 	.vertex_id_zero_based = true,
 	.lower_scmp = true,
-	.lower_flrp32 = true
+	.lower_flrp32 = true,
+	.lower_fsat = true
 };
 
 VkResult radv_CreateShaderModule(
