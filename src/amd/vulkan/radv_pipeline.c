@@ -98,12 +98,7 @@ void radv_DestroyPipeline(
 
 	if (!_pipeline)
 		return;
-#if 0
-	radv_reloc_list_finish(&pipeline->batch_relocs,
-			       pAllocator ? pAllocator : &device->alloc);
-	if (pipeline->blend_state.map)
-		radv_state_pool_free(&device->dynamic_state_pool, pipeline->blend_state);
-#endif
+
 	for (unsigned i = 0; i < MESA_SHADER_STAGES; ++i)
 		if (pipeline->shaders[i])
 			radv_shader_variant_destroy(device, pipeline->shaders[i]);
