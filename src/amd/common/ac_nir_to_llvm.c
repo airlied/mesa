@@ -583,6 +583,24 @@ static LLVMValueRef emit_bcsel(struct nir_to_llvm_context *ctx,
 	return LLVMBuildSelect(ctx->builder, v, src1, src2, "");
 }
 
+static LLVMValueRef emit_find_lsb(struct nir_to_llvm_context *ctx,
+				  LLVMValueRef src0)
+{
+	LLVMValueRef params[2] = {
+		src0,
+
+		/* The value of 1 means that ffs(x=0) = undef, so LLVM won't
+		 * add special code to check for x=0. The reason is that
+		 * the LLVM behavior for x=0 is different from what we
+		 * need here.
+		 *
+		 * The hardware already implements the correct behavior.
+		 */
+		LLVMConstInt(ctx->i32, 1, false),
+	};
+	return emit_llvm_intrinsic(ctx, "llvm.cttz.i32", ctx->i32, params, 2, LLVMReadNoneAttribute);
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -735,6 +753,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_bcsel:
 		result = emit_bcsel(ctx, src[0], src[1], src[2]);
+		break;
+	case nir_op_find_lsb:
+		result = emit_find_lsb(ctx, src[0]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
