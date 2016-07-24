@@ -300,7 +300,14 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
                                           VkFormatProperties *out_properties)
 {
    VkFormatFeatureFlags linear = 0, tiled = 0, buffer = 0;
+   const struct vk_format_description *desc = vk_format_description(format);
 
+   if (!desc) {
+	   out_properties->linearTilingFeatures = linear;
+	   out_properties->optimalTilingFeatures = tiled;
+	   out_properties->bufferFeatures = buffer;
+	   return;
+   }
    if (vk_format_is_depth_or_stencil(format)) {
      tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
      tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
