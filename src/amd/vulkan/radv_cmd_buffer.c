@@ -300,6 +300,7 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_shader_variant *ps, *vs;
 	uint64_t va;
 	unsigned spi_baryc_cntl = S_0286E0_FRONT_FACE_ALL_BITS(1);
+	struct radv_blend_state *blend = &pipeline->graphics.blend;
 
 	assert (pipeline->shaders[MESA_SHADER_FRAGMENT]);
 
@@ -336,7 +337,7 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028714_SPI_SHADER_COL_FORMAT, V_028714_SPI_SHADER_32_ABGR);
 
-	radeon_set_context_reg(cmd_buffer->cs, R_028238_CB_TARGET_MASK, 0xf);
+	radeon_set_context_reg(cmd_buffer->cs, R_028238_CB_TARGET_MASK, blend->cb_target_mask & 0xf);
 	radeon_set_context_reg(cmd_buffer->cs, R_02823C_CB_SHADER_MASK, 0xf);
 
 	for (unsigned i = 0; i < 32; ++i) {
