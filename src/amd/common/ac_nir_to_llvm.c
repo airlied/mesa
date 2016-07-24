@@ -1466,8 +1466,6 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	LLVMValueRef buffer_index;
 	int index = variable->data.location - 17;
 	int idx = variable->data.location;
-	if (variable->name)
-		fprintf(stderr, "vs input %s\n", variable->name);
 
 	variable->data.driver_location = idx * 4;
 	t_offset = LLVMConstInt(ctx->i32, index, false);
@@ -1985,11 +1983,13 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
                            struct ac_shader_config *config,
                            struct ac_shader_variant_info *shader_info,
                            struct nir_shader *nir,
-                           const struct ac_nir_compiler_options *options)
+                           const struct ac_nir_compiler_options *options,
+			   bool dump_shader)
 {
 	LLVMModuleRef llvm_module = ac_translate_nir_to_llvm(tm, nir, shader_info,
 	                                                     options);
-	LLVMDumpModule(llvm_module);
+	if (dump_shader)
+		LLVMDumpModule(llvm_module);
 
 	memset(binary, 0, sizeof(*binary));
 	int v = ac_llvm_compile(llvm_module, binary, tm);
@@ -1997,7 +1997,8 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 		fprintf(stderr, "compile failed\n");
 	}
 
-	fprintf(stderr, "disasm:\n%s\n", binary->disasm_string);
+	if (dump_shader)
+		fprintf(stderr, "disasm:\n%s\n", binary->disasm_string);
 
 	ac_shader_binary_read_config(binary, config, 0);
 

@@ -111,16 +111,13 @@ radv_shader_compile_to_nir(struct radv_device *device,
 			   struct radv_shader_module *module,
 			   const char *entrypoint_name,
 			   gl_shader_stage stage,
-			   const VkSpecializationInfo *spec_info)
+			   const VkSpecializationInfo *spec_info,
+			   bool dump)
 {
 	if (strcmp(entrypoint_name, "main") != 0) {
 		radv_finishme("Multiple shaders per module not really supported");
 	}
 
-#if 0
-	const struct brw_compiler *compiler =
-		device->instance->physicalDevice.compiler;
-#endif
 	nir_shader *nir;
 	nir_function *entry_point;
 	if (module->nir) {
@@ -189,7 +186,6 @@ radv_shader_compile_to_nir(struct radv_device *device,
 
 		nir_lower_system_values(nir);
 		nir_validate_shader(nir);
-		//      nir_print_shader(nir, stderr);
 	}
 
 	/* Vulkan uses the separate-shader linking model */
@@ -212,7 +208,9 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	nir_remove_dead_variables(nir, nir_var_local);
 	nir_lower_alu_to_scalar(nir);
 	nir_opt_algebraic(nir);
-	nir_print_shader(nir, stderr);
+
+	if (dump)
+		nir_print_shader(nir, stderr);
    
 	return nir;
 }
@@ -228,7 +226,8 @@ static
 struct radv_shader_variant *radv_shader_variant_create(struct radv_device *device,
                                                        struct nir_shader *shader,
                                                        struct radv_pipeline_layout *layout,
-                                                       union ac_shader_variant_key *key)
+                                                       union ac_shader_variant_key *key,
+						       bool dump)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
 	if (!variant)
@@ -241,7 +240,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 
 	struct ac_shader_binary binary;
 	ac_compile_nir_shader(device->target_machine, &binary, &variant->config,
-			      &variant->info, shader, &options);
+			      &variant->info, shader, &options, dump);
 
 	bool scratch_enabled = variant->config.scratch_bytes_per_wave > 0;
 	unsigned vgpr_comp_cnt = 0;
@@ -285,11 +284,12 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 		      struct radv_shader_module *module,
 		      const char *entrypoint,
 		      gl_shader_stage stage,
-		      const VkSpecializationInfo *spec_info)
+		      const VkSpecializationInfo *spec_info,
+		      bool dump)
 {
 	nir_shader *nir = radv_shader_compile_to_nir(pipeline->device,
 						     module, entrypoint, stage,
-						     spec_info);
+						     spec_info, dump);
 	if (nir == NULL)
 		return NULL;
 
@@ -708,6 +708,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 {
 	VkResult result;
 	struct nir_shader *shader;
+	bool dump = getenv("RADV_DUMP_SHADERS");
 	if (alloc == NULL)
 		alloc = &device->alloc;
 
@@ -730,12 +731,11 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		shader = radv_pipeline_compile(pipeline, modules[MESA_SHADER_VERTEX],
 					       pStages[MESA_SHADER_VERTEX]->pName,
 					       MESA_SHADER_VERTEX,
-					       pStages[MESA_SHADER_VERTEX]->pSpecializationInfo);
+					       pStages[MESA_SHADER_VERTEX]->pSpecializationInfo, dump);
 		pipeline->shaders[MESA_SHADER_VERTEX] = radv_shader_variant_create(device,
 										   shader,
 										   pipeline->layout,
-										   &key);
-		fprintf(stderr, "Assign VS %p to %p\n", pipeline->shaders[MESA_SHADER_VERTEX], pipeline);
+										   &key, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_VERTEX);
 	}
 
@@ -743,12 +743,11 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		shader = radv_pipeline_compile(pipeline, modules[MESA_SHADER_FRAGMENT],
 					       pStages[MESA_SHADER_FRAGMENT]->pName,
 					       MESA_SHADER_FRAGMENT,
-					       pStages[MESA_SHADER_FRAGMENT]->pSpecializationInfo);
+					       pStages[MESA_SHADER_FRAGMENT]->pSpecializationInfo, dump);
 		pipeline->shaders[MESA_SHADER_FRAGMENT] = radv_shader_variant_create(device,
 										     shader,
 										     pipeline->layout,
-										     NULL);
-		fprintf(stderr, "Assign FS %p to %p\n", pipeline->shaders[MESA_SHADER_FRAGMENT], pipeline);
+										     NULL, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
 	}
 
@@ -883,7 +882,7 @@ static VkResult radv_compute_pipeline_create(
 	RADV_FROM_HANDLE(radv_shader_module, module, pCreateInfo->stage.module);
 	struct radv_pipeline *pipeline;
 	struct nir_shader *shader;
-
+	bool dump = getenv("RADV_DUMP_SHADERS");
 	//   if (cache == NULL)
 	//      cache = &device->default_pipeline_cache;
 
@@ -899,7 +898,7 @@ static VkResult radv_compute_pipeline_create(
 	shader = radv_pipeline_compile(pipeline, module,
 				       pCreateInfo->stage.pName,
 				       MESA_SHADER_COMPUTE,
-				       pCreateInfo->stage.pSpecializationInfo);
+				       pCreateInfo->stage.pSpecializationInfo, dump);
 
 	for (int i = 0; i < 3; ++i)
 		pipeline->compute.block_size[i] = shader->info.cs.local_size[i];
@@ -907,7 +906,7 @@ static VkResult radv_compute_pipeline_create(
 	pipeline->shaders[MESA_SHADER_COMPUTE] = radv_shader_variant_create(device,
 									    shader,
 									    pipeline->layout,
-									    NULL);
+									    NULL, dump);
 
 	ralloc_free(shader);
 	*pPipeline = radv_pipeline_to_handle(pipeline);

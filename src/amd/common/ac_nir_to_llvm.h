@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "llvm-c/Core.h"
 #include "llvm-c/TargetMachine.h"
 
@@ -68,4 +69,5 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
                            struct ac_shader_config *config,
                            struct ac_shader_variant_info *shader_info,
                            struct nir_shader *nir,
-                           const struct ac_nir_compiler_options *options);
+                           const struct ac_nir_compiler_options *options,
+			   bool dump_shader);
