@@ -512,7 +512,6 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 		uint32_t ve, i = 0;
 		uint32_t num_attribs = cmd_buffer->state.pipeline->num_vertex_attribs;
 		uint64_t va;
-		fprintf(stderr, "need to emit num vertex bufs %d\n", num_attribs);
 
 		/* allocate some descriptor state for vertex buffers */
 		radv_cmd_buffer_upload_alloc(cmd_buffer, num_attribs * 16, 256,

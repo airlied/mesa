@@ -266,7 +266,6 @@ static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 	struct amdgpu_cs *cs = amdgpu_cs(_cs);
 	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
 
-	fprintf(stderr, "adding %lx, %lx\n", bo->size, bo->va);
 	for (unsigned i = 0; i < cs->num_buffers; ++i) {
 		if (cs->handles[i] == bo->bo) {
 			cs->priorities[i] = MAX2(cs->priorities[i], priority);
