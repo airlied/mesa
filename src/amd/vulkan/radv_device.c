@@ -1119,6 +1119,46 @@ void radv_DestroySemaphore(
 {
 }
 
+VkResult radv_CreateEvent(
+	VkDevice                                    _device,
+	const VkEventCreateInfo*                    pCreateInfo,
+	const VkAllocationCallbacks*                pAllocator,
+	VkEvent*                                    pEvent)
+{
+
+}
+
+void radv_DestroyEvent(
+	VkDevice                                    _device,
+	VkEvent                                     _event,
+	const VkAllocationCallbacks*                pAllocator)
+{
+
+}
+
+VkResult radv_GetEventStatus(
+	VkDevice                                    _device,
+	VkEvent                                     _event)
+{
+
+}
+
+VkResult radv_SetEvent(
+	VkDevice                                    _device,
+	VkEvent                                     _event)
+{
+
+
+}
+
+VkResult radv_ResetEvent(
+    VkDevice                                    _device,
+    VkEvent                                     _event)
+{
+
+
+}
+
 VkResult radv_CreateBuffer(
 	VkDevice                                    _device,
 	const VkBufferCreateInfo*                   pCreateInfo,
