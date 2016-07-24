@@ -1230,8 +1230,11 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	coord = get_src(ctx, instr->src[0].src);
 
-	for (chan = 0; chan < instr->coord_components; chan++)
-		coords[chan] = LLVMBuildExtractElement(ctx->builder, coord, masks[chan], "");
+	if (instr->coord_components == 1)
+		coords[0] = coord;
+	else
+		for (chan = 0; chan < instr->coord_components; chan++)
+			coords[chan] = LLVMBuildExtractElement(ctx->builder, coord, masks[chan], "");
 
 	/* TODO pack offsets */
 	/* pack LOD bias value */
@@ -1247,7 +1250,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	if (instr->coord_components > 2)
 		address[count++] = coords[2];
 
-	if (instr->op == nir_texop_txl || instr->op == nir_texop_txf) {
+	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && instr->num_srcs > 1) {
 		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
 		address[count++] = lod;
 	}
