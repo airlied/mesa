@@ -13,3 +13,5 @@ Compute & DMA queues
 Shader cache
 texture arrays
 push constants
+vulkan event
+vulkan queries
