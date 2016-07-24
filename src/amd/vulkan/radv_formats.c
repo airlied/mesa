@@ -542,20 +542,59 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
     VkImageCreateFlags                          createFlags,
     VkImageFormatProperties*                    pImageFormatProperties)
 {
-   RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
-   VkFormatProperties format_props;
-   VkFormatFeatureFlags format_feature_flags;
-   VkExtent3D maxExtent;
-   uint32_t maxMipLevels;
-   uint32_t maxArraySize;
-   VkSampleCountFlags sampleCounts = VK_SAMPLE_COUNT_1_BIT;
+	RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
+	VkFormatProperties format_props;
+	VkFormatFeatureFlags format_feature_flags;
+	VkExtent3D maxExtent;
+	uint32_t maxMipLevels;
+	uint32_t maxArraySize;
+	VkSampleCountFlags sampleCounts = VK_SAMPLE_COUNT_1_BIT;
 
-   radv_physical_device_get_format_properties(physical_device, format,
-                                             &format_props);
+	radv_physical_device_get_format_properties(physical_device, format,
+						   &format_props);
 
-   return VK_SUCCESS;
+	switch (type) {
+	default:
+		unreachable("bad vkimage type\n");
+	case VK_IMAGE_TYPE_1D:
+		maxExtent.width = 16384;
+		maxExtent.height = 1;
+		maxExtent.depth = 1;
+		maxMipLevels = 15; /* log2(maxWidth) + 1 */
+		maxArraySize = 2048;
+		sampleCounts = VK_SAMPLE_COUNT_1_BIT;
+		break;
+	case VK_IMAGE_TYPE_2D:
+		maxExtent.width = 16384;
+		maxExtent.height = 16384;
+		maxExtent.depth = 1;
+		maxMipLevels = 15; /* log2(maxWidth) + 1 */
+		maxArraySize = 2048;
+		break;
+	case VK_IMAGE_TYPE_3D:
+		maxExtent.width = 2048;
+		maxExtent.height = 2048;
+		maxExtent.depth = 1;
+		maxMipLevels = 12; /* log2(maxWidth) + 1 */
+		maxArraySize = 1;
+		break;
+	}
+
+	*pImageFormatProperties = (VkImageFormatProperties) {
+		.maxExtent = maxExtent,
+		.maxMipLevels = maxMipLevels,
+		.maxArrayLayers = maxArraySize,
+		.sampleCounts = sampleCounts,
+
+		/* FINISHME: Accurately calculate
+		 * VkImageFormatProperties::maxResourceSize.
+		 */
+		.maxResourceSize = UINT32_MAX,
+	};
+
+	return VK_SUCCESS;
 }
-      
+
 void radv_GetPhysicalDeviceSparseImageFormatProperties(
     VkPhysicalDevice                            physicalDevice,
     VkFormat                                    format,
