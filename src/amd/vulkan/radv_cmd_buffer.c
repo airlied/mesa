@@ -564,16 +564,18 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 		radeon_emit(cmd_buffer->cs, cmd_buffer->state.index_type);
 	}
 
-	radeon_set_context_reg(cmd_buffer->cs, R_028B54_VGT_SHADER_STAGES_EN, 0);
-	ia_multi_vgt_param = si_get_ia_multi_vgt_param(cmd_buffer);
-	/* TODO CIK only */
-	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DRAW_PREAMBLE, 2, 0));
-	radeon_emit(cmd_buffer->cs, cmd_buffer->state.pipeline->graphics.prim); /* VGT_PRIMITIVE_TYPE */
-	radeon_emit(cmd_buffer->cs, ia_multi_vgt_param); /* IA_MULTI_VGT_PARAM */
-	radeon_emit(cmd_buffer->cs, ls_hs_config); /* VGT_LS_HS_CONFIG */
+	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE) {
+		radeon_set_context_reg(cmd_buffer->cs, R_028B54_VGT_SHADER_STAGES_EN, 0);
+		ia_multi_vgt_param = si_get_ia_multi_vgt_param(cmd_buffer);
+		/* TODO CIK only */
+		radeon_emit(cmd_buffer->cs, PKT3(PKT3_DRAW_PREAMBLE, 2, 0));
+		radeon_emit(cmd_buffer->cs, cmd_buffer->state.pipeline->graphics.prim); /* VGT_PRIMITIVE_TYPE */
+		radeon_emit(cmd_buffer->cs, ia_multi_vgt_param); /* IA_MULTI_VGT_PARAM */
+		radeon_emit(cmd_buffer->cs, ls_hs_config); /* VGT_LS_HS_CONFIG */
 
-	radeon_set_context_reg(cmd_buffer->cs, R_028A6C_VGT_GS_OUT_PRIM_TYPE, 2);
-	radv_cmd_buffer_flush_dynamic_state(cmd_buffer);
+		radeon_set_context_reg(cmd_buffer->cs, R_028A6C_VGT_GS_OUT_PRIM_TYPE, 2);
+		radv_cmd_buffer_flush_dynamic_state(cmd_buffer);
+	}
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
