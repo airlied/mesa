@@ -42,6 +42,7 @@ VULKAN_FILES := \
         radv_pass.c \
 	radv_pipeline.c \
 	radv_pipeline_cache.c \
+	radv_query.c \
 	radv_util.c \
 	radv_wsi.c \
 	vk_format_table.c \
