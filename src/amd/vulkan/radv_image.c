@@ -240,58 +240,12 @@ si_make_texture_descriptor(struct radv_device *device,
 
 	first_non_void = vk_format_get_first_non_void_channel(vk_format);
 
-	switch (vk_format) {
-	case VK_FORMAT_D24_UNORM_S8_UINT:
-		num_format = V_008F14_IMG_NUM_FORMAT_UNORM;
-		break;
-	default:
-		if (first_non_void < 0) {
-			if (vk_format_is_compressed(vk_format)) {
-				switch (vk_format) {
-				case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
-				case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
-				case VK_FORMAT_BC2_SRGB_BLOCK:
-				case VK_FORMAT_BC3_SRGB_BLOCK:
-					num_format = V_008F14_IMG_NUM_FORMAT_SRGB;
-					break;
-				default:
-					num_format = V_008F14_IMG_NUM_FORMAT_UNORM;
-					break;
-				}
-			} else if (desc->layout == VK_FORMAT_LAYOUT_SUBSAMPLED) {
-				num_format = V_008F14_IMG_NUM_FORMAT_UNORM;
-			} else {
-				num_format = V_008F14_IMG_NUM_FORMAT_FLOAT;
-			}
-		} else if (desc->colorspace == VK_FORMAT_COLORSPACE_SRGB) {
-			num_format = V_008F14_IMG_NUM_FORMAT_SRGB;
-		} else {
-			num_format = V_008F14_IMG_NUM_FORMAT_UNORM;
-
-			switch (desc->channel[first_non_void].type) {
-			case VK_FORMAT_TYPE_FLOAT:
-				num_format = V_008F14_IMG_NUM_FORMAT_FLOAT;
-				break;
-			case VK_FORMAT_TYPE_SIGNED:
-				if (desc->channel[first_non_void].normalized)
-					num_format = V_008F14_IMG_NUM_FORMAT_SNORM;
-				else if (desc->channel[first_non_void].pure_integer)
-					num_format = V_008F14_IMG_NUM_FORMAT_SINT;
-				else
-					num_format = V_008F14_IMG_NUM_FORMAT_SSCALED;
-				break;
-			case VK_FORMAT_TYPE_UNSIGNED:
-				if (desc->channel[first_non_void].normalized)
-					num_format = V_008F14_IMG_NUM_FORMAT_UNORM;
-				else if (desc->channel[first_non_void].pure_integer)
-					num_format = V_008F14_IMG_NUM_FORMAT_UINT;
-				else
-					num_format = V_008F14_IMG_NUM_FORMAT_USCALED;
-			}
-		}
+	num_format = radv_translate_tex_numformat(vk_format, desc, first_non_void);
+	if (num_format == ~0) {
+		num_format = 0;
 	}
 
-	data_format = radv_translate_texformat(vk_format, desc, first_non_void);
+	data_format = radv_translate_tex_dataformat(vk_format, desc, first_non_void);
 	if (data_format == ~0) {
 		data_format = 0;
 	}

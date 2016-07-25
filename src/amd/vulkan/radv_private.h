@@ -733,9 +733,12 @@ uint32_t radv_translate_colorformat(VkFormat format);
 uint32_t radv_colorformat_endian_swap(uint32_t colorformat);
 unsigned radv_translate_colorswap(VkFormat format, bool do_endian_swap);
 uint32_t radv_translate_dbformat(VkFormat format);
-uint32_t radv_translate_texformat(VkFormat format,
-				  const struct vk_format_description *desc,
-				  int first_non_void);
+uint32_t radv_translate_tex_dataformat(VkFormat format,
+				       const struct vk_format_description *desc,
+				       int first_non_void);
+uint32_t radv_translate_tex_numformat(VkFormat format,
+				      const struct vk_format_description *desc,
+				      int first_non_void);
 
 struct radv_image {
 	VkImageType type;
