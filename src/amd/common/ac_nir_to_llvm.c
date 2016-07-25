@@ -61,6 +61,7 @@ struct nir_to_llvm_context {
 	struct hash_table *phis;
 
 	LLVMValueRef descriptor_sets[4];
+	LLVMValueRef push_constants;
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
@@ -283,6 +284,8 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	for (unsigned i = 0; i < 4; ++i)
 		arg_types[arg_idx++] = const_array(ctx->i32, 1024 * 1024);
 
+	arg_types[arg_idx++] = const_array(ctx->i32, 1024 * 1024);
+
 	array_count = arg_idx;
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
@@ -352,6 +355,8 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	for (unsigned i = 0; i < 4; ++i)
 		ctx->descriptor_sets[i] =
 		    LLVMGetParam(ctx->main_function, arg_idx++);
+
+	ctx->push_constants = LLVMGetParam(ctx->main_function, arg_idx++);
 
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:

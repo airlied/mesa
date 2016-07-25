@@ -541,7 +541,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 		va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
 		va += vb_offset;
 		radeon_set_sh_reg_seq(cmd_buffer->cs,
-				      R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * 4, 2);
+				      R_00B130_SPI_SHADER_USER_DATA_VS_0 + 10 * 4, 2);
 		radeon_emit(cmd_buffer->cs, va);
 		radeon_emit(cmd_buffer->cs, va >> 32);
 
@@ -862,6 +862,7 @@ void radv_CmdBindPipeline(
 		cmd_buffer->state.compute_pipeline = pipeline;
 		cmd_buffer->state.compute_dirty |= RADV_CMD_DIRTY_PIPELINE;
 		cmd_buffer->state.descriptors_dirty |= VK_SHADER_STAGE_COMPUTE_BIT;
+		cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
 		radv_bind_compute_pipeline(cmd_buffer, pipeline); // TODO remove
 		break;
 	case VK_PIPELINE_BIND_POINT_GRAPHICS:
@@ -869,6 +870,7 @@ void radv_CmdBindPipeline(
 		cmd_buffer->state.vertex_descriptors_dirty = true;
 		cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
 		cmd_buffer->state.descriptors_dirty |= pipeline->active_stages;
+		cmd_buffer->push_constant_stages |= pipeline->active_stages;
 
 		/* Apply the dynamic state from the pipeline */
 		cmd_buffer->state.dirty |= pipeline->dynamic_state_mask;
@@ -1123,7 +1125,7 @@ void radv_CmdDraw(
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
 
-	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * 5, 2);
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B130_SPI_SHADER_USER_DATA_VS_0 + 12 * 4, 2);
 	radeon_emit(cmd_buffer->cs, firstVertex);
 	radeon_emit(cmd_buffer->cs, firstInstance);
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_NUM_INSTANCES, 0, 0));
@@ -1154,7 +1156,7 @@ void radv_CmdDrawIndexed(
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 12);
 
-	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * 5, 2);
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B130_SPI_SHADER_USER_DATA_VS_0 + 12 * 4, 2);
 	radeon_emit(cmd_buffer->cs, vertexOffset);
 	radeon_emit(cmd_buffer->cs, firstInstance);
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_NUM_INSTANCES, 0, 0));
@@ -1206,7 +1208,7 @@ void radv_CmdDispatch(
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 10);
 
-	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 8 * 4, 3);
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 10 * 4, 3);
 	radeon_emit(cmd_buffer->cs, x);
 	radeon_emit(cmd_buffer->cs, y);
 	radeon_emit(cmd_buffer->cs, z);
