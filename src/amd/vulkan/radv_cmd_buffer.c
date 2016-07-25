@@ -1206,6 +1206,11 @@ void radv_CmdDispatch(
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 5);
 
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 8 * 4, 3);
+	radeon_emit(cmd_buffer->cs, x);
+	radeon_emit(cmd_buffer->cs, y);
+	radeon_emit(cmd_buffer->cs, z);
+
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DISPATCH_DIRECT, 3, 0) |
 		    PKT3_SHADER_TYPE_S(1));
 	radeon_emit(cmd_buffer->cs, x);
