@@ -61,6 +61,7 @@ struct nir_to_llvm_context {
 	struct hash_table *phis;
 
 	LLVMValueRef descriptor_sets[4];
+	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
 
@@ -285,7 +286,8 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	array_count = arg_idx;
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
-		user_sgpr_count  = arg_idx;
+		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3); /* grid size */
+		user_sgpr_count = arg_idx;
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3);
 		sgpr_count = arg_idx;
 
@@ -353,6 +355,8 @@ static void create_function(struct nir_to_llvm_context *ctx,
 
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
+		ctx->num_work_groups =
+		    LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->workgroup_ids =
 		    LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->local_invocation_ids =
@@ -1247,6 +1251,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_instance_id:
 		result = ctx->instance_id;
+		break;
+	case nir_intrinsic_load_num_work_groups:
+		result = ctx->num_work_groups;
 		break;
 	case nir_intrinsic_vulkan_resource_index:
 		result = visit_vulkan_resource_index(ctx, instr);
