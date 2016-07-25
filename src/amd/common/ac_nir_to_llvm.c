@@ -1063,6 +1063,18 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 	return LLVMBuildLoad(ctx->builder, desc_ptr, "");
 }
 
+static LLVMValueRef visit_load_push_constant(struct nir_to_llvm_context *ctx,
+                                             nir_intrinsic_instr *instr)
+{
+	LLVMValueRef ptr;
+
+	LLVMValueRef indices[] = {ctx->i32zero, get_src(ctx, instr->src[0])};
+	ptr = LLVMBuildGEP(ctx->builder, ctx->push_constants, indices, 2, "");
+	ptr = cast_ptr(ctx, ptr, get_def_type(ctx, &instr->dest.ssa));
+
+	return LLVMBuildLoad(ctx->builder, ptr, "");
+}
+
 static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
                              nir_intrinsic_instr *instr)
 {
@@ -1397,6 +1409,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_num_work_groups:
 		result = ctx->num_work_groups;
+		break;
+	case nir_intrinsic_load_push_constant:
+		result = visit_load_push_constant(ctx, instr);
 		break;
 	case nir_intrinsic_vulkan_resource_index:
 		result = visit_vulkan_resource_index(ctx, instr);
