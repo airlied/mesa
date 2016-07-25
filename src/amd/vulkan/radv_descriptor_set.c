@@ -192,6 +192,16 @@ VkResult radv_CreatePipelineLayout(
 		}
 	}
 
+	layout->dynamic_offset_count = dynamic_offset_count;
+	layout->push_constant_size = 0;
+	for (unsigned i = 0; i < pCreateInfo->pushConstantRangeCount; ++i) {
+		const VkPushConstantRange *range = pCreateInfo->pPushConstantRanges + i;
+		layout->push_constant_size = MAX2(layout->push_constant_size,
+						  range->offset + range->size);
+	}
+
+	layout->push_constant_size = align(layout->push_constant_size, 16);
+
 	*pPipelineLayout = radv_pipeline_layout_to_handle(layout);
 
 	return VK_SUCCESS;
@@ -416,6 +426,7 @@ void radv_UpdateDescriptorSets(
 							writeset->pBufferInfo + j);
 				break;
 			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
 				write_image_descriptor(device, ptr, buffer_list,
 						       writeset->pImageInfo + j);
 				break;

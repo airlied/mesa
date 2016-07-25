@@ -498,6 +498,50 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static void
+radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
+		     struct radv_pipeline_layout *layout,
+		     VkShaderStageFlags stages) {
+	unsigned offset;
+	void *ptr;
+	uint64_t va;
+
+	stages &= cmd_buffer->push_constant_stages;
+	if (!stages)
+		return;
+
+	radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size, 256,
+				     &offset, &ptr);
+
+	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
+
+	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
+	va += offset;
+
+	if (stages & VK_SHADER_STAGE_VERTEX_BIT) {
+		radeon_set_sh_reg_seq(cmd_buffer->cs,
+				      R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * 4, 2);
+		radeon_emit(cmd_buffer->cs, va);
+		radeon_emit(cmd_buffer->cs, va >> 32);
+	}
+
+	if (stages & VK_SHADER_STAGE_FRAGMENT_BIT) {
+		radeon_set_sh_reg_seq(cmd_buffer->cs,
+				      R_00B030_SPI_SHADER_USER_DATA_PS_0 + 8 * 4, 2);
+		radeon_emit(cmd_buffer->cs, va);
+		radeon_emit(cmd_buffer->cs, va >> 32);
+	}
+
+	if (stages & VK_SHADER_STAGE_COMPUTE_BIT) {
+		radeon_set_sh_reg_seq(cmd_buffer->cs,
+				      R_00B900_COMPUTE_USER_DATA_0 + 8 * 4, 2);
+		radeon_emit(cmd_buffer->cs, va);
+		radeon_emit(cmd_buffer->cs, va >> 32);
+	}
+
+	cmd_buffer->push_constant_stages &= ~stages;
+}
+
+static void
 radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 {
 	struct radv_pipeline *pipeline = cmd_buffer->state.pipeline;
@@ -578,6 +622,9 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	}
 
 	radv_cmd_buffer_flush_dynamic_state(cmd_buffer);
+
+	radv_flush_constants(cmd_buffer, cmd_buffer->state.pipeline->layout,
+			     VK_SHADER_STAGE_ALL_GRAPHICS);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
@@ -802,6 +849,18 @@ void radv_CmdBindDescriptorSets(
 	}
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
+}
+
+void radv_CmdPushConstants(VkCommandBuffer commandBuffer,
+			   VkPipelineLayout layout,
+			   VkShaderStageFlags stageFlags,
+			   uint32_t offset,
+			   uint32_t size,
+			   const void* pValues)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	memcpy(cmd_buffer->push_constants + offset, pValues, size);
+	cmd_buffer->push_constant_stages |= stageFlags;
 }
 
 VkResult radv_EndCommandBuffer(
@@ -1206,6 +1265,8 @@ void radv_CmdDispatch(
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
+	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
+			     VK_SHADER_STAGE_COMPUTE_BIT);
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 10);
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 10 * 4, 3);
