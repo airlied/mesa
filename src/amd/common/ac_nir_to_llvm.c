@@ -582,6 +582,18 @@ static LLVMValueRef emit_intrin_2f_param(struct nir_to_llvm_context *ctx,
 	return emit_llvm_intrinsic(ctx, intrin, ctx->f32, params, 2, LLVMReadNoneAttribute);
 }
 
+static LLVMValueRef emit_intrin_3f_param(struct nir_to_llvm_context *ctx,
+					 const char *intrin,
+					 LLVMValueRef src0, LLVMValueRef src1, LLVMValueRef src2)
+{
+	LLVMValueRef params[] = {
+		to_float(ctx, src0),
+		to_float(ctx, src1),
+		to_float(ctx, src2),
+	};
+	return emit_llvm_intrinsic(ctx, intrin, ctx->f32, params, 3, LLVMReadNoneAttribute);
+}
+
 static LLVMValueRef emit_bcsel(struct nir_to_llvm_context *ctx,
 			       LLVMValueRef src0, LLVMValueRef src1, LLVMValueRef src2)
 {
@@ -837,6 +849,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_fmin:
 		result = emit_intrin_2f_param(ctx, "llvm.minnum.f32", src[0], src[1]);
+		break;
+	case nir_op_ffma:
+		result = emit_intrin_3f_param(ctx, "llvm.fma.f32", src[0], src[1], src[2]);
 		break;
 	case nir_op_vec2:
 	case nir_op_vec3:
