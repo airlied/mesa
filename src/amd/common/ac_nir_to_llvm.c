@@ -1654,9 +1654,11 @@ static void visit_jump(struct nir_to_llvm_context *ctx,
 	switch (instr->type) {
 	case nir_jump_break:
 		LLVMBuildBr(ctx->builder, ctx->break_block);
+		LLVMClearInsertionPosition(ctx->builder);
 		break;
 	case nir_jump_continue:
 		LLVMBuildBr(ctx->builder, ctx->continue_block);
+		LLVMClearInsertionPosition(ctx->builder);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR jump instr: ");
@@ -1671,7 +1673,7 @@ static void visit_cf_list(struct nir_to_llvm_context *ctx,
 
 static void visit_block(struct nir_to_llvm_context *ctx, nir_block *block)
 {
-
+	LLVMBasicBlockRef llvm_block = LLVMGetInsertBlock(ctx->builder);
 	nir_foreach_instr(instr, block)
 	{
 		switch (instr->type) {
@@ -1704,7 +1706,7 @@ static void visit_block(struct nir_to_llvm_context *ctx, nir_block *block)
 		}
 	}
 
-	_mesa_hash_table_insert(ctx->defs, block, LLVMGetInsertBlock(ctx->builder));
+	_mesa_hash_table_insert(ctx->defs, block, llvm_block);
 }
 
 static void visit_if(struct nir_to_llvm_context *ctx, nir_if *if_stmt)
@@ -1726,12 +1728,14 @@ static void visit_if(struct nir_to_llvm_context *ctx, nir_if *if_stmt)
 
 	LLVMPositionBuilderAtEnd(ctx->builder, if_block);
 	visit_cf_list(ctx, &if_stmt->then_list);
-	LLVMBuildBr(ctx->builder, merge_block);
+	if (LLVMGetInsertBlock(ctx->builder))
+		LLVMBuildBr(ctx->builder, merge_block);
 
 	if (!exec_list_is_empty(&if_stmt->else_list)) {
 		LLVMPositionBuilderAtEnd(ctx->builder, else_block);
 		visit_cf_list(ctx, &if_stmt->else_list);
-		LLVMBuildBr(ctx->builder, merge_block);
+		if (LLVMGetInsertBlock(ctx->builder))
+			LLVMBuildBr(ctx->builder, merge_block);
 	}
 
 	LLVMPositionBuilderAtEnd(ctx->builder, merge_block);
@@ -1751,7 +1755,8 @@ static void visit_loop(struct nir_to_llvm_context *ctx, nir_loop *loop)
 	LLVMPositionBuilderAtEnd(ctx->builder, ctx->continue_block);
 	visit_cf_list(ctx, &loop->body);
 
-	LLVMBuildBr(ctx->builder, ctx->continue_block);
+	if (LLVMGetInsertBlock(ctx->builder))
+		LLVMBuildBr(ctx->builder, ctx->continue_block);
 	LLVMPositionBuilderAtEnd(ctx->builder, ctx->break_block);
 
 	ctx->continue_block = continue_parent;
