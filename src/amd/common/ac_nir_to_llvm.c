@@ -26,7 +26,7 @@
 #include "sid.h"
 #include "nir/nir.h"
 #include "../vulkan/radv_descriptor_set.h"
-
+#include "util/bitscan.h"
 #include <llvm-c/Transforms/Scalar.h>
 
 enum radeon_llvm_calling_convention {
@@ -916,32 +916,71 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
                              nir_intrinsic_instr *instr)
 {
-	assert(nir_intrinsic_write_mask(instr) ==
-	       (1 << instr->num_components) - 1);
 	const char *store_name;
 	LLVMTypeRef data_type = ctx->f32;
+	unsigned writemask = nir_intrinsic_write_mask(instr);
+	LLVMValueRef base_data, base_offset;
+	LLVMValueRef params[6];
+
+	params[1] = get_src(ctx, instr->src[1]);
+	params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
+	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
+	params[5] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+
+	base_data = get_src(ctx, instr->src[0]);
+
 	if (instr->num_components > 1)
 		data_type = LLVMVectorType(ctx->f32, instr->num_components);
+	base_data = LLVMBuildBitCast(ctx->builder, get_src(ctx, instr->src[0]),
+				     data_type, "");
+	base_offset = get_src(ctx, instr->src[2]);      /* voffset */
+	while (writemask) {
+		int start, count;
+		LLVMValueRef data;
+		LLVMValueRef offset;
+		LLVMValueRef tmp;
+		u_bit_scan_consecutive_range(&writemask, &start, &count);
 
-	if (instr->num_components == 4 || instr->num_components == 3)
-		store_name = "llvm.amdgcn.buffer.store.v4f32";
-	else if (instr->num_components == 2)
-		store_name = "llvm.amdgcn.buffer.store.v2f32";
-	else if (instr->num_components == 1)
-		store_name = "llvm.amdgcn.buffer.store.f32";
-	else
-		abort();
+		/* Due to an LLVM limitation, split 3-element writes
+		 * into a 2-element and a 1-element write. */
+		if (count == 3) {
+			writemask |= 1 << (start + 2);
+			count = 2;
+		}
 
-	LLVMValueRef params[] = {
-	    LLVMBuildBitCast(ctx->builder, get_src(ctx, instr->src[0]),
-	                     data_type, ""),
-	    get_src(ctx, instr->src[1]), LLVMConstInt(ctx->i32, 0, false),
-	    get_src(ctx, instr->src[2]), LLVMConstInt(ctx->i1, 0, false),
-	    LLVMConstInt(ctx->i1, 0, false),
-	};
+		if (count == 4) {
+			store_name = "llvm.amdgcn.buffer.store.v4f32";
+			data = base_data;
+		} else if (count == 2) {
+			LLVMTypeRef v2f32 = LLVMVectorType(ctx->f32, 2);
 
-	emit_llvm_intrinsic(ctx, store_name,
-	                    LLVMVoidTypeInContext(ctx->context), params, 6, 0);
+			tmp = LLVMBuildExtractElement(ctx->builder,
+						      base_data, LLVMConstInt(ctx->i32, start, false), "");
+			data = LLVMBuildInsertElement(ctx->builder, LLVMGetUndef(v2f32), tmp,
+						      ctx->i32zero, "");
+
+			tmp = LLVMBuildExtractElement(ctx->builder,
+						      base_data, LLVMConstInt(ctx->i32, start + 1, false), "");
+			data = LLVMBuildInsertElement(ctx->builder, data, tmp,
+						      ctx->i32one, "");
+			store_name = "llvm.amdgcn.buffer.store.v2f32";
+
+		} else {
+			assert(count == 1);
+			data = LLVMBuildExtractElement(ctx->builder, base_data,
+						       LLVMConstInt(ctx->i32, start, false), "");
+			store_name = "llvm.amdgcn.buffer.store.f32";
+		}
+
+		offset = base_offset;
+		if (start != 0) {
+			offset = LLVMBuildAdd(ctx->builder, offset, LLVMConstInt(ctx->i32, start * 4, false), "");
+		}
+		params[0] = data;
+		params[3] = offset;
+		emit_llvm_intrinsic(ctx, store_name,
+				    LLVMVoidTypeInContext(ctx->context), params, 6, 0);
+	}
 }
 
 static LLVMValueRef visit_load_buffer(struct nir_to_llvm_context *ctx,
