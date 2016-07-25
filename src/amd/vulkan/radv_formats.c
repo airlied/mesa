@@ -352,6 +352,60 @@ static bool radv_is_sampler_format_supported(struct radv_physical_device *physic
 					vk_format_get_first_non_void_channel(format)) != ~0U;
 }
 
+
+static bool radv_is_storage_image_format_supported(struct radv_physical_device *physical_device,
+						   VkFormat format)
+{
+   const struct vk_format_description *desc = vk_format_description(format);
+   unsigned data_format, num_format;
+   if (!desc || format == VK_FORMAT_UNDEFINED)
+      return false;
+
+   data_format = radv_translate_tex_dataformat(format, desc,
+					       vk_format_get_first_non_void_channel(format));
+   num_format = radv_translate_tex_numformat(format, desc,
+					     vk_format_get_first_non_void_channel(format));
+
+   if(data_format == ~0 || num_format == ~0)
+      return false;
+
+   /* Extracted from the GCN3 ISA document. */
+   switch(num_format) {
+   case V_008F14_IMG_NUM_FORMAT_UNORM:
+   case V_008F14_IMG_NUM_FORMAT_SNORM:
+   case V_008F14_IMG_NUM_FORMAT_UINT:
+   case V_008F14_IMG_NUM_FORMAT_SINT:
+   case V_008F14_IMG_NUM_FORMAT_FLOAT:
+      break;
+   default:
+      return false;
+   }
+
+   switch(data_format) {
+   case V_008F14_IMG_DATA_FORMAT_8:
+   case V_008F14_IMG_DATA_FORMAT_16:
+   case V_008F14_IMG_DATA_FORMAT_8_8:
+   case V_008F14_IMG_DATA_FORMAT_32:
+   case V_008F14_IMG_DATA_FORMAT_16_16:
+   case V_008F14_IMG_DATA_FORMAT_10_11_11:
+   case V_008F14_IMG_DATA_FORMAT_11_11_10:
+   case V_008F14_IMG_DATA_FORMAT_10_10_10_2:
+   case V_008F14_IMG_DATA_FORMAT_2_10_10_10:
+   case V_008F14_IMG_DATA_FORMAT_8_8_8_8:
+   case V_008F14_IMG_DATA_FORMAT_32_32:
+   case V_008F14_IMG_DATA_FORMAT_16_16_16_16:
+   case V_008F14_IMG_DATA_FORMAT_32_32_32_32:
+   case V_008F14_IMG_DATA_FORMAT_5_6_5:
+   case V_008F14_IMG_DATA_FORMAT_1_5_5_5:
+   case V_008F14_IMG_DATA_FORMAT_5_5_5_1:
+   case V_008F14_IMG_DATA_FORMAT_4_4_4_4:
+   /* TODO: FMASK formats. */
+      return true;
+   default:
+      return false;
+   }
+}
+
 static void
 radv_physical_device_get_format_properties(struct radv_physical_device *physical_device,
                                           VkFormat format,
@@ -366,6 +420,12 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
 	   out_properties->bufferFeatures = buffer;
 	   return;
    }
+
+   if (radv_is_storage_image_format_supported(physical_device, format)) {
+      tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+      linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+   }
+
    if (vk_format_is_depth_or_stencil(format)) {
      tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
      tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
