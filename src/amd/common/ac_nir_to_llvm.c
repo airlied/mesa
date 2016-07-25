@@ -625,6 +625,18 @@ static LLVMValueRef emit_iabs(struct nir_to_llvm_context *ctx,
 			       LLVMBuildNeg(ctx->builder, src0, ""));
 }
 
+static LLVMValueRef emit_fsign(struct nir_to_llvm_context *ctx,
+			       LLVMValueRef src0)
+{
+	LLVMValueRef cmp, val;
+
+	cmp = LLVMBuildFCmp(ctx->builder, LLVMRealOGT, src0, ctx->f32zero, "");
+	val = LLVMBuildSelect(ctx->builder, cmp, ctx->f32one, src0, "");
+	cmp = LLVMBuildFCmp(ctx->builder, LLVMRealOGE, val, ctx->f32zero, "");
+	val = LLVMBuildSelect(ctx->builder, cmp, val, LLVMConstReal(ctx->f32, -1.0), "");
+	return val;
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -749,6 +761,10 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_umin:
 		result = emit_minmax_int(ctx, LLVMIntULT, src[0], src[1]);
+		break;
+	case nir_op_fsign:
+		src[0] = to_float(ctx, src[0]);
+		result = emit_fsign(ctx, src[0]);
 		break;
 	case nir_op_fsin:
 		result = emit_intrin_1f_param(ctx, "llvm.sin.f32", src[0]);
