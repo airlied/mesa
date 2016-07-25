@@ -106,6 +106,31 @@ void radv_DestroyPipeline(
 	radv_free2(&device->alloc, pAllocator, pipeline);
 }
 
+
+static void
+radv_optimize_nir(struct nir_shader *shader)
+{
+        bool progress;
+
+        do {
+                progress = false;
+
+                NIR_PASS_V(shader, nir_lower_vars_to_ssa);
+                NIR_PASS_V(shader, nir_lower_alu_to_scalar);
+                NIR_PASS_V(shader, nir_lower_phis_to_scalar);
+
+                NIR_PASS(progress, shader, nir_copy_prop);
+                NIR_PASS(progress, shader, nir_opt_remove_phis);
+                NIR_PASS(progress, shader, nir_opt_dce);
+                NIR_PASS(progress, shader, nir_opt_dead_cf);
+                NIR_PASS(progress, shader, nir_opt_cse);
+                NIR_PASS(progress, shader, nir_opt_peephole_select, 8);
+                NIR_PASS(progress, shader, nir_opt_algebraic);
+                NIR_PASS(progress, shader, nir_opt_constant_folding);
+                NIR_PASS(progress, shader, nir_opt_undef);
+        } while (progress);
+}
+
 static nir_shader *
 radv_shader_compile_to_nir(struct radv_device *device,
 			   struct radv_shader_module *module,
@@ -206,8 +231,7 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	nir_lower_var_copies(nir);
 	nir_lower_global_vars_to_local(nir);
 	nir_remove_dead_variables(nir, nir_var_local);
-	nir_lower_alu_to_scalar(nir);
-	nir_opt_algebraic(nir);
+	radv_optimize_nir(nir);
 
 	if (dump)
 		nir_print_shader(nir, stderr);
