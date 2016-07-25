@@ -569,6 +569,9 @@ struct radv_cmd_buffer {
 	struct radeon_winsys_cs *cs;
 	struct radv_cmd_state state;
 
+	uint8_t push_constants[MAX_PUSH_CONSTANTS_SIZE];
+	VkShaderStageFlags push_constant_stages;
+
 	struct radv_bo border_color_bo;
 	struct radv_cmd_buffer_upload upload;
 	uint32_t texture_border_offset;
