@@ -545,8 +545,9 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 	raster->pa_sc_mode_cntl_0 = 0;
 	raster->pa_su_sc_mode_cntl =
 		S_028814_FACE(vkraster->frontFace) |
-		S_028814_CULL_FRONT(vkraster->cullMode & VK_CULL_MODE_FRONT_BIT) |
-		S_028814_CULL_BACK(vkraster->cullMode & VK_CULL_MODE_BACK_BIT) |
+		S_028814_CULL_FRONT(!!(vkraster->cullMode & VK_CULL_MODE_FRONT_BIT)) |
+		S_028814_CULL_BACK(!!(vkraster->cullMode & VK_CULL_MODE_BACK_BIT)) |
+		S_028814_POLY_MODE(vkraster->polygonMode != VK_POLYGON_MODE_FILL) |
 		S_028814_POLYMODE_FRONT_PTYPE(si_translate_fill(vkraster->polygonMode)) |
 		S_028814_POLYMODE_BACK_PTYPE(si_translate_fill(vkraster->polygonMode));
 }
