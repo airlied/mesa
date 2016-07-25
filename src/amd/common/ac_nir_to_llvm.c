@@ -787,6 +787,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_ftrunc:
 		result = emit_intrin_1f_param(ctx, "llvm.trunc.f32", src[0]);
 		break;
+	case nir_op_fround_even:
+		result = emit_intrin_1f_param(ctx, "llvm.rint.f32", src[0]);
+		break;
 	case nir_op_fsin:
 		result = emit_intrin_1f_param(ctx, "llvm.sin.f32", src[0]);
 		break;
