@@ -282,9 +282,9 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	unsigned sgpr_count = 0, user_sgpr_count;
 	unsigned i;
 	for (unsigned i = 0; i < 4; ++i)
-		arg_types[arg_idx++] = const_array(ctx->i32, 1024 * 1024);
+		arg_types[arg_idx++] = const_array(ctx->i8, 1024 * 1024);
 
-	arg_types[arg_idx++] = const_array(ctx->i32, 1024 * 1024);
+	arg_types[arg_idx++] = const_array(ctx->i8, 1024 * 1024);
 
 	array_count = arg_idx;
 	switch (nir->stage) {
@@ -1049,9 +1049,9 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 	unsigned binding = nir_intrinsic_binding(instr);
 	LLVMValueRef desc_ptr = ctx->descriptor_sets[desc_set];
 	struct radv_descriptor_set_layout *layout = ctx->options->layout->set[desc_set].layout;
-	unsigned base_offset = layout->binding[binding].offset / 4;
+	unsigned base_offset = layout->binding[binding].offset;
 	LLVMValueRef offset = LLVMConstInt(ctx->i32, base_offset, false);
-	LLVMValueRef stride = LLVMConstInt(ctx->i32, layout->binding[binding].size / 4, false);
+	LLVMValueRef stride = LLVMConstInt(ctx->i32, layout->binding[binding].size, false);
 	index = LLVMBuildMul(ctx->builder, index, stride, "");
 	offset = LLVMBuildAdd(ctx->builder, offset, index, "");
 
@@ -1478,7 +1478,7 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 
 	index = LLVMBuildMul(builder, index, LLVMConstInt(ctx->i32, stride / type_size, 0), "");
 	indices[0] = ctx->i32zero;
-	indices[1] = LLVMConstInt(ctx->i32, offset / 4, 0);
+	indices[1] = LLVMConstInt(ctx->i32, offset, 0);
 	list = LLVMBuildGEP(builder, list, indices, 2, "");
 	list = LLVMBuildPointerCast(builder, list, const_array(type, 0), "");
 
