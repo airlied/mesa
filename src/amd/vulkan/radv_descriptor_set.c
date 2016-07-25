@@ -268,10 +268,12 @@ radv_descriptor_set_create(struct radv_device *device,
 	memset(set, 0, mem_size);
 
 	set->layout = layout;
-	set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
-					       16, RADEON_DOMAIN_VRAM, 0);
+	if (layout->size) {
+		set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
+						       16, RADEON_DOMAIN_VRAM, 0);
 
-	set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
+		set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
+	}
 	*out_set = set;
 	return VK_SUCCESS;
 }
@@ -281,7 +283,8 @@ radv_descriptor_set_destroy(struct radv_device *device,
 			    struct radv_descriptor_pool *pool,
 			    struct radv_descriptor_set *set)
 {
-	device->ws->buffer_destroy(set->bo.bo);
+	if (set->bo.bo)
+		device->ws->buffer_destroy(set->bo.bo);
 	radv_free2(&device->alloc, NULL, set);
 }
 

@@ -771,7 +771,9 @@ void radv_CmdBindDescriptorSets(
 	for (unsigned i = 0; i < descriptorSetCount; ++i) {
 		unsigned idx = i + firstSet;
 		RADV_FROM_HANDLE(radv_descriptor_set, set, pDescriptorSets[i]);
-		uint64_t va = ws->buffer_get_va(set->bo.bo);
+		uint64_t va;
+
+		va = set->bo.bo ? ws->buffer_get_va(set->bo.bo) : 0;
 
 		for (unsigned j = 0; j < set->layout->buffer_count; ++j)
 			if (set->descriptors[j])
@@ -792,8 +794,8 @@ void radv_CmdBindDescriptorSets(
 		radeon_emit(cmd_buffer->cs, va);
 		radeon_emit(cmd_buffer->cs, va >> 32);
 
-		if(!set->bo.bo) abort();
-		ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
+		if(set->bo.bo)
+			ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
 	}
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
