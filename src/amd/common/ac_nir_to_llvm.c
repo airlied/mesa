@@ -1096,13 +1096,14 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 {
 	LLVMValueRef res;
 	LLVMValueRef params[10];
+	const nir_variable *var = instr->variables[0]->var;
 
 	params[0] = ctx->i32zero;
 	params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
 	params[2] = LLVMConstInt(ctx->i32, 15, false);
 	params[3] = ctx->i32zero;
 	params[4] = ctx->i32zero;
-	params[5] = ctx->i32zero; /* TODO array */
+	params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero;
 	params[6] = ctx->i32zero;
 	params[7] = ctx->i32zero;
 	params[8] = ctx->i32zero;
