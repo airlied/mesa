@@ -474,9 +474,6 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 static void
 radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 {
-	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_PIPELINE)) {
-
-	}
 
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_STENCIL_REFERENCE |
 				       RADV_CMD_DIRTY_DYNAMIC_STENCIL_WRITE_MASK |
@@ -573,8 +570,9 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 		radeon_emit(cmd_buffer->cs, ls_hs_config); /* VGT_LS_HS_CONFIG */
 
 		radeon_set_context_reg(cmd_buffer->cs, R_028A6C_VGT_GS_OUT_PRIM_TYPE, 2);
-		radv_cmd_buffer_flush_dynamic_state(cmd_buffer);
 	}
+
+	radv_cmd_buffer_flush_dynamic_state(cmd_buffer);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
