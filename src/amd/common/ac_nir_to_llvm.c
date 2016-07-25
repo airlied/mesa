@@ -675,6 +675,25 @@ static LLVMValueRef emit_ffract(struct nir_to_llvm_context *ctx,
 	return LLVMBuildFSub(ctx->builder, fsrc0, floor, "");
 }
 
+static LLVMValueRef emit_uint_carry(struct nir_to_llvm_context *ctx,
+				    const char *intrin,
+				    LLVMValueRef src0, LLVMValueRef src1)
+{
+	LLVMTypeRef ret_type;
+	LLVMTypeRef types[] = { ctx->i32, ctx->i1 };
+	LLVMValueRef res;
+	LLVMValueRef params[] = { src0, src1 };
+	ret_type = LLVMStructTypeInContext(ctx->context, types,
+					   2, true);
+
+	res = emit_llvm_intrinsic(ctx, intrin, ret_type,
+				  params, 2, LLVMReadNoneAttribute);
+
+	res = LLVMBuildExtractValue(ctx->builder, res, 1, "");
+	res = LLVMBuildZExt(ctx->builder, res, ctx->i32, "");
+	return res;
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -879,6 +898,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_find_lsb:
 		result = emit_find_lsb(ctx, src[0]);
+		break;
+	case nir_op_uadd_carry:
+		result = emit_uint_carry(ctx, "llvm.uadd.with.overflow.i32", src[0], src[1]);
+		break;
+	case nir_op_usub_borrow:
+		result = emit_uint_carry(ctx, "llvm.usub.with.overflow.i32", src[0], src[1]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
