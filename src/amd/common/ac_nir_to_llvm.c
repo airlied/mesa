@@ -121,7 +121,10 @@ static LLVMValueRef
 emit_llvm_intrinsic(struct nir_to_llvm_context *ctx, const char *name,
                     LLVMTypeRef return_type, LLVMValueRef *params,
                     unsigned param_count, LLVMAttribute attribs);
-
+static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
+				     nir_deref_var *deref,
+				     LLVMValueRef index,
+				     enum desc_type desc_type);
 static unsigned radeon_llvm_reg_index_soa(unsigned index, unsigned chan)
 {
 	return (index * 4) + chan;
@@ -1048,6 +1051,29 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 	}
 }
 
+
+static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
+				     nir_intrinsic_instr *instr)
+{
+	LLVMValueRef res;
+	LLVMValueRef params[10];
+
+	params[0] = ctx->i32zero;
+	params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+	params[2] = LLVMConstInt(ctx->i32, 15, false);
+	params[3] = ctx->i32zero;
+	params[4] = ctx->i32zero;
+	params[5] = ctx->i32zero; /* TODO array */
+	params[6] = ctx->i32zero;
+	params[7] = ctx->i32zero;
+	params[8] = ctx->i32zero;
+	params[9] = ctx->i32zero;
+
+	res = emit_llvm_intrinsic(ctx, "llvm.SI.getresinfo.i32", ctx->v4i32,
+				  params, 10, LLVMReadNoneAttribute);
+	return res;
+}
+
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
 {
@@ -1094,6 +1120,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_store_var:
 		visit_store_var(ctx, instr);
+		break;
+	case nir_intrinsic_image_size:
+		result = visit_image_size(ctx, instr);
 		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
