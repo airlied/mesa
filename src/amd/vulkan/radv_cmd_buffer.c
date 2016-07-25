@@ -226,10 +226,9 @@ radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_0286D4_SPI_INTERP_CONTROL_0,
 			       raster->spi_interp_control);
 
-	radeon_set_context_reg_seq(cmd_buffer->cs, R_028A00_PA_SU_POINT_SIZE, 3);
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028A00_PA_SU_POINT_SIZE, 2);
 	radeon_emit(cmd_buffer->cs, 0);
 	radeon_emit(cmd_buffer->cs, 0); /* R_028A04_PA_SU_POINT_MINMAX */
-	radeon_emit(cmd_buffer->cs, 0); /* R_028A08_PA_SU_LINE_CNTL */
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028BE4_PA_SU_VTX_CNTL,
 			       raster->pa_su_vtx_cntl);
@@ -474,6 +473,12 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 static void
 radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 {
+
+	if (cmd_buffer->state.dirty ) {
+		unsigned width = cmd_buffer->state.dynamic.line_width * 8;
+		radeon_set_context_reg(cmd_buffer->cs, R_028A08_PA_SU_LINE_CNTL,
+				       S_028A08_WIDTH(CLAMP(width, 0, 0xFFF)));
+	}
 
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_STENCIL_REFERENCE |
 				       RADV_CMD_DIRTY_DYNAMIC_STENCIL_WRITE_MASK |
