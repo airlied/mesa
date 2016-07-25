@@ -970,8 +970,11 @@ static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
 
 		} else {
 			assert(count == 1);
-			data = LLVMBuildExtractElement(ctx->builder, base_data,
-						       LLVMConstInt(ctx->i32, start, false), "");
+			if (get_llvm_num_components(base_data) > 1)
+				data = LLVMBuildExtractElement(ctx->builder, base_data,
+							       LLVMConstInt(ctx->i32, start, false), "");
+			else
+				data = base_data;
 			store_name = "llvm.amdgcn.buffer.store.f32";
 		}
 
