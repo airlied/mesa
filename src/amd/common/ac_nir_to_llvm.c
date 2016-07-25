@@ -608,6 +608,23 @@ static LLVMValueRef emit_find_lsb(struct nir_to_llvm_context *ctx,
 	return emit_llvm_intrinsic(ctx, "llvm.cttz.i32", ctx->i32, params, 2, LLVMReadNoneAttribute);
 }
 
+static LLVMValueRef emit_minmax_int(struct nir_to_llvm_context *ctx,
+				    LLVMIntPredicate pred,
+				    LLVMValueRef src0, LLVMValueRef src1)
+{
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, pred, src0, src1, ""),
+			       src0,
+			       src1, "");
+
+}
+static LLVMValueRef emit_iabs(struct nir_to_llvm_context *ctx,
+			      LLVMValueRef src0)
+{
+	return emit_minmax_int(ctx, LLVMIntSGT, src0,
+			       LLVMBuildNeg(ctx->builder, src0, ""));
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -717,6 +734,21 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_fabs:
 		result = emit_intrin_1f_param(ctx, "llvm.fabs.f32", src[0]);
+		break;
+	case nir_op_iabs:
+		result = emit_iabs(ctx, src[0]);
+		break;
+	case nir_op_imax:
+		result = emit_minmax_int(ctx, LLVMIntSGT, src[0], src[1]);
+		break;
+	case nir_op_imin:
+		result = emit_minmax_int(ctx, LLVMIntSLT, src[0], src[1]);
+		break;
+	case nir_op_umax:
+		result = emit_minmax_int(ctx, LLVMIntUGT, src[0], src[1]);
+		break;
+	case nir_op_umin:
+		result = emit_minmax_int(ctx, LLVMIntULT, src[0], src[1]);
 		break;
 	case nir_op_fsin:
 		result = emit_intrin_1f_param(ctx, "llvm.sin.f32", src[0]);
