@@ -649,6 +649,20 @@ static LLVMValueRef emit_isign(struct nir_to_llvm_context *ctx,
 	return val;
 }
 
+static LLVMValueRef emit_ffract(struct nir_to_llvm_context *ctx,
+				LLVMValueRef src0)
+{
+	const char *intr = "llvm.floor.f32";
+	LLVMValueRef fsrc0 = to_float(ctx, src0);
+	LLVMValueRef params[] = {
+		fsrc0,
+	};
+	LLVMValueRef floor = emit_llvm_intrinsic(ctx, intr,
+						 ctx->f32, params, 1,
+						 LLVMReadNoneAttribute);
+	return LLVMBuildFSub(ctx->builder, fsrc0, floor, "");
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -792,6 +806,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_fround_even:
 		result = emit_intrin_1f_param(ctx, "llvm.rint.f32", src[0]);
+		break;
+	case nir_op_ffract:
+		result = emit_ffract(ctx, src[0]);
 		break;
 	case nir_op_fsin:
 		result = emit_intrin_1f_param(ctx, "llvm.sin.f32", src[0]);
