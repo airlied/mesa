@@ -1072,10 +1072,9 @@ VkResult radv_WaitForFences(
 		RADV_FROM_HANDLE(radv_fence, fence, pFences[i]);
 		bool expired = false;
 
-		
-		assert(fence->submitted);
 		if (fence->signalled)
 			continue;
+		assert(fence->submitted);
 
 		expired = device->ws->fence_wait(device->ws, fence->fence, timeout);
 		if (!expired)
@@ -1091,6 +1090,11 @@ VkResult radv_ResetFences(VkDevice device,
 			  uint32_t fenceCount,
 			  const VkFence *pFences)
 {
+	for (unsigned i = 0; i < fenceCount; ++i) {
+		RADV_FROM_HANDLE(radv_fence, fence, pFences[i]);
+		fence->submitted = fence->signalled = false;
+	}
+
 	return VK_SUCCESS;
 }
 
