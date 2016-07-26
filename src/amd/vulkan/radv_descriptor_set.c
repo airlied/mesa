@@ -80,6 +80,7 @@ VkResult radv_CreateDescriptorSetLayout(
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
 		case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
 			set_layout->binding[b].dynamic_offset_count = 1;
+			set_layout->dynamic_shader_stages |= binding->stageFlags;
 			/* fall through */
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 		case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
@@ -281,6 +282,18 @@ radv_descriptor_set_create(struct radv_device *device,
 
 	memset(set, 0, mem_size);
 
+	if (layout->dynamic_offset_count) {
+		unsigned size = sizeof(struct radv_descriptor_range) *
+		                layout->dynamic_offset_count;
+		set->dynamic_descriptors = radv_alloc2(&device->alloc, NULL, size, 8,
+			                               VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+
+		if (!set->dynamic_descriptors) {
+			radv_free2(&device->alloc, NULL, set);
+			return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
+		}
+	}
+
 	set->layout = layout;
 	if (layout->size) {
 		set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
@@ -299,6 +312,8 @@ radv_descriptor_set_destroy(struct radv_device *device,
 {
 	if (set->bo.bo)
 		device->ws->buffer_destroy(set->bo.bo);
+	if (set->dynamic_descriptors)
+		radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
 	radv_free2(&device->alloc, NULL, set);
 }
 
@@ -376,6 +391,25 @@ static void write_buffer_descriptor(struct radv_device *device,
 	*buffer_list = buffer->bo;
 }
 
+static void write_dynamic_buffer_descriptor(struct radv_device *device,
+                                            struct radv_descriptor_range *range,
+                                            struct radv_bo **buffer_list,
+                                            const VkDescriptorBufferInfo *buffer_info)
+{
+	RADV_FROM_HANDLE(radv_buffer, buffer, buffer_info->buffer);
+	uint64_t va = device->ws->buffer_get_va(buffer->bo->bo);
+	unsigned size = buffer_info->range;
+
+	if (buffer_info->range == VK_WHOLE_SIZE)
+		size = buffer->size - buffer_info->offset;
+
+	va += buffer_info->offset + buffer->offset;
+	range->va = va;
+	range->size = size;
+
+	*buffer_list = buffer->bo;
+}
+
 static void
 write_image_descriptor(struct radv_device *device,
 		       unsigned *dst,
@@ -433,6 +467,14 @@ void radv_UpdateDescriptorSets(
 		buffer_list += binding_layout->buffer_count * writeset->dstArrayElement;
 		for (j = 0; j < writeset->descriptorCount; ++j) {
 			switch(writeset->descriptorType) {
+			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
+				unsigned idx = writeset->dstArrayElement;
+				idx += binding_layout->dynamic_offset_offset;
+				write_dynamic_buffer_descriptor(device, set->dynamic_descriptors + idx,
+								buffer_list, writeset->pBufferInfo + j);
+				break;
+			}
 			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 			case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:

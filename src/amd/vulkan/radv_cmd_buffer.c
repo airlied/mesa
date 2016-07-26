@@ -509,10 +509,13 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 	if (!stages || !layout)
 		return;
 
-	radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size, 256,
-				     &offset, &ptr);
+	radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
+	                                         16 * layout->dynamic_offset_count,
+				     256, &offset, &ptr);
 
 	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
+	memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
+	       16 * layout->dynamic_offset_count);
 
 	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
 	va += offset;
@@ -814,6 +817,7 @@ void radv_CmdBindDescriptorSets(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_pipeline_layout, layout, _layout);
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
+	unsigned dyn_idx = 0;
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
 					      MAX_SETS * 4 * 6);
@@ -846,6 +850,26 @@ void radv_CmdBindDescriptorSets(
 
 		if(set->bo.bo)
 			ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
+
+		for(unsigned j = 0; j < set->layout->dynamic_offset_count; ++j, ++dyn_idx) {
+			unsigned idx = j + layout->set[i].dynamic_offset_start;
+			uint32_t *dst = cmd_buffer->dynamic_buffers + idx * 4;
+			assert(dyn_idx < dynamicOffsetCount);
+
+			struct radv_descriptor_range *range = set->dynamic_descriptors + idx;
+			uint64_t va = range->va + pDynamicOffsets[dyn_idx];
+			dst[0] = va;
+			dst[1] = S_008F04_BASE_ADDRESS_HI(va >> 32);
+			dst[2] = range->size;
+			dst[3] = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) |
+			         S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
+			         S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) |
+			         S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W) |
+			         S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_FLOAT) |
+			         S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
+			cmd_buffer->push_constant_stages |=
+			                     set->layout->dynamic_shader_stages;
+		}
 	}
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
