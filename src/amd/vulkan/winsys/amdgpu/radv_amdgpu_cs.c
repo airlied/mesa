@@ -302,8 +302,8 @@ static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
 	amdgpu_bo_list_handle bo_list;
 
-	if (!cs->base.cdw || cs->failed)
-		return 0;
+	if (cs->failed)
+		abort();
 
 	r = amdgpu_bo_list_create(cs->ws->dev, cs->num_buffers, cs->handles,
 				  cs->priorities, &bo_list);
