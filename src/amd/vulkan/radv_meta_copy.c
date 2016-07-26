@@ -165,7 +165,6 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			.height =  img_extent_el.height,
 		};
 
-		fprintf(stderr, "blit miplevel: %d\n", pRegions[r].imageSubresource.mipLevel);
 		/* Create blit surfaces */
 		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		const struct radeon_surf *img_surf = &image->surface;
