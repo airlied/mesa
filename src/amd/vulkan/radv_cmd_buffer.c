@@ -1161,7 +1161,7 @@ void radv_DestroyCommandPool(
 
 	list_for_each_entry_safe(struct radv_cmd_buffer, cmd_buffer,
 				 &pool->cmd_buffers, pool_link) {
-		//      radv_cmd_buffer_destroy(cmd_buffer);
+		radv_cmd_buffer_destroy(cmd_buffer);
 	}
 
 	radv_free2(&device->alloc, pAllocator, pool);
@@ -1176,7 +1176,7 @@ VkResult radv_ResetCommandPool(
 
 	list_for_each_entry(struct radv_cmd_buffer, cmd_buffer,
 			    &pool->cmd_buffers, pool_link) {
-		//      radv_cmd_buffer_reset(cmd_buffer);
+		radv_reset_cmd_buffer(cmd_buffer);
 	}
 
 	return VK_SUCCESS;
