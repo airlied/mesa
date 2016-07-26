@@ -102,6 +102,10 @@ VkResult radv_CreateDescriptorSetLayout(
 			set_layout->binding[b].buffer_count = 1;
 			alignment = 32;
 			break;
+		case VK_DESCRIPTOR_TYPE_SAMPLER:
+			set_layout->binding[b].size = 16;
+			alignment = 16;
+			break;
 		default:
 			break;
 		}
@@ -396,6 +400,16 @@ write_combined_image_sampler_descriptor(struct radv_device *device,
 	memcpy(dst + 16, sampler->state, 16);
 }
 
+static void
+write_sampler_descriptor(struct radv_device *device,
+					unsigned *dst,
+					const VkDescriptorImageInfo *image_info)
+{
+	RADV_FROM_HANDLE(radv_sampler, sampler, image_info->sampler);
+
+	memcpy(dst, sampler->state, 16);
+}
+
 void radv_UpdateDescriptorSets(
 	VkDevice                                    _device,
 	uint32_t                                    descriptorWriteCount,
@@ -433,6 +447,10 @@ void radv_UpdateDescriptorSets(
 			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
 				write_combined_image_sampler_descriptor(device, ptr, buffer_list,
 									writeset->pImageInfo + j);
+				break;
+			case VK_DESCRIPTOR_TYPE_SAMPLER:
+				write_sampler_descriptor(device, ptr,
+							 writeset->pImageInfo + j);
 				break;
 			default:
 				unreachable("unimplemented descriptor type");
