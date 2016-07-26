@@ -428,6 +428,7 @@ struct radv_descriptor_range {
 
 struct radv_descriptor_set {
 	const struct radv_descriptor_set_layout *layout;
+	struct list_head descriptor_pool;
 	uint32_t size;
 	uint32_t buffer_count;
 	struct radv_buffer_view *buffer_views;
@@ -435,6 +436,10 @@ struct radv_descriptor_set {
 	uint32_t *mapped_ptr;
 	struct radv_descriptor_range *dynamic_descriptors;
 	struct radv_bo *descriptors[0];
+};
+
+struct radv_descriptor_pool {
+	struct list_head descriptor_sets;
 };
 
 struct radv_buffer {
