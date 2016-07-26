@@ -1543,7 +1543,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, dmask, 0);
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, is_rect, 0); /* unorm */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* r128 */
-	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, instr->is_array);
+	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, instr->is_array, 0);
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* glc */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* slc */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* tfe */
