@@ -1204,7 +1204,7 @@ void radv_CmdDispatch(
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
-	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 5);
+	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 10);
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 8 * 4, 3);
 	radeon_emit(cmd_buffer->cs, x);
