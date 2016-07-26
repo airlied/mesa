@@ -219,6 +219,9 @@ static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 
 	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 
+	while (!cs->base.cdw || (cs->base.cdw & 7) != 4)
+		cs->base.buf[cs->base.cdw++] = 0xffff1000;
+
 	cs->base.buf[cs->base.cdw++] = PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0);
 	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va;
 	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va >> 32;
@@ -234,6 +237,10 @@ static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 static bool amdgpu_cs_finalize(struct radeon_winsys_cs *_cs)
 {
 	struct amdgpu_cs *cs = amdgpu_cs(_cs);
+
+	while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
+		cs->base.buf[cs->base.cdw++] = 0xffff1000;
+
 	if (cs->ib_size_ptr)
 		*cs->ib_size_ptr = cs->base.cdw;
 	else
