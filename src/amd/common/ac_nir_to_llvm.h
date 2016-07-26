@@ -60,6 +60,7 @@ struct ac_shader_variant_info {
 			unsigned num_interp;
 			uint32_t input_mask;
 			uint32_t flat_shaded_mask;
+			bool can_discard;
 		} fs;
 	};
 };

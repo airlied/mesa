@@ -318,6 +318,7 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_028004_DB_COUNT_CONTROL, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_028010_DB_RENDER_OVERRIDE2, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_02880C_DB_SHADER_CONTROL,
+			       S_02880C_KILL_ENABLE(!!ps->info.fs.can_discard) |
 			       S_02880C_Z_ORDER(V_02880C_EARLY_Z_THEN_LATE_Z));
 
 	radeon_set_context_reg(cmd_buffer->cs, R_0286CC_SPI_PS_INPUT_ENA,
