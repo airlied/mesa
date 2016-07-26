@@ -421,6 +421,11 @@ struct radv_device_memory {
 };
 
 
+struct radv_descriptor_range {
+	uint64_t va;
+	uint32_t size;
+};
+
 struct radv_descriptor_set {
 	const struct radv_descriptor_set_layout *layout;
 	uint32_t size;
@@ -428,6 +433,7 @@ struct radv_descriptor_set {
 	struct radv_buffer_view *buffer_views;
 	struct radv_bo bo;
 	uint32_t *mapped_ptr;
+	struct radv_descriptor_range *dynamic_descriptors;
 	struct radv_bo *descriptors[0];
 };
 
@@ -570,6 +576,7 @@ struct radv_cmd_buffer {
 	struct radv_cmd_state state;
 
 	uint8_t push_constants[MAX_PUSH_CONSTANTS_SIZE];
+	uint32_t dynamic_buffers[16 * MAX_DYNAMIC_BUFFERS];
 	VkShaderStageFlags push_constant_stages;
 
 	struct radv_bo border_color_bo;
