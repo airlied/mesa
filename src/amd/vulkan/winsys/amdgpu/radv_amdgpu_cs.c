@@ -181,6 +181,9 @@ static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 	struct amdgpu_cs *cs = amdgpu_cs(_cs);
 	uint64_t ib_size = MAX2(min_size * 4 + 16, cs->base.max_dw * 4 * 2);
 
+	/* max that fits in the chain size field. */
+	ib_size = MIN2(ib_size, 0xfffff);
+
 	if (cs->failed) {
 		cs->base.cdw = 0;
 		return;
