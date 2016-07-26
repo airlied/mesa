@@ -1174,7 +1174,7 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 {
 	LLVMValueRef values[4];
 	int idx = instr->variables[0]->var->data.driver_location;
-	int ve = glsl_get_vector_elements(instr->variables[0]->var->type);
+	int ve = instr->dest.ssa.num_components;
 	switch (instr->variables[0]->var->data.mode) {
 	case nir_var_shader_in:
 		for (unsigned chan = 0; chan < ve; chan++) {
@@ -1183,15 +1183,15 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 		return to_integer(ctx, build_gather_values(ctx, values, ve));
 		break;
 	case nir_var_local:
-		for (unsigned chan = 0; chan < 4; chan++) {
+		for (unsigned chan = 0; chan < ve; chan++) {
 			values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx + chan], "");
 		}
-		return to_integer(ctx, build_gather_values(ctx, values, 4));
+		return to_integer(ctx, build_gather_values(ctx, values, ve));
 	case nir_var_shader_out:
-		for (unsigned chan = 0; chan < 4; chan++) {
+		for (unsigned chan = 0; chan < ve; chan++) {
 			values[chan] = LLVMBuildLoad(ctx->builder, ctx->outputs[idx + chan], "");
 		}
-		return to_integer(ctx, build_gather_values(ctx, values, 4));
+		return to_integer(ctx, build_gather_values(ctx, values, ve));
 	default:
 		break;
 	}
