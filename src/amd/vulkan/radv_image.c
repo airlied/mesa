@@ -268,17 +268,15 @@ si_make_texture_descriptor(struct radv_device *device,
 	}
 #endif
 	type = radv_tex_dim(image->type, view_type, image->samples);
-#if 0	
 	if (type == V_008F1C_SQ_RSRC_IMG_1D_ARRAY) {
 	        height = 1;
 		depth = image->array_size;
 	} else if (type == V_008F1C_SQ_RSRC_IMG_2D_ARRAY ||
 		   type == V_008F1C_SQ_RSRC_IMG_2D_MSAA_ARRAY) {
-		if (sampler || res->target != PIPE_TEXTURE_3D)
-			depth = image->array_size;
+		depth = image->array_size;
 	} else if (type == V_008F1C_SQ_RSRC_IMG_CUBE)
-		depth = res->array_size / 6;
-#endif
+		depth = image->array_size / 6;
+
 	state[0] = 0;
 	state[1] = (S_008F14_DATA_FORMAT(data_format) |
 		    S_008F14_NUM_FORMAT(num_format));
