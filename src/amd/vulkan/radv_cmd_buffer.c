@@ -745,6 +745,8 @@ void radv_FreeCommandBuffers(
 static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 {
 	cmd_buffer->device->ws->cs_reset(cmd_buffer->cs);
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs,
+					      cmd_buffer->upload.upload_bo.bo, 8);
 	cmd_buffer->upload.offset = 0;
 }
 
