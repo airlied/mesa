@@ -299,6 +299,12 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	void *ptr = device->ws->buffer_map(variant->bo);
 	memcpy(ptr, binary.code, binary.code_size);
 	device->ws->buffer_unmap(variant->bo);
+
+	free(binary.code);
+	free(binary.config);
+	free(binary.rodata);
+	free(binary.global_symbol_offsets);
+	free(binary.relocs);
 	return variant;
 }
 
@@ -762,6 +768,9 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 										   pipeline->layout,
 										   &key, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_VERTEX);
+
+		if (!modules[MESA_SHADER_VERTEX]->nir)
+			ralloc_free(shader);
 	}
 
 	if (modules[MESA_SHADER_FRAGMENT]) {
@@ -774,6 +783,9 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 										     pipeline->layout,
 										     NULL, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
+
+		if (!modules[MESA_SHADER_FRAGMENT]->nir)
+			ralloc_free(shader);
 	}
 
 	radv_pipeline_init_blend_state(pipeline, pCreateInfo);
