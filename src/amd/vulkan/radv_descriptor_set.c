@@ -228,6 +228,7 @@ void radv_DestroyPipelineLayout(
 static VkResult
 radv_descriptor_set_create(struct radv_device *device,
 			   struct radv_descriptor_pool *pool,
+			   struct radv_cmd_buffer *cmd_buffer,
 			   const struct radv_descriptor_set_layout *layout,
 			   struct radv_descriptor_set **out_set)
 {
@@ -256,13 +257,28 @@ radv_descriptor_set_create(struct radv_device *device,
 
 	set->layout = layout;
 	if (layout->size) {
-		set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
-						       16, RADEON_DOMAIN_VRAM, 0);
+		if (pool) {
+			set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
+							       16, RADEON_DOMAIN_VRAM, 0);
 
-		set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
+			set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
+			set->va = device->ws->buffer_get_va(set->bo.bo);
+		} else {
+			unsigned bo_offset;
+			radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 64,
+						     &bo_offset,
+						     (void**)&set->mapped_ptr);
+
+			set->va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
+			set->va += bo_offset;
+		}
 	}
 
-	list_add(&set->descriptor_pool, &pool->descriptor_sets);
+	if (pool)
+		list_add(&set->descriptor_pool, &pool->descriptor_sets);
+	else
+		list_inithead(&set->descriptor_pool);
+
 	*out_set = set;
 	return VK_SUCCESS;
 }
@@ -276,8 +292,33 @@ radv_descriptor_set_destroy(struct radv_device *device,
 		device->ws->buffer_destroy(set->bo.bo);
 	if (set->dynamic_descriptors)
 		radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
-	list_del(&set->descriptor_pool);
+	if (!list_empty(&set->descriptor_pool))
+		list_del(&set->descriptor_pool);
 	radv_free2(&device->alloc, NULL, set);
+}
+
+VkResult
+radv_temp_descriptor_set_create(struct radv_device *device,
+				struct radv_cmd_buffer *cmd_buffer,
+				VkDescriptorSetLayout _layout,
+				VkDescriptorSet *_set)
+{
+	RADV_FROM_HANDLE(radv_descriptor_set_layout, layout, _layout);
+	struct radv_descriptor_set *set;
+	VkResult ret;
+
+	ret = radv_descriptor_set_create(device, NULL, cmd_buffer, layout, &set);
+	*_set = radv_descriptor_set_to_handle(set);
+	return ret;
+}
+
+void
+radv_temp_descriptor_set_destroy(struct radv_device *device,
+				 VkDescriptorSet _set)
+{
+	RADV_FROM_HANDLE(radv_descriptor_set, set, _set);
+
+	radv_descriptor_set_destroy(device, NULL, set);
 }
 
 VkResult radv_CreateDescriptorPool(
@@ -348,7 +389,7 @@ VkResult radv_AllocateDescriptorSets(
 		RADV_FROM_HANDLE(radv_descriptor_set_layout, layout,
 				 pAllocateInfo->pSetLayouts[i]);
 
-		result = radv_descriptor_set_create(device, pool, layout, &set);
+		result = radv_descriptor_set_create(device, pool, NULL, layout, &set);
 		if (result != VK_SUCCESS)
 			break;
 

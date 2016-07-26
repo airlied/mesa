@@ -828,7 +828,7 @@ void radv_CmdBindDescriptorSets(
 		RADV_FROM_HANDLE(radv_descriptor_set, set, pDescriptorSets[i]);
 		uint64_t va;
 
-		va = set->bo.bo ? ws->buffer_get_va(set->bo.bo) : 0;
+		va = set->va;
 
 		for (unsigned j = 0; j < set->layout->buffer_count; ++j)
 			if (set->descriptors[j])
@@ -836,18 +836,18 @@ void radv_CmdBindDescriptorSets(
 
 		radeon_set_sh_reg_seq(cmd_buffer->cs,
 				      R_00B030_SPI_SHADER_USER_DATA_PS_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, va);
-		radeon_emit(cmd_buffer->cs, va >> 32);
+		radeon_emit(cmd_buffer->cs, set->va);
+		radeon_emit(cmd_buffer->cs, set->va >> 32);
 
 		radeon_set_sh_reg_seq(cmd_buffer->cs,
 				      R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, va);
-		radeon_emit(cmd_buffer->cs, va >> 32);
+		radeon_emit(cmd_buffer->cs, set->va);
+		radeon_emit(cmd_buffer->cs, set->va >> 32);
 
 		radeon_set_sh_reg_seq(cmd_buffer->cs,
 				      R_00B900_COMPUTE_USER_DATA_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, va);
-		radeon_emit(cmd_buffer->cs, va >> 32);
+		radeon_emit(cmd_buffer->cs, set->va);
+		radeon_emit(cmd_buffer->cs, set->va >> 32);
 
 		if(set->bo.bo)
 			ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);

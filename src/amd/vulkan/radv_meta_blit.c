@@ -218,30 +218,10 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 						 .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 						 }, &cmd_buffer->pool->alloc, &sampler);
 
-	VkDescriptorPool desc_pool;
-	radv_CreateDescriptorPool(radv_device_to_handle(device),
-				  &(const VkDescriptorPoolCreateInfo) {
-					  .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-						  .pNext = NULL,
-						  .flags = 0,
-						  .maxSets = 1,
-						  .poolSizeCount = 1,
-						  .pPoolSizes = (VkDescriptorPoolSize[]) {
-						  {
-							  .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-							  .descriptorCount = 1
-						  },
-					  }
-				  }, &cmd_buffer->pool->alloc, &desc_pool);
-
 	VkDescriptorSet set;
-	radv_AllocateDescriptorSets(radv_device_to_handle(device),
-				    &(VkDescriptorSetAllocateInfo) {
-					    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-						    .descriptorPool = desc_pool,
-						    .descriptorSetCount = 1,
-						    .pSetLayouts = &device->meta_state.blit.ds_layout
-						    }, &set);
+	radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
+					        device->meta_state.blit.ds_layout,
+					        &set);
 
 	radv_UpdateDescriptorSets(radv_device_to_handle(device),
 				  1, /* writeCount */
@@ -322,8 +302,10 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 	/* At the point where we emit the draw call, all data from the
 	 * descriptor sets, etc. has been used.  We are free to delete it.
 	 */
-	radv_DestroyDescriptorPool(radv_device_to_handle(device),
-				   desc_pool, &cmd_buffer->pool->alloc);
+	/* TODO: above comment is not valid for at least descriptor sets/pools,
+	 * as we may not free them till after execution finishes. Check others. */
+
+	radv_temp_descriptor_set_destroy(cmd_buffer->device, set);
 	radv_DestroySampler(radv_device_to_handle(device), sampler,
 			    &cmd_buffer->pool->alloc);
 	radv_DestroyFramebuffer(radv_device_to_handle(device), fb,

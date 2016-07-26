@@ -433,6 +433,7 @@ struct radv_descriptor_set {
 	uint32_t buffer_count;
 	struct radv_buffer_view *buffer_views;
 	struct radv_bo bo;
+	uint64_t va;
 	uint32_t *mapped_ptr;
 	struct radv_descriptor_range *dynamic_descriptors;
 	struct radv_bo *descriptors[0];
@@ -969,6 +970,16 @@ extern struct radv_render_pass radv_meta_dummy_renderpass;
 
 VkResult radv_device_init_meta(struct radv_device *device);
 void radv_device_finish_meta(struct radv_device *device);
+
+VkResult
+radv_temp_descriptor_set_create(struct radv_device *device,
+				struct radv_cmd_buffer *cmd_buffer,
+				VkDescriptorSetLayout _layout,
+				VkDescriptorSet *_set);
+
+void
+radv_temp_descriptor_set_destroy(struct radv_device *device,
+				 VkDescriptorSet _set);
 
 #define RADV_DEFINE_HANDLE_CASTS(__radv_type, __VkType)		\
 								\

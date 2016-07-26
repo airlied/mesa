@@ -548,33 +548,10 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
       &cmd_buffer->pool->alloc,
       &sampler_h);
 
-   VkDescriptorPool desc_pool;
-   radv_CreateDescriptorPool(radv_device_to_handle(device),
-      &(const VkDescriptorPoolCreateInfo) {
-         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-         .pNext = NULL,
-         .flags = 0,
-         .maxSets = 1,
-         .poolSizeCount = 1,
-         .pPoolSizes = (VkDescriptorPoolSize[]) {
-            {
-               .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-               .descriptorCount = 1
-            },
-         }
-      }, &cmd_buffer->pool->alloc, &desc_pool);
-
    VkDescriptorSet desc_set_h;
-   radv_AllocateDescriptorSets(device_h,
-      &(VkDescriptorSetAllocateInfo) {
-         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-         .descriptorPool = desc_pool,
-         .descriptorSetCount = 1,
-         .pSetLayouts = (VkDescriptorSetLayout[]) {
-            device->meta_state.resolve.ds_layout,
-         },
-      },
-      &desc_set_h);
+   radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
+				   device->meta_state.resolve.ds_layout,
+				   &desc_set_h);
 
    radv_UpdateDescriptorSets(device_h,
       /*writeCount*/ 1,
@@ -622,8 +599,10 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
    /* All objects below are consumed by the draw call. We may safely destroy
     * them.
     */
-   radv_DestroyDescriptorPool(radv_device_to_handle(device),
-                             desc_pool, &cmd_buffer->pool->alloc);
+   /* TODO: above comment is not valid for at least descriptor sets/pools,
+    * as we may not free them till after execution finishes. Check others. */
+
+   radv_temp_descriptor_set_destroy(cmd_buffer->device, desc_set_h);
    radv_DestroySampler(device_h, sampler_h,
                       &cmd_buffer->pool->alloc);
 }
