@@ -1449,6 +1449,12 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_intrinsic_image_size:
 		result = visit_image_size(ctx, instr);
 		break;
+	case nir_intrinsic_discard:
+		ctx->shader_info->fs.can_discard = true;
+		emit_llvm_intrinsic(ctx, "llvm.AMDGPU.kilp",
+				    LLVMVoidTypeInContext(ctx->context),
+				    NULL, 0, 0);
+		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
 		nir_print_instr(&instr->instr, stderr);
