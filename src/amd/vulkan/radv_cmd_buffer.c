@@ -897,6 +897,8 @@ VkResult radv_EndCommandBuffer(
 	VkCommandBuffer                             commandBuffer)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+
+	si_emit_cache_flush(cmd_buffer);
 	if (!cmd_buffer->device->ws->cs_finalize(cmd_buffer->cs))
 		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 	return VK_SUCCESS;
