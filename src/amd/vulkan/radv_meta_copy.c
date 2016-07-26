@@ -87,6 +87,7 @@ blit_surf_for_image_level(const struct radv_image* image,
 			.bs = vk_format_get_blocksize(image->vk_format),
 			.pitch = surf->level[level].pitch_bytes,
 			.tiling = tiling,
+			.slice_size = surf->level[level].slice_size,
 			};
 }
 
@@ -175,7 +176,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			.base_offset = buffer->offset + pRegions[r].bufferOffset,
 			.bs = img_bsurf.bs,
 			.pitch = buf_extent_el.width * buf_bsurf.bs,
-
+			.slice_size = 0,
 			.tiling = VK_IMAGE_TILING_LINEAR,
 		};
 
@@ -192,16 +193,6 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		unsigned slice_array = 0;
 		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
 
-#if 0
-			/* Finish creating blit rect */
-			isl_surf_get_image_offset_el(&img_surf->isl,
-						     pRegions[r].imageSubresource.mipLevel,
-						     pRegions[r].imageSubresource.baseArrayLayer
-						     + slice_array,
-						     img_offset_el.z + slice_3d,
-						     x_offset,
-						     y_offset);
-#endif
 			*x_offset += img_offset_el.x;
 			*y_offset += img_offset_el.y;
 
@@ -215,7 +206,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			 */
 			buf_bsurf.base_offset += buf_extent_el.width *
 				buf_extent_el.height * buf_bsurf.bs;
-
+			dst_bsurf->base_offset += dst_bsurf->slice_size;
 			if (image->type == VK_IMAGE_TYPE_3D)
 				slice_3d++;
 			else
