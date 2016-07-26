@@ -764,8 +764,13 @@ VkResult radv_BeginCommandBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	radv_reset_cmd_buffer(cmd_buffer);
 
+	/* Flush read caches at the beginning of CS not flushed by the kernel. */
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_INV_ICACHE |
+		RADV_CMD_FLAG_INV_SMEM_L1;
+
 	/* setup initial configuration into command buffer */
 	si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
+	si_emit_cache_flush(cmd_buffer);
 	return VK_SUCCESS;
 }
 
@@ -1190,6 +1195,8 @@ void radv_CmdBeginRenderPass(
 	cmd_buffer->state.render_area = pRenderPassBegin->renderArea;
 	radv_cmd_state_setup_attachments(cmd_buffer, pRenderPassBegin);
 
+	si_emit_cache_flush(cmd_buffer);
+
 	radv_emit_framebuffer_state(cmd_buffer);
 	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses);
 	radv_cmd_buffer_clear_subpass(cmd_buffer);
@@ -1330,6 +1337,67 @@ void radv_CmdPipelineBarrier(
 	uint32_t                                    imageMemoryBarrierCount,
 	const VkImageMemoryBarrier*                 pImageMemoryBarriers)
 {
-	//   RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	VkAccessFlags src_flags = 0;
+	VkAccessFlags dst_flags = 0;
+	uint32_t b;
+	for (uint32_t i = 0; i < memoryBarrierCount; i++) {
+		src_flags |= pMemoryBarriers[i].srcAccessMask;
+		dst_flags |= pMemoryBarriers[i].dstAccessMask;
+	}
 
+	for (uint32_t i = 0; i < bufferMemoryBarrierCount; i++) {
+		src_flags |= pBufferMemoryBarriers[i].srcAccessMask;
+		dst_flags |= pBufferMemoryBarriers[i].dstAccessMask;
+	}
+
+	for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
+		src_flags |= pImageMemoryBarriers[i].srcAccessMask;
+		dst_flags |= pImageMemoryBarriers[i].dstAccessMask;
+	}
+
+	enum radv_cmd_flush_bits flush_bits = 0;
+
+	for_each_bit(b, src_flags) {
+		switch ((VkAccessFlagBits)(1 << b)) {
+		case VK_ACCESS_SHADER_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_INV_GLOBAL_L2;
+			break;
+		case VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+			break;
+		case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
+			break;
+		case VK_ACCESS_TRANSFER_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+			break;
+		default:
+			break;
+		}
+	}
+
+	for_each_bit(b, dst_flags) {
+		switch ((VkAccessFlagBits)(1 << b)) {
+		case VK_ACCESS_INDIRECT_COMMAND_READ_BIT:
+		case VK_ACCESS_INDEX_READ_BIT:
+		case VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT:
+		case VK_ACCESS_UNIFORM_READ_BIT:
+			flush_bits |= RADV_CMD_FLAG_INV_VMEM_L1;
+			break;
+		case VK_ACCESS_SHADER_READ_BIT:
+			flush_bits |= RADV_CMD_FLAG_INV_GLOBAL_L2;
+			break;
+		case VK_ACCESS_COLOR_ATTACHMENT_READ_BIT:
+		case VK_ACCESS_TRANSFER_READ_BIT:
+			flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER | RADV_CMD_FLAG_INV_GLOBAL_L2;
+		default:
+			break;
+		}
+	}
+
+	flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+		RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
+
+	cmd_buffer->state.flush_bits |= flush_bits;
 }
