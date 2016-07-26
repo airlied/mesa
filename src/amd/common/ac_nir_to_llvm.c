@@ -1050,8 +1050,17 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 	LLVMValueRef desc_ptr = ctx->descriptor_sets[desc_set];
 	struct radv_descriptor_set_layout *layout = ctx->options->layout->set[desc_set].layout;
 	unsigned base_offset = layout->binding[binding].offset;
-	LLVMValueRef offset = LLVMConstInt(ctx->i32, base_offset, false);
-	LLVMValueRef stride = LLVMConstInt(ctx->i32, layout->binding[binding].size, false);
+	LLVMValueRef offset, stride;
+
+	if (layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+	    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) {
+		desc_ptr = ctx->push_constants;
+		base_offset = ctx->options->layout->push_constant_size;
+		base_offset +=  16 * layout->binding[binding].dynamic_offset_offset;
+	}
+
+	offset = LLVMConstInt(ctx->i32, base_offset, false);
+	stride = LLVMConstInt(ctx->i32, layout->binding[binding].size, false);
 	index = LLVMBuildMul(ctx->builder, index, stride, "");
 	offset = LLVMBuildAdd(ctx->builder, offset, index, "");
 
