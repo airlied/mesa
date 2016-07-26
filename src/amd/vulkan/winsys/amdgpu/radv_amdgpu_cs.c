@@ -190,7 +190,7 @@ static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 		cs->base.buf[cs->base.cdw++] = 0xffff1000;
 
 	if (cs->ib_size_ptr)
-		*cs->ib_size_ptr = cs->base.cdw + 4;
+		*cs->ib_size_ptr |= cs->base.cdw + 4;
 	else
 		cs->ib.size = cs->base.cdw + 4;
 
@@ -226,7 +226,7 @@ static void amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va;
 	cs->base.buf[cs->base.cdw++] = amdgpu_winsys_bo(cs->ib_buffer)->va >> 32;
 	cs->ib_size_ptr = cs->base.buf + cs->base.cdw;
-	cs->base.buf[cs->base.cdw++] = 0;
+	cs->base.buf[cs->base.cdw++] = S_3F2_CHAIN(1) | S_3F2_VALID(1);
 
 	cs->base.buf = (uint32_t *)cs->ib_mapped;
 	cs->base.cdw = 0;
@@ -242,7 +242,7 @@ static bool amdgpu_cs_finalize(struct radeon_winsys_cs *_cs)
 		cs->base.buf[cs->base.cdw++] = 0xffff1000;
 
 	if (cs->ib_size_ptr)
-		*cs->ib_size_ptr = cs->base.cdw;
+		*cs->ib_size_ptr |= cs->base.cdw;
 	else
 		cs->ib.size = cs->base.cdw;
 
