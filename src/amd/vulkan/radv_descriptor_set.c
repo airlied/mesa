@@ -225,46 +225,6 @@ void radv_DestroyPipelineLayout(
 
 #define EMPTY 1
 
-VkResult radv_CreateDescriptorPool(
-	VkDevice                                    _device,
-	const VkDescriptorPoolCreateInfo*           pCreateInfo,
-	const VkAllocationCallbacks*                pAllocator,
-	VkDescriptorPool*                           pDescriptorPool)
-{
-	RADV_FROM_HANDLE(radv_device, device, _device);
-	struct radv_descriptor_pool *pool;
-	int size = 0;
-	pool = radv_alloc2(&device->alloc, pAllocator, size, 8,
-			   VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-	if (!pool)
-		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
-
-	*pDescriptorPool = radv_descriptor_pool_to_handle(pool);
-	return VK_SUCCESS;
-}
-
-void radv_DestroyDescriptorPool(
-	VkDevice                                    _device,
-	VkDescriptorPool                            _pool,
-	const VkAllocationCallbacks*                pAllocator)
-{
-	RADV_FROM_HANDLE(radv_device, device, _device);
-	RADV_FROM_HANDLE(radv_descriptor_pool, pool, _pool);
-
-	radv_free2(&device->alloc, pAllocator, pool);
-}
-
-VkResult radv_ResetDescriptorPool(
-	VkDevice                                    _device,
-	VkDescriptorPool                            descriptorPool,
-	VkDescriptorPoolResetFlags                  flags)
-{
-	RADV_FROM_HANDLE(radv_device, device, _device);
-	RADV_FROM_HANDLE(radv_descriptor_pool, pool, descriptorPool);
-
-	return VK_SUCCESS;
-}
-
 static VkResult
 radv_descriptor_set_create(struct radv_device *device,
 			   struct radv_descriptor_pool *pool,
@@ -301,6 +261,8 @@ radv_descriptor_set_create(struct radv_device *device,
 
 		set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
 	}
+
+	list_add(&set->descriptor_pool, &pool->descriptor_sets);
 	*out_set = set;
 	return VK_SUCCESS;
 }
@@ -314,7 +276,59 @@ radv_descriptor_set_destroy(struct radv_device *device,
 		device->ws->buffer_destroy(set->bo.bo);
 	if (set->dynamic_descriptors)
 		radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
+	list_del(&set->descriptor_pool);
 	radv_free2(&device->alloc, NULL, set);
+}
+
+VkResult radv_CreateDescriptorPool(
+	VkDevice                                    _device,
+	const VkDescriptorPoolCreateInfo*           pCreateInfo,
+	const VkAllocationCallbacks*                pAllocator,
+	VkDescriptorPool*                           pDescriptorPool)
+{
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	struct radv_descriptor_pool *pool;
+	int size = sizeof(struct radv_descriptor_pool);
+	pool = radv_alloc2(&device->alloc, pAllocator, size, 8,
+			   VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+	if (!pool)
+		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
+
+	list_inithead(&pool->descriptor_sets);
+	*pDescriptorPool = radv_descriptor_pool_to_handle(pool);
+	return VK_SUCCESS;
+}
+
+void radv_DestroyDescriptorPool(
+	VkDevice                                    _device,
+	VkDescriptorPool                            _pool,
+	const VkAllocationCallbacks*                pAllocator)
+{
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	RADV_FROM_HANDLE(radv_descriptor_pool, pool, _pool);
+
+	list_for_each_entry_safe(struct radv_descriptor_set, set,
+				 &pool->descriptor_sets, descriptor_pool) {
+		radv_descriptor_set_destroy(device, pool, set);
+	}
+
+	radv_free2(&device->alloc, pAllocator, pool);
+}
+
+VkResult radv_ResetDescriptorPool(
+	VkDevice                                    _device,
+	VkDescriptorPool                            descriptorPool,
+	VkDescriptorPoolResetFlags                  flags)
+{
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	RADV_FROM_HANDLE(radv_descriptor_pool, pool, descriptorPool);
+
+	list_for_each_entry_safe(struct radv_descriptor_set, set,
+				 &pool->descriptor_sets, descriptor_pool) {
+		radv_descriptor_set_destroy(device, pool, set);
+	}
+
+	return VK_SUCCESS;
 }
 
 VkResult radv_AllocateDescriptorSets(
