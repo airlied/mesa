@@ -472,6 +472,31 @@ enum radv_cmd_dirty_bits {
 };
 typedef uint32_t radv_cmd_dirty_mask_t;
 
+enum radv_cmd_flush_bits {
+	RADV_CMD_FLAG_INV_ICACHE = 1 << 0,
+	/* SMEM L1, other names: KCACHE, constant cache, DCACHE, data cache */
+	RADV_CMD_FLAG_INV_SMEM_L1 = 1 << 1,
+	/* VMEM L1 can optionally be bypassed (GLC=1). Other names: TC L1 */
+	RADV_CMD_FLAG_INV_VMEM_L1 = 1 << 2,
+	/* Used by everything except CB/DB, can be bypassed (SLC=1). Other names: TC L2 */
+	RADV_CMD_FLAG_INV_GLOBAL_L2 = 1 << 3,
+	/* Framebuffer caches */
+	RADV_CMD_FLAG_FLUSH_AND_INV_CB_META = 1 << 4,
+	RADV_CMD_FLAG_FLUSH_AND_INV_DB_META = 1 << 5,
+	RADV_CMD_FLAG_FLUSH_AND_INV_DB = 1 << 6,
+	RADV_CMD_FLAG_FLUSH_AND_INV_CB = 1 << 7,
+	/* Engine synchronization. */
+	RADV_CMD_FLAG_VS_PARTIAL_FLUSH = 1 << 8,
+	RADV_CMD_FLAG_PS_PARTIAL_FLUSH = 1 << 9,
+	RADV_CMD_FLAG_CS_PARTIAL_FLUSH = 1 << 10,
+	RADV_CMD_FLAG_VGT_FLUSH        = 1 << 11,
+
+	RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER = (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+					      RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
+					      RADV_CMD_FLAG_FLUSH_AND_INV_DB |
+					      RADV_CMD_FLAG_FLUSH_AND_INV_DB_META)
+};
+
 struct radv_vertex_binding {
 	struct radv_buffer *                          buffer;
 	VkDeviceSize                                 offset;
@@ -554,6 +579,7 @@ struct radv_cmd_state {
 	struct radv_buffer *                         index_buffer;
 	uint32_t                                     index_type;
 	uint32_t                                     index_offset;
+	enum radv_cmd_flush_bits                     flush_bits;
 };
 struct radv_cmd_pool {
 	VkAllocationCallbacks                        alloc;
