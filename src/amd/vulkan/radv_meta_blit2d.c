@@ -131,7 +131,6 @@ struct blit2d_src_temps {
 	VkImage image;
 	struct radv_image_view iview;
 
-	VkDescriptorPool desc_pool;
 	VkDescriptorSet set;
 };
 
@@ -150,28 +149,10 @@ blit2d_bind_src(struct radv_cmd_buffer *cmd_buffer,
 			     rect->src_x + rect->width, rect->src_y + rect->height,
 			     &tmp->image, &tmp->iview);
 
-		radv_CreateDescriptorPool(vk_device,
-					  &(const VkDescriptorPoolCreateInfo) {
-						  .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-							  .pNext = NULL,
-							  .flags = 0,
-							  .maxSets = 1,
-							  .poolSizeCount = 1,
-							  .pPoolSizes = (VkDescriptorPoolSize[]) {
-							  {
-								  .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-								  .descriptorCount = 1
-							  },
-						  }
-					  }, &cmd_buffer->pool->alloc, &tmp->desc_pool);
 
-		radv_AllocateDescriptorSets(vk_device,
-					    &(VkDescriptorSetAllocateInfo) {
-						    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-							    .descriptorPool = tmp->desc_pool,
-							    .descriptorSetCount = 1,
-							    .pSetLayouts = &device->meta_state.blit2d.img_ds_layout
-							    }, &tmp->set);
+		radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
+					        device->meta_state.blit2d.img_ds_layout,
+					        &tmp->set);
 
 		radv_UpdateDescriptorSets(vk_device,
 					  1, /* writeCount */
@@ -204,8 +185,7 @@ static void
 blit2d_unbind_src(struct radv_cmd_buffer *cmd_buffer,
                   struct blit2d_src_temps *tmp)
 {
-	radv_DestroyDescriptorPool(radv_device_to_handle(cmd_buffer->device),
-				   tmp->desc_pool, &cmd_buffer->pool->alloc);
+	radv_temp_descriptor_set_destroy(cmd_buffer->device, tmp->set);
 	radv_DestroyImage(radv_device_to_handle(cmd_buffer->device),
 			  tmp->image, &cmd_buffer->pool->alloc);
 }
