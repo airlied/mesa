@@ -866,6 +866,7 @@ struct radv_buffer_view {
 	VkFormat vk_format;
 	uint32_t offset; /**< Offset into bo. */
 	uint64_t range; /**< VkBufferViewCreateInfo::range */
+	uint32_t state[4];
 };
 void radv_buffer_view_init(struct radv_buffer_view *view,
 			   struct radv_device *device,
