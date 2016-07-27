@@ -257,7 +257,7 @@ radv_descriptor_set_create(struct radv_device *device,
 
 	set->layout = layout;
 	if (layout->size) {
-		if (pool) {
+		if (!cmd_buffer) {
 			set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
 							       16, RADEON_DOMAIN_VRAM, 0);
 
