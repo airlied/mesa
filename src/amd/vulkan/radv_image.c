@@ -126,6 +126,59 @@ si_tile_mode_index(const struct radv_image *image, unsigned level, bool stencil)
 		return image->surface.tiling_index[level];
 }
 
+static unsigned radv_map_swizzle(unsigned swizzle)
+{
+	switch (swizzle) {
+	case VK_SWIZZLE_Y:
+		return V_008F0C_SQ_SEL_Y;
+	case VK_SWIZZLE_Z:
+		return V_008F0C_SQ_SEL_Z;
+	case VK_SWIZZLE_W:
+		return V_008F0C_SQ_SEL_W;
+	case VK_SWIZZLE_0:
+		return V_008F0C_SQ_SEL_0;
+	case VK_SWIZZLE_1:
+		return V_008F0C_SQ_SEL_1;
+	default: /* VK_SWIZZLE_X */
+		return V_008F0C_SQ_SEL_X;
+	}
+}
+
+static void
+radv_make_buffer_descriptor(struct radv_device *device,
+			    struct radv_buffer *buffer,
+			    VkFormat vk_format,
+			    unsigned offset,
+			    unsigned range,
+			    uint32_t *state)
+{
+	const struct vk_format_description *desc;
+	unsigned stride;
+	uint64_t gpu_address = device->ws->buffer_get_va(buffer->bo->bo);
+	uint64_t va = gpu_address + buffer->offset;
+	unsigned num_format, data_format;
+	unsigned num_records;
+	int first_non_void;
+	desc = vk_format_description(vk_format);
+	first_non_void = vk_format_get_first_non_void_channel(vk_format);
+	stride = desc->block.bits / 8;
+
+	num_format = radv_translate_buffer_numformat(desc, first_non_void);
+	data_format = radv_translate_buffer_dataformat(desc, first_non_void);
+
+	va += offset;
+	state[0] = va;
+	state[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) |
+		S_008F04_STRIDE(stride);
+	state[2] = range;
+	state[3] = S_008F0C_DST_SEL_X(radv_map_swizzle(desc->swizzle[0])) |
+		   S_008F0C_DST_SEL_Y(radv_map_swizzle(desc->swizzle[1])) |
+		   S_008F0C_DST_SEL_Z(radv_map_swizzle(desc->swizzle[2])) |
+		   S_008F0C_DST_SEL_W(radv_map_swizzle(desc->swizzle[3])) |
+		   S_008F0C_NUM_FORMAT(num_format) |
+		   S_008F0C_DATA_FORMAT(data_format);
+}
+
 static void
 si_set_mutable_tex_desc_fields(struct radv_device *device,
 			       struct radv_image *image,
@@ -154,24 +207,6 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 		state[7] = (gpu_address + 
 			    image->dcc_offset +
 			    base_level_info->dcc_offset) >> 8;
-	}
-}
-
-static unsigned radv_map_swizzle(unsigned swizzle)
-{
-	switch (swizzle) {
-	case VK_SWIZZLE_Y:
-		return V_008F0C_SQ_SEL_Y;
-	case VK_SWIZZLE_Z:
-		return V_008F0C_SQ_SEL_Z;
-	case VK_SWIZZLE_W:
-		return V_008F0C_SQ_SEL_W;
-	case VK_SWIZZLE_0:
-		return V_008F0C_SQ_SEL_0;
-	case VK_SWIZZLE_1:
-		return V_008F0C_SQ_SEL_1;
-	default: /* VK_SWIZZLE_X */
-		return V_008F0C_SQ_SEL_X;
 	}
 }
 
@@ -636,6 +671,9 @@ void radv_buffer_view_init(struct radv_buffer_view *view,
 		buffer->size - view->offset : pCreateInfo->range;
 	view->vk_format = pCreateInfo->format;
 	/* TODO texture buffers */
+
+	radv_make_buffer_descriptor(device, buffer, view->vk_format,
+				    view->offset, view->range, view->state);
 }
 
 VkResult

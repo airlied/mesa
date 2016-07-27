@@ -419,6 +419,16 @@ VkResult radv_FreeDescriptorSets(
 	return VK_SUCCESS;
 }
 
+static void write_texel_buffer_descriptor(struct radv_device *device,
+					  unsigned *dst,
+					  struct radv_bo **buffer_list,
+					  const VkBufferView _buffer_view)
+{
+	RADV_FROM_HANDLE(radv_buffer_view, buffer_view, _buffer_view);
+
+	memcpy(dst, buffer_view->state, 4 * 4);
+	*buffer_list = buffer_view->bo;
+}
 
 static void write_buffer_descriptor(struct radv_device *device,
                                     unsigned *dst,
@@ -532,9 +542,13 @@ void radv_UpdateDescriptorSets(
 			}
 			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-			case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
 				write_buffer_descriptor(device, ptr, buffer_list,
 							writeset->pBufferInfo + j);
+				break;
+			case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+			case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+				write_texel_buffer_descriptor(device, ptr, buffer_list,
+							      writeset->pTexelBufferView[j]);
 				break;
 			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
 			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
