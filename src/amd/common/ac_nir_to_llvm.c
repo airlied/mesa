@@ -1859,11 +1859,9 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	LLVMValueRef buffer_index;
 	int index = variable->data.location - 17;
 	int idx = variable->data.location;
+	unsigned attrib_count = glsl_count_attribute_slots(variable->type, true);
 
 	variable->data.driver_location = idx * 4;
-	t_offset = LLVMConstInt(ctx->i32, index, false);
-
-	t_list = build_indexed_load_const(ctx, t_list_ptr, t_offset);
 
 	if (ctx->options->key.vs.instance_rate_inputs & (1u << index)) {
 		buffer_index = LLVMBuildAdd(ctx->builder, ctx->instance_id,
@@ -1873,18 +1871,24 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	} else
 		buffer_index = LLVMBuildAdd(ctx->builder, ctx->vertex_id,
 					    ctx->base_vertex, "");
-	args[0] = t_list;
-	args[1] = LLVMConstInt(ctx->i32, 0, false);
-	args[2] = buffer_index;
-	input = emit_llvm_intrinsic(ctx,
-		"llvm.SI.vs.load.input", ctx->v4f32, args, 3,
-		LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
 
-	for (unsigned chan = 0; chan < 4; chan++) {
-		LLVMValueRef llvm_chan = LLVMConstInt(ctx->i32, chan, false);
-		ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)] =
-			to_integer(ctx, LLVMBuildExtractElement(ctx->builder,
-						input, llvm_chan, ""));
+	for (unsigned i = 0; i < attrib_count; ++i, ++idx) {
+		t_offset = LLVMConstInt(ctx->i32, index, false);
+
+		t_list = build_indexed_load_const(ctx, t_list_ptr, t_offset);
+		args[0] = t_list;
+		args[1] = LLVMConstInt(ctx->i32, 0, false);
+		args[2] = buffer_index;
+		input = emit_llvm_intrinsic(ctx,
+			"llvm.SI.vs.load.input", ctx->v4f32, args, 3,
+			LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
+
+		for (unsigned chan = 0; chan < 4; chan++) {
+			LLVMValueRef llvm_chan = LLVMConstInt(ctx->i32, chan, false);
+			ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)] =
+				to_integer(ctx, LLVMBuildExtractElement(ctx->builder,
+							input, llvm_chan, ""));
+		}
 	}
 }
 
@@ -1946,12 +1950,16 @@ handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 		     struct nir_variable *variable)
 {
 	int idx = variable->data.location;
+	unsigned attrib_count = glsl_count_attribute_slots(variable->type, false);
+	LLVMValueRef interp;
 
 	variable->data.driver_location = idx * 4;
-	ctx->input_mask |= 1ull << variable->data.location;
+	ctx->input_mask |= ((1ull << attrib_count) - 1) << variable->data.location;
 
-	ctx->inputs[radeon_llvm_reg_index_soa(idx, 0)] =
-	              lookup_interp_param(ctx, variable->data.interpolation, 0);
+	interp = lookup_interp_param(ctx, variable->data.interpolation, 0);
+
+	for (unsigned i = 0; i < attrib_count; ++i)
+		ctx->inputs[radeon_llvm_reg_index_soa(idx + i, 0)] = interp;
 
 }
 
@@ -2036,13 +2044,16 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 			  struct nir_variable *variable)
 {
 	int idx = variable->data.location;
+	unsigned attrib_count = glsl_count_attribute_slots(variable->type, false);
 
 	variable->data.driver_location = idx * 4;
-	for (unsigned chan = 0; chan < 4; chan++) {
-		ctx->outputs[radeon_llvm_reg_index_soa(idx, chan)] =
+	for (unsigned i = 0; i < attrib_count; ++i) {
+		for (unsigned chan = 0; chan < 4; chan++) {
+			ctx->outputs[radeon_llvm_reg_index_soa(idx + i, chan)] =
 		                       si_build_alloca_undef(ctx, ctx->f32, "");
+		}
 	}
-	ctx->output_mask |= 1ull << variable->data.location;
+	ctx->output_mask |= ((1ull << attrib_count) - 1) << variable->data.location;
 }
 
 static void
