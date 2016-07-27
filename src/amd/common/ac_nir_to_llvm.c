@@ -45,7 +45,8 @@ enum radeon_llvm_calling_convention {
 enum desc_type {
 	DESC_IMAGE,
 	DESC_FMASK,
-	DESC_SAMPLER
+	DESC_SAMPLER,
+	DESC_BUFFER,
 };
 
 struct nir_to_llvm_context {
@@ -1273,6 +1274,8 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 {
 	switch (dim) {
+	case GLSL_SAMPLER_DIM_BUF:
+		return 1;
 	case GLSL_SAMPLER_DIM_1D:
 		return array ? 2 : 1;
 	case GLSL_SAMPLER_DIM_2D:
@@ -1351,22 +1354,34 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	char coords_type[8];
 	const nir_variable *var = instr->variables[0]->var;
 
-	params[0] = get_src(ctx, instr->src[2]); /* coords */
-	params[1] = get_image_coords(ctx, instr);
-	params[2] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
-	params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
-	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
-	params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
-	params[6] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
-	params[7] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
+		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
+		params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_BUFFER);
+		params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
+		params[3] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
+						    LLVMConstInt(ctx->i32, 0, false), ""); /* voffset */
+		params[4] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
+		params[5] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+		emit_llvm_intrinsic(ctx, "llvm.amdgcn.buffer.store.format.v4f32", ctx->voidt,
+				    params, 6, 0);
+	} else {
+		params[0] = get_src(ctx, instr->src[2]); /* coords */
+		params[1] = get_image_coords(ctx, instr);
+		params[2] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+		params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
+		params[4] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
+		params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
+		params[6] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
+		params[7] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
-	build_int_type_name(LLVMTypeOf(params[1]),
-			    coords_type, sizeof(coords_type));
+		build_int_type_name(LLVMTypeOf(params[1]),
+				    coords_type, sizeof(coords_type));
 
-	snprintf(intrinsic_name, sizeof(intrinsic_name),
-		 "llvm.amdgcn.image.store.%s", coords_type);
-	emit_llvm_intrinsic(ctx, intrinsic_name, ctx->voidt,
-			    params, 8, 0);
+		snprintf(intrinsic_name, sizeof(intrinsic_name),
+			 "llvm.amdgcn.image.store.%s", coords_type);
+		emit_llvm_intrinsic(ctx, intrinsic_name, ctx->voidt,
+				    params, 8, 0);
+	}
 
 }
 
@@ -1506,6 +1521,10 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 		if (binding->type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 			offset += 64;
 
+		type_size = 16;
+		break;
+	case DESC_BUFFER:
+		type = ctx->v4i32;
 		type_size = 16;
 		break;
 	}
