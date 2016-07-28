@@ -744,6 +744,12 @@ static LLVMValueRef emit_uint_carry(struct nir_to_llvm_context *ctx,
 	return res;
 }
 
+static LLVMValueRef emit_b2f(struct nir_to_llvm_context *ctx,
+			     LLVMValueRef src0)
+{
+	return LLVMBuildAnd(ctx->builder, src0, LLVMBuildBitCast(ctx->builder, LLVMConstReal(ctx->f32, 1.0), ctx->i32, ""), "");
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -974,6 +980,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_usub_borrow:
 		result = emit_uint_carry(ctx, "llvm.usub.with.overflow.i32", src[0], src[1]);
+		break;
+	case nir_op_b2f:
+		result = emit_b2f(ctx, src[0]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
