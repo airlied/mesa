@@ -856,6 +856,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_ieq:
 		result = emit_int_cmp(ctx, LLVMIntEQ, src[0], src[1]);
 		break;
+	case nir_op_ige:
+		result = emit_int_cmp(ctx, LLVMIntSGE, src[0], src[1]);
+		break;
 	case nir_op_ult:
 		result = emit_int_cmp(ctx, LLVMIntULT, src[0], src[1]);
 		break;
