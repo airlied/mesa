@@ -232,6 +232,32 @@ void radv_CmdCopyBufferToImage(
 				  regionCount, pRegions, true);
 }
 
+static void
+meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
+                          struct radv_buffer* buffer,
+                          struct radv_image* image,
+                          uint32_t regionCount,
+                          const VkBufferImageCopy* pRegions)
+{
+	struct radv_meta_saved_state saved_state;
+
+	radv_meta_begin_bufimage(cmd_buffer, &saved_state);
+	for (unsigned r = 0; r < regionCount; r++) {
+		const VkExtent3D img_extent_el =
+			meta_region_extent_el(image, &pRegions[r].imageExtent);
+		struct radv_meta_blit2d_rect rect = {
+			.width = img_extent_el.width,
+			.height =  img_extent_el.height,
+		};
+		const struct radeon_surf *img_surf = &image->surface;
+		struct radv_meta_blit2d_surf img_bsurf =
+			blit_surf_for_image_level(image, img_surf, pRegions[r].imageSubresource.mipLevel);
+
+		radv_meta_image_to_buffer(cmd_buffer, &img_bsurf,
+					  buffer, 1, &rect);
+	}
+}
+
 void radv_CmdCopyImageToBuffer(
 	VkCommandBuffer                             commandBuffer,
 	VkImage                                     srcImage,
@@ -243,9 +269,13 @@ void radv_CmdCopyImageToBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_image, src_image, srcImage);
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, destBuffer);
-
+#if 0
 	meta_copy_buffer_to_image(cmd_buffer, dst_buffer, src_image,
 				  regionCount, pRegions, false);
+#else
+	meta_copy_image_to_buffer(cmd_buffer, dst_buffer, src_image,
+				  regionCount, pRegions);
+#endif
 }
 
 void radv_CmdCopyImage(
