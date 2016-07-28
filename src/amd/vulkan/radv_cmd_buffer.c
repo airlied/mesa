@@ -1303,6 +1303,7 @@ void radv_CmdDispatch(
 
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
+	si_emit_cache_flush(cmd_buffer);
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 10);
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 10 * 4, 3);
