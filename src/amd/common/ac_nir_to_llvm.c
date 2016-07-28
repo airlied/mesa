@@ -1506,9 +1506,9 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
 		params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_BUFFER);
-		params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
-		params[3] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
-						    LLVMConstInt(ctx->i32, 0, false), ""); /* voffset */
+		params[2] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
+						    LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
+		params[3] = LLVMConstInt(ctx->i32, 0, false); /* voffset */
 		params[4] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
 		params[5] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 		emit_llvm_intrinsic(ctx, "llvm.amdgcn.buffer.store.format.v4f32", ctx->voidt,
