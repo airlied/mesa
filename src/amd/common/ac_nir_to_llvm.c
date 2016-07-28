@@ -504,7 +504,7 @@ build_store_values_extended(struct nir_to_llvm_context *ctx,
 	unsigned i;
 
 	if (value_count == 1) {
-		LLVMBuildLoad(builder, vec, values[0]);
+		LLVMBuildStore(builder, vec, values[0]);
 		return;
 	}
 
