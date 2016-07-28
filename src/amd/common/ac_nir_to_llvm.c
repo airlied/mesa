@@ -935,6 +935,9 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_fexp2:
 		result = emit_intrin_1f_param(ctx, "llvm.exp2.f32", src[0]);
 		break;
+	case nir_op_flog2:
+		result = emit_intrin_1f_param(ctx, "llvm.log2.f32", src[0]);
+		break;
 	case nir_op_frsq:
 		result = emit_intrin_1f_param(ctx, "llvm.sqrt.f32", src[0]);
 		result = LLVMBuildFDiv(ctx->builder, ctx->f32one, result, "");
