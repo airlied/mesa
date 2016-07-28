@@ -91,6 +91,7 @@ struct nir_to_llvm_context {
 	LLVMTypeRef v4i32;
 	LLVMTypeRef v8i32;
 	LLVMTypeRef f32;
+	LLVMTypeRef f16;
 	LLVMTypeRef v4f32;
 	LLVMTypeRef v16i8;
 	LLVMTypeRef voidt;
@@ -407,6 +408,7 @@ static void setup_types(struct nir_to_llvm_context *ctx)
 	ctx->v4i32 = LLVMVectorType(ctx->i32, 4);
 	ctx->v8i32 = LLVMVectorType(ctx->i32, 8);
 	ctx->f32 = LLVMFloatTypeInContext(ctx->context);
+	ctx->f16 = LLVMHalfTypeInContext(ctx->context);
 	ctx->v4f32 = LLVMVectorType(ctx->f32, 4);
 	ctx->v16i8 = LLVMVectorType(ctx->i8, 16);
 
@@ -989,6 +991,10 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_b2f:
 		result = emit_b2f(ctx, src[0]);
+		break;
+	case nir_op_fquantize2f16:
+		src[0] = to_float(ctx, src[0]);
+		result = LLVMBuildFPTrunc(ctx->builder, src[0], ctx->f16, "");
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
