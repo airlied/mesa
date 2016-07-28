@@ -995,6 +995,8 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_fquantize2f16:
 		src[0] = to_float(ctx, src[0]);
 		result = LLVMBuildFPTrunc(ctx->builder, src[0], ctx->f16, "");
+		/* need to convert back up to f32 */
+		result = LLVMBuildFPExt(ctx->builder, result, ctx->f32, "");
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
