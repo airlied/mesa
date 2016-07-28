@@ -369,6 +369,18 @@ struct radv_meta_state {
 	} blit2d;
 
 	struct {
+		VkPipelineLayout                          img_p_layout;
+		VkDescriptorSetLayout                     img_ds_layout;
+		VkPipeline pipeline;
+	} itob;
+	struct {
+		VkRenderPass render_pass;
+		VkPipelineLayout                          img_p_layout;
+		VkDescriptorSetLayout                     img_ds_layout;
+		VkPipeline pipeline;
+	} btoi;
+
+	struct {
 		/** Pipeline [i] resolves an image with 2^(i+1) samples.  */
 		VkPipeline                                pipelines[MAX_SAMPLES_LOG2];
 

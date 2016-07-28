@@ -36,6 +36,7 @@ VULKAN_FILES := \
 	radv_meta.h \
 	radv_meta_blit.c \
 	radv_meta_blit2d.c \
+	radv_meta_bufimage.c \
 	radv_meta_clear.c \
 	radv_meta_copy.c \
 	radv_meta_resolve.c \
