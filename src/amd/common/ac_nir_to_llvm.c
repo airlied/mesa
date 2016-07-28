@@ -86,6 +86,7 @@ struct nir_to_llvm_context {
 	LLVMTypeRef i8;
 	LLVMTypeRef i16;
 	LLVMTypeRef i32;
+	LLVMTypeRef i64;
 	LLVMTypeRef v2i32;
 	LLVMTypeRef v3i32;
 	LLVMTypeRef v4i32;
@@ -403,6 +404,7 @@ static void setup_types(struct nir_to_llvm_context *ctx)
 	ctx->i8 = LLVMIntTypeInContext(ctx->context, 8);
 	ctx->i16 = LLVMIntTypeInContext(ctx->context, 16);
 	ctx->i32 = LLVMIntTypeInContext(ctx->context, 32);
+	ctx->i64 = LLVMIntTypeInContext(ctx->context, 64);
 	ctx->v2i32 = LLVMVectorType(ctx->i32, 2);
 	ctx->v3i32 = LLVMVectorType(ctx->i32, 3);
 	ctx->v4i32 = LLVMVectorType(ctx->i32, 4);
@@ -752,6 +754,58 @@ static LLVMValueRef emit_b2f(struct nir_to_llvm_context *ctx,
 	return LLVMBuildAnd(ctx->builder, src0, LLVMBuildBitCast(ctx->builder, LLVMConstReal(ctx->f32, 1.0), ctx->i32, ""), "");
 }
 
+static LLVMValueRef emit_umul_high(struct nir_to_llvm_context *ctx,
+				   LLVMValueRef src0, LLVMValueRef src1)
+{
+	LLVMValueRef dst64, result;
+	src0 = LLVMBuildZExt(ctx->builder, src0, ctx->i64, "");
+	src1 = LLVMBuildZExt(ctx->builder, src1, ctx->i64, "");
+
+	dst64 = LLVMBuildMul(ctx->builder, src0, src1, "");
+	dst64 = LLVMBuildLShr(ctx->builder, dst64, LLVMConstInt(ctx->i64, 32, false), "");
+	result = LLVMBuildTrunc(ctx->builder, dst64, ctx->i32, "");
+	return result;
+}
+
+static LLVMValueRef emit_imul_high(struct nir_to_llvm_context *ctx,
+				   LLVMValueRef src0, LLVMValueRef src1)
+{
+	LLVMValueRef dst64, result;
+	src0 = LLVMBuildSExt(ctx->builder, src0, ctx->i64, "");
+	src1 = LLVMBuildSExt(ctx->builder, src1, ctx->i64, "");
+
+	dst64 = LLVMBuildMul(ctx->builder, src0, src1, "");
+	dst64 = LLVMBuildAShr(ctx->builder, dst64, LLVMConstInt(ctx->i64, 32, false), "");
+	result = LLVMBuildTrunc(ctx->builder, dst64, ctx->i32, "");
+	return result;
+}
+
+static LLVMValueRef emit_bitfield_insert(struct nir_to_llvm_context *ctx,
+					 LLVMValueRef src0, LLVMValueRef src1,
+					 LLVMValueRef src2, LLVMValueRef src3)
+{
+	LLVMValueRef bfi_args[3], result;
+
+	bfi_args[0] = LLVMBuildShl(ctx->builder,
+				   LLVMBuildSub(ctx->builder,
+						LLVMBuildShl(ctx->builder,
+							     ctx->i32one,
+							     src3, ""),
+						ctx->i32one, ""),
+				   src2, "");
+	bfi_args[1] = LLVMBuildShl(ctx->builder, src1, src2, "");
+	bfi_args[2] = src0;
+
+	/* Calculate:
+	 *   (arg0 & arg1) | (~arg0 & arg2) = arg2 ^ (arg0 & (arg1 ^ arg2)
+	 * Use the right-hand side, which the LLVM backend can convert to V_BFI.
+	 */
+	result = LLVMBuildXor(ctx->builder, bfi_args[2],
+			      LLVMBuildAnd(ctx->builder, bfi_args[0],
+					   LLVMBuildXor(ctx->builder, bfi_args[1], bfi_args[2], ""), ""), "");
+	return result;
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -964,6 +1018,15 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_ffma:
 		result = emit_intrin_3f_param(ctx, "llvm.fma.f32", src[0], src[1], src[2]);
 		break;
+	case nir_op_ibitfield_extract:
+		result = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.bfe.i32", ctx->i32, src, 3, LLVMReadNoneAttribute);
+		break;
+	case nir_op_ubitfield_extract:
+		result = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.bfe.u32", ctx->i32, src, 3, LLVMReadNoneAttribute);
+		break;
+	case nir_op_bitfield_insert:
+		result = emit_bitfield_insert(ctx, src[0], src[1], src[2], src[3]);
+		break;
 	case nir_op_vec2:
 	case nir_op_vec3:
 	case nir_op_vec4:
@@ -1005,6 +1068,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		result = LLVMBuildFPTrunc(ctx->builder, src[0], ctx->f16, "");
 		/* need to convert back up to f32 */
 		result = LLVMBuildFPExt(ctx->builder, result, ctx->f32, "");
+		break;
+	case nir_op_umul_high:
+		result = emit_umul_high(ctx, src[0], src[1]);
+		break;
+	case nir_op_imul_high:
+		result = emit_imul_high(ctx, src[0], src[1]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
