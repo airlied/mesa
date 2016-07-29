@@ -442,6 +442,21 @@ static int get_llvm_num_components(LLVMValueRef value)
 	                              : 1;
 	return num_components;
 }
+
+static LLVMValueRef llvm_extract_elem(struct nir_to_llvm_context *ctx,
+				      LLVMValueRef value,
+				      int index)
+{
+	int count = get_llvm_num_components(value);
+
+	assert(index < count);
+	if (count == 1)
+		return value;
+
+	return LLVMBuildExtractElement(ctx->builder, value,
+				       LLVMConstInt(ctx->i32, index, false), "");
+}
+
 static LLVMValueRef trim_vector(struct nir_to_llvm_context *ctx,
                                 LLVMValueRef value, unsigned count)
 {
@@ -1980,19 +1995,13 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	LLVMTypeRef data_type = ctx->i32;
 	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL;
 	unsigned chan, count = 0;
-	LLVMValueRef masks[] = {
-		LLVMConstInt(ctx->i32, 0, false), LLVMConstInt(ctx->i32, 1, false),
-		LLVMConstInt(ctx->i32, 2, false), LLVMConstInt(ctx->i32, 3, false),
-	};
+
 	tex_fetch_ptrs(ctx, instr, &res_ptr, &samp_ptr, &fmask_ptr);
 
 	coord = get_src(ctx, instr->src[0].src);
 
-	if (instr->coord_components == 1)
-		coords[0] = coord;
-	else
-		for (chan = 0; chan < instr->coord_components; chan++)
-			coords[chan] = LLVMBuildExtractElement(ctx->builder, coord, masks[chan], "");
+	for (chan = 0; chan < instr->coord_components; chan++)
+		coords[chan] = llvm_extract_elem(ctx, coord, chan);
 
 	/* TODO pack offsets */
 	/* pack LOD bias value */
