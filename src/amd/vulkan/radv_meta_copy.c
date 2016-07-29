@@ -77,13 +77,13 @@ blit_surf_for_image(const struct radv_image* image,
 }
 
 static struct radv_meta_blit2d_surf
-blit_surf_for_image_level(const struct radv_image* image,
-			  const struct radeon_surf *surf, int level)
+blit_surf_for_image_level_layer(const struct radv_image* image,
+				const struct radeon_surf *surf, int level, int layer)
 {
 	int tiling = RADEON_SURF_GET(surf->flags, MODE) == RADEON_SURF_MODE_LINEAR_ALIGNED ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
 	return (struct radv_meta_blit2d_surf) {
 		.bo = image->bo,
-			.base_offset = image->offset + surf->level[level].offset,
+			.base_offset = image->offset + surf->level[level].offset + (layer * surf->level[level].slice_size),
 			.bs = vk_format_get_blocksize(image->vk_format),
 			.pitch = surf->level[level].pitch_bytes,
 			.tiling = tiling,
@@ -170,7 +170,8 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		const struct radeon_surf *img_surf = &image->surface;
 		struct radv_meta_blit2d_surf img_bsurf =
-			blit_surf_for_image_level(image, img_surf, pRegions[r].imageSubresource.mipLevel);
+			blit_surf_for_image_level_layer(image, img_surf, pRegions[r].imageSubresource.mipLevel,
+							pRegions[r].imageSubresource.baseArrayLayer);
 		struct radv_meta_blit2d_surf buf_bsurf = {
 			.bo = buffer->bo,
 			.base_offset = buffer->offset + pRegions[r].bufferOffset,
@@ -251,7 +252,7 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 		};
 		const struct radeon_surf *img_surf = &image->surface;
 		struct radv_meta_blit2d_surf img_bsurf =
-			blit_surf_for_image_level(image, img_surf, pRegions[r].imageSubresource.mipLevel);
+			blit_surf_for_image_level_layer(image, img_surf, pRegions[r].imageSubresource.mipLevel, pRegions[r].imageSubresource.baseArrayLayer);
 
 		radv_meta_image_to_buffer(cmd_buffer, &img_bsurf,
 					  buffer, 1, &rect);
