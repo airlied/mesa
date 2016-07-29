@@ -2470,7 +2470,7 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 	LLVMValueRef val[4];
 
 	/* Default is 0xf. Adjusted below depending on the format. */
-	args[0] = LLVMConstInt(ctx->i32, 0xf, false);
+	args[0] = LLVMConstInt(ctx->i32, target != V_008DFC_SQ_EXP_NULL ? 0xf : 0, false);
 	/* Specify whether the EXEC mask represents the valid mask */
 	args[1] = LLVMConstInt(ctx->i32, 0, false);
 
@@ -2486,7 +2486,8 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 	args[8] = LLVMGetUndef(ctx->f32);
 
 	/* TODO expand this for frag shader */
-	memcpy(&args[5], values, sizeof(values[0]) * 4);
+	if (values)
+		memcpy(&args[5], values, sizeof(values[0]) * 4);
 }
 
 static void
@@ -2569,11 +2570,11 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 
 static void
 si_export_mrt_color(struct nir_to_llvm_context *ctx,
-		    LLVMValueRef *color, unsigned index, bool is_last)
+		    LLVMValueRef *color, unsigned param, bool is_last)
 {
 	LLVMValueRef args[9];
 	/* Export */
-	si_llvm_init_export_args(ctx, color, V_008DFC_SQ_EXP_MRT + index,
+	si_llvm_init_export_args(ctx, color, param,
 				 args);
 
 	if (is_last) {
@@ -2604,9 +2605,14 @@ handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 			values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
 					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
 
-		si_export_mrt_color(ctx, values, index, last);
+		si_export_mrt_color(ctx, values, V_008DFC_SQ_EXP_MRT + index, last);
 		index++;
 	}
+
+	if (!index)
+		si_export_mrt_color(ctx, NULL, V_008DFC_SQ_EXP_NULL, true);
+
+	ctx->shader_info->fs.output_mask = index ? ((1ull << index) - 1) : 0;
 }
 
 static void
