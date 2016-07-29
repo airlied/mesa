@@ -265,9 +265,13 @@ radv_descriptor_set_create(struct radv_device *device,
 			set->va = device->ws->buffer_get_va(set->bo.bo);
 		} else {
 			unsigned bo_offset;
-			radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 64,
-						     &bo_offset,
-						     (void**)&set->mapped_ptr);
+			if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 64,
+							  &bo_offset,
+							  (void**)&set->mapped_ptr)) {
+				radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
+				radv_free2(&device->alloc, NULL, set);
+				return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
+			}
 
 			set->va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
 			set->va += bo_offset;
