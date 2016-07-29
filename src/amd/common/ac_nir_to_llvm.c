@@ -1924,8 +1924,6 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 {
 	int num_args;
 	unsigned is_rect = 0;
-	LLVMValueRef coord;
-	LLVMValueRef coord_vals[4];
 
 	/* Pad to power of two vector */
 	while (count < util_next_power_of_two(count))
