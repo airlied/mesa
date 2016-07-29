@@ -1718,21 +1718,35 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	char coords_type[8];
 	const nir_variable *var = instr->variables[0]->var;
 
-	params[0] = get_image_coords(ctx, instr);
-	params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
-	params[2] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
-	params[3] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
-	params[4] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
-	params[5] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
-	params[6] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
+		params[0] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_BUFFER);
+		params[1] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
+						    LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
+		params[2] = LLVMConstInt(ctx->i32, 0, false); /* voffset */
+		params[3] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
+		params[4] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+		res = emit_llvm_intrinsic(ctx, "llvm.amdgcn.buffer.load.format.v4f32", ctx->v4f32,
+					  params, 5, 0);
 
-	build_int_type_name(LLVMTypeOf(params[0]),
-			    coords_type, sizeof(coords_type));
+		res = trim_vector(ctx, res, instr->dest.ssa.num_components);
+		res = to_integer(ctx, res);
+	} else {
+		params[0] = get_image_coords(ctx, instr);
+		params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+		params[2] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
+		params[3] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
+		params[4] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
+		params[5] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
+		params[6] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
-	snprintf(intrinsic_name, sizeof(intrinsic_name),
-		 "llvm.amdgcn.image.load.%s", coords_type);
-	res = emit_llvm_intrinsic(ctx, intrinsic_name, ctx->v4f32,
-				  params, 7, LLVMReadOnlyAttribute);
+		build_int_type_name(LLVMTypeOf(params[0]),
+				coords_type, sizeof(coords_type));
+
+		snprintf(intrinsic_name, sizeof(intrinsic_name),
+			"llvm.amdgcn.image.load.%s", coords_type);
+		res = emit_llvm_intrinsic(ctx, intrinsic_name, ctx->v4f32,
+					params, 7, LLVMReadOnlyAttribute);
+	}
 	return res;
 }
 
