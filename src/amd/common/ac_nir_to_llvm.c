@@ -674,6 +674,50 @@ static LLVMValueRef emit_find_lsb(struct nir_to_llvm_context *ctx,
 	return emit_llvm_intrinsic(ctx, "llvm.cttz.i32", ctx->i32, params, 2, LLVMReadNoneAttribute);
 }
 
+static LLVMValueRef emit_ifind_msb(struct nir_to_llvm_context *ctx,
+				   LLVMValueRef src0)
+{
+	LLVMValueRef msb = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.flbit.i32",
+					       ctx->i32, &src0, 1,
+					       LLVMReadNoneAttribute);
+
+	/* The HW returns the last bit index from MSB, but NIR wants
+	 * the index from LSB. Invert it by doing "31 - msb". */
+	msb = LLVMBuildSub(ctx->builder, LLVMConstInt(ctx->i32, 31, false),
+			   msb, "");
+
+	LLVMValueRef all_ones = LLVMConstInt(ctx->i32, -1, true);
+	LLVMValueRef cond = LLVMBuildOr(ctx->builder,
+					LLVMBuildICmp(ctx->builder, LLVMIntEQ,
+						      src0, ctx->i32zero, ""),
+					LLVMBuildICmp(ctx->builder, LLVMIntEQ,
+						      src0, all_ones, ""), "");
+
+	return LLVMBuildSelect(ctx->builder, cond, all_ones, msb, "");
+}
+
+static LLVMValueRef emit_ufind_msb(struct nir_to_llvm_context *ctx,
+				   LLVMValueRef src0)
+{
+	LLVMValueRef args[2] = {
+		src0,
+		ctx->i32one,
+	};
+	LLVMValueRef msb = emit_llvm_intrinsic(ctx, "llvm.ctlz.i32",
+					       ctx->i32, args, ARRAY_SIZE(args),
+					       LLVMReadNoneAttribute);
+
+	/* The HW returns the last bit index from MSB, but NIR wants
+	 * the index from LSB. Invert it by doing "31 - msb". */
+	msb = LLVMBuildSub(ctx->builder, LLVMConstInt(ctx->i32, 31, false),
+			   msb, "");
+
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, LLVMIntEQ, src0,
+					     ctx->i32zero, ""),
+			       LLVMConstInt(ctx->i32, -1, true), msb, "");
+}
+
 static LLVMValueRef emit_minmax_int(struct nir_to_llvm_context *ctx,
 				    LLVMIntPredicate pred,
 				    LLVMValueRef src0, LLVMValueRef src1)
@@ -1027,6 +1071,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_bitfield_insert:
 		result = emit_bitfield_insert(ctx, src[0], src[1], src[2], src[3]);
 		break;
+	case nir_op_bitfield_reverse:
+		result = emit_llvm_intrinsic(ctx, "llvm.bitreverse.i32", ctx->i32, src, 1, LLVMReadNoneAttribute);
+		break;
+	case nir_op_bit_count:
+		result = emit_llvm_intrinsic(ctx, "llvm.ctpop.i32", ctx->i32, src, 1, LLVMReadNoneAttribute);
+		break;
 	case nir_op_vec2:
 	case nir_op_vec3:
 	case nir_op_vec4:
@@ -1053,6 +1103,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_find_lsb:
 		result = emit_find_lsb(ctx, src[0]);
+		break;
+	case nir_op_ufind_msb:
+		result = emit_ufind_msb(ctx, src[0]);
+		break;
+	case nir_op_ifind_msb:
+		result = emit_ifind_msb(ctx, src[0]);
 		break;
 	case nir_op_uadd_carry:
 		result = emit_uint_carry(ctx, "llvm.uadd.with.overflow.i32", src[0], src[1]);
