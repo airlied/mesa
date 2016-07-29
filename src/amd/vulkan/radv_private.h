@@ -598,12 +598,12 @@ struct radv_cmd_pool {
 	struct list_head                             cmd_buffers;
 };
 
-#define RADV_CMD_BUFFER_UPLOAD_SIZE (1024*1024*1) /* 1MB initially */
-/* TODO linked list of these to grow later */
 struct radv_cmd_buffer_upload {
 	uint8_t *map;
 	unsigned offset;
+	uint64_t size;
 	struct radv_bo upload_bo;
+	struct list_head list;
 };
 
 struct radv_cmd_buffer {
@@ -626,6 +626,8 @@ struct radv_cmd_buffer {
 	struct radv_bo border_color_bo;
 	struct radv_cmd_buffer_upload upload;
 	uint32_t texture_border_offset;
+
+	bool record_fail;
 };
 
 void si_init_config(struct radv_physical_device *physical_device,
@@ -636,14 +638,14 @@ void si_write_scissors(struct radeon_winsys_cs *cs, int first,
 		       int count, const VkRect2D *scissors);
 uint32_t si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer);
 void si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer);
-void
+bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
 			     unsigned alignment,
 			     unsigned *out_offset,
 			     void **ptr);
 
-void
+bool
 radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned size, unsigned alignmnet,
 			    const void *data, unsigned *out_offset);

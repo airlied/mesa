@@ -134,15 +134,9 @@ static VkResult radv_create_cmd_buffer(
 	cmd_buffer->cs = device->ws->cs_create(device->ws, RING_GFX);
 	*pCommandBuffer = radv_cmd_buffer_to_handle(cmd_buffer);
 
-	cmd_buffer->upload.upload_bo.bo = device->ws->buffer_create(device->ws,
-								    RADV_CMD_BUFFER_UPLOAD_SIZE, 16,
-								    RADEON_DOMAIN_GTT,
-								    RADEON_FLAG_CPU_ACCESS);
-
-	cmd_buffer->upload.map = device->ws->buffer_map(cmd_buffer->upload.upload_bo.bo);
 	cmd_buffer->upload.offset = 0;
-
-	device->ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->upload.upload_bo.bo, 8);
+	cmd_buffer->upload.size = 0;
+	list_inithead(&cmd_buffer->upload.list);
 
 	cmd_buffer->border_color_bo.bo = device->ws->buffer_create(device->ws,
 								   4096 * 4, 16,
@@ -157,36 +151,89 @@ fail:
 	return result;
 }
 
-void
+static bool
+radv_cmd_buffer_resize_upload_buf(struct radv_cmd_buffer *cmd_buffer,
+				  uint64_t min_needed)
+{
+	uint64_t new_size;
+	struct radeon_winsys_bo *bo;
+	struct radv_cmd_buffer_upload *upload;
+	struct radv_device *device = cmd_buffer->device;
+
+	new_size = MAX2(min_needed, 16 * 1024);
+	new_size = MAX2(new_size, 2 * cmd_buffer->upload.size);
+
+	bo = device->ws->buffer_create(device->ws,
+				       new_size, 16,
+				       RADEON_DOMAIN_GTT,
+				       RADEON_FLAG_CPU_ACCESS);
+
+	if (!bo) {
+		cmd_buffer->record_fail = true;
+		return false;
+	}
+
+	if (cmd_buffer->upload.upload_bo.bo) {
+		upload = malloc(sizeof(*upload));
+
+		if (!upload) {
+			cmd_buffer->record_fail = true;
+			device->ws->buffer_destroy(bo);
+			return false;
+		}
+
+		memcpy(upload, &cmd_buffer->upload, sizeof(*upload));
+		list_add(&upload->list, &cmd_buffer->upload.list);
+
+	}
+
+	cmd_buffer->upload.upload_bo.bo = bo;
+	cmd_buffer->upload.size = new_size;
+	cmd_buffer->upload.offset = 0;
+	cmd_buffer->upload.map = device->ws->buffer_map(cmd_buffer->upload.upload_bo.bo);
+
+	if (!cmd_buffer->upload.map) {
+		cmd_buffer->record_fail = true;
+		return false;
+	}
+
+	return true;
+}
+
+bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
 			     unsigned alignment,
 			     unsigned *out_offset,
 			     void **ptr)
 {
-	if (cmd_buffer->upload.offset + size > RADV_CMD_BUFFER_UPLOAD_SIZE) {
-		fprintf(stderr, "time to implement larger upload buffer sizes.\n");
-		exit(-1);
+	if (cmd_buffer->upload.offset + size > cmd_buffer->upload.size) {
+		if (!radv_cmd_buffer_resize_upload_buf(cmd_buffer, size))
+			return false;
 	}
 
 	*out_offset = cmd_buffer->upload.offset;
 	*ptr = cmd_buffer->upload.map + cmd_buffer->upload.offset;
 
 	cmd_buffer->upload.offset += size;
+	return true;
 }
 
-void
+bool
 radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned size, unsigned alignment,
 			    const void *data, unsigned *out_offset)
 {
 	uint8_t *ptr;
 
-	radv_cmd_buffer_upload_alloc(cmd_buffer, size, alignment,
-				     out_offset, (void **)&ptr);
+	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, size, alignment,
+					  out_offset, (void **)&ptr))
+		return false;
 
 	if (ptr)
 		memcpy(ptr, data, size);
+
+	return true;
 }
 
 static void
@@ -723,7 +770,15 @@ radv_cmd_buffer_destroy(struct radv_cmd_buffer *cmd_buffer)
 {
 	list_del(&cmd_buffer->pool_link);
 
-	cmd_buffer->device->ws->buffer_destroy(cmd_buffer->upload.upload_bo.bo);
+	list_for_each_entry_safe(struct radv_cmd_buffer_upload, up,
+				 &cmd_buffer->upload.list, list) {
+		cmd_buffer->device->ws->buffer_destroy(up->upload_bo.bo);
+		list_del(&up->list);
+		free(up);
+	}
+
+	if (cmd_buffer->upload.upload_bo.bo)
+		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->upload.upload_bo.bo);
 	cmd_buffer->device->ws->buffer_destroy(cmd_buffer->border_color_bo.bo);
 	cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs);
 	radv_free(&cmd_buffer->pool->alloc, cmd_buffer);
@@ -744,10 +799,22 @@ void radv_FreeCommandBuffers(
 
 static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 {
+
 	cmd_buffer->device->ws->cs_reset(cmd_buffer->cs);
-	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs,
-					      cmd_buffer->upload.upload_bo.bo, 8);
+
+	list_for_each_entry_safe(struct radv_cmd_buffer_upload, up,
+				 &cmd_buffer->upload.list, list) {
+		cmd_buffer->device->ws->buffer_destroy(up->upload_bo.bo);
+		list_del(&up->list);
+		free(up);
+	}
+
+	if (cmd_buffer->upload.upload_bo.bo)
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs,
+						      cmd_buffer->upload.upload_bo.bo, 8);
 	cmd_buffer->upload.offset = 0;
+
+	cmd_buffer->record_fail = false;
 }
 
 VkResult radv_ResetCommandBuffer(
@@ -901,7 +968,8 @@ VkResult radv_EndCommandBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
 	si_emit_cache_flush(cmd_buffer);
-	if (!cmd_buffer->device->ws->cs_finalize(cmd_buffer->cs))
+	if (!cmd_buffer->device->ws->cs_finalize(cmd_buffer->cs) ||
+	    cmd_buffer->record_fail)
 		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 	return VK_SUCCESS;
 }
