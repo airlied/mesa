@@ -548,7 +548,7 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 
 	raster->pa_cl_vs_out_cntl = S_02881C_VS_OUT_MISC_SIDE_BUS_ENA(1);
 	raster->pa_cl_clip_cntl = S_028810_PS_UCP_MODE(3) |
-		S_028810_DX_CLIP_SPACE_DEF(0) | // TODO verify
+		S_028810_DX_CLIP_SPACE_DEF(1) | // vulkan uses DX conventions.
 		S_028810_ZCLIP_NEAR_DISABLE(vkraster->depthClampEnable ? 1 : 0) |
 		S_028810_ZCLIP_FAR_DISABLE(vkraster->depthClampEnable ? 1 : 0) |
 		S_028810_DX_RASTERIZATION_KILL(vkraster->rasterizerDiscardEnable ? 1 : 0) |
