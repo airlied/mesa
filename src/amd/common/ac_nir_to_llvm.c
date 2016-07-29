@@ -850,6 +850,50 @@ static LLVMValueRef emit_bitfield_insert(struct nir_to_llvm_context *ctx,
 	return result;
 }
 
+static LLVMValueRef emit_pack_half_2x16(struct nir_to_llvm_context *ctx,
+					LLVMValueRef src0)
+{
+	LLVMValueRef const16 = LLVMConstInt(ctx->i32, 16, false);
+	int i;
+	LLVMValueRef comp[2];
+
+	src0 = to_float(ctx, src0);
+	comp[0] = LLVMBuildExtractElement(ctx->builder, src0, ctx->i32zero, "");
+	comp[1] = LLVMBuildExtractElement(ctx->builder, src0, ctx->i32one, "");
+	for (i = 0; i < 2; i++) {
+		comp[i] = LLVMBuildFPTrunc(ctx->builder, comp[i], ctx->f16, "");
+		comp[i] = LLVMBuildBitCast(ctx->builder, comp[i], ctx->i16, "");
+		comp[i] = LLVMBuildZExt(ctx->builder, comp[i], ctx->i32, "");
+	}
+
+	comp[1] = LLVMBuildShl(ctx->builder, comp[1], const16, "");
+	comp[0] = LLVMBuildOr(ctx->builder, comp[0], comp[1], "");
+
+	return comp[0];
+}
+
+static LLVMValueRef emit_unpack_half_2x16(struct nir_to_llvm_context *ctx,
+					  LLVMValueRef src0)
+{
+	LLVMValueRef const16 = LLVMConstInt(ctx->i32, 16, false);
+	LLVMValueRef temps[2], result, val;
+	LLVMTypeRef v2f32 = LLVMVectorType(ctx->f32, 2);
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		val = i == 1 ? LLVMBuildLShr(ctx->builder, src0, const16, "") : src0;
+		val = LLVMBuildTrunc(ctx->builder, val, ctx->i16, "");
+		val = LLVMBuildBitCast(ctx->builder, val, ctx->f16, "");
+		temps[i] = LLVMBuildFPExt(ctx->builder, val, ctx->f32, "");
+	}
+
+	result = LLVMBuildInsertElement(ctx->builder, LLVMGetUndef(v2f32), temps[0],
+					ctx->i32zero, "");
+	result = LLVMBuildInsertElement(ctx->builder, result, temps[1],
+					ctx->i32one, "");
+	return result;
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -861,6 +905,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 	case nir_op_vec2:
 	case nir_op_vec3:
 	case nir_op_vec4:
+		src_components = 1;
+		break;
+	case nir_op_pack_half_2x16:
+		src_components = 2;
+		break;
+	case nir_op_unpack_half_2x16:
 		src_components = 1;
 		break;
 	default:
@@ -1130,6 +1180,12 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_imul_high:
 		result = emit_imul_high(ctx, src[0], src[1]);
+		break;
+	case nir_op_pack_half_2x16:
+		result = emit_pack_half_2x16(ctx, src[0]);
+		break;
+	case nir_op_unpack_half_2x16:
+		result = emit_unpack_half_2x16(ctx, src[0]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
