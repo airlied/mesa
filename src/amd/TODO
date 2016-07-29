@@ -8,10 +8,8 @@ DCC
 Geometry shaders
 Tessellation Shaders
 Compressed textures
-Resizing the IB's
 Compute & DMA queues
 Shader cache
 texture arrays
-push constants
 vulkan event
 vulkan queries
