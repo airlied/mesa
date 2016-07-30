@@ -1321,6 +1321,9 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_texop_txb:
 		infix = ".b";
 		break;
+	case nir_texop_txs:
+		name = "llvm.SI.getresinfo";
+		break;
 	default:
 		break;
 	}
@@ -1966,7 +1969,8 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->args[1] = res_ptr;
 	num_args = 2;
 
-	if (instr->op == nir_texop_txf || instr->op == nir_texop_query_levels)
+	if (instr->op == nir_texop_txf || instr->op == nir_texop_query_levels ||
+	    instr->op == nir_texop_txs)
 		tinfo->dst_type = ctx->v4i32;
 	else {
 		tinfo->dst_type = ctx->v4f32;
@@ -2033,6 +2037,10 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && instr->num_srcs > 1) {
 		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
+		address[count++] = lod;
+	} else if(instr->op == nir_texop_txs) {
+		LLVMValueRef lod = get_src(ctx, instr->src[0].src);
+		count = 0;
 		address[count++] = lod;
 	}
 
