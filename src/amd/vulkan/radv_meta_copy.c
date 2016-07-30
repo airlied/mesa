@@ -123,8 +123,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
                           struct radv_buffer* buffer,
                           struct radv_image* image,
                           uint32_t regionCount,
-                          const VkBufferImageCopy* pRegions,
-                          bool forward)
+                          const VkBufferImageCopy* pRegions)
 {
 	struct radv_meta_saved_state saved_state;
 
@@ -181,12 +180,6 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			.tiling = VK_IMAGE_TILING_LINEAR,
 		};
 
-		/* Set direction-dependent variables */
-		struct radv_meta_blit2d_surf *dst_bsurf = forward ? &img_bsurf : &buf_bsurf;
-		struct radv_meta_blit2d_surf *src_bsurf = forward ? &buf_bsurf : &img_bsurf;
-		uint32_t *x_offset = forward ? &rect.dst_x : &rect.src_x;
-		uint32_t *y_offset = forward ? &rect.dst_y : &rect.src_y;
-
 		/* Loop through each 3D or array slice */
 		unsigned num_slices_3d = img_extent_el.depth;
 		unsigned num_slices_array = pRegions[r].imageSubresource.layerCount;
@@ -194,11 +187,11 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		unsigned slice_array = 0;
 		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
 
-			*x_offset += img_offset_el.x;
-			*y_offset += img_offset_el.y;
+			rect.dst_x += img_offset_el.x;
+			rect.dst_y += img_offset_el.y;
 
 			/* Perform Blit */
-			radv_meta_blit2d(cmd_buffer, src_bsurf, dst_bsurf, 1, &rect);
+			radv_meta_blit2d(cmd_buffer, &buf_bsurf, &img_bsurf, 1, &rect);
 
 			/* Once we've done the blit, all of the actual information about
 			 * the image is embedded in the command buffer so we can just
@@ -207,7 +200,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			 */
 			buf_bsurf.base_offset += buf_extent_el.width *
 				buf_extent_el.height * buf_bsurf.bs;
-			dst_bsurf->base_offset += dst_bsurf->slice_size;
+			img_bsurf.base_offset += img_bsurf.slice_size;
 			if (image->type == VK_IMAGE_TYPE_3D)
 				slice_3d++;
 			else
@@ -230,7 +223,7 @@ void radv_CmdCopyBufferToImage(
 	RADV_FROM_HANDLE(radv_buffer, src_buffer, srcBuffer);
 
 	meta_copy_buffer_to_image(cmd_buffer, src_buffer, dest_image,
-				  regionCount, pRegions, true);
+				  regionCount, pRegions);
 }
 
 static void
@@ -270,13 +263,9 @@ void radv_CmdCopyImageToBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_image, src_image, srcImage);
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, destBuffer);
-#if 0
-	meta_copy_buffer_to_image(cmd_buffer, dst_buffer, src_image,
-				  regionCount, pRegions, false);
-#else
+
 	meta_copy_image_to_buffer(cmd_buffer, dst_buffer, src_image,
 				  regionCount, pRegions);
-#endif
 }
 
 void radv_CmdCopyImage(
