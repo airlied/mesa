@@ -300,6 +300,7 @@ struct radeon_winsys {
 	void (*destroy_fence)(struct radeon_winsys_fence *fence);
 	bool (*fence_wait)(struct radeon_winsys *ws,
 			   struct radeon_winsys_fence *fence,
+			   bool absolute,
 			   uint64_t timeout);
 };
 

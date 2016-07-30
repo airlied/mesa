@@ -75,16 +75,18 @@ static void amdgpu_destroy_fence(struct radeon_winsys_fence *_fence)
 
 static bool amdgpu_fence_wait(struct radeon_winsys *_ws,
 			      struct radeon_winsys_fence *_fence,
+			      bool absolute,
 			      uint64_t timeout)
 {
 	struct amdgpu_winsys *ws = amdgpu_winsys(_ws);
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
+	unsigned flags = absolute ? AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE : 0;
 	int r;
 	uint32_t expired = 0;
 	/* Now use the libdrm query. */
 	r = amdgpu_cs_query_fence_status(fence,
 					 timeout,
-					 AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE,
+					 flags,
 					 &expired);
 
 	if (r) {
