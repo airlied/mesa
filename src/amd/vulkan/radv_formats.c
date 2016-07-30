@@ -399,6 +399,17 @@ static bool radv_is_storage_image_format_supported(struct radv_physical_device *
    }
 }
 
+static bool radv_is_colorbuffer_format_supported(VkFormat format)
+{
+	return radv_translate_colorformat(format) != V_028C70_COLOR_INVALID &&
+	       radv_translate_colorswap(format, false) != ~0U;
+}
+
+static bool radv_is_zs_format_supported(VkFormat format)
+{
+	return radv_translate_dbformat(format) != V_028040_Z_INVALID;
+}
+
 static void
 radv_physical_device_get_format_properties(struct radv_physical_device *physical_device,
                                           VkFormat format,
@@ -420,7 +431,8 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
    }
 
    if (vk_format_is_depth_or_stencil(format)) {
-     tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+     if (radv_is_zs_format_supported(format))
+	 tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
      tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
      tiled |= VK_FORMAT_FEATURE_BLIT_SRC_BIT |
        VK_FORMAT_FEATURE_BLIT_DST_BIT;
@@ -431,7 +443,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
        tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
 	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
      }
-     if (radv_translate_colorformat(format) != V_028C70_COLOR_INVALID) {
+     if (radv_is_colorbuffer_format_supported(format) != V_028C70_COLOR_INVALID) {
        linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
        tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
      }
@@ -564,6 +576,7 @@ uint32_t radv_translate_dbformat(VkFormat format)
 {
 	switch (format) {
 	case VK_FORMAT_D16_UNORM:
+	case VK_FORMAT_D16_UNORM_S8_UINT:
 		return V_028040_Z_16;
 	case VK_FORMAT_X8_D24_UNORM_PACK32:
 	case VK_FORMAT_D24_UNORM_S8_UINT:
