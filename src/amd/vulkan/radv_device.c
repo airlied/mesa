@@ -1494,7 +1494,7 @@ radv_initialise_ds_surface(struct radv_device *device,
 		fprintf(stderr, "Invalid DB format: %d, disabling DB.\n", iview->vk_format);
 	}
 
-	va = device->ws->buffer_get_va(iview->bo->bo);
+	va = device->ws->buffer_get_va(iview->bo->bo) + iview->offset;
 	s_offs = z_offs = va;
 	z_offs += iview->image->surface.level[level].offset;
 	s_offs += iview->image->surface.stencil_level[level].offset;
