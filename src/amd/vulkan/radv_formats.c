@@ -431,6 +431,10 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
        tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
 	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
      }
+     if (radv_translate_colorformat(format) != V_028C70_COLOR_INVALID) {
+       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+     }
    }
    out_properties->linearTilingFeatures = linear;
    out_properties->optimalTilingFeatures = tiled;
