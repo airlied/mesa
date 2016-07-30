@@ -399,6 +399,22 @@ static bool radv_is_storage_image_format_supported(struct radv_physical_device *
    }
 }
 
+static bool radv_is_buffer_format_supported(VkFormat format)
+{
+	const struct vk_format_description *desc = vk_format_description(format);
+	unsigned data_format, num_format;
+	if (!desc || format == VK_FORMAT_UNDEFINED || vk_format_get_first_non_void_channel(format) < 0)
+		return false;
+
+	data_format = radv_translate_buffer_dataformat(desc,
+				  vk_format_get_first_non_void_channel(format));
+	num_format = radv_translate_buffer_numformat(desc,
+				  vk_format_get_first_non_void_channel(format));
+
+	return data_format != V_008F0C_BUF_DATA_FORMAT_INVALID &&
+	       num_format != ~0;
+}
+
 static bool radv_is_colorbuffer_format_supported(VkFormat format)
 {
 	return radv_translate_colorformat(format) != V_028C70_COLOR_INVALID &&
@@ -428,6 +444,13 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
    if (radv_is_storage_image_format_supported(physical_device, format)) {
       tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
       linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+   }
+
+   if (radv_is_buffer_format_supported(format)) {
+      buffer |= VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT |
+                VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+                VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT |
+                VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT;
    }
 
    if (vk_format_is_depth_or_stencil(format)) {
