@@ -289,6 +289,8 @@ void radv_GetPhysicalDeviceFeatures(
 {
 	//   RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
 
+	memset(pFeatures, 0, sizeof(*pFeatures));
+
 	*pFeatures = (VkPhysicalDeviceFeatures) {
 		.robustBufferAccess                       = true,
 		.fullDrawIndexUint32                      = true,
@@ -315,6 +317,7 @@ void radv_GetPhysicalDeviceFeatures(
 		.textureCompressionBC                     = true,
 		.occlusionQueryPrecise                    = true,
 		.pipelineStatisticsQuery                  = false,
+		.vertexPipelineStoresAndAtomics           = true,
 		.fragmentStoresAndAtomics                 = true,
 		.shaderTessellationAndGeometryPointSize   = true,
 		.shaderImageGatherExtended                = false,
@@ -335,9 +338,6 @@ void radv_GetPhysicalDeviceFeatures(
 		.variableMultisampleRate                  = false,
 		.inheritedQueries                         = false,
 	};
-
-	/* We can't do image stores in vec4 shaders */
-	pFeatures->vertexPipelineStoresAndAtomics = false;
 }
 
 void
