@@ -78,6 +78,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef prim_mask;
 	LLVMValueRef persp_sample, persp_center, persp_centroid;
 	LLVMValueRef linear_sample, linear_center, linear_centroid;
+	LLVMValueRef front_face;
 
 	LLVMBasicBlockRef continue_block;
 	LLVMBasicBlockRef break_block;
@@ -389,6 +390,12 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		ctx->linear_sample = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->linear_center = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->linear_centroid = LLVMGetParam(ctx->main_function, arg_idx++);
+		arg_idx++; /* line stipple */
+		arg_idx++; /* pos x float */
+		arg_idx++; /* pos y float */
+		arg_idx++; /* pos z float */
+		arg_idx++; /* pos w float */
+		ctx->front_face = LLVMGetParam(ctx->main_function, arg_idx++);
 		break;
 	default:
 		unreachable("Shader stage not implemented");
@@ -1840,6 +1847,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 	}
 	case nir_intrinsic_load_base_instance:
 		result = ctx->start_instance;
+		break;
+	case nir_intrinsic_load_front_face:
+		result = ctx->front_face;
 		break;
 	case nir_intrinsic_load_instance_id:
 		result = ctx->instance_id;
