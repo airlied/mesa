@@ -1510,9 +1510,10 @@ radv_initialise_ds_surface(struct radv_device *device,
 
 	if (device->instance->physicalDevice.rad_info.chip_class >= CIK) {
 		struct radeon_info *info = &device->instance->physicalDevice.rad_info;
+		unsigned tiling_index = iview->image->surface.tiling_index[level];
 		unsigned stencil_index = iview->image->surface.stencil_tiling_index[level];
 		unsigned macro_index = iview->image->surface.macro_tile_index;
-		unsigned tile_mode = info->si_tile_mode_array[index];
+		unsigned tile_mode = info->si_tile_mode_array[tiling_index];
 		unsigned stencil_tile_mode = info->si_tile_mode_array[stencil_index];
 		unsigned macro_mode = info->cik_macrotile_mode_array[macro_index];
 
