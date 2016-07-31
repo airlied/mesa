@@ -358,13 +358,8 @@ struct radv_meta_state {
 	struct {
 		VkRenderPass render_pass;
 
-		VkPipelineLayout                          img_p_layout;
-		VkDescriptorSetLayout                     img_ds_layout;
-
-		/* Pipelines indexed by source and destination type.  See the
-		 * blit2d_src_type and blit2d_dst_type enums in radv_meta_blit2d.c to
-		 * see what these mean.
-		 */
+		VkPipelineLayout p_layouts[2];
+		VkDescriptorSetLayout ds_layouts[2];
 		VkPipeline pipelines[2];
 	} blit2d;
 

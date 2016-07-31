@@ -115,7 +115,7 @@ do_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 		.width = width,
 		.height = height,
 	};
-	radv_meta_blit2d(cmd_buffer, &b_src, &b_dst, 1, &rect);
+	radv_meta_blit2d(cmd_buffer, &b_src, NULL, &b_dst, 1, &rect);
 }
 
 static void
@@ -171,13 +171,11 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		struct radv_meta_blit2d_surf img_bsurf =
 			blit_surf_for_image_level_layer(image, img_surf, pRegions[r].imageSubresource.mipLevel,
 							pRegions[r].imageSubresource.baseArrayLayer);
-		struct radv_meta_blit2d_surf buf_bsurf = {
-			.bo = buffer->bo,
-			.base_offset = buffer->offset + pRegions[r].bufferOffset,
+		struct radv_meta_blit2d_buffer buf_bsurf = {
 			.bs = img_bsurf.bs,
-			.pitch = buf_extent_el.width * buf_bsurf.bs,
-			.slice_size = 0,
-			.tiling = VK_IMAGE_TILING_LINEAR,
+			.buffer = buffer,
+			.offset = pRegions[r].bufferOffset,
+			.pitch = buf_extent_el.width,
 		};
 
 		/* Loop through each 3D or array slice */
@@ -191,15 +189,15 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 			rect.dst_y += img_offset_el.y;
 
 			/* Perform Blit */
-			radv_meta_blit2d(cmd_buffer, &buf_bsurf, &img_bsurf, 1, &rect);
+			radv_meta_blit2d(cmd_buffer, NULL, &buf_bsurf, &img_bsurf, 1, &rect);
 
 			/* Once we've done the blit, all of the actual information about
 			 * the image is embedded in the command buffer so we can just
 			 * increment the offset directly in the image effectively
 			 * re-binding it to different backing memory.
 			 */
-			buf_bsurf.base_offset += buf_extent_el.width *
-				buf_extent_el.height * buf_bsurf.bs;
+			buf_bsurf.offset += buf_extent_el.width *
+			                    buf_extent_el.height * buf_bsurf.bs;
 			img_bsurf.base_offset += img_bsurf.slice_size;
 			if (image->type == VK_IMAGE_TYPE_3D)
 				slice_3d++;
@@ -357,7 +355,7 @@ void radv_CmdCopyImage(
 			rect.src_y += src_offset_el.y;
 
 			/* Perform Blit */
-			radv_meta_blit2d(cmd_buffer, &b_src, &b_dst, 1, &rect);
+			radv_meta_blit2d(cmd_buffer, &b_src, NULL, &b_dst, 1, &rect);
 
 			if (dest_image->type == VK_IMAGE_TYPE_3D)
 				slice_3d++;
