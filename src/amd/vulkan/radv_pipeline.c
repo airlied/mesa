@@ -28,6 +28,7 @@
 #include "util/mesa-sha1.h"
 #include "radv_private.h"
 #include "nir/nir.h"
+#include "nir/nir_builder.h"
 #include "spirv/nir_spirv.h"
 
 #include <llvm-c/Core.h>
@@ -38,6 +39,7 @@
 #include "ac_llvm_util.h"
 #include "ac_nir_to_llvm.h"
 #include "vk_format.h"
+
 static void radv_shader_variant_destroy(struct radv_device *device,
                                         struct radv_shader_variant *variant);
 
@@ -749,6 +751,8 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 {
 	VkResult result;
 	struct nir_shader *shader;
+	struct radv_shader_module fs_m = {0};
+
 	bool dump = getenv("RADV_DUMP_SHADERS");
 	if (alloc == NULL)
 		alloc = &device->alloc;
@@ -783,18 +787,28 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 			ralloc_free(shader);
 	}
 
+	if (!modules[MESA_SHADER_FRAGMENT]) {
+		nir_builder fs_b;
+		nir_builder_init_simple_shader(&fs_b, NULL, MESA_SHADER_FRAGMENT, NULL);
+		fs_b.shader->info.name = ralloc_strdup(fs_b.shader, "noop_fs");
+		fs_m.nir = fs_b.shader;
+		modules[MESA_SHADER_FRAGMENT] = &fs_m;
+	}
+
 	if (modules[MESA_SHADER_FRAGMENT]) {
+		const VkPipelineShaderStageCreateInfo *stage = pStages[MESA_SHADER_FRAGMENT];
+
 		shader = radv_pipeline_compile(pipeline, modules[MESA_SHADER_FRAGMENT],
-					       pStages[MESA_SHADER_FRAGMENT]->pName,
+					       stage ? stage->pName : "main",
 					       MESA_SHADER_FRAGMENT,
-					       pStages[MESA_SHADER_FRAGMENT]->pSpecializationInfo, dump);
+					       stage ? stage->pSpecializationInfo :NULL, dump);
 		pipeline->shaders[MESA_SHADER_FRAGMENT] = radv_shader_variant_create(device,
 										     shader,
 										     pipeline->layout,
 										     NULL, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
 
-		if (!modules[MESA_SHADER_FRAGMENT]->nir)
+		if (!modules[MESA_SHADER_FRAGMENT]->nir || fs_m.nir)
 			ralloc_free(shader);
 	}
 
