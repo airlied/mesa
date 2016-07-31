@@ -672,7 +672,7 @@ void radv_buffer_view_init(struct radv_buffer_view *view,
 	view->vk_format = pCreateInfo->format;
 
 	radv_make_buffer_descriptor(device, buffer, view->vk_format,
-				    view->offset, view->range, view->state);
+				    pCreateInfo->offset, view->range, view->state);
 }
 
 VkResult
