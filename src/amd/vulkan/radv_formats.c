@@ -196,6 +196,19 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
        }
    }
 
+   if (desc->layout == VK_FORMAT_LAYOUT_BPTC) {
+       switch(format) {
+       case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+       case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+	   return V_008F14_IMG_DATA_FORMAT_BC6;
+       case VK_FORMAT_BC7_UNORM_BLOCK:
+       case VK_FORMAT_BC7_SRGB_BLOCK:
+	   return V_008F14_IMG_DATA_FORMAT_BC7;
+       default:
+	   break;
+       }
+   }
+
    if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
       return V_008F14_IMG_DATA_FORMAT_5_9_9_9;
    } else if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32) {
