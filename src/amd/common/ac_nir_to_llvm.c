@@ -1322,8 +1322,8 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 
 	switch (instr->op) {
 	case nir_texop_txf:
-		name = instr->sampler_dim == GLSL_SAMPLER_DIM_MS ?
-			"llvm.SI.image.load" :
+		name = instr->sampler_dim == GLSL_SAMPLER_DIM_MS ? "llvm.SI.image.load" :
+		       instr->sampler_dim == GLSL_SAMPLER_DIM_BUF ? "llvm.SI.vs.load.input" :
 			"llvm.SI.image.load.mip";
 		break;
 	case nir_texop_txb:
@@ -1970,6 +1970,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	int num_args;
 	unsigned is_rect = 0;
 
+
 	/* Pad to power of two vector */
 	while (count < util_next_power_of_two(count))
 		param[count++] = LLVMGetUndef(ctx->i32);
@@ -1990,6 +1991,14 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 		tinfo->args[num_args++] = samp_ptr;
 	}
 
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_BUF && instr->op == nir_texop_txf) {
+		tinfo->args[0] = res_ptr;
+		tinfo->args[1] = LLVMConstInt(ctx->i32, 0, false);
+		tinfo->args[2] = param[0];
+		tinfo->arg_count = 3;
+		return;
+	}
+
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, dmask, 0);
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, is_rect, 0); /* unorm */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* r128 */
@@ -2007,7 +2016,10 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 			   LLVMValueRef *res_ptr, LLVMValueRef *samp_ptr,
 			   LLVMValueRef *fmask_ptr)
 {
-	*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
+	if (instr->sampler_dim  == GLSL_SAMPLER_DIM_BUF)
+		*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_BUFFER);
+	else
+		*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
 	if (samp_ptr && instr->sampler)
 		*samp_ptr = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
 	if (fmask_ptr && instr->sampler)
