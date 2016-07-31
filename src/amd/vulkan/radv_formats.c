@@ -325,7 +325,12 @@ uint32_t radv_translate_tex_numformat(VkFormat format,
 				case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
 				case VK_FORMAT_BC2_SRGB_BLOCK:
 				case VK_FORMAT_BC3_SRGB_BLOCK:
+				case VK_FORMAT_BC7_SRGB_BLOCK:
 					return V_008F14_IMG_NUM_FORMAT_SRGB;
+				case VK_FORMAT_BC4_SNORM_BLOCK:
+				case VK_FORMAT_BC5_SNORM_BLOCK:
+			        case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+					return V_008F14_IMG_NUM_FORMAT_SNORM;
 				default:
 					return V_008F14_IMG_NUM_FORMAT_UNORM;
 				}
