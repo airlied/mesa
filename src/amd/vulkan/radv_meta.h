@@ -42,6 +42,8 @@ struct radv_meta_saved_state {
     */
    uint32_t dynamic_mask;
    struct radv_dynamic_state dynamic;
+
+   char push_constants[128];
 };
 
 VkResult radv_device_init_meta_clear_state(struct radv_device *device);

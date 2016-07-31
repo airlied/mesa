@@ -38,6 +38,8 @@ radv_meta_save(struct radv_meta_saved_state *state,
    state->dynamic_mask = dynamic_mask;
    radv_dynamic_state_copy(&state->dynamic, &cmd_buffer->state.dynamic,
                           dynamic_mask);
+
+   memcpy(state->push_constants, cmd_buffer->push_constants, 128);
 }
 
 void
@@ -56,6 +58,9 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
    radv_dynamic_state_copy(&cmd_buffer->state.dynamic, &state->dynamic,
                           state->dynamic_mask);
    cmd_buffer->state.dirty |= state->dynamic_mask;
+
+   memcpy(cmd_buffer->push_constants, state->push_constants, 128);
+   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS;
 }
 
 VkImageViewType
