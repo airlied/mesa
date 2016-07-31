@@ -1854,6 +1854,8 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_instance_id:
 		result = ctx->instance_id;
+		ctx->shader_info->vs.vgpr_comp_cnt = MAX2(3,
+		                            ctx->shader_info->vs.vgpr_comp_cnt);
 		break;
 	case nir_intrinsic_load_num_work_groups:
 		result = ctx->num_work_groups;
