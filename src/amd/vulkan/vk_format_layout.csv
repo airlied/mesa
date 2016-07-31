@@ -140,10 +140,10 @@ VK_FORMAT_BC2_UNORM_BLOCK            , s3tc,  4, 4, x128,     ,     ,     , xyzw
 VK_FORMAT_BC2_SRGB_BLOCK             , s3tc,  4, 4, x128,     ,     ,     , xyzw, srgb
 VK_FORMAT_BC3_UNORM_BLOCK            , s3tc,  4, 4, x128,     ,     ,     , xyzw, rgb
 VK_FORMAT_BC3_SRGB_BLOCK             , s3tc,  4, 4, x128,     ,     ,     , xyzw, srgb
-VK_FORMAT_BC4_UNORM_BLOCK,
-VK_FORMAT_BC4_SNORM_BLOCK,
-VK_FORMAT_BC5_UNORM_BLOCK,
-VK_FORMAT_BC5_SNORM_BLOCK,
+VK_FORMAT_BC4_UNORM_BLOCK            , rgtc,  4, 4, x64,      ,     ,     , x001, rgb
+VK_FORMAT_BC4_SNORM_BLOCK            , rgtc,  4, 4, x64,      ,     ,     , x001, rgb
+VK_FORMAT_BC5_UNORM_BLOCK            , rgtc,  4, 4, x128,     ,     ,     , xy01, rgb
+VK_FORMAT_BC5_SNORM_BLOCK            , rgtc,  4, 4, x128,     ,     ,     , xy01, rgb
 VK_FORMAT_BC6H_UFLOAT_BLOCK,
 VK_FORMAT_BC6H_SFLOAT_BLOCK,
 VK_FORMAT_BC7_UNORM_BLOCK,
