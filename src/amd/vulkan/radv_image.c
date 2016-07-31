@@ -668,9 +668,8 @@ void radv_buffer_view_init(struct radv_buffer_view *view,
 	view->bo = buffer->bo;
 	view->offset = buffer->offset + pCreateInfo->offset;
 	view->range = pCreateInfo->range == VK_WHOLE_SIZE ?
-		buffer->size - view->offset : pCreateInfo->range;
+		buffer->size - pCreateInfo->offset : pCreateInfo->range;
 	view->vk_format = pCreateInfo->format;
-	/* TODO texture buffers */
 
 	radv_make_buffer_descriptor(device, buffer, view->vk_format,
 				    view->offset, view->range, view->state);
