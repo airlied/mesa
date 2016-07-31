@@ -79,6 +79,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef persp_sample, persp_center, persp_centroid;
 	LLVMValueRef linear_sample, linear_center, linear_centroid;
 	LLVMValueRef front_face;
+	LLVMValueRef frag_pos[4];
 
 	LLVMBasicBlockRef continue_block;
 	LLVMBasicBlockRef break_block;
@@ -391,10 +392,10 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		ctx->linear_center = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->linear_centroid = LLVMGetParam(ctx->main_function, arg_idx++);
 		arg_idx++; /* line stipple */
-		arg_idx++; /* pos x float */
-		arg_idx++; /* pos y float */
-		arg_idx++; /* pos z float */
-		arg_idx++; /* pos w float */
+		ctx->frag_pos[0] = LLVMGetParam(ctx->main_function, arg_idx++);
+		ctx->frag_pos[1] = LLVMGetParam(ctx->main_function, arg_idx++);
+		ctx->frag_pos[2] = LLVMGetParam(ctx->main_function, arg_idx++);
+		ctx->frag_pos[3] = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->front_face = LLVMGetParam(ctx->main_function, arg_idx++);
 		break;
 	default:
@@ -2401,17 +2402,26 @@ handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
 	unsigned index = 0;
 	for (unsigned i = 0; i < RADEON_LLVM_MAX_INPUTS; ++i) {
 		LLVMValueRef interp_param;
+		LLVMValueRef *inputs = ctx->inputs +radeon_llvm_reg_index_soa(i, 0);
 		unsigned attr = i - VARYING_SLOT_VAR0;
 		if (!(ctx->input_mask & (1ull << i)))
 			continue;
 
-		interp_param = ctx->inputs[radeon_llvm_reg_index_soa(i, 0)];
-		interp_fs_input(ctx, index, interp_param, ctx->prim_mask,
-			&ctx->inputs[radeon_llvm_reg_index_soa(i, 0)]);
+		if (i >= VARYING_SLOT_VAR0) {
+			interp_param = *inputs;
+			interp_fs_input(ctx, index, interp_param, ctx->prim_mask,
+					inputs);
 
-		if (!interp_param)
-			ctx->shader_info->fs.flat_shaded_mask |= 1u << index;
-		++index;
+			if (!interp_param)
+				ctx->shader_info->fs.flat_shaded_mask |= 1u << index;
+			++index;
+		} else if (i == VARYING_SLOT_POS) {
+			for(int i = 0; i < 3; ++i)
+				inputs[i] = ctx->frag_pos[i];
+
+			inputs[3] = LLVMBuildFDiv(ctx->builder, ctx->f32one,
+						  ctx->frag_pos[3], "");
+		}
 	}
 	ctx->shader_info->fs.num_interp = index;
 	ctx->shader_info->fs.input_mask = ctx->input_mask >> VARYING_SLOT_VAR0;
