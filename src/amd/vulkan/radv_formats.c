@@ -102,8 +102,8 @@ uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *de
 uint32_t radv_translate_buffer_numformat(const struct vk_format_description *desc,
 					 int first_non_void)
 {
-    //	if (desc->format == PIPE_FORMAT_R11G11B10_FLOAT)
-    //		return V_008F0C_BUF_NUM_FORMAT_FLOAT;
+	if (desc->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
+		return V_008F0C_BUF_NUM_FORMAT_FLOAT;
 
 	assert(first_non_void >= 0);
 
@@ -515,8 +515,8 @@ uint32_t radv_translate_colorformat(VkFormat format)
 	(desc->channel[0].size == (x) && desc->channel[1].size == (y) && \
          desc->channel[2].size == (z) && desc->channel[3].size == (w))
 
-	//	if (format == PIPE_FORMAT_R11G11B10_FLOAT) /* isn't plain */
-	//		return V_028C70_COLOR_10_11_11;
+	if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32) /* isn't plain */
+		return V_028C70_COLOR_10_11_11;
 
 	if (desc->layout != VK_FORMAT_LAYOUT_PLAIN)
 		return V_028C70_COLOR_INVALID;
@@ -649,8 +649,8 @@ unsigned radv_translate_colorswap(VkFormat format, bool do_endian_swap)
 
 #define HAS_SWIZZLE(chan,swz) (desc->swizzle[chan] == VK_SWIZZLE_##swz)
 
-	//	if (format == PIPE_FORMAT_R11G11B10_FLOAT) /* isn't plain */
-	//		return V_0280A0_SWAP_STD;
+	if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
+		return V_0280A0_SWAP_STD;
 
 	if (desc->layout != VK_FORMAT_LAYOUT_PLAIN)
 		return ~0U;
