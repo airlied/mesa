@@ -1481,3 +1481,94 @@ void radv_CmdPipelineBarrier(
 
 	cmd_buffer->state.flush_bits |= flush_bits;
 }
+
+
+static void write_event(struct radv_cmd_buffer *cmd_buffer,
+			struct radv_event *event,
+			VkPipelineStageFlags stageMask,
+			unsigned value)
+{
+	struct radeon_winsys_cs *cs = cmd_buffer->cs;
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(event->bo);
+
+	cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
+
+
+	/* TODO: this is overkill. Probably should figure something out from
+	 * the stage mask. */
+
+	if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class == CIK) {
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, 0));
+		radeon_emit(cs, EVENT_TYPE(EVENT_TYPE_BOTTOM_OF_PIPE_TS) |
+				EVENT_INDEX(5));
+		radeon_emit(cs, va);
+		radeon_emit(cs, (va >> 32) | EOP_DATA_SEL(1));
+		radeon_emit(cs, 2);
+		radeon_emit(cs, 0);
+	}
+
+	radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, 0));
+	radeon_emit(cs, EVENT_TYPE(EVENT_TYPE_BOTTOM_OF_PIPE_TS) |
+			EVENT_INDEX(5));
+	radeon_emit(cs, va);
+	radeon_emit(cs, (va >> 32) | EOP_DATA_SEL(1));
+	radeon_emit(cs, value);
+	radeon_emit(cs, 0);
+}
+
+void radv_CmdSetEvent(VkCommandBuffer commandBuffer,
+		      VkEvent _event,
+		      VkPipelineStageFlags stageMask)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_event, event, _event);
+
+	write_event(cmd_buffer, event, stageMask, 1);
+}
+
+void radv_CmdResetEvent(VkCommandBuffer commandBuffer,
+			VkEvent _event,
+			VkPipelineStageFlags stageMask)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_event, event, _event);
+
+	write_event(cmd_buffer, event, stageMask, 0);
+}
+
+void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
+			uint32_t eventCount,
+			const VkEvent* pEvents,
+			VkPipelineStageFlags srcStageMask,
+			VkPipelineStageFlags dstStageMask,
+			uint32_t memoryBarrierCount,
+			const VkMemoryBarrier* pMemoryBarriers,
+			uint32_t bufferMemoryBarrierCount,
+			const VkBufferMemoryBarrier* pBufferMemoryBarriers,
+			uint32_t imageMemoryBarrierCount,
+			const VkImageMemoryBarrier* pImageMemoryBarriers)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	struct radeon_winsys_cs *cs = cmd_buffer->cs;
+
+	for (unsigned i = 0; i < eventCount; ++i) {
+		RADV_FROM_HANDLE(radv_event, event, pEvents[i]);
+		uint64_t va = cmd_buffer->device->ws->buffer_get_va(event->bo);
+
+		cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
+
+		radeon_emit(cs, PKT3(PKT3_WAIT_REG_MEM, 5, 0));
+		radeon_emit(cs, WAIT_REG_MEM_EQUAL | WAIT_REG_MEM_MEM_SPACE(1));
+		radeon_emit(cs, va);
+		radeon_emit(cs, va >> 32);
+		radeon_emit(cs, 1); /* reference value */
+		radeon_emit(cs, 0xffffffff); /* mask */
+		radeon_emit(cs, 4); /* poll interval */
+	}
+
+	/* TODO: figure out how to do memory barriers without waiting */
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
+					RADV_CMD_FLAG_INV_GLOBAL_L2 |
+					RADV_CMD_FLAG_INV_VMEM_L1 |
+					RADV_CMD_FLAG_INV_SMEM_L1;
+}

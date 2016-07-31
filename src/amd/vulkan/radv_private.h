@@ -652,6 +652,11 @@ radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
 
+struct radv_event {
+	struct radeon_winsys_bo *bo;
+	uint64_t *map;
+};
+
 struct nir_shader;
 
 struct radv_shader_module {

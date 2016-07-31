@@ -1141,7 +1141,27 @@ VkResult radv_CreateEvent(
 	const VkAllocationCallbacks*                pAllocator,
 	VkEvent*                                    pEvent)
 {
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	struct radv_event *event = radv_alloc2(&device->alloc, pAllocator,
+					       sizeof(*event), 8,
+					       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 
+	if (!event)
+		return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+	event->bo = device->ws->buffer_create(device->ws, 8, 8,
+					      RADEON_DOMAIN_GTT,
+					      RADEON_FLAG_CPU_ACCESS);
+	if (!event->bo) {
+		radv_free2(&device->alloc, pAllocator, event);
+		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+	}
+
+	event->map = (uint64_t*)device->ws->buffer_map(event->bo);
+
+	*pEvent = radv_event_to_handle(event);
+
+	return VK_SUCCESS;
 }
 
 void radv_DestroyEvent(
@@ -1149,30 +1169,38 @@ void radv_DestroyEvent(
 	VkEvent                                     _event,
 	const VkAllocationCallbacks*                pAllocator)
 {
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	RADV_FROM_HANDLE(radv_event, event, _event);
 
+	device->ws->buffer_destroy(event->bo);
+	radv_free2(&device->alloc, pAllocator, event);
 }
 
 VkResult radv_GetEventStatus(
 	VkDevice                                    _device,
 	VkEvent                                     _event)
 {
+	RADV_FROM_HANDLE(radv_event, event, _event);
 
+	if (*event->map == 1)
+		return VK_EVENT_SET;
+	return VK_EVENT_RESET;
 }
 
 VkResult radv_SetEvent(
 	VkDevice                                    _device,
 	VkEvent                                     _event)
 {
-
-
+	RADV_FROM_HANDLE(radv_event, event, _event);
+	*event->map = 1;
 }
 
 VkResult radv_ResetEvent(
     VkDevice                                    _device,
     VkEvent                                     _event)
 {
-
-
+	RADV_FROM_HANDLE(radv_event, event, _event);
+	*event->map = 0;
 }
 
 VkResult radv_CreateBuffer(
