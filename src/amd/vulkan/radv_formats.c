@@ -170,6 +170,19 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
       break;
    }
 
+   if (desc->layout == VK_FORMAT_LAYOUT_RGTC) {
+       switch(format) {
+       case VK_FORMAT_BC4_UNORM_BLOCK:
+       case VK_FORMAT_BC4_SNORM_BLOCK:
+	   return V_008F14_IMG_DATA_FORMAT_BC4;
+       case VK_FORMAT_BC5_UNORM_BLOCK:
+       case VK_FORMAT_BC5_SNORM_BLOCK:
+	   return V_008F14_IMG_DATA_FORMAT_BC5;
+       default:
+	   break;
+       }
+   }
+
    if (desc->layout == VK_FORMAT_LAYOUT_S3TC) {
        switch(format) {
        case VK_FORMAT_BC2_UNORM_BLOCK:
