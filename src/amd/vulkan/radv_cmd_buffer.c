@@ -612,7 +612,8 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
 					      4096);
 
-	if (cmd_buffer->state.vertex_descriptors_dirty || cmd_buffer->state.vb_dirty) {
+	if ((cmd_buffer->state.vertex_descriptors_dirty || cmd_buffer->state.vb_dirty) &&
+	    cmd_buffer->state.pipeline->num_vertex_attribs) {
 		unsigned vb_offset;
 		void *vb_ptr;
 		uint32_t ve, i = 0;
