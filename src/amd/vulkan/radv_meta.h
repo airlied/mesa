@@ -90,6 +90,13 @@ struct radv_meta_blit2d_surf {
    uint32_t slice_size;
 };
 
+struct radv_meta_blit2d_buffer {
+   struct radv_buffer *buffer;
+   uint32_t offset;
+   uint32_t pitch;
+   uint8_t bs;
+};
+
 struct radv_meta_blit2d_rect {
    uint32_t src_x, src_y;
    uint32_t dst_x, dst_y;
@@ -102,7 +109,8 @@ radv_meta_begin_blit2d(struct radv_cmd_buffer *cmd_buffer,
 
 void
 radv_meta_blit2d(struct radv_cmd_buffer *cmd_buffer,
-                struct radv_meta_blit2d_surf *src,
+                struct radv_meta_blit2d_surf *src_img,
+                struct radv_meta_blit2d_buffer *src_buf,
                 struct radv_meta_blit2d_surf *dst,
                 unsigned num_rects,
                 struct radv_meta_blit2d_rect *rects);

@@ -42,6 +42,13 @@ enum blit2d_dst_type {
 	BLIT2D_NUM_DST_TYPES,
 };
 
+
+enum blit2d_src_type {
+	BLIT2D_SRC_TYPE_IMAGE,
+	BLIT2D_SRC_TYPE_BUFFER,
+	BLIT2D_NUM_SRC_TYPES,
+};
+
 static VkFormat
 vk_format_for_size(int bs)
 {
@@ -127,31 +134,76 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 					     }, cmd_buffer, usage);
 }
 
+static void
+create_bview(struct radv_cmd_buffer *cmd_buffer,
+	     struct radv_meta_blit2d_buffer *src,
+	     struct radv_buffer_view *bview)
+{
+	radv_buffer_view_init(bview, cmd_buffer->device,
+			      &(VkBufferViewCreateInfo) {
+				      .sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+				      .flags = 0,
+				      .buffer = radv_buffer_to_handle(src->buffer),
+				      .format = vk_format_for_size(src->bs),
+				      .offset = src->offset,
+				      .range = VK_WHOLE_SIZE,
+			      }, cmd_buffer);
+
+}
+
 struct blit2d_src_temps {
 	VkImage image;
 	struct radv_image_view iview;
 
 	VkDescriptorSet set;
+	struct radv_buffer_view bview;
 };
 
 static void
 blit2d_bind_src(struct radv_cmd_buffer *cmd_buffer,
-                struct radv_meta_blit2d_surf *src,
+                struct radv_meta_blit2d_surf *src_img,
+                struct radv_meta_blit2d_buffer *src_buf,
                 struct radv_meta_blit2d_rect *rect,
-                struct blit2d_src_temps *tmp)
+                struct blit2d_src_temps *tmp,
+                enum blit2d_src_type src_type)
 {
 	struct radv_device *device = cmd_buffer->device;
 	VkDevice vk_device = radv_device_to_handle(cmd_buffer->device);
 
-	{
+	if (src_type == BLIT2D_SRC_TYPE_BUFFER) {
+		create_bview(cmd_buffer, src_buf, &tmp->bview);
+
+		radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
+					        device->meta_state.blit2d.ds_layouts[src_type],
+					        &tmp->set);
+
+		radv_UpdateDescriptorSets(vk_device,
+					  1, /* writeCount */
+					  (VkWriteDescriptorSet[]) {
+						  {
+							  .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+							  .dstSet = tmp->set,
+							  .dstBinding = 0,
+							  .dstArrayElement = 0,
+							  .descriptorCount = 1,
+							  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
+							  .pTexelBufferView = (VkBufferView[])  { radv_buffer_view_to_handle(&tmp->bview) }
+						  }
+					  }, 0, NULL);
+
+		radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
+				      device->meta_state.blit2d.p_layouts[src_type],
+				      VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4,
+				      &src_buf->pitch);
+	} else {
 		uint32_t offset = 0;
-		create_iview(cmd_buffer, src, offset, VK_IMAGE_USAGE_SAMPLED_BIT,
+		create_iview(cmd_buffer, src_img, offset, VK_IMAGE_USAGE_SAMPLED_BIT,
 			     rect->src_x + rect->width, rect->src_y + rect->height,
 			     &tmp->image, &tmp->iview);
 
 
 		radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
-					        device->meta_state.blit2d.img_ds_layout,
+					        device->meta_state.blit2d.ds_layouts[src_type],
 					        &tmp->set);
 
 		radv_UpdateDescriptorSets(vk_device,
@@ -174,20 +226,25 @@ blit2d_bind_src(struct radv_cmd_buffer *cmd_buffer,
 						  }
 					  }, 0, NULL);
 
-		radv_CmdBindDescriptorSets(radv_cmd_buffer_to_handle(cmd_buffer),
-					   VK_PIPELINE_BIND_POINT_GRAPHICS,
-					   device->meta_state.blit2d.img_p_layout, 0, 1,
-					   &tmp->set, 0, NULL);
 	}
+
+	radv_CmdBindDescriptorSets(radv_cmd_buffer_to_handle(cmd_buffer),
+				   VK_PIPELINE_BIND_POINT_GRAPHICS,
+				   device->meta_state.blit2d.p_layouts[src_type], 0, 1,
+				   &tmp->set, 0, NULL);
 }
 
 static void
 blit2d_unbind_src(struct radv_cmd_buffer *cmd_buffer,
-                  struct blit2d_src_temps *tmp)
+                  struct blit2d_src_temps *tmp,
+                  enum blit2d_src_type src_type)
 {
 	radv_temp_descriptor_set_destroy(cmd_buffer->device, tmp->set);
-	radv_DestroyImage(radv_device_to_handle(cmd_buffer->device),
-			  tmp->image, &cmd_buffer->pool->alloc);
+	if (src_type == BLIT2D_SRC_TYPE_BUFFER)
+		;
+	else
+		radv_DestroyImage(radv_device_to_handle(cmd_buffer->device),
+				  tmp->image, &cmd_buffer->pool->alloc);
 }
 
 struct blit2d_dst_temps {
@@ -245,10 +302,10 @@ radv_meta_begin_blit2d(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 bind_pipeline(struct radv_cmd_buffer *cmd_buffer,
-              enum blit2d_dst_type dst_type)
+              enum blit2d_src_type src_type)
 {
 	VkPipeline pipeline =
-		cmd_buffer->device->meta_state.blit2d.pipelines[dst_type];
+		cmd_buffer->device->meta_state.blit2d.pipelines[src_type];
 
 	if (cmd_buffer->state.pipeline != radv_pipeline_from_handle(pipeline)) {
 		radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer),
@@ -258,16 +315,17 @@ bind_pipeline(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
-			    struct radv_meta_blit2d_surf *src,
+			    struct radv_meta_blit2d_surf *src_img,
+			    struct radv_meta_blit2d_buffer *src_buf,
 			    struct radv_meta_blit2d_surf *dst,
 			    unsigned num_rects,
-			    struct radv_meta_blit2d_rect *rects)
+			    struct radv_meta_blit2d_rect *rects, enum blit2d_src_type src_type)
 {
 	struct radv_device *device = cmd_buffer->device;
 
 	for (unsigned r = 0; r < num_rects; ++r) {
 		struct blit2d_src_temps src_temps;
-		blit2d_bind_src(cmd_buffer, src, &rects[r], &src_temps);
+		blit2d_bind_src(cmd_buffer, src_img, src_buf, &rects[r], &src_temps, src_type);
 
 		uint32_t offset = 0;
 		struct blit2d_dst_temps dst_temps;
@@ -314,6 +372,7 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
 			},
 		};
 
+
 		radv_cmd_buffer_upload_data(cmd_buffer, vb_size, 16, vb_data, &offset);
 
 		struct radv_buffer vertex_buffer = {
@@ -331,6 +390,7 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
 						  0,
 							  });
 
+
 		RADV_CALL(CmdBeginRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer),
 					      &(VkRenderPassBeginInfo) {
 						      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -344,23 +404,24 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
 								       .pClearValues = NULL,
 								       }, VK_SUBPASS_CONTENTS_INLINE);
 
-		bind_pipeline(cmd_buffer, BLIT2D_DST_TYPE_NORMAL);
+
+		bind_pipeline(cmd_buffer, src_type);
 
 		RADV_CALL(CmdDraw)(radv_cmd_buffer_to_handle(cmd_buffer), 3, 1, 0, 0);
-
 		RADV_CALL(CmdEndRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer));
 
 		/* At the point where we emit the draw call, all data from the
 		 * descriptor sets, etc. has been used.  We are free to delete it.
 		 */
-		blit2d_unbind_src(cmd_buffer, &src_temps);
+		blit2d_unbind_src(cmd_buffer, &src_temps, src_type);
 		blit2d_unbind_dst(cmd_buffer, &dst_temps);
 	}
 }
 
 void
 radv_meta_blit2d(struct radv_cmd_buffer *cmd_buffer,
-		 struct radv_meta_blit2d_surf *src,
+		 struct radv_meta_blit2d_surf *src_img,
+		 struct radv_meta_blit2d_buffer *src_buf,
 		 struct radv_meta_blit2d_surf *dst,
 		 unsigned num_rects,
 		 struct radv_meta_blit2d_rect *rects)
@@ -369,9 +430,11 @@ radv_meta_blit2d(struct radv_cmd_buffer *cmd_buffer,
 		radv_finishme("Blitting to RGB destinations not yet supported");
 		return;
 	} else {
+		enum blit2d_src_type src_type = src_buf ? BLIT2D_SRC_TYPE_BUFFER :
+							  BLIT2D_SRC_TYPE_IMAGE;
 		assert(util_is_power_of_two(dst->bs));
-		radv_meta_blit2d_normal_dst(cmd_buffer, src, dst,
-					    num_rects, rects);
+		radv_meta_blit2d_normal_dst(cmd_buffer, src_img, src_buf, dst,
+					    num_rects, rects, src_type);
 	}
 }
 
@@ -414,7 +477,7 @@ build_nir_texel_fetch(struct nir_builder *b, struct radv_device *device,
                       nir_ssa_def *tex_pos)
 {
 	const struct glsl_type *sampler_type =
-		glsl_sampler_type(GLSL_SAMPLER_DIM_2D, false, false, GLSL_TYPE_FLOAT);
+		glsl_sampler_type(GLSL_SAMPLER_DIM_2D, false, false, GLSL_TYPE_UINT);
 	nir_variable *sampler = nir_variable_create(b->shader, nir_var_uniform,
 						    sampler_type, "s_tex");
 	sampler->data.descriptor_set = 0;
@@ -427,9 +490,50 @@ build_nir_texel_fetch(struct nir_builder *b, struct radv_device *device,
 	tex->src[0].src = nir_src_for_ssa(tex_pos);
 	tex->src[1].src_type = nir_tex_src_lod;
 	tex->src[1].src = nir_src_for_ssa(nir_imm_int(b, 0));
-	tex->dest_type = nir_type_float; /* TODO */
+	tex->dest_type = nir_type_uint;
 	tex->is_array = false;
 	tex->coord_components = 2;
+	tex->texture = nir_deref_var_create(tex, sampler);
+	tex->sampler = NULL;
+
+	nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+	nir_builder_instr_insert(b, &tex->instr);
+
+	return &tex->dest.ssa;
+}
+
+
+static nir_ssa_def *
+build_nir_buffer_fetch(struct nir_builder *b, struct radv_device *device,
+                      nir_ssa_def *tex_pos)
+{
+	const struct glsl_type *sampler_type =
+		glsl_sampler_type(GLSL_SAMPLER_DIM_BUF, false, false, GLSL_TYPE_UINT);
+	nir_variable *sampler = nir_variable_create(b->shader, nir_var_uniform,
+						    sampler_type, "s_tex");
+	sampler->data.descriptor_set = 0;
+	sampler->data.binding = 0;
+
+	nir_intrinsic_instr *width = nir_intrinsic_instr_create(b->shader, nir_intrinsic_load_push_constant);
+	width->src[0] = nir_src_for_ssa(nir_imm_int(b, 0));
+	width->num_components = 1;
+	nir_ssa_dest_init(&width->instr, &width->dest, 1, 32, "width");
+	nir_builder_instr_insert(b, &width->instr);
+
+	nir_ssa_def *pos_x = nir_channel(b, tex_pos, 0);
+	nir_ssa_def *pos_y = nir_channel(b, tex_pos, 1);
+	pos_y = nir_imul(b, pos_y, &width->dest.ssa);
+	pos_x = nir_iadd(b, pos_x, pos_y);
+	//pos_x = nir_iadd(b, pos_x, nir_imm_int(b, 100000));
+
+	nir_tex_instr *tex = nir_tex_instr_create(b->shader, 1);
+	tex->sampler_dim = GLSL_SAMPLER_DIM_BUF;
+	tex->op = nir_texop_txf;
+	tex->src[0].src_type = nir_tex_src_coord;
+	tex->src[0].src = nir_src_for_ssa(pos_x);
+	tex->dest_type = nir_type_uint;
+	tex->is_array = false;
+	tex->coord_components = 1;
 	tex->texture = nir_deref_var_create(tex, sampler);
 	tex->sampler = NULL;
 
@@ -506,22 +610,22 @@ radv_device_finish_meta_blit2d_state(struct radv_device *device)
 				       &device->meta_state.alloc);
 	}
 
-	if (device->meta_state.blit2d.img_p_layout) {
-		radv_DestroyPipelineLayout(radv_device_to_handle(device),
-					   device->meta_state.blit2d.img_p_layout,
-					   &device->meta_state.alloc);
-	}
-
-	if (device->meta_state.blit2d.img_ds_layout) {
-		radv_DestroyDescriptorSetLayout(radv_device_to_handle(device),
-						device->meta_state.blit2d.img_ds_layout,
+	for (unsigned src = 0; src < BLIT2D_NUM_SRC_TYPES; src++) {
+		if (device->meta_state.blit2d.p_layouts[src]) {
+			radv_DestroyPipelineLayout(radv_device_to_handle(device),
+						device->meta_state.blit2d.p_layouts[src],
 						&device->meta_state.alloc);
-	}
+		}
 
-	for (unsigned dst = 0; dst < BLIT2D_NUM_DST_TYPES; dst++) {
-		if (device->meta_state.blit2d.pipelines[dst]) {
+		if (device->meta_state.blit2d.ds_layouts[src]) {
+			radv_DestroyDescriptorSetLayout(radv_device_to_handle(device),
+							device->meta_state.blit2d.ds_layouts[src],
+							&device->meta_state.alloc);
+		}
+
+		if (device->meta_state.blit2d.pipelines[src]) {
 			radv_DestroyPipeline(radv_device_to_handle(device),
-					     device->meta_state.blit2d.pipelines[dst],
+					     device->meta_state.blit2d.pipelines[src],
 					     &device->meta_state.alloc);
 		}
 	}
@@ -529,24 +633,26 @@ radv_device_finish_meta_blit2d_state(struct radv_device *device)
 
 static VkResult
 blit2d_init_pipeline(struct radv_device *device,
-                     enum blit2d_dst_type dst_type)
+                     enum blit2d_src_type src_type)
 {
 	VkResult result;
 
-	texel_fetch_build_func src_func = build_nir_texel_fetch;
+	texel_fetch_build_func src_func;
+	switch(src_type) {
+	case BLIT2D_SRC_TYPE_IMAGE:
+		src_func = build_nir_texel_fetch;
+		break;
+	case BLIT2D_SRC_TYPE_BUFFER:
+		src_func = build_nir_buffer_fetch;
+		break;
+	}
 
 	const VkPipelineVertexInputStateCreateInfo *vi_create_info;
 	struct radv_shader_module fs = { .nir = NULL };
-	switch (dst_type) {
-	case BLIT2D_DST_TYPE_NORMAL:
-		fs.nir = build_nir_copy_fragment_shader(device, src_func);
-		vi_create_info = &normal_vi_create_info;
-		break;
-	case BLIT2D_DST_TYPE_RGB:
-		/* Not yet supported */
-	default:
-		return VK_SUCCESS;
-	}
+
+
+	fs.nir = build_nir_copy_fragment_shader(device, src_func);
+	vi_create_info = &normal_vi_create_info;
 
 	struct radv_shader_module vs = {
 		.nir = build_nir_vertex_shader(),
@@ -623,7 +729,7 @@ blit2d_init_pipeline(struct radv_device *device,
 			},
 		},
 		.flags = 0,
-		.layout = device->meta_state.blit2d.img_p_layout,
+		.layout = device->meta_state.blit2d.p_layouts[src_type],
 		.renderPass = device->meta_state.blit2d.render_pass,
 		.subpass = 0,
 	};
@@ -636,7 +742,7 @@ blit2d_init_pipeline(struct radv_device *device,
 					       VK_NULL_HANDLE,
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc,
-					       &device->meta_state.blit2d.pipelines[dst_type]);
+					       &device->meta_state.blit2d.pipelines[src_type]);
 
 	ralloc_free(vs.nir);
 	ralloc_free(fs.nir);
@@ -697,7 +803,7 @@ radv_device_init_meta_blit2d_state(struct radv_device *device)
 									.pImmutableSamplers = NULL
 								},
 							}
-						}, &device->meta_state.alloc, &device->meta_state.blit2d.img_ds_layout);
+						}, &device->meta_state.alloc, &device->meta_state.blit2d.ds_layouts[BLIT2D_SRC_TYPE_IMAGE]);
 	if (result != VK_SUCCESS)
 		goto fail;
 
@@ -705,14 +811,44 @@ radv_device_init_meta_blit2d_state(struct radv_device *device)
 					   &(VkPipelineLayoutCreateInfo) {
 						   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 							   .setLayoutCount = 1,
-							   .pSetLayouts = &device->meta_state.blit2d.img_ds_layout,
+							   .pSetLayouts = &device->meta_state.blit2d.ds_layouts[BLIT2D_SRC_TYPE_IMAGE],
 							   },
-					   &device->meta_state.alloc, &device->meta_state.blit2d.img_p_layout);
+					   &device->meta_state.alloc, &device->meta_state.blit2d.p_layouts[BLIT2D_SRC_TYPE_IMAGE]);
 	if (result != VK_SUCCESS)
 		goto fail;
 
-	for (unsigned dst = 0; dst < 1; /*BLIT2D_NUM_DST_TYPES;*/ dst++) {
-		result = blit2d_init_pipeline(device, dst);
+	result = radv_CreateDescriptorSetLayout(radv_device_to_handle(device),
+						&(VkDescriptorSetLayoutCreateInfo) {
+							.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+								.bindingCount = 1,
+								.pBindings = (VkDescriptorSetLayoutBinding[]) {
+								{
+									.binding = 0,
+									.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
+									.descriptorCount = 1,
+									.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+									.pImmutableSamplers = NULL
+								},
+							}
+						}, &device->meta_state.alloc, &device->meta_state.blit2d.ds_layouts[BLIT2D_SRC_TYPE_BUFFER]);
+	if (result != VK_SUCCESS)
+		goto fail;
+
+	const VkPushConstantRange push_constant_range = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4};
+	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
+					   &(VkPipelineLayoutCreateInfo) {
+						   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+						   .setLayoutCount = 1,
+						   .pSetLayouts = &device->meta_state.blit2d.ds_layouts[BLIT2D_SRC_TYPE_BUFFER],
+						   .pushConstantRangeCount = 1,
+						   .pPushConstantRanges = &push_constant_range,
+					   },
+					   &device->meta_state.alloc, &device->meta_state.blit2d.p_layouts[BLIT2D_SRC_TYPE_BUFFER]);
+	if (result != VK_SUCCESS)
+		goto fail;
+
+	for (unsigned src = 0; src < BLIT2D_NUM_SRC_TYPES; src++) {
+		result = blit2d_init_pipeline(device, src);
 		if (result != VK_SUCCESS)
 			goto fail;
 	}
