@@ -196,6 +196,8 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 	state[4] &= C_008F20_PITCH;
 	state[6] &= C_008F28_COMPRESSION_EN;
 
+	assert(!(va & 255));
+
 	state[0] = va >> 8;
 	state[1] |= S_008F14_BASE_ADDRESS_HI(va >> 40);
 	state[3] |= S_008F1C_TILING_INDEX(si_tile_mode_index(image, base_level,
