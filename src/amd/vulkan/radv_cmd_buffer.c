@@ -164,7 +164,7 @@ radv_cmd_buffer_resize_upload_buf(struct radv_cmd_buffer *cmd_buffer,
 	new_size = MAX2(new_size, 2 * cmd_buffer->upload.size);
 
 	bo = device->ws->buffer_create(device->ws,
-				       new_size, 16,
+				       new_size, 4096,
 				       RADEON_DOMAIN_GTT,
 				       RADEON_FLAG_CPU_ACCESS);
 
@@ -207,15 +207,17 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned *out_offset,
 			     void **ptr)
 {
-	if (cmd_buffer->upload.offset + size > cmd_buffer->upload.size) {
+	uint64_t offset = align(cmd_buffer->upload.offset, alignment);
+	if (offset + size > cmd_buffer->upload.size) {
 		if (!radv_cmd_buffer_resize_upload_buf(cmd_buffer, size))
 			return false;
+		offset = 0;
 	}
 
-	*out_offset = cmd_buffer->upload.offset;
-	*ptr = cmd_buffer->upload.map + cmd_buffer->upload.offset;
+	*out_offset = offset;
+	*ptr = cmd_buffer->upload.map + offset;
 
-	cmd_buffer->upload.offset += size;
+	cmd_buffer->upload.offset = offset + size;
 	return true;
 }
 

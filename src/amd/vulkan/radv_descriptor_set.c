@@ -259,13 +259,13 @@ radv_descriptor_set_create(struct radv_device *device,
 	if (layout->size) {
 		if (!cmd_buffer) {
 			set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
-							       16, RADEON_DOMAIN_VRAM, 0);
+							       32, RADEON_DOMAIN_VRAM, 0);
 
 			set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
 			set->va = device->ws->buffer_get_va(set->bo.bo);
 		} else {
 			unsigned bo_offset;
-			if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 64,
+			if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 32,
 							  &bo_offset,
 							  (void**)&set->mapped_ptr)) {
 				radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
