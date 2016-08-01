@@ -475,10 +475,23 @@ static bool radv_is_buffer_format_supported(VkFormat format)
 	       num_format != ~0;
 }
 
-static bool radv_is_colorbuffer_format_supported(VkFormat format)
+static bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable)
 {
-	return radv_translate_colorformat(format) != V_028C70_COLOR_INVALID &&
-	       radv_translate_colorswap(format, false) != ~0U;
+	const struct vk_format_description *desc = vk_format_description(format);
+	uint32_t color_format = radv_translate_colorformat(format);
+	uint32_t color_swap = radv_translate_colorswap(format, false);
+	uint32_t color_num_format = radv_translate_color_numformat(format,
+								   desc,
+								   vk_format_get_first_non_void_channel(format));
+
+	if (color_num_format == V_028C70_NUMBER_UINT || color_num_format == V_028C70_NUMBER_SINT ||
+	    color_format == V_028C70_COLOR_8_24 || color_format == V_028C70_COLOR_24_8 ||
+	    color_format == V_028C70_COLOR_X24_8_32_FLOAT) {
+		*blendable = false;
+	} else
+		*blendable = true;
+	return color_format != V_028C70_COLOR_INVALID &&
+	       color_swap != ~0U;
 }
 
 static bool radv_is_zs_format_supported(VkFormat format)
@@ -493,7 +506,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
 {
    VkFormatFeatureFlags linear = 0, tiled = 0, buffer = 0;
    const struct vk_format_description *desc = vk_format_description(format);
-
+   bool blendable;
    if (!desc) {
 	   out_properties->linearTilingFeatures = linear;
 	   out_properties->optimalTilingFeatures = tiled;
@@ -526,9 +539,13 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
        tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
 	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
      }
-     if (radv_is_colorbuffer_format_supported(format) != V_028C70_COLOR_INVALID) {
+     if (radv_is_colorbuffer_format_supported(format, &blendable) != V_028C70_COLOR_INVALID) {
        linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
        tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+       if (blendable) {
+	       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+	       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+       }
      }
    }
    out_properties->linearTilingFeatures = linear;
