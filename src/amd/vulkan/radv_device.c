@@ -1391,6 +1391,7 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->color_index = index;
 
 	va = device->ws->buffer_get_va(iview->bo->bo) + iview->offset;
+	va += level_info->offset;
 	cb->cb_color_base = va >> 8;
 
 	cb->cb_color_cmask = va >> 8;
