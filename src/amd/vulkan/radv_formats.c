@@ -392,17 +392,17 @@ uint32_t radv_translate_color_numformat(VkFormat format,
 		else if (desc->channel[first_non_void].type == VK_FORMAT_TYPE_SIGNED) {
 			if (desc->channel[first_non_void].pure_integer) {
 				ntype = V_028C70_NUMBER_SINT;
-			} else {
-				assert(desc->channel[first_non_void].normalized);
+			} else if (desc->channel[first_non_void].normalized) {
 				ntype = V_028C70_NUMBER_SNORM;
-			}
+			} else
+				ntype = ~0u;
 		} else if (desc->channel[first_non_void].type == VK_FORMAT_TYPE_UNSIGNED) {
 			if (desc->channel[first_non_void].pure_integer) {
 				ntype = V_028C70_NUMBER_UINT;
-			} else {
-				assert(desc->channel[first_non_void].normalized);
+			} else if (desc->channel[first_non_void].normalized) {
 				ntype = V_028C70_NUMBER_UNORM;
-			}
+			} else
+				ntype = ~0u;
 		}
 	}
 	return ntype;
@@ -514,7 +514,8 @@ static bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendabl
 	} else
 		*blendable = true;
 	return color_format != V_028C70_COLOR_INVALID &&
-	       color_swap != ~0U;
+	       color_swap != ~0U &&
+	       color_num_format != ~0;
 }
 
 static bool radv_is_zs_format_supported(VkFormat format)
