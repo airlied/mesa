@@ -1404,35 +1404,10 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->cb_color_pitch |= S_028C64_FMASK_TILE_MAX(pitch_tile_max);
 	cb->cb_color_fmask_slice = S_028C88_TILE_MAX(slice_tile_max);
 	desc = vk_format_description(iview->vk_format);
-    
-	for (i = 0; i < 4; i++) {
-		if (desc->channel[i].type != VK_FORMAT_TYPE_VOID) {
-			break;
-		}
-	}
-	if (i == 4 || desc->channel[i].type == VK_FORMAT_TYPE_FLOAT) {
-		ntype = V_028C70_NUMBER_FLOAT;
-	} else {
-		ntype = V_028C70_NUMBER_UNORM;
-		if (desc->colorspace == VK_FORMAT_COLORSPACE_SRGB)
-			ntype = V_028C70_NUMBER_SRGB;
-		else if (desc->channel[i].type == VK_FORMAT_TYPE_SIGNED) {
-			if (desc->channel[i].pure_integer) {
-				ntype = V_028C70_NUMBER_SINT;
-			} else {
-				assert(desc->channel[i].normalized);
-				ntype = V_028C70_NUMBER_SNORM;
-			}
-		} else if (desc->channel[i].type == VK_FORMAT_TYPE_UNSIGNED) {
-			if (desc->channel[i].pure_integer) {
-				ntype = V_028C70_NUMBER_UINT;
-			} else {
-				assert(desc->channel[i].normalized);
-				ntype = V_028C70_NUMBER_UNORM;
-			}
-		}
-	}
 
+	ntype = radv_translate_color_numformat(iview->vk_format,
+					       desc,
+					       vk_format_get_first_non_void_channel(iview->vk_format));
 	format = radv_translate_colorformat(iview->vk_format);
 	if (format == V_028C70_COLOR_INVALID)
 		radv_finishme("Illegal color\n");

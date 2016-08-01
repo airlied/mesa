@@ -366,6 +366,36 @@ uint32_t radv_translate_tex_numformat(VkFormat format,
 	}
 }
 
+uint32_t radv_translate_color_numformat(VkFormat format,
+					const struct vk_format_description *desc,
+					int first_non_void)
+{
+	unsigned ntype;
+	if (first_non_void == 4 || desc->channel[first_non_void].type == VK_FORMAT_TYPE_FLOAT)
+		ntype = V_028C70_NUMBER_FLOAT;
+	else {
+		ntype = V_028C70_NUMBER_UNORM;
+		if (desc->colorspace == VK_FORMAT_COLORSPACE_SRGB)
+			ntype = V_028C70_NUMBER_SRGB;
+		else if (desc->channel[first_non_void].type == VK_FORMAT_TYPE_SIGNED) {
+			if (desc->channel[first_non_void].pure_integer) {
+				ntype = V_028C70_NUMBER_SINT;
+			} else {
+				assert(desc->channel[first_non_void].normalized);
+				ntype = V_028C70_NUMBER_SNORM;
+			}
+		} else if (desc->channel[first_non_void].type == VK_FORMAT_TYPE_UNSIGNED) {
+			if (desc->channel[first_non_void].pure_integer) {
+				ntype = V_028C70_NUMBER_UINT;
+			} else {
+				assert(desc->channel[first_non_void].normalized);
+				ntype = V_028C70_NUMBER_UNORM;
+			}
+		}
+	}
+	return ntype;
+}
+
 static bool radv_is_sampler_format_supported(struct radv_physical_device *physical_device,
 					     VkFormat format)
 {
