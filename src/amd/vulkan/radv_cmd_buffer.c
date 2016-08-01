@@ -1494,6 +1494,7 @@ static void write_event(struct radv_cmd_buffer *cmd_buffer,
 
 	cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
 
+	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 12);
 
 	/* TODO: this is overkill. Probably should figure something out from
 	 * the stage mask. */
@@ -1515,6 +1516,8 @@ static void write_event(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cs, (va >> 32) | EOP_DATA_SEL(1));
 	radeon_emit(cs, value);
 	radeon_emit(cs, 0);
+
+	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
 void radv_CmdSetEvent(VkCommandBuffer commandBuffer,
@@ -1558,6 +1561,8 @@ void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
 
 		cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
 
+		unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 6);
+
 		radeon_emit(cs, PKT3(PKT3_WAIT_REG_MEM, 5, 0));
 		radeon_emit(cs, WAIT_REG_MEM_EQUAL | WAIT_REG_MEM_MEM_SPACE(1));
 		radeon_emit(cs, va);
@@ -1565,6 +1570,8 @@ void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
 		radeon_emit(cs, 1); /* reference value */
 		radeon_emit(cs, 0xffffffff); /* mask */
 		radeon_emit(cs, 4); /* poll interval */
+
+		assert(cmd_buffer->cs->cdw <= cdw_max);
 	}
 
 	/* TODO: figure out how to do memory barriers without waiting */
