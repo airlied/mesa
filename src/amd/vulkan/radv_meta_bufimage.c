@@ -241,56 +241,24 @@ vk_format_for_size(int bs)
 static void
 create_iview(struct radv_cmd_buffer *cmd_buffer,
              struct radv_meta_blit2d_surf *surf,
-             uint64_t offset,
              VkImageUsageFlags usage,
-             uint32_t width,
-             uint32_t height,
-             VkImage *img,
              struct radv_image_view *iview)
 {
-	const VkImageCreateInfo image_info = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.format = vk_format_for_size(surf->bs),
-		.extent = {
-			.width = width,
-			.height = height,
-			.depth = 1,
-		},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = 1,
-		.tiling = surf->tiling,
-		.usage = usage,
-	};
-
-	/* Create the VkImage that is bound to the surface's memory. */
-	radv_image_create(radv_device_to_handle(cmd_buffer->device),
-			  &(struct radv_image_create_info) {
-				  .vk_info = &image_info,
-				  .stride = surf->pitch,
-			  }, &cmd_buffer->pool->alloc, img);
-
-	/* We could use a vk call to bind memory, but that would require
-	 * creating a dummy memory object etc. so there's really no point.
-	 */
-	radv_image_from_handle(*img)->bo = surf->bo;
-	radv_image_from_handle(*img)->offset = surf->base_offset + offset;
 
 	radv_image_view_init(iview, cmd_buffer->device,
 			     &(VkImageViewCreateInfo) {
 				     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-					     .image = *img,
+					     .image = radv_image_to_handle(surf->image),
 					     .viewType = VK_IMAGE_VIEW_TYPE_2D,
-					     .format = image_info.format,
+					     .format = vk_format_for_size(surf->bs),
 					     .subresourceRange = {
 					     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-					     .baseMipLevel = 0,
+					     .baseMipLevel = surf->level,
 					     .levelCount = 1,
-					     .baseArrayLayer = 0,
+					     .baseArrayLayer = surf->layer,
 					     .layerCount = 1
 				     },
-			     }, cmd_buffer, usage);
+					     }, cmd_buffer, usage);
 }
 
 static void
@@ -312,7 +280,6 @@ create_bview(struct radv_cmd_buffer *cmd_buffer,
 }
 
 struct itob_temps {
-	VkImage src_image;
 	struct radv_image_view src_iview;
 
 	struct radv_buffer_view dst_bview;
@@ -328,9 +295,7 @@ itob_bind_src_image(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_device *device = cmd_buffer->device;
 	uint32_t offset = 0;
 
-	create_iview(cmd_buffer, src, offset, VK_IMAGE_USAGE_SAMPLED_BIT,
-		     rect->src_x + rect->width, rect->src_y + rect->height,
-		     &tmp->src_image, &tmp->src_iview);
+	create_iview(cmd_buffer, src, VK_IMAGE_USAGE_SAMPLED_BIT, &tmp->src_iview);
 
 }
 
@@ -393,8 +358,6 @@ static void
 itob_unbind_src_image(struct radv_cmd_buffer *cmd_buffer,
 		      struct itob_temps *temps)
 {
-	radv_DestroyImage(radv_device_to_handle(cmd_buffer->device),
-			  temps->src_image, &cmd_buffer->pool->alloc);
 }
 
 static void
