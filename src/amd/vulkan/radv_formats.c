@@ -27,13 +27,18 @@
 #include "vk_format.h"
 #include "sid.h"
 #include "r600d_common.h"
+
 uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *desc,
 					  int first_non_void)
 {
     unsigned type;
     int i;
 
-    assert(first_non_void >= 0);
+    if (desc->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
+	    return V_008F0C_BUF_DATA_FORMAT_10_11_11;
+
+    if (first_non_void < 0)
+	    return V_008F0C_BUF_DATA_FORMAT_INVALID;
     type = desc->channel[first_non_void].type;
 
     if (type == VK_FORMAT_TYPE_FIXED)
@@ -105,7 +110,8 @@ uint32_t radv_translate_buffer_numformat(const struct vk_format_description *des
 	if (desc->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
 		return V_008F0C_BUF_NUM_FORMAT_FLOAT;
 
-	assert(first_non_void >= 0);
+	if (first_non_void < 0)
+		return ~0;
 
 	switch (desc->channel[first_non_void].type) {
 	case VK_FORMAT_TYPE_SIGNED:
@@ -480,7 +486,7 @@ static bool radv_is_buffer_format_supported(VkFormat format)
 {
 	const struct vk_format_description *desc = vk_format_description(format);
 	unsigned data_format, num_format;
-	if (!desc || format == VK_FORMAT_UNDEFINED || vk_format_get_first_non_void_channel(format) < 0)
+	if (!desc || format == VK_FORMAT_UNDEFINED)
 		return false;
 
 	data_format = radv_translate_buffer_dataformat(desc,
