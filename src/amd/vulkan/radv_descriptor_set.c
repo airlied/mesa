@@ -283,6 +283,22 @@ radv_descriptor_set_create(struct radv_device *device,
 	else
 		list_inithead(&set->descriptor_pool);
 
+	for (unsigned i = 0; i < layout->binding_count; ++i) {
+		if (!layout->binding[i].immutable_samplers)
+			continue;
+
+		unsigned offset = layout->binding[i].offset / 4;
+		if (layout->binding[i].type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+			offset += 16;
+
+		for (unsigned j = 0; j < layout->binding[i].array_size; ++j) {
+			struct radv_sampler* sampler = layout->binding[i].immutable_samplers[j];
+
+			memcpy(set->mapped_ptr + offset, &sampler->state, 16);
+			offset += layout->binding[i].size / 4;
+		}
+
+	}
 	*out_set = set;
 	return VK_SUCCESS;
 }
@@ -494,13 +510,15 @@ static void
 write_combined_image_sampler_descriptor(struct radv_device *device,
 					unsigned *dst,
 					struct radv_bo **buffer_list,
-					const VkDescriptorImageInfo *image_info)
+					const VkDescriptorImageInfo *image_info,
+					bool has_sampler)
 {
 	RADV_FROM_HANDLE(radv_sampler, sampler, image_info->sampler);
 
 	write_image_descriptor(device, dst, buffer_list, image_info);
 	/* copy over sampler state */
-	memcpy(dst + 16, sampler->state, 16);
+	if (has_sampler)
+		memcpy(dst + 16, sampler->state, 16);
 }
 
 static void
@@ -561,9 +579,11 @@ void radv_UpdateDescriptorSets(
 				break;
 			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
 				write_combined_image_sampler_descriptor(device, ptr, buffer_list,
-									writeset->pImageInfo + j);
+									writeset->pImageInfo + j,
+									!binding_layout->immutable_samplers);
 				break;
 			case VK_DESCRIPTOR_TYPE_SAMPLER:
+				assert(!binding_layout->immutable_samplers);
 				write_sampler_descriptor(device, ptr,
 							 writeset->pImageInfo + j);
 				break;
