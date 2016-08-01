@@ -407,7 +407,8 @@ static bool radv_is_sampler_format_supported(VkFormat format, bool *linear_sampl
 
    if (num_format == V_008F14_IMG_NUM_FORMAT_UNORM ||
        num_format == V_008F14_IMG_NUM_FORMAT_SNORM ||
-       num_format == V_008F14_IMG_NUM_FORMAT_FLOAT)
+       num_format == V_008F14_IMG_NUM_FORMAT_FLOAT ||
+       num_format == V_008F14_IMG_NUM_FORMAT_SRGB)
 	   *linear_sampling = true;
    else
 	   *linear_sampling = false;
@@ -555,14 +556,21 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
 		   }
 	   }
      if (radv_is_colorbuffer_format_supported(format, &blendable) != V_028C70_COLOR_INVALID) {
-       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
+       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
        if (blendable) {
 	       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
 	       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
        }
      }
    }
+
+   if (format == VK_FORMAT_R32_UINT || format == VK_FORMAT_R32_SINT) {
+	   buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
+	   linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
+	   tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
+   }
+
    out_properties->linearTilingFeatures = linear;
    out_properties->optimalTilingFeatures = tiled;
    out_properties->bufferFeatures = buffer;
