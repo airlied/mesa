@@ -76,18 +76,12 @@ radv_meta_get_iview_layer(const struct radv_image *dest_image,
                          const VkOffset3D *dest_offset);
 
 struct radv_meta_blit2d_surf {
-   struct radv_bo *bo;
-
-   /** Base offset to the start of the image */
-   uint64_t base_offset;
-
    /** The size of an element in bytes. */
    uint8_t bs;
 
-   /** Pitch between rows in bytes. */
-   uint32_t pitch;
-   VkImageTiling tiling;
-   uint32_t slice_size;
+   struct radv_image *image;
+   unsigned level;
+   unsigned layer;
 };
 
 struct radv_meta_blit2d_buffer {
