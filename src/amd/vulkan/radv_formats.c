@@ -396,11 +396,21 @@ uint32_t radv_translate_color_numformat(VkFormat format,
 	return ntype;
 }
 
-static bool radv_is_sampler_format_supported(VkFormat format)
+static bool radv_is_sampler_format_supported(VkFormat format, bool *linear_sampling)
 {
    const struct vk_format_description *desc = vk_format_description(format);
+   uint32_t num_format;
    if (!desc || format == VK_FORMAT_UNDEFINED)
       return false;
+   num_format = radv_translate_tex_numformat(format, desc,
+					     vk_format_get_first_non_void_channel(format));
+
+   if (num_format == V_008F14_IMG_NUM_FORMAT_UNORM ||
+       num_format == V_008F14_IMG_NUM_FORMAT_SNORM ||
+       num_format == V_008F14_IMG_NUM_FORMAT_FLOAT)
+	   *linear_sampling = true;
+   else
+	   *linear_sampling = false;
    return radv_translate_tex_dataformat(format, vk_format_description(format),
 					vk_format_get_first_non_void_channel(format)) != ~0U;
 }
@@ -533,12 +543,17 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
      tiled |= VK_FORMAT_FEATURE_BLIT_SRC_BIT |
        VK_FORMAT_FEATURE_BLIT_DST_BIT;
    } else {
-     if (radv_is_sampler_format_supported(format)) {
-       linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-       tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-     }
+	   bool linear_sampling;
+	   if (radv_is_sampler_format_supported(format, &linear_sampling)) {
+		   linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+			   VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+		   tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+			   VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+		   if (linear_sampling) {
+			   linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+			   tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+		   }
+	   }
      if (radv_is_colorbuffer_format_supported(format, &blendable) != V_028C70_COLOR_INVALID) {
        linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
        tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
