@@ -567,7 +567,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
 			   tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 		   }
 	   }
-     if (radv_is_colorbuffer_format_supported(format, &blendable) != V_028C70_COLOR_INVALID) {
+     if (radv_is_colorbuffer_format_supported(format, &blendable)) {
        linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
        tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
        if (blendable) {
