@@ -37,8 +37,14 @@ struct ac_vs_variant_key {
 	uint32_t instance_rate_inputs;
 };
 
+struct ac_fs_variant_key {
+	uint32_t col_format;
+	uint32_t is_int8;
+};
+
 union ac_shader_variant_key {
 	struct ac_vs_variant_key vs;
+	struct ac_fs_variant_key fs;
 };
 
 struct ac_nir_compiler_options {

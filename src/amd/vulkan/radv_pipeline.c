@@ -402,6 +402,224 @@ static uint32_t si_translate_blend_factor(VkBlendFactor factor)
 	}
 }
 
+
+
+static unsigned si_choose_spi_color_format(VkFormat vk_format,
+					    bool blend_enable,
+					    bool blend_need_alpha)
+{
+	const struct vk_format_description *desc = vk_format_description(vk_format);
+	unsigned format, ntype, swap;
+
+	/* Alpha is needed for alpha-to-coverage.
+	 * Blending may be with or without alpha.
+	 */
+	unsigned normal = 0; /* most optimal, may not support blending or export alpha */
+	unsigned alpha = 0; /* exports alpha, but may not support blending */
+	unsigned blend = 0; /* supports blending, but may not export alpha */
+	unsigned blend_alpha = 0; /* least optimal, supports blending and exports alpha */
+
+	format = radv_translate_colorformat(vk_format);
+	ntype = radv_translate_color_numformat(vk_format, desc,
+					       vk_format_get_first_non_void_channel(vk_format));
+	swap = radv_translate_colorswap(vk_format, false);
+
+	/* Choose the SPI color formats. These are required values for Stoney/RB+.
+	 * Other chips have multiple choices, though they are not necessarily better.
+	 */
+	switch (format) {
+	case V_028C70_COLOR_5_6_5:
+	case V_028C70_COLOR_1_5_5_5:
+	case V_028C70_COLOR_5_5_5_1:
+	case V_028C70_COLOR_4_4_4_4:
+	case V_028C70_COLOR_10_11_11:
+	case V_028C70_COLOR_11_11_10:
+	case V_028C70_COLOR_8:
+	case V_028C70_COLOR_8_8:
+	case V_028C70_COLOR_8_8_8_8:
+	case V_028C70_COLOR_10_10_10_2:
+	case V_028C70_COLOR_2_10_10_10:
+		if (ntype == V_028C70_NUMBER_UINT)
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_UINT16_ABGR;
+		else if (ntype == V_028C70_NUMBER_SINT)
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_SINT16_ABGR;
+		else
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_FP16_ABGR;
+		break;
+
+	case V_028C70_COLOR_16:
+	case V_028C70_COLOR_16_16:
+	case V_028C70_COLOR_16_16_16_16:
+		if (ntype == V_028C70_NUMBER_UNORM ||
+		    ntype == V_028C70_NUMBER_SNORM) {
+			/* UNORM16 and SNORM16 don't support blending */
+			if (ntype == V_028C70_NUMBER_UNORM)
+				normal = alpha = V_028714_SPI_SHADER_UNORM16_ABGR;
+			else
+				normal = alpha = V_028714_SPI_SHADER_SNORM16_ABGR;
+
+			/* Use 32 bits per channel for blending. */
+			if (format == V_028C70_COLOR_16) {
+				if (swap == V_028C70_SWAP_STD) { /* R */
+					blend = V_028714_SPI_SHADER_32_R;
+					blend_alpha = V_028714_SPI_SHADER_32_AR;
+				} else if (swap == V_028C70_SWAP_ALT_REV) /* A */
+					blend = blend_alpha = V_028714_SPI_SHADER_32_AR;
+				else
+					assert(0);
+			} else if (format == V_028C70_COLOR_16_16) {
+				if (swap == V_028C70_SWAP_STD) { /* RG */
+					blend = V_028714_SPI_SHADER_32_GR;
+					blend_alpha = V_028714_SPI_SHADER_32_ABGR;
+				} else if (swap == V_028C70_SWAP_ALT) /* RA */
+					blend = blend_alpha = V_028714_SPI_SHADER_32_AR;
+				else
+					assert(0);
+			} else /* 16_16_16_16 */
+				blend = blend_alpha = V_028714_SPI_SHADER_32_ABGR;
+		} else if (ntype == V_028C70_NUMBER_UINT)
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_UINT16_ABGR;
+		else if (ntype == V_028C70_NUMBER_SINT)
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_SINT16_ABGR;
+		else if (ntype == V_028C70_NUMBER_FLOAT)
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_FP16_ABGR;
+		else
+			assert(0);
+		break;
+
+	case V_028C70_COLOR_32:
+		if (swap == V_028C70_SWAP_STD) { /* R */
+			blend = normal = V_028714_SPI_SHADER_32_R;
+			alpha = blend_alpha = V_028714_SPI_SHADER_32_AR;
+		} else if (swap == V_028C70_SWAP_ALT_REV) /* A */
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_32_AR;
+		else
+			assert(0);
+		break;
+
+	case V_028C70_COLOR_32_32:
+		if (swap == V_028C70_SWAP_STD) { /* RG */
+			blend = normal = V_028714_SPI_SHADER_32_GR;
+			alpha = blend_alpha = V_028714_SPI_SHADER_32_ABGR;
+		} else if (swap == V_028C70_SWAP_ALT) /* RA */
+			alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_32_AR;
+		else
+			assert(0);
+		break;
+
+	case V_028C70_COLOR_32_32_32_32:
+	case V_028C70_COLOR_8_24:
+	case V_028C70_COLOR_24_8:
+	case V_028C70_COLOR_X24_8_32_FLOAT:
+		alpha = blend = blend_alpha = normal = V_028714_SPI_SHADER_32_ABGR;
+		break;
+
+	default:
+		unreachable("unhandled blend format");
+	}
+
+	if (blend_enable && blend_need_alpha)
+		return blend_alpha;
+	else if(blend_need_alpha)
+		return alpha;
+	else if(blend_enable)
+		return blend;
+	else
+		return normal;
+}
+
+static unsigned si_get_cb_shader_mask(unsigned spi_shader_col_format)
+{
+	unsigned i, cb_shader_mask = 0;
+
+	for (i = 0; i < 8; i++) {
+		switch ((spi_shader_col_format >> (i * 4)) & 0xf) {
+		case V_028714_SPI_SHADER_ZERO:
+			break;
+		case V_028714_SPI_SHADER_32_R:
+			cb_shader_mask |= 0x1 << (i * 4);
+			break;
+		case V_028714_SPI_SHADER_32_GR:
+			cb_shader_mask |= 0x3 << (i * 4);
+			break;
+		case V_028714_SPI_SHADER_32_AR:
+			cb_shader_mask |= 0x9 << (i * 4);
+			break;
+		case V_028714_SPI_SHADER_FP16_ABGR:
+		case V_028714_SPI_SHADER_UNORM16_ABGR:
+		case V_028714_SPI_SHADER_SNORM16_ABGR:
+		case V_028714_SPI_SHADER_UINT16_ABGR:
+		case V_028714_SPI_SHADER_SINT16_ABGR:
+		case V_028714_SPI_SHADER_32_ABGR:
+			cb_shader_mask |= 0xf << (i * 4);
+			break;
+		default:
+			assert(0);
+		}
+	}
+	return cb_shader_mask;
+}
+
+static void
+radv_pipeline_compute_spi_color_formats(struct radv_pipeline *pipeline,
+					const VkGraphicsPipelineCreateInfo *pCreateInfo,
+					uint32_t blend_enable,
+					uint32_t blend_need_alpha)
+{
+	RADV_FROM_HANDLE(radv_render_pass, pass, pCreateInfo->renderPass);
+	struct radv_subpass *subpass = pass->subpasses + pCreateInfo->subpass;
+	struct radv_blend_state *blend = &pipeline->graphics.blend;
+	unsigned col_format = 0;
+
+	for (unsigned i = 0; i < subpass->color_count; ++i) {
+		struct radv_render_pass_attachment *attachment;
+		unsigned cf;
+
+		attachment = pass->attachments + subpass->color_attachments[i];
+
+		cf = si_choose_spi_color_format(attachment->format,
+						blend_enable & (1 << i),
+						blend_need_alpha & (1 << i));
+
+		col_format |= cf << (4 * i);
+	}
+
+	blend->cb_shader_mask = si_get_cb_shader_mask(col_format);
+
+	if (!col_format)
+		col_format |= V_028714_SPI_SHADER_32_R;
+	blend->spi_shader_col_format = col_format;
+}
+
+static bool
+format_is_int8(VkFormat format)
+{
+	const struct vk_format_description *desc = vk_format_description(format);
+	int channel =  vk_format_get_first_non_void_channel(format);
+
+	return channel >= 0 && desc->channel[channel].pure_integer &&
+	       desc->channel[channel].size == 8;
+}
+
+static unsigned
+radv_pipeline_compute_is_int8(const VkGraphicsPipelineCreateInfo *pCreateInfo)
+{
+	RADV_FROM_HANDLE(radv_render_pass, pass, pCreateInfo->renderPass);
+	struct radv_subpass *subpass = pass->subpasses + pCreateInfo->subpass;
+	unsigned is_int8 = 0;
+
+	for (unsigned i = 0; i < subpass->color_count; ++i) {
+		struct radv_render_pass_attachment *attachment;
+
+		attachment = pass->attachments + subpass->color_attachments[i];
+
+		if (format_is_int8(attachment->format))
+			is_int8 | 1 << i;
+	}
+
+	return is_int8;
+}
+
 static void
 radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 			       const VkGraphicsPipelineCreateInfo *pCreateInfo)
@@ -409,6 +627,7 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 	const VkPipelineColorBlendStateCreateInfo *vkblend = pCreateInfo->pColorBlendState;
 	struct radv_blend_state *blend = &pipeline->graphics.blend;
 	unsigned mode = V_028808_CB_NORMAL;
+	uint32_t blend_enable = 0, blend_need_alpha = 0;
 	int i;
 
 	blend->cb_color_control = 0;
@@ -451,6 +670,16 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 			blend_cntl |= S_028780_ALPHA_DESTBLEND(si_translate_blend_factor(dstA));
 		}
 		blend->cb_blend_control[i] = blend_cntl;
+
+		blend_enable |= 1 << i;
+
+		if (srcRGB == VK_BLEND_FACTOR_SRC_ALPHA ||
+		    dstRGB == VK_BLEND_FACTOR_SRC_ALPHA ||
+		    srcRGB == VK_BLEND_FACTOR_SRC_ALPHA_SATURATE ||
+		    dstRGB == VK_BLEND_FACTOR_SRC_ALPHA_SATURATE ||
+		    srcRGB == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ||
+		    dstRGB == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+			blend_need_alpha |= 1 << i;
 	}
 	for (i = vkblend->attachmentCount; i < 8; i++)
 		blend->cb_blend_control[i] = 0;
@@ -459,6 +688,9 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 		blend->cb_color_control |= S_028808_MODE(mode);
 	else
 		blend->cb_color_control |= S_028808_MODE(V_028808_CB_DISABLE);
+
+	radv_pipeline_compute_spi_color_formats(pipeline, pCreateInfo,
+						blend_enable, blend_need_alpha);
 }
 
 static uint32_t si_translate_stencil_op(enum VkStencilOp op)
@@ -769,6 +1001,8 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		modules[stage] = radv_shader_module_from_handle(pStages[stage]->module);
 	}
 
+	radv_pipeline_init_blend_state(pipeline, pCreateInfo);
+
 	/* */
 	if (modules[MESA_SHADER_VERTEX]) {
 		union ac_shader_variant_key key = radv_compute_vs_key(pCreateInfo);
@@ -796,6 +1030,10 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	}
 
 	if (modules[MESA_SHADER_FRAGMENT]) {
+		union ac_shader_variant_key key;
+		key.fs.col_format = pipeline->graphics.blend.spi_shader_col_format;
+		key.fs.is_int8 = radv_pipeline_compute_is_int8(pCreateInfo);
+
 		const VkPipelineShaderStageCreateInfo *stage = pStages[MESA_SHADER_FRAGMENT];
 
 		shader = radv_pipeline_compile(pipeline, modules[MESA_SHADER_FRAGMENT],
@@ -805,14 +1043,13 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		pipeline->shaders[MESA_SHADER_FRAGMENT] = radv_shader_variant_create(device,
 										     shader,
 										     pipeline->layout,
-										     NULL, dump);
+										     &key, dump);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
 
 		if (!modules[MESA_SHADER_FRAGMENT]->nir || fs_m.nir)
 			ralloc_free(shader);
 	}
 
-	radv_pipeline_init_blend_state(pipeline, pCreateInfo);
 	radv_pipeline_init_depth_stencil_state(pipeline, pCreateInfo);
 	radv_pipeline_init_raster_state(pipeline, pCreateInfo);
 

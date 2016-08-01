@@ -714,6 +714,9 @@ struct radv_blend_state {
 	uint32_t cb_target_mask;
 	uint32_t sx_mrt0_blend_opt[8];
 	uint32_t cb_blend_control[8];
+
+	uint32_t spi_shader_col_format;
+	uint32_t cb_shader_mask;
 };
 
 struct radv_raster_state {
@@ -948,10 +951,6 @@ struct radv_color_buffer_info {
 	uint32_t cb_color_fmask_slice;
 	uint32_t cb_clear_value0;
 	uint32_t cb_clear_value1;
-	uint32_t spi_shader_col_format;
-	uint32_t spi_shader_col_format_alpha;
-	uint32_t spi_shader_col_format_blend;
-	uint32_t spi_shader_col_format_blend_alpha;
 };
 
 struct radv_ds_buffer_info {
