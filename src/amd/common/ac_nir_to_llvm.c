@@ -2516,6 +2516,27 @@ setup_locals(struct nir_to_llvm_context *ctx,
 	}
 }
 
+static LLVMValueRef
+emit_float_saturate(struct nir_to_llvm_context *ctx, LLVMValueRef v, float lo, float hi)
+{
+	v = to_float(ctx, v);
+	v = emit_intrin_2f_param(ctx, "llvm.maxnum.f32", v, LLVMConstReal(ctx->f32, lo));
+	return emit_intrin_2f_param(ctx, "llvm.minnum.f32", v, LLVMConstReal(ctx->f32, hi));
+}
+
+
+static LLVMValueRef emit_pack_int16(struct nir_to_llvm_context *ctx,
+					LLVMValueRef src0, LLVMValueRef src1)
+{
+	LLVMValueRef const16 = LLVMConstInt(ctx->i32, 16, false);
+	LLVMValueRef comp[2];
+
+	comp[0] = LLVMBuildAnd(ctx->builder, src0, LLVMConstInt(ctx-> i32, 65535, 0), "");
+	comp[1] = LLVMBuildAnd(ctx->builder, src1, LLVMConstInt(ctx-> i32, 65535, 0), "");
+	comp[1] = LLVMBuildShl(ctx->builder, comp[1], const16, "");
+	return LLVMBuildOr(ctx->builder, comp[0], comp[1], "");
+}
+
 /* Initialize arguments for the shader export intrinsic */
 static void
 si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
@@ -2536,13 +2557,134 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 	args[3] = LLVMConstInt(ctx->i32, target, false);
 
 	args[4] = LLVMConstInt(ctx->i32, 0, false); /* COMPR flag */
-	args[5] = LLVMGetUndef(ctx->f32);
-	args[6] = LLVMGetUndef(ctx->f32);
-	args[7] = LLVMGetUndef(ctx->f32);
-	args[8] = LLVMGetUndef(ctx->f32);
+	args[5] = LLVMGetUndef(ctx->i32);
+	args[6] = LLVMGetUndef(ctx->i32);
+	args[7] = LLVMGetUndef(ctx->i32);
+	args[8] = LLVMGetUndef(ctx->i32);
 
-	/* TODO expand this for frag shader */
-	if (values)
+	if (!values)
+		return;
+
+	if (ctx->stage == MESA_SHADER_FRAGMENT && target >= V_008DFC_SQ_EXP_MRT) {
+		LLVMValueRef val[4];
+		unsigned index = target - V_008DFC_SQ_EXP_MRT;
+		unsigned col_format = (ctx->options->key.fs.col_format >> (4 * index)) & 0xf;
+		bool is_int8 = (ctx->options->key.fs.is_int8 >> index) & 1;
+
+		switch(col_format) {
+		case V_028714_SPI_SHADER_ZERO:
+			args[0] = LLVMConstInt(ctx->i32, 0x0, 0);
+			args[3] = LLVMConstInt(ctx->i32, V_008DFC_SQ_EXP_NULL, 0);
+			break;
+
+		case V_028714_SPI_SHADER_32_R:
+			args[0] = LLVMConstInt(ctx->i32, 0x1, 0);
+			args[5] = values[0];
+			break;
+
+		case V_028714_SPI_SHADER_32_GR:
+			args[0] = LLVMConstInt(ctx->i32, 0x3, 0);
+			args[5] = values[0];
+			args[6] = values[1];
+			break;
+
+		case V_028714_SPI_SHADER_32_AR:
+			args[0] = LLVMConstInt(ctx->i32, 0x9, 0);
+			args[5] = values[0];
+			args[8] = values[3];
+			break;
+
+		case V_028714_SPI_SHADER_FP16_ABGR:
+			args[4] = ctx->i32one;
+
+			for (unsigned chan = 0; chan < 2; chan++) {
+				LLVMValueRef pack_args[2] = {
+					values[2 * chan],
+					values[2 * chan + 1]
+				};
+				LLVMValueRef packed;
+
+				packed = emit_llvm_intrinsic(ctx, "llvm.SI.packf16",
+							     ctx->i32, pack_args, 2,
+							     LLVMReadNoneAttribute);
+				args[chan + 5] = packed;
+			}
+			break;
+
+		case V_028714_SPI_SHADER_UNORM16_ABGR:
+			for (unsigned chan = 0; chan < 4; chan++) {
+				val[chan] = emit_float_saturate(ctx, values[chan], 0, 1);
+				val[chan] = LLVMBuildFMul(ctx->builder, val[chan],
+							LLVMConstReal(ctx->f32, 65535), "");
+				val[chan] = LLVMBuildFAdd(ctx->builder, val[chan],
+							LLVMConstReal(ctx->f32, 0.5), "");
+				val[chan] = LLVMBuildFPToUI(ctx->builder, val[chan],
+							ctx->i32, "");
+			}
+
+			args[4] = ctx->i32one;
+			args[5] = emit_pack_int16(ctx, val[0], val[1]);
+			args[6] = emit_pack_int16(ctx, val[2], val[3]);
+			break;
+
+		case V_028714_SPI_SHADER_SNORM16_ABGR:
+			for (unsigned chan = 0; chan < 4; chan++) {
+				val[chan] = emit_float_saturate(ctx, values[chan], -1, 1);
+				val[chan] = LLVMBuildFMul(ctx->builder, val[chan],
+							LLVMConstReal(ctx->f32, 32767), "");
+
+				/* If positive, add 0.5, else add -0.5. */
+				val[chan] = LLVMBuildFAdd(ctx->builder, val[chan],
+						LLVMBuildSelect(ctx->builder,
+							LLVMBuildFCmp(ctx->builder, LLVMRealOGE,
+								val[chan], ctx->f32zero, ""),
+							LLVMConstReal(ctx->f32, 0.5),
+							LLVMConstReal(ctx->f32, -0.5), ""), "");
+				val[chan] = LLVMBuildFPToSI(ctx->builder, val[chan], ctx->i32, "");
+			}
+
+			args[4] = ctx->i32one;
+			args[5] = emit_pack_int16(ctx, val[0], val[1]);
+			args[6] = emit_pack_int16(ctx, val[2], val[3]);
+			break;
+
+		case V_028714_SPI_SHADER_UINT16_ABGR: {
+			LLVMValueRef max = LLVMConstInt(ctx->i32, is_int8 ? 255 : 65535, 0);
+
+			for (unsigned chan = 0; chan < 4; chan++) {
+				val[chan] = to_integer(ctx, values[chan]);
+				val[chan] = emit_minmax_int(ctx, LLVMIntULT, val[chan], max);
+			}
+
+			args[4] = ctx->i32one;
+			args[5] = emit_pack_int16(ctx, val[0], val[1]);
+			args[6] = emit_pack_int16(ctx, val[2], val[3]);
+			break;
+		}
+
+		case V_028714_SPI_SHADER_SINT16_ABGR: {
+			LLVMValueRef max = LLVMConstInt(ctx->i32, is_int8 ? 127 : 32767, 0);
+			LLVMValueRef min = LLVMConstInt(ctx->i32, is_int8 ? -128 : -32768, 0);
+
+			/* Clamp. */
+			for (unsigned chan = 0; chan < 4; chan++) {
+				val[chan] = to_integer(ctx, values[chan]);
+				val[chan] = emit_minmax_int(ctx, LLVMIntSLT, val[chan], max);
+				val[chan] = emit_minmax_int(ctx, LLVMIntSGT, val[chan], min);
+			}
+
+			args[4] = ctx->i32one;
+			args[5] = emit_pack_int16(ctx, val[0], val[1]);
+			args[6] = emit_pack_int16(ctx, val[2], val[3]);
+			break;
+		}
+
+		default:
+		case V_028714_SPI_SHADER_32_ABGR:
+			memcpy(&args[5], values, sizeof(values[0]) * 4);
+			break;
+		}
+	} else
 		memcpy(&args[5], values, sizeof(values[0]) * 4);
 }
 
