@@ -1193,6 +1193,8 @@ VkResult radv_SetEvent(
 {
 	RADV_FROM_HANDLE(radv_event, event, _event);
 	*event->map = 1;
+
+	return VK_SUCCESS;
 }
 
 VkResult radv_ResetEvent(
@@ -1201,6 +1203,8 @@ VkResult radv_ResetEvent(
 {
 	RADV_FROM_HANDLE(radv_event, event, _event);
 	*event->map = 0;
+
+	return VK_SUCCESS;
 }
 
 VkResult radv_CreateBuffer(
