@@ -396,8 +396,7 @@ uint32_t radv_translate_color_numformat(VkFormat format,
 	return ntype;
 }
 
-static bool radv_is_sampler_format_supported(struct radv_physical_device *physical_device,
-					     VkFormat format)
+static bool radv_is_sampler_format_supported(VkFormat format)
 {
    const struct vk_format_description *desc = vk_format_description(format);
    if (!desc || format == VK_FORMAT_UNDEFINED)
@@ -521,7 +520,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
      tiled |= VK_FORMAT_FEATURE_BLIT_SRC_BIT |
        VK_FORMAT_FEATURE_BLIT_DST_BIT;
    } else {
-     if (radv_is_sampler_format_supported(physical_device, format)) {
+     if (radv_is_sampler_format_supported(format)) {
        linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
 	 VK_FORMAT_FEATURE_BLIT_SRC_BIT;
        tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
