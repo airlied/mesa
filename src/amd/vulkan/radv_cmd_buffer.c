@@ -1561,7 +1561,7 @@ void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
 
 		cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
 
-		unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 6);
+		unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 7);
 
 		radeon_emit(cs, PKT3(PKT3_WAIT_REG_MEM, 5, 0));
 		radeon_emit(cs, WAIT_REG_MEM_EQUAL | WAIT_REG_MEM_MEM_SPACE(1));
