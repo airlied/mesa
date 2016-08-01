@@ -507,10 +507,7 @@ void radv_GetPhysicalDeviceMemoryProperties(
 	VkPhysicalDeviceMemoryProperties*           pMemoryProperties)
 {
 	RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
-	VkDeviceSize heap_size;
-	uint32_t memoryTypes = 2;
-	int ret;
-   
+
 	pMemoryProperties->memoryTypeCount = 3;
 	pMemoryProperties->memoryTypes[0] = (VkMemoryType) {
 		.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
@@ -712,7 +709,6 @@ VkResult radv_QueueSubmit(
 {
 	RADV_FROM_HANDLE(radv_queue, queue, _queue);
 	RADV_FROM_HANDLE(radv_fence, fence, _fence);
-	struct radv_device *device = queue->device;
 	struct radeon_winsys_fence *base_fence = fence ? fence->fence : NULL;
 	struct radeon_winsys_ctx *ctx = queue->device->hw_ctx;
 	int ret;
@@ -787,8 +783,6 @@ VkResult radv_AllocateMemory(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	struct radv_device_memory *mem;
 	VkResult result;
-	struct amdgpu_bo_alloc_request alloc_buffer;
-	int ret;
 	enum radeon_bo_domain domain;
 	assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
@@ -803,7 +797,7 @@ VkResult radv_AllocateMemory(
 	if (mem == NULL)
 		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
 
-	uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);\
+	uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
 	if (pAllocateInfo->memoryTypeIndex == 2)
 		domain = RADEON_DOMAIN_GTT;
 	else
@@ -850,7 +844,7 @@ VkResult radv_MapMemory(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_device_memory, mem, _memory);
-	int ret;
+
 	if (mem == NULL) {
 		*ppData = NULL;
 		return VK_SUCCESS;
@@ -1102,7 +1096,6 @@ VkResult radv_GetFenceStatus(VkDevice _device, VkFence _fence)
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_fence, fence, _fence);
-	bool expired;
 
 	if (!device->ws->fence_wait(device->ws, fence->fence, false, 0))
 		return  VK_NOT_READY;
@@ -1378,7 +1371,6 @@ radv_initialise_color_surface(struct radv_device *device,
 {
 	struct radv_color_buffer_info *cb = &framebuffer->attachments[index].cb;
 	const struct vk_format_description *desc;
-	int i;
 	unsigned ntype, format, swap, endian;
 	unsigned blend_clamp = 0, blend_bypass = 0;
 	unsigned pitch_tile_max, slice_tile_max, tile_mode_index;
