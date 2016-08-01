@@ -565,6 +565,12 @@ radv_image_view_init(struct radv_image_view *iview,
 		.height = radv_minify(image->extent.height, range->baseMipLevel),
 		.depth  = radv_minify(image->extent.depth , range->baseMipLevel),
 	};
+
+	iview->extent.width = round_up_u32(iview->extent.width * vk_format_get_blockwidth(iview->vk_format),
+					   vk_format_get_blockwidth(image->vk_format));
+	iview->extent.height = round_up_u32(iview->extent.height * vk_format_get_blockheight(iview->vk_format),
+					    vk_format_get_blockheight(image->vk_format));
+
 	iview->base_layer = range->baseArrayLayer;
 	iview->base_mip = range->baseMipLevel;
 

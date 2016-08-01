@@ -114,6 +114,13 @@ radv_is_aligned(uintmax_t n, uintmax_t a)
 	assert(a == (a & -a));
 	return (n & (a - 1)) == 0;
 }
+
+static inline uint32_t
+round_up_u32(uint32_t v, uint32_t a)
+{
+	return (v + a - 1) / a;
+}
+
 static inline uint32_t
 radv_minify(uint32_t n, uint32_t levels)
 {
