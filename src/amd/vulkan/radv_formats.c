@@ -244,6 +244,12 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
 	     desc->channel[3].size == 1) {
 	    return V_008F14_IMG_DATA_FORMAT_1_5_5_5;
 	 }
+	 if (desc->channel[0].size == 1 &&
+	     desc->channel[1].size == 5 &&
+	     desc->channel[2].size == 5 &&
+	     desc->channel[3].size == 5) {
+	    return V_008F14_IMG_DATA_FORMAT_5_5_5_1;
+	 }
 	 if (desc->channel[0].size == 10 &&
 	     desc->channel[1].size == 10 &&
 	     desc->channel[2].size == 10 &&
@@ -645,6 +651,8 @@ uint32_t radv_translate_colorformat(VkFormat format)
 			}
 		} else if (HAS_SIZE(5,5,5,1)) {
 			return V_028C70_COLOR_1_5_5_5;
+		} else if (HAS_SIZE(1,5,5,5)) {
+			return V_028C70_COLOR_5_5_5_1;
 		} else if (HAS_SIZE(10,10,10,2)) {
 			return V_028C70_COLOR_2_10_10_10;
 		}
