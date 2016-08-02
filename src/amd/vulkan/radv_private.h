@@ -364,11 +364,11 @@ struct radv_meta_state {
 	} blit;
 
 	struct {
-		VkRenderPass render_pass;
+		VkRenderPass render_passes[NUM_META_FS_KEYS];
 
 		VkPipelineLayout p_layouts[2];
 		VkDescriptorSetLayout ds_layouts[2];
-		VkPipeline pipelines[2];
+		VkPipeline pipelines[2][NUM_META_FS_KEYS];
 	} blit2d;
 
 	struct {
