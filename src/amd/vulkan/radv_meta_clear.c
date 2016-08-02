@@ -454,6 +454,8 @@ create_depthstencil_pipeline(struct radv_device *device,
                              struct radv_pipeline **pipeline)
 {
    struct nir_shader *vs_nir, *fs_nir;
+   VkRenderPass render_pass;
+   VkResult result;
 
    build_depthstencil_shader(&vs_nir, &fs_nir);
 
@@ -502,9 +504,44 @@ create_depthstencil_pipeline(struct radv_device *device,
       .pAttachments = NULL,
    };
 
-   return create_pipeline(device, &radv_meta_dummy_renderpass, vs_nir, fs_nir,
-			  &vi_state, &ds_state, &cb_state, &device->meta_state.alloc,
-                          pipeline);
+   result = radv_CreateRenderPass(radv_device_to_handle(device),
+                                  &(VkRenderPassCreateInfo) {
+                                     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                                     .attachmentCount = 1,
+                                     .pAttachments = &(VkAttachmentDescription) {
+                                         .format = VK_FORMAT_UNDEFINED,
+                                         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                                         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                                         .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                                     },
+                                     .subpassCount = 1,
+                                     .pSubpasses = &(VkSubpassDescription) {
+                                         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                         .inputAttachmentCount = 0,
+                                         .colorAttachmentCount = 0,
+                                         .pColorAttachments = NULL,
+                                         .pResolveAttachments = NULL,
+                                         .pDepthStencilAttachment = &(VkAttachmentReference) {
+                                            .attachment = 0,
+                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
+                                         },
+                                         .preserveAttachmentCount = 1,
+                                         .pPreserveAttachments = (uint32_t[]) { 0 },
+                                     },
+                                     .dependencyCount = 0,
+                                  }, &device->meta_state.alloc, &render_pass);
+   if (result != VK_SUCCESS)
+      return result;
+
+
+   result =  create_pipeline(device, radv_render_pass_from_handle(render_pass),
+			     vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
+			     &device->meta_state.alloc, pipeline);
+
+   radv_DestroyRenderPass(radv_device_to_handle(device), render_pass,
+                          &device->meta_state.alloc);
+   return result;
 }
 
 static void
