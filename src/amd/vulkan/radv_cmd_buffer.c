@@ -259,6 +259,13 @@ radv_emit_graphics_depth_stencil_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_028024_DB_DEPTH_BOUNDS_MAX, ds->db_depth_bounds_max);
 }
 
+/* 12.4 fixed-point */
+static unsigned radv_pack_float_12p4(float x)
+{
+	return x <= 0    ? 0 :
+	       x >= 4096 ? 0xffff : x * 16;
+}
+
 static void
 radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 				struct radv_pipeline *pipeline)
@@ -277,7 +284,8 @@ radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_set_context_reg_seq(cmd_buffer->cs, R_028A00_PA_SU_POINT_SIZE, 2);
 	radeon_emit(cmd_buffer->cs, 0);
-	radeon_emit(cmd_buffer->cs, 0); /* R_028A04_PA_SU_POINT_MINMAX */
+	radeon_emit(cmd_buffer->cs, S_028A04_MIN_SIZE(radv_pack_float_12p4(0)) |
+		    S_028A04_MAX_SIZE(radv_pack_float_12p4(8192/2))); /* R_028A04_PA_SU_POINT_MINMAX */
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028BE4_PA_SU_VTX_CNTL,
 			       raster->pa_su_vtx_cntl);
