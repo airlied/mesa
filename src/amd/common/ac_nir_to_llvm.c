@@ -2417,11 +2417,11 @@ handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
 	for (unsigned i = 0; i < RADEON_LLVM_MAX_INPUTS; ++i) {
 		LLVMValueRef interp_param;
 		LLVMValueRef *inputs = ctx->inputs +radeon_llvm_reg_index_soa(i, 0);
-		unsigned attr = i - VARYING_SLOT_VAR0;
+
 		if (!(ctx->input_mask & (1ull << i)))
 			continue;
 
-		if (i >= VARYING_SLOT_VAR0) {
+		if (i >= VARYING_SLOT_VAR0 || i == VARYING_SLOT_PNTC) {
 			interp_param = *inputs;
 			interp_fs_input(ctx, index, interp_param, ctx->prim_mask,
 					inputs);
@@ -2438,6 +2438,8 @@ handle_fs_inputs_pre(struct nir_to_llvm_context *ctx,
 		}
 	}
 	ctx->shader_info->fs.num_interp = index;
+	if (ctx->input_mask & (1 << VARYING_SLOT_PNTC))
+		ctx->shader_info->fs.has_pcoord = true;
 	ctx->shader_info->fs.input_mask = ctx->input_mask >> VARYING_SLOT_VAR0;
 }
 
