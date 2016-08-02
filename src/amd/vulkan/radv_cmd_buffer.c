@@ -490,27 +490,29 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 {
 	int i;
 	struct radv_framebuffer *framebuffer = cmd_buffer->state.framebuffer;
-	int color_count = 0;
-	bool has_ds = false;
-	for (i = 0; i < framebuffer->attachment_count; i++) {
-		struct radv_attachment_info *att = &framebuffer->attachments[i];
+	struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	for (i = 0; i < subpass->color_count; ++i) {
+		int idx = subpass->color_attachments[i];
+		struct radv_attachment_info *att = &framebuffer->attachments[idx];
 
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
 
-		if (att->attachment->aspect_mask & VK_IMAGE_ASPECT_COLOR_BIT) {
-			color_count++;
-			radv_emit_fb_color_state(cmd_buffer, &att->cb);
-		} else {
-			radv_emit_fb_ds_state(cmd_buffer, &att->ds);
-			has_ds = true;
-		}
+		assert(att->attachment->aspect_mask & VK_IMAGE_ASPECT_COLOR_BIT);
+		radv_emit_fb_color_state(cmd_buffer, &att->cb);
 	}
 
-	for (i = color_count; i < 8; i++)
+	for (i = subpass->color_count; i < 8; i++)
 		radeon_set_context_reg(cmd_buffer->cs, R_028C70_CB_COLOR0_INFO + i * 0x3C,
 				       S_028C70_FORMAT(V_028C70_COLOR_INVALID));
 
-	if (!has_ds) {
+	if(subpass->depth_stencil_attachment != VK_ATTACHMENT_UNUSED) {
+		int idx = subpass->depth_stencil_attachment;
+		struct radv_attachment_info *att = &framebuffer->attachments[idx];
+
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
+
+		radv_emit_fb_ds_state(cmd_buffer, &att->ds);
+	} else {
 		radeon_set_context_reg_seq(cmd_buffer->cs, R_028040_DB_Z_INFO, 2);
 		radeon_emit(cmd_buffer->cs, S_028040_FORMAT(V_028040_Z_INVALID)); /* R_028040_DB_Z_INFO */
 		radeon_emit(cmd_buffer->cs, S_028044_FORMAT(V_028044_STENCIL_INVALID)); /* R_028044_DB_STENCIL_INFO */
@@ -1273,8 +1275,8 @@ void radv_CmdBeginRenderPass(
 
 	si_emit_cache_flush(cmd_buffer);
 
-	radv_emit_framebuffer_state(cmd_buffer);
 	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses);
+	radv_emit_framebuffer_state(cmd_buffer);
 	radv_cmd_buffer_clear_subpass(cmd_buffer);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
