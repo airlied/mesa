@@ -79,6 +79,7 @@ typedef uint32_t xcb_window_t;
 #define MAX_DYNAMIC_BUFFERS 16
 #define MAX_IMAGES 8
 #define MAX_SAMPLES_LOG2 4 /* SKL supports 16 samples */
+#define NUM_META_FS_KEYS 11
 
 #define radv_noreturn __attribute__((__noreturn__))
 #define radv_printflike(a, b) __attribute__((__format__(__printf__, a, b)))
@@ -339,12 +340,12 @@ struct radv_meta_state {
 	 * Use array element `i` for images with `2^i` samples.
 	 */
 	struct {
-		struct radv_pipeline *color_pipeline;
+		struct radv_pipeline *color_pipelines[NUM_META_FS_KEYS];
 
 		struct radv_pipeline *depth_only_pipeline;
 		struct radv_pipeline *stencil_only_pipeline;
 		struct radv_pipeline *depthstencil_pipeline;
-	} clear[1 + MAX_SAMPLES_LOG2];
+	} clear;
 
 	struct {
 		VkRenderPass render_pass;
@@ -718,6 +719,8 @@ struct radv_blend_state {
 	uint32_t spi_shader_col_format;
 	uint32_t cb_shader_mask;
 };
+
+unsigned radv_format_meta_fs_key(VkFormat format);
 
 struct radv_raster_state {
 	uint32_t pa_cl_clip_cntl;
