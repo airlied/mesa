@@ -1758,7 +1758,7 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 		res = emit_llvm_intrinsic(ctx, intrinsic_name, ctx->v4f32,
 					params, 7, LLVMReadOnlyAttribute);
 	}
-	return res;
+	return to_integer(ctx, res);
 }
 
 static void visit_image_store(struct nir_to_llvm_context *ctx,
