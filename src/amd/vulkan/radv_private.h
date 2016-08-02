@@ -419,7 +419,6 @@ struct radv_device {
 	struct radv_instance *                       instance;
 	uint32_t                                    chipset_id;
 	struct radeon_winsys *ws;
-	LLVMTargetMachineRef target_machine;
 	struct radeon_winsys_ctx *hw_ctx;
 
 	struct radv_meta_state                       meta_state;

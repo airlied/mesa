@@ -560,7 +560,6 @@ VkResult radv_CreateDevice(
 	VkDevice*                                   pDevice)
 {
 	RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
-	enum radeon_family chip_family = physical_device->instance->physicalDevice.rad_info.family;
 	VkResult result;
 	struct radv_device *device;
 
@@ -592,8 +591,6 @@ VkResult radv_CreateDevice(
 	else
 		device->alloc = physical_device->instance->alloc;
 
-	device->target_machine = ac_create_target_machine(chip_family);
-
 	device->hw_ctx = device->ws->ctx_create(device->ws);
 	if (!device->hw_ctx)
 		return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -616,7 +613,6 @@ void radv_DestroyDevice(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 
-	LLVMDisposeTargetMachine(device->target_machine);
 	device->ws->ctx_destroy(device->hw_ctx);
 	radv_queue_finish(&device->queue);
 	radv_device_finish_meta(device);

@@ -266,6 +266,8 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 						       bool dump)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
+	enum radeon_family chip_family = device->instance->physicalDevice.rad_info.family;
+	LLVMTargetMachineRef tm;
 	if (!variant)
 		return NULL;
 
@@ -275,8 +277,11 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 		options.key = *key;
 
 	struct ac_shader_binary binary;
-	ac_compile_nir_shader(device->target_machine, &binary, &variant->config,
+
+	tm = ac_create_target_machine(chip_family);
+	ac_compile_nir_shader(tm, &binary, &variant->config,
 			      &variant->info, shader, &options, dump);
+	LLVMDisposeTargetMachine(tm);
 
 	bool scratch_enabled = variant->config.scratch_bytes_per_wave > 0;
 	unsigned vgpr_comp_cnt = 0;
