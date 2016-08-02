@@ -1018,8 +1018,6 @@ struct radv_render_pass {
 	struct radv_subpass                           subpasses[0];
 };
 
-extern struct radv_render_pass radv_meta_dummy_renderpass;
-
 VkResult radv_device_init_meta(struct radv_device *device);
 void radv_device_finish_meta(struct radv_device *device);
 

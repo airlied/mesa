@@ -23,8 +23,6 @@
 
 #include "radv_meta.h"
 
-struct radv_render_pass radv_meta_dummy_renderpass = {0};
-
 void
 radv_meta_save(struct radv_meta_saved_state *state,
               const struct radv_cmd_buffer *cmd_buffer,
