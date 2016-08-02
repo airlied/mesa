@@ -530,6 +530,12 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 				       S_028A08_WIDTH(CLAMP(width, 0, 0xFFF)));
 	}
 
+	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_DYNAMIC_BLEND_CONSTANTS) {
+		struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+		radeon_set_context_reg_seq(cmd_buffer->cs, R_028414_CB_BLEND_RED, 4);
+		radeon_emit_array(cmd_buffer->cs, (uint32_t*)d->blend_constants, 4);
+	}
+
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_STENCIL_REFERENCE |
 				       RADV_CMD_DIRTY_DYNAMIC_STENCIL_WRITE_MASK |
 				       RADV_CMD_DIRTY_DYNAMIC_STENCIL_COMPARE_MASK)) {
