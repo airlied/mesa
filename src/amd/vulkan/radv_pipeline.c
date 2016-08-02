@@ -601,6 +601,14 @@ format_is_int8(VkFormat format)
 	       desc->channel[channel].size == 8;
 }
 
+unsigned radv_format_meta_fs_key(VkFormat format)
+{
+	unsigned col_format = si_choose_spi_color_format(format, false, false) - 1;
+	bool is_int8 = format_is_int8(format);
+
+	return col_format + (is_int8 ? 3 : 0);
+}
+
 static unsigned
 radv_pipeline_compute_is_int8(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 {
