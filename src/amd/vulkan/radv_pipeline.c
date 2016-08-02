@@ -622,7 +622,7 @@ radv_pipeline_compute_is_int8(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 		attachment = pass->attachments + subpass->color_attachments[i];
 
 		if (format_is_int8(attachment->format))
-			is_int8 | 1 << i;
+			is_int8 |= 1 << i;
 	}
 
 	return is_int8;
