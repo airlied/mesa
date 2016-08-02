@@ -276,8 +276,6 @@ radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 			       raster->pa_cl_clip_cntl);
 	radeon_set_context_reg(cmd_buffer->cs, R_028814_PA_SU_SC_MODE_CNTL,
 			       raster->pa_su_sc_mode_cntl);
-	radeon_set_context_reg(cmd_buffer->cs, R_02881C_PA_CL_VS_OUT_CNTL,
-			       raster->pa_cl_vs_out_cntl);
 
 	radeon_set_context_reg(cmd_buffer->cs, R_0286D4_SPI_INTERP_CONTROL_0,
 			       raster->spi_interp_control);
@@ -331,7 +329,17 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	export_count = MAX2(1, vs->info.vs.param_exports);
 	radeon_set_context_reg(cmd_buffer->cs, R_0286C4_SPI_VS_OUT_CONFIG,
 			       S_0286C4_VS_EXPORT_COUNT(export_count - 1));
-	radeon_set_context_reg(cmd_buffer->cs, R_02870C_SPI_SHADER_POS_FORMAT, S_02870C_POS0_EXPORT_FORMAT(V_02870C_SPI_SHADER_4COMP));
+	radeon_set_context_reg(cmd_buffer->cs, R_02870C_SPI_SHADER_POS_FORMAT,
+			       S_02870C_POS0_EXPORT_FORMAT(V_02870C_SPI_SHADER_4COMP) |
+			       S_02870C_POS1_EXPORT_FORMAT(vs->info.vs.pos_exports > 1 ?
+							   V_02870C_SPI_SHADER_4COMP :
+							   V_02870C_SPI_SHADER_NONE) |
+			       S_02870C_POS2_EXPORT_FORMAT(vs->info.vs.pos_exports > 2 ?
+							   V_02870C_SPI_SHADER_4COMP :
+							   V_02870C_SPI_SHADER_NONE) |
+			       S_02870C_POS3_EXPORT_FORMAT(vs->info.vs.pos_exports > 3 ?
+							   V_02870C_SPI_SHADER_4COMP :
+							   V_02870C_SPI_SHADER_NONE));
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B120_SPI_SHADER_PGM_LO_VS, 4);
 	radeon_emit(cmd_buffer->cs, va >> 8);
@@ -344,6 +352,11 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 			       S_028818_VPORT_X_SCALE_ENA(1) | S_028818_VPORT_X_OFFSET_ENA(1) |
 			       S_028818_VPORT_Y_SCALE_ENA(1) | S_028818_VPORT_Y_OFFSET_ENA(1) |
 			       S_028818_VPORT_Z_SCALE_ENA(1) | S_028818_VPORT_Z_OFFSET_ENA(1));
+	radeon_set_context_reg(cmd_buffer->cs, R_02881C_PA_CL_VS_OUT_CNTL,
+			       S_02881C_USE_VTX_POINT_SIZE(vs->info.vs.writes_pointsize) |
+			       S_02881C_VS_OUT_MISC_VEC_ENA(vs->info.vs.writes_pointsize) |
+			       pipeline->graphics.raster.pa_cl_vs_out_cntl);
+
 }
 
 

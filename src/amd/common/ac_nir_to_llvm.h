@@ -59,8 +59,10 @@ struct ac_shader_variant_info {
 	union {
 		struct {
 			unsigned param_exports;
+			unsigned pos_exports;
 			unsigned vgpr_comp_cnt;
 			uint32_t export_mask;
+			bool writes_pointsize;
 		} vs;
 		struct {
 			unsigned num_interp;
