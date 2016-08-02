@@ -1054,7 +1054,7 @@ VkResult radv_WaitForFences(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	timeout = radv_get_absolute_timeout(timeout);
 
-	if (!waitAll) {
+	if (!waitAll && fenceCount > 1) {
 		fprintf(stderr, "radv: WaitForFences without waitAll not implemented yet\n");
 	}
 
