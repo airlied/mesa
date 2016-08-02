@@ -2557,10 +2557,10 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 	args[3] = LLVMConstInt(ctx->i32, target, false);
 
 	args[4] = LLVMConstInt(ctx->i32, 0, false); /* COMPR flag */
-	args[5] = LLVMGetUndef(ctx->i32);
-	args[6] = LLVMGetUndef(ctx->i32);
-	args[7] = LLVMGetUndef(ctx->i32);
-	args[8] = LLVMGetUndef(ctx->i32);
+	args[5] = LLVMGetUndef(ctx->f32);
+	args[6] = LLVMGetUndef(ctx->f32);
+	args[7] = LLVMGetUndef(ctx->f32);
+	args[8] = LLVMGetUndef(ctx->f32);
 
 	if (!values)
 		return;
@@ -2686,6 +2686,9 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 		}
 	} else
 		memcpy(&args[5], values, sizeof(values[0]) * 4);
+
+	for (unsigned i = 5; i < 9; ++i)
+		args[i] = to_float(ctx, args[i]);
 }
 
 static void
@@ -2717,6 +2720,7 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 			target = V_008DFC_SQ_EXP_PARAM + param_count;
 			param_count++;
 		}
+
 		si_llvm_init_export_args(ctx, values, target, args);
 
 		if (target >= V_008DFC_SQ_EXP_POS &&
