@@ -671,6 +671,15 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 			continue;
 		}
 
+		if (eqRGB == VK_BLEND_OP_MIN || eqRGB == VK_BLEND_OP_MAX) {
+			srcRGB = VK_BLEND_FACTOR_ONE;
+			dstRGB = VK_BLEND_FACTOR_ONE;
+		}
+		if (eqA == VK_BLEND_OP_MIN || eqA == VK_BLEND_OP_MAX) {
+			srcA = VK_BLEND_FACTOR_ONE;
+			dstA = VK_BLEND_FACTOR_ONE;
+		}
+
 		blend_cntl |= S_028780_ENABLE(1);
 
 		blend_cntl |= S_028780_COLOR_COMB_FCN(si_translate_blend_function(eqRGB));
