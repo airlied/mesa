@@ -130,7 +130,6 @@ emit_llvm_intrinsic(struct nir_to_llvm_context *ctx, const char *name,
                     unsigned param_count, LLVMAttribute attribs);
 static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 				     nir_deref_var *deref,
-				     LLVMValueRef index,
 				     enum desc_type desc_type);
 static unsigned radeon_llvm_reg_index_soa(unsigned index, unsigned chan)
 {
@@ -1693,7 +1692,10 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 static LLVMValueRef get_image_coords(struct nir_to_llvm_context *ctx,
 				     nir_intrinsic_instr *instr)
 {
-	const nir_variable *var = instr->variables[0]->var;
+	const struct glsl_type *type = instr->variables[0]->var->type;
+	if(instr->variables[0]->deref.child)
+		type = instr->variables[0]->deref.child->type;
+
 	LLVMValueRef src0 = get_src(ctx, instr->src[0]);
 	LLVMValueRef coords[4];
 	LLVMValueRef masks[] = {
@@ -1702,8 +1704,8 @@ static LLVMValueRef get_image_coords(struct nir_to_llvm_context *ctx,
 	};
 	LLVMValueRef res;
 	int count;
-	count = image_type_to_components_count(glsl_get_sampler_dim(var->type),
-					       glsl_sampler_type_is_array(var->type));
+	count = image_type_to_components_count(glsl_get_sampler_dim(type),
+					       glsl_sampler_type_is_array(type));
 
 	if (count == 1)
 		res = src0;
@@ -1728,10 +1730,12 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	LLVMValueRef res;
 	char intrinsic_name[32];
 	char coords_type[8];
-	const nir_variable *var = instr->variables[0]->var;
+	const struct glsl_type *type = instr->variables[0]->var->type;
+	if(instr->variables[0]->deref.child)
+		type = instr->variables[0]->deref.child->type;
 
-	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
-		params[0] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_BUFFER);
+	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
+		params[0] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
 		params[1] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
 						    LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
 		params[2] = LLVMConstInt(ctx->i32, 0, false); /* voffset */
@@ -1744,10 +1748,10 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 		res = to_integer(ctx, res);
 	} else {
 		params[0] = get_image_coords(ctx, instr);
-		params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[2] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[3] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
-		params[4] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
+		params[4] = glsl_sampler_type_is_array(type) ? ctx->i32one : ctx->i32zero; /* da */
 		params[5] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
 		params[6] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
@@ -1772,7 +1776,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 
 	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
-		params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_BUFFER);
+		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
 		params[2] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
 						    LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
 		params[3] = LLVMConstInt(ctx->i32, 0, false); /* voffset */
@@ -1783,7 +1787,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	} else {
 		params[0] = get_src(ctx, instr->src[2]); /* coords */
 		params[1] = get_image_coords(ctx, instr);
-		params[2] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+		params[2] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[4] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
 		params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
@@ -1809,7 +1813,7 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 	const nir_variable *var = instr->variables[0]->var;
 
 	params[0] = ctx->i32zero;
-	params[1] = get_sampler_desc(ctx, instr->variables[0], ctx->i32zero, DESC_IMAGE);
+	params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 	params[2] = LLVMConstInt(ctx->i32, 15, false);
 	params[3] = ctx->i32zero;
 	params[4] = ctx->i32zero;
@@ -1911,7 +1915,6 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 
 static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 					  nir_deref_var *deref,
-					  LLVMValueRef index,
 					  enum desc_type desc_type)
 {
 	unsigned desc_set = deref->var->data.descriptor_set;
@@ -1924,6 +1927,7 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 	LLVMBuilderRef builder = ctx->builder;
 	LLVMTypeRef type;
 	LLVMValueRef indices[2];
+	LLVMValueRef index = NULL;
 
 	assert(deref->var->data.binding < layout->binding_count);
 
@@ -1950,7 +1954,20 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 		break;
 	}
 
+	if (deref->deref.child) {
+		nir_deref_array *child = (nir_deref_array*)deref->deref.child;
+
+		assert(child->deref_array_type != nir_deref_array_type_wildcard);
+		offset += child->base_offset * stride;
+		if (child->deref_array_type == nir_deref_array_type_indirect) {
+			index = get_src(ctx, child->indirect);
+		}
+	}
+
 	assert(stride % type_size == 0);
+
+	if (!index)
+		index = ctx->i32zero;
 
 	index = LLVMBuildMul(builder, index, LLVMConstInt(ctx->i32, stride / type_size, 0), "");
 	indices[0] = ctx->i32zero;
@@ -2018,13 +2035,13 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 			   LLVMValueRef *fmask_ptr)
 {
 	if (instr->sampler_dim  == GLSL_SAMPLER_DIM_BUF)
-		*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_BUFFER);
+		*res_ptr = get_sampler_desc(ctx, instr->texture, DESC_BUFFER);
 	else
-		*res_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_IMAGE);
+		*res_ptr = get_sampler_desc(ctx, instr->texture, DESC_IMAGE);
 	if (samp_ptr && instr->sampler)
-		*samp_ptr = get_sampler_desc(ctx, instr->sampler, ctx->i32zero, DESC_SAMPLER);
+		*samp_ptr = get_sampler_desc(ctx, instr->sampler, DESC_SAMPLER);
 	if (fmask_ptr && instr->sampler)
-		*fmask_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_FMASK);
+		*fmask_ptr = get_sampler_desc(ctx, instr->texture, DESC_FMASK);
 }
 
 static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
