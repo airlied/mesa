@@ -38,11 +38,28 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 						b.shader->info.cs.local_size[2], 0);
 
 	nir_ssa_def *global_id = nir_iadd(&b, nir_imul(&b, wg_id, block_size), invoc_id);
+
+
+
+	nir_intrinsic_instr *offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
+	offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 0));
+	offset->num_components = 2;
+	nir_ssa_dest_init(&offset->instr, &offset->dest, 2, 32, "offset");
+	nir_builder_instr_insert(&b, &offset->instr);
+
+	nir_intrinsic_instr *stride = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
+	stride->src[0] = nir_src_for_ssa(nir_imm_int(&b, 8));
+	stride->num_components = 1;
+	nir_ssa_dest_init(&stride->instr, &stride->dest, 1, 32, "stride");
+	nir_builder_instr_insert(&b, &stride->instr);
+
+	nir_ssa_def *img_coord = nir_iadd(&b, global_id, &offset->dest.ssa);
+
 	nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
 	tex->sampler_dim = GLSL_SAMPLER_DIM_2D;
 	tex->op = nir_texop_txf;
 	tex->src[0].src_type = nir_tex_src_coord;
-	tex->src[0].src = nir_src_for_ssa(global_id);
+	tex->src[0].src = nir_src_for_ssa(img_coord);
 	tex->src[1].src_type = nir_tex_src_lod;
 	tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, 0));
 	tex->dest_type = nir_type_float;
@@ -56,9 +73,8 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 
 	nir_ssa_def *pos_x = nir_channel(&b, global_id, 0);
 	nir_ssa_def *pos_y = nir_channel(&b, global_id, 1);
-	nir_ssa_def *width = nir_channel(&b, nir_imul(&b, wg_size, block_size), 0);
 
-	nir_ssa_def *tmp = nir_imul(&b, pos_y, width);
+	nir_ssa_def *tmp = nir_imul(&b, pos_y, &stride->dest.ssa);
 	tmp = nir_iadd(&b, tmp, pos_x);
 
 	nir_ssa_def *coord = nir_vec4(&b, tmp, tmp, tmp, tmp);
@@ -122,6 +138,8 @@ radv_device_init_meta_itob_state(struct radv_device *device)
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
 		.pSetLayouts = &device->meta_state.itob.img_ds_layout,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_FRAGMENT_BIT, 0, 12},
 	};
 
 	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
@@ -390,6 +408,16 @@ radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 		itob_bind_descriptors(cmd_buffer, &temps);
 
 		bind_pipeline(cmd_buffer);
+
+		unsigned push_constants[3] = {
+			rects[r].src_x,
+			rects[r].src_y,
+			dst->pitch
+		};
+		radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
+				      device->meta_state.itob.img_p_layout,
+				      VK_SHADER_STAGE_FRAGMENT_BIT, 0, 12,
+				      push_constants);
 
 		radv_CmdDispatch(radv_cmd_buffer_to_handle(cmd_buffer), rects[r].width / 4, rects[r].height, 1);
 		radv_temp_descriptor_set_destroy(cmd_buffer->device, temps.set);
