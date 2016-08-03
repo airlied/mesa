@@ -80,8 +80,10 @@ VkResult radv_CreateRenderPass(
 			    subpass_attachment_count * sizeof(uint32_t), 8,
 			    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 	if (pass->subpass_attachments == NULL) {
-		radv_free2(&device->alloc, pAllocator, pass);
-		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
+		if (subpass_attachment_count) {
+			radv_free2(&device->alloc, pAllocator, pass);
+			return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
+		}
 	}
 
 	p = pass->subpass_attachments;
