@@ -385,7 +385,6 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ps->rsrc2);
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028000_DB_RENDER_CONTROL, 0);
-	radeon_set_context_reg(cmd_buffer->cs, R_028004_DB_COUNT_CONTROL, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_028010_DB_RENDER_OVERRIDE2, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_02880C_DB_SHADER_CONTROL,
 			       S_02880C_KILL_ENABLE(!!ps->info.fs.can_discard) |
@@ -552,6 +551,23 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 	radeon_set_context_reg(cmd_buffer->cs, R_028208_PA_SC_WINDOW_SCISSOR_BR,
 			       S_028208_BR_X(framebuffer->width) |
 			       S_028208_BR_Y(framebuffer->height));
+}
+
+void radv_set_db_count_control(struct radv_cmd_buffer *cmd_buffer)
+{
+	uint32_t db_count_control;
+
+	if(!cmd_buffer->state.active_occlusion_queries) {
+		db_count_control = 0;
+	} else {
+		db_count_control = S_028004_PERFECT_ZPASS_COUNTS(1) |
+				   S_028004_SAMPLE_RATE(0) | /* TODO: set this to the number of samples of the current framebuffer */
+				   S_028004_ZPASS_ENABLE(1) |
+				   S_028004_SLICE_EVEN_ENABLE(1) |
+				   S_028004_SLICE_ODD_ENABLE(1);
+	}
+
+	radeon_set_context_reg(cmd_buffer->cs, R_028004_DB_COUNT_CONTROL, db_count_control);
 }
 
 static void
@@ -877,6 +893,7 @@ VkResult radv_BeginCommandBuffer(
 
 	/* setup initial configuration into command buffer */
 	si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
+	radv_set_db_count_control(cmd_buffer);
 	si_emit_cache_flush(cmd_buffer);
 	return VK_SUCCESS;
 }

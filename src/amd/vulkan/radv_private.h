@@ -600,6 +600,7 @@ struct radv_cmd_state {
 	uint32_t                                     index_type;
 	uint32_t                                     index_offset;
 	enum radv_cmd_flush_bits                     flush_bits;
+	unsigned                                     active_occlusion_queries;
 };
 struct radv_cmd_pool {
 	VkAllocationCallbacks                        alloc;
@@ -651,6 +652,7 @@ void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 			   uint64_t size);
 void si_cp_dma_clear_buffer(struct radv_cmd_buffer *cmd_buffer, uint64_t va,
 			    uint64_t size, unsigned value);
+void radv_set_db_count_control(struct radv_cmd_buffer *cmd_buffer);
 bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
@@ -1043,6 +1045,14 @@ struct radv_render_pass {
 
 VkResult radv_device_init_meta(struct radv_device *device);
 void radv_device_finish_meta(struct radv_device *device);
+
+struct radv_query_pool {
+	struct radeon_winsys_bo *bo;
+	uint32_t stride;
+	uint32_t availability_offset;
+	char *ptr;
+	VkQueryType type;
+};
 
 VkResult
 radv_temp_descriptor_set_create(struct radv_device *device,
