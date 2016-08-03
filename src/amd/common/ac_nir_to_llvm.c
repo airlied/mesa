@@ -1682,6 +1682,7 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 	case GLSL_SAMPLER_DIM_2D:
 		return array ? 3 : 2;
 	case GLSL_SAMPLER_DIM_3D:
+	case GLSL_SAMPLER_DIM_CUBE:
 		return 3;
 	case GLSL_SAMPLER_DIM_RECT:
 		return 2;
@@ -2026,6 +2027,56 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, ctx->i32zero, DESC_FMASK);
 }
 
+static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
+			      int num_coords,
+			      LLVMValueRef *in, LLVMValueRef *out)
+{
+	LLVMValueRef coords[4];
+	LLVMValueRef mad_args[3];
+	LLVMValueRef v, cube_vec;
+	LLVMValueRef tmp;
+	int i;
+
+	cube_vec = build_gather_values(ctx, in, 4);
+	v = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.cube", ctx->v4f32,
+				&cube_vec, 1, LLVMReadNoneAttribute);
+	for (i = 0; i < 4; i++)
+		coords[i] = LLVMBuildExtractElement(ctx->builder, v,
+						    LLVMConstInt(ctx->i32, i, false), "");
+
+	coords[2] = emit_llvm_intrinsic(ctx, "llvm.fabs.f32", ctx->f32,
+					&coords[2], 1, LLVMReadNoneAttribute);
+	coords[2] = LLVMBuildFDiv(ctx->builder, ctx->f32one, coords[2], "");
+
+	mad_args[1] = coords[2];
+	mad_args[2] = LLVMConstReal(ctx->f32, 1.5);
+	mad_args[0] = coords[0];
+
+	/* emit MAD */
+	tmp = LLVMBuildFMul(ctx->builder, mad_args[0], mad_args[1], "");
+	coords[0] = LLVMBuildFAdd(ctx->builder, tmp, mad_args[2], "");
+
+	mad_args[0] = coords[1];
+
+	/* emit MAD */
+	tmp = LLVMBuildFMul(ctx->builder, mad_args[0], mad_args[1], "");
+	coords[1] = LLVMBuildFAdd(ctx->builder, tmp, mad_args[2], "");
+
+	/* apply xyz = yxw swizzle to cooords */
+	out[0] = coords[1];
+	out[1] = coords[0];
+	out[2] = coords[3];
+}
+
+static void emit_prepare_cube_coords(struct nir_to_llvm_context *ctx,
+				     LLVMValueRef *coords_arg, int num_coords)
+{
+	LLVMValueRef coords[4];
+	cube_to_2d_coords(ctx, num_coords, coords_arg, coords);
+
+	memcpy(coords_arg, coords, sizeof(coords));
+}
+
 static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 {
 	LLVMValueRef result = NULL;
@@ -2051,6 +2102,13 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	if (instr->op == nir_texop_txb) {
 		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
 		address[count++] = lod;
+	}
+
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
+		for (chan = 0; chan < instr->coord_components; chan++)
+			coords[chan] = to_float(ctx, coords[chan]);
+		coords[3] = LLVMGetUndef(ctx->f32);
+		emit_prepare_cube_coords(ctx, coords, instr->coord_components);
 	}
 
 	/* pack derivatives */
