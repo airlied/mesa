@@ -1430,6 +1430,56 @@ void radv_CmdDispatch(
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
+void radv_unaligned_dispatch(
+	struct radv_cmd_buffer                      *cmd_buffer,
+	uint32_t                                    x,
+	uint32_t                                    y,
+	uint32_t                                    z)
+{
+	struct radv_pipeline *pipeline = cmd_buffer->state.compute_pipeline;
+	uint32_t blocks[3], remainder[3];
+
+	blocks[0] = round_up_u32(x, pipeline->compute.block_size[0]);
+	blocks[1] = round_up_u32(y, pipeline->compute.block_size[1]);
+	blocks[2] = round_up_u32(z, pipeline->compute.block_size[2]);
+
+	/* If aligned, these should be an entire block size, not 0 */
+	remainder[0] = x + pipeline->compute.block_size[0] - align_u32_npot(x, pipeline->compute.block_size[0]);
+	remainder[1] = y + pipeline->compute.block_size[1] - align_u32_npot(y, pipeline->compute.block_size[1]);
+	remainder[2] = z + pipeline->compute.block_size[2] - align_u32_npot(z, pipeline->compute.block_size[2]);
+
+	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
+			     VK_SHADER_STAGE_COMPUTE_BIT);
+	si_emit_cache_flush(cmd_buffer);
+	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 15);
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B81C_COMPUTE_NUM_THREAD_X, 3);
+	radeon_emit(cmd_buffer->cs,
+		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[0]) |
+		    S_00B81C_NUM_THREAD_PARTIAL(remainder[0]));
+	radeon_emit(cmd_buffer->cs,
+		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[1]) |
+		    S_00B81C_NUM_THREAD_PARTIAL(remainder[1]));
+	radeon_emit(cmd_buffer->cs,
+		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[2]) |
+		    S_00B81C_NUM_THREAD_PARTIAL(remainder[2]));
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 10 * 4, 3);
+	radeon_emit(cmd_buffer->cs, blocks[0]);
+	radeon_emit(cmd_buffer->cs, blocks[1]);
+	radeon_emit(cmd_buffer->cs, blocks[2]);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DISPATCH_DIRECT, 3, 0) |
+		    PKT3_SHADER_TYPE_S(1));
+	radeon_emit(cmd_buffer->cs, blocks[0]);
+	radeon_emit(cmd_buffer->cs, blocks[1]);
+	radeon_emit(cmd_buffer->cs, blocks[2]);
+	radeon_emit(cmd_buffer->cs, S_00B800_COMPUTE_SHADER_EN(1) |
+	                            S_00B800_PARTIAL_TG_EN(1));
+
+	assert(cmd_buffer->cs->cdw <= cdw_max);
+}
+
 void radv_CmdEndRenderPass(
 	VkCommandBuffer                             commandBuffer)
 {

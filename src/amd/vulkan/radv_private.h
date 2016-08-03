@@ -94,6 +94,12 @@ align_u32(uint32_t v, uint32_t a)
 	return (v + a - 1) & ~(a - 1);
 }
 
+static inline uint32_t
+align_u32_npot(uint32_t v, uint32_t a)
+{
+	return (v + a - 1) / a * a;
+}
+
 static inline uint64_t
 align_u64(uint64_t v, uint64_t a)
 {
@@ -653,6 +659,18 @@ radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    const void *data, unsigned *out_offset);
 void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
+
+/*
+ * Takes x,y,z as exact numbers of invocations, instead of blocks.
+ *
+ * Limitations: Can't call normal dispatch functions without binding or rebinding
+ *              the compute pipeline.
+ */
+void radv_unaligned_dispatch(
+	struct radv_cmd_buffer                      *cmd_buffer,
+	uint32_t                                    x,
+	uint32_t                                    y,
+	uint32_t                                    z);
 
 struct radv_event {
 	struct radeon_winsys_bo *bo;
