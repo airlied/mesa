@@ -2107,7 +2107,8 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
 		for (chan = 0; chan < instr->coord_components; chan++)
 			coords[chan] = to_float(ctx, coords[chan]);
-		coords[3] = LLVMGetUndef(ctx->f32);
+		if (instr->coord_components == 3)
+			coords[3] = LLVMGetUndef(ctx->f32);
 		emit_prepare_cube_coords(ctx, coords, instr->coord_components);
 	}
 
