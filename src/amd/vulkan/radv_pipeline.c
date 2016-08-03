@@ -196,12 +196,6 @@ radv_shader_compile_to_nir(struct radv_device *device,
 
 		free(spec_entries);
 
-
-		if (stage == MESA_SHADER_FRAGMENT) {
-			nir_lower_wpos_center(nir);
-			nir_validate_shader(nir);
-		}
-
 		nir_lower_returns(nir);
 		nir_validate_shader(nir);
 
