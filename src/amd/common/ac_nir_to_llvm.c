@@ -1328,6 +1328,9 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_texop_txb:
 		infix = ".b";
 		break;
+	case nir_texop_txl:
+		infix = ".l";
+		break;
 	case nir_texop_txs:
 		name = "llvm.SI.getresinfo";
 		break;
