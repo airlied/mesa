@@ -1067,53 +1067,13 @@ void radv_CmdFillBuffer(
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
-   struct radv_meta_saved_state saved_state;
+   uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
+   va += dst_buffer->offset + dstOffset;
 
-   meta_clear_begin(&saved_state, cmd_buffer);
+   cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
 
-   VkFormat format;
-   int bs;
-   if ((fillSize & 15) == 0 && (dstOffset & 15) == 0) {
-      format = VK_FORMAT_R32G32B32A32_UINT;
-      bs = 16;
-   } else if ((fillSize & 7) == 0 && (dstOffset & 15) == 0) {
-      format = VK_FORMAT_R32G32_UINT;
-      bs = 8;
-   } else {
-      assert((fillSize & 3) == 0 && (dstOffset & 3) == 0);
-      format = VK_FORMAT_R32_UINT;
-      bs = 4;
-   }
+   if (fillSize == VK_WHOLE_SIZE)
+      fillSize = dst_buffer->size - dstOffset;
 
-   /* This is maximum possible width/height our HW can handle */
-   const uint64_t max_surface_dim = 1 << 14;
-
-   /* First, we make a bunch of max-sized copies */
-   const uint64_t max_fill_size = max_surface_dim * max_surface_dim * bs;
-   while (fillSize > max_fill_size) {
-      do_buffer_fill(cmd_buffer, dst_buffer->bo,
-                     dst_buffer->offset + dstOffset,
-                     max_surface_dim, max_surface_dim, format, data);
-      fillSize -= max_fill_size;
-      dstOffset += max_fill_size;
-   }
-
-   uint64_t height = fillSize / (max_surface_dim * bs);
-   assert(height < max_surface_dim);
-   if (height != 0) {
-      const uint64_t rect_fill_size = height * max_surface_dim * bs;
-      do_buffer_fill(cmd_buffer, dst_buffer->bo,
-                     dst_buffer->offset + dstOffset,
-                     max_surface_dim, height, format, data);
-      fillSize -= rect_fill_size;
-      dstOffset += rect_fill_size;
-   }
-
-   if (fillSize != 0) {
-      do_buffer_fill(cmd_buffer, dst_buffer->bo,
-                     dst_buffer->offset + dstOffset,
-                     fillSize / bs, 1, format, data);
-   }
-
-   meta_clear_end(&saved_state, cmd_buffer);
+   si_cp_dma_clear_buffer(cmd_buffer, va, fillSize, data);
 }
