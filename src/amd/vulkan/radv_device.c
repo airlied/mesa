@@ -592,17 +592,23 @@ VkResult radv_CreateDevice(
 		device->alloc = physical_device->instance->alloc;
 
 	device->hw_ctx = device->ws->ctx_create(device->ws);
-	if (!device->hw_ctx)
-		return VK_ERROR_OUT_OF_HOST_MEMORY;
+	if (!device->hw_ctx) {
+		result = VK_ERROR_OUT_OF_HOST_MEMORY;
+		goto fail_free;
+	}
 
 	radv_queue_init(device, &device->queue);
 
 	result = radv_device_init_meta(device);
-	if (result != VK_SUCCESS)
-		goto fail;
+	if (result != VK_SUCCESS) {
+		device->ws->ctx_destroy(device->hw_ctx);
+		goto fail_free;
+	}
 
 	*pDevice = radv_device_to_handle(device);
 	return VK_SUCCESS;
+fail_free:
+	radv_free(&device->alloc, device);
 fail:
 	return result;
 }
