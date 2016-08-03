@@ -88,176 +88,6 @@ blit_surf_for_image_level_layer(const struct radv_image* image, int level, int l
 			};
 }
 
-/* Set this if you want the 3D engine to wait until CP DMA is done.
- * It should be set on the last CP DMA packet. */
-#define R600_CP_DMA_SYNC	(1 << 0) /* R600+ */
-
-/* Set this if the source data was used as a destination in a previous CP DMA
- * packet. It's for preventing a read-after-write (RAW) hazard between two
- * CP DMA packets. */
-#define SI_CP_DMA_RAW_WAIT	(1 << 1) /* SI+ */
-#define CIK_CP_DMA_USE_L2	(1 << 2)
-
-/* Alignment for optimal performance. */
-#define CP_DMA_ALIGNMENT	32
-/* The max number of bytes to copy per packet. */
-#define CP_DMA_MAX_BYTE_COUNT	((1 << 21) - CP_DMA_ALIGNMENT)
-
-static void si_emit_cp_dma_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
-				       uint64_t dst_va, uint64_t src_va,
-				       unsigned size, unsigned flags)
-{
-	struct radeon_winsys_cs *cs = cmd_buffer->cs;
-	uint32_t sync_flag = flags & R600_CP_DMA_SYNC ? S_411_CP_SYNC(1) : 0;
-	uint32_t wr_confirm = !(flags & R600_CP_DMA_SYNC) ? S_414_DISABLE_WR_CONFIRM(1) : 0;
-	uint32_t raw_wait = flags & SI_CP_DMA_RAW_WAIT ? S_414_RAW_WAIT(1) : 0;
-	uint32_t sel = flags & CIK_CP_DMA_USE_L2 ?
-			   S_411_SRC_SEL(V_411_SRC_ADDR_TC_L2) |
-			   S_411_DSL_SEL(V_411_DST_ADDR_TC_L2) : 0;
-
-	assert(size);
-	assert((size & ((1<<21)-1)) == size);
-
-	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
-
-	if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= CIK) {
-		radeon_emit(cs, PKT3(PKT3_DMA_DATA, 5, 0));
-		radeon_emit(cs, sync_flag | sel);	/* CP_SYNC [31] */
-		radeon_emit(cs, src_va);		/* SRC_ADDR_LO [31:0] */
-		radeon_emit(cs, src_va >> 32);		/* SRC_ADDR_HI [31:0] */
-		radeon_emit(cs, dst_va);		/* DST_ADDR_LO [31:0] */
-		radeon_emit(cs, dst_va >> 32);		/* DST_ADDR_HI [31:0] */
-		radeon_emit(cs, size | wr_confirm | raw_wait);	/* COMMAND [29:22] | BYTE_COUNT [20:0] */
-	} else {
-		radeon_emit(cs, PKT3(PKT3_CP_DMA, 4, 0));
-		radeon_emit(cs, src_va);			/* SRC_ADDR_LO [31:0] */
-		radeon_emit(cs, sync_flag | ((src_va >> 32) & 0xffff)); /* CP_SYNC [31] | SRC_ADDR_HI [15:0] */
-		radeon_emit(cs, dst_va);			/* DST_ADDR_LO [31:0] */
-		radeon_emit(cs, (dst_va >> 32) & 0xffff);	/* DST_ADDR_HI [15:0] */
-		radeon_emit(cs, size | wr_confirm | raw_wait);	/* COMMAND [29:22] | BYTE_COUNT [20:0] */
-	}
-
-	/* CP DMA is executed in ME, but index buffers are read by PFP.
-	 * This ensures that ME (CP DMA) is idle before PFP starts fetching
-	 * indices. If we wanted to execute CP DMA in PFP, this packet
-	 * should precede it.
-	 */
-	if (sync_flag) {
-		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-		radeon_emit(cs, 0);
-	}
-}
-
-static void si_cp_dma_prepare(struct radv_cmd_buffer *cmd_buffer, uint64_t byte_count,
-			      uint64_t remaining_size, unsigned *flags)
-{
-
-	/* Flush the caches for the first copy only.
-	 * Also wait for the previous CP DMA operations.
-	 */
-	if (cmd_buffer->state.flush_bits) {
-		si_emit_cache_flush(cmd_buffer);
-		*flags |= SI_CP_DMA_RAW_WAIT;
-	}
-
-	/* Do the synchronization after the last dma, so that all data
-	 * is written to memory.
-	 */
-	if (byte_count == remaining_size)
-		*flags |= R600_CP_DMA_SYNC;
-}
-
-static void si_cp_dma_realign_engine(struct radv_cmd_buffer *cmd_buffer, unsigned size)
-{
-	uint64_t va;
-	uint32_t offset;
-	unsigned dma_flags = 0;
-	unsigned buf_size = CP_DMA_ALIGNMENT * 2;
-	void *ptr;
-
-	assert(size < CP_DMA_ALIGNMENT);
-
-	radv_cmd_buffer_upload_alloc(cmd_buffer, buf_size, CP_DMA_ALIGNMENT,  &offset, &ptr);
-
-	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
-	va += offset;
-
-	si_cp_dma_prepare(cmd_buffer, size, size, &dma_flags);
-
-	si_emit_cp_dma_copy_buffer(cmd_buffer, va, va + CP_DMA_ALIGNMENT, size,
-				   dma_flags);
-}
-
-static void
-do_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
-               struct radv_bo *src, uint64_t src_offset,
-               struct radv_bo *dest, uint64_t dest_offset,
-	       uint64_t size)
-{
-	struct radv_device *device = cmd_buffer->device;
-	struct radeon_winsys_cs *cs = cmd_buffer->cs;
-	uint64_t src_va, dest_va, main_src_va, main_dest_va;
-	uint64_t skipped_size = 0, realign_size = 0;
-
-	device->ws->cs_add_buffer(cs, src->bo, 8);
-	device->ws->cs_add_buffer(cs, dest->bo, 8);
-
-	src_va = device->ws->buffer_get_va(src->bo) + src_offset;
-	dest_va = device->ws->buffer_get_va(dest->bo) + dest_offset;
-
-	if (cmd_buffer->device->instance->physicalDevice.rad_info.family <= CHIP_CARRIZO ||
-	    cmd_buffer->device->instance->physicalDevice.rad_info.family == CHIP_STONEY) {
-		/* If the size is not aligned, we must add a dummy copy at the end
-		 * just to align the internal counter. Otherwise, the DMA engine
-		 * would slow down by an order of magnitude for following copies.
-		 */
-		if (size % CP_DMA_ALIGNMENT)
-			realign_size = CP_DMA_ALIGNMENT - (size % CP_DMA_ALIGNMENT);
-
-		/* If the copy begins unaligned, we must start copying from the next
-		 * aligned block and the skipped part should be copied after everything
-		 * else has been copied. Only the src alignment matters, not dst.
-		 */
-		if (src_offset % CP_DMA_ALIGNMENT) {
-			skipped_size = CP_DMA_ALIGNMENT - (src_offset % CP_DMA_ALIGNMENT);
-			/* The main part will be skipped if the size is too small. */
-			skipped_size = MIN2(skipped_size, size);
-			size -= skipped_size;
-		}
-	}
-	main_src_va = src_va + skipped_size;
-	main_dest_va = dest_va + skipped_size;
-
-	while (size) {
-		unsigned dma_flags = 0;
-		unsigned byte_count = MIN2(size, CP_DMA_MAX_BYTE_COUNT);
-
-		si_cp_dma_prepare(cmd_buffer, byte_count,
-				  size + skipped_size + realign_size,
-				  &dma_flags);
-
-		si_emit_cp_dma_copy_buffer(cmd_buffer, main_dest_va, main_src_va,
-					   byte_count, dma_flags);
-
-		size -= byte_count;
-		main_src_va += byte_count;
-		main_dest_va += byte_count;
-	}
-
-	if (skipped_size) {
-		unsigned dma_flags = 0;
-
-		si_cp_dma_prepare(cmd_buffer, skipped_size,
-				  size + skipped_size + realign_size,
-				  &dma_flags);
-
-		si_emit_cp_dma_copy_buffer(cmd_buffer, dest_va, src_va,
-					   skipped_size, dma_flags);
-	}
-	if (realign_size)
-		si_cp_dma_realign_engine(cmd_buffer, realign_size);
-}
-
 static void
 meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
                           struct radv_buffer* buffer,
@@ -568,6 +398,7 @@ void radv_CmdCopyBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_buffer, src_buffer, srcBuffer);
 	RADV_FROM_HANDLE(radv_buffer, dest_buffer, destBuffer);
+	struct radv_device *device = cmd_buffer->device;
 
 	struct radv_meta_saved_state saved_state;
 
@@ -575,9 +406,15 @@ void radv_CmdCopyBuffer(
 		uint64_t src_offset = src_buffer->offset + pRegions[r].srcOffset;
 		uint64_t dest_offset = dest_buffer->offset + pRegions[r].dstOffset;
 		uint64_t copy_size = pRegions[r].size;
+		uint64_t src_va, dest_va;
 
-		do_buffer_copy(cmd_buffer, src_buffer->bo, src_offset,
-				       dest_buffer->bo, dest_offset, copy_size);
+		device->ws->cs_add_buffer(cmd_buffer->cs, src_buffer->bo->bo, 8);
+		device->ws->cs_add_buffer(cmd_buffer->cs, dest_buffer->bo->bo, 8);
+
+		src_va = device->ws->buffer_get_va(src_buffer->bo->bo) + src_offset;
+		dest_va = device->ws->buffer_get_va(dest_buffer->bo->bo) + dest_offset;
+
+		si_cp_dma_buffer_copy(cmd_buffer, src_va, dest_va, copy_size);
 	}
 }
 
