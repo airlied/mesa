@@ -316,6 +316,8 @@ create_color_pipeline(struct radv_device *device,
                                      .dependencyCount = 0,
                                   }, &device->meta_state.alloc, &render_pass);
 
+   if (result != VK_SUCCESS)
+	   return result;
    result = create_pipeline(device, radv_render_pass_from_handle(render_pass),
 			    vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
 			    &device->meta_state.alloc, pipeline);
@@ -342,8 +344,7 @@ radv_device_finish_meta_clear_state(struct radv_device *device)
    struct radv_meta_state *state = &device->meta_state;
 
    for (uint32_t i = 0; i < ARRAY_SIZE(state->clear.color_pipelines); ++i) {
-      if (state->clear.color_pipelines[i])
-         destroy_pipeline(device, state->clear.color_pipelines[i]);
+	   destroy_pipeline(device, state->clear.color_pipelines[i]);
    }
    destroy_pipeline(device, state->clear.depth_only_pipeline);
    destroy_pipeline(device, state->clear.stencil_only_pipeline);

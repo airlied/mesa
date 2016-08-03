@@ -158,9 +158,11 @@ radv_device_init_meta(struct radv_device *device)
    return VK_SUCCESS;
 
 fail_blit2d:
+#if 0
    radv_device_finish_meta_blit_state(device);
 fail_blit:
    radv_device_finish_meta_resolve_state(device);
+#endif
 fail_resolve:
    radv_device_finish_meta_clear_state(device);
 fail_clear:
