@@ -729,6 +729,46 @@ static void si_emit_cp_dma_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+/* Emit a CP DMA packet to clear a buffer. The size must fit in bits [20:0]. */
+static void si_emit_cp_dma_clear_buffer(struct radv_cmd_buffer *cmd_buffer,
+					uint64_t dst_va, unsigned size,
+					uint32_t clear_value, unsigned flags)
+{
+	struct radeon_winsys_cs *cs = cmd_buffer->cs;
+	uint32_t sync_flag = flags & R600_CP_DMA_SYNC ? S_411_CP_SYNC(1) : 0;
+	uint32_t wr_confirm = !(flags & R600_CP_DMA_SYNC) ? S_414_DISABLE_WR_CONFIRM(1) : 0;
+	uint32_t raw_wait = flags & SI_CP_DMA_RAW_WAIT ? S_414_RAW_WAIT(1) : 0;
+	uint32_t dst_sel = flags & CIK_CP_DMA_USE_L2 ? S_411_DSL_SEL(V_411_DST_ADDR_TC_L2) : 0;
+
+	assert(size);
+	assert((size & ((1<<21)-1)) == size);
+
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
+
+	if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= CIK) {
+		radeon_emit(cs, PKT3(PKT3_DMA_DATA, 5, 0));
+		radeon_emit(cs, sync_flag | dst_sel | S_411_SRC_SEL(V_411_DATA)); /* CP_SYNC [31] | SRC_SEL[30:29] */
+		radeon_emit(cs, clear_value);		/* DATA [31:0] */
+		radeon_emit(cs, 0);
+		radeon_emit(cs, dst_va);		/* DST_ADDR_LO [31:0] */
+		radeon_emit(cs, dst_va >> 32);		/* DST_ADDR_HI [15:0] */
+		radeon_emit(cs, size | wr_confirm | raw_wait);	/* COMMAND [29:22] | BYTE_COUNT [20:0] */
+	} else {
+		radeon_emit(cs, PKT3(PKT3_CP_DMA, 4, 0));
+		radeon_emit(cs, clear_value);		/* DATA [31:0] */
+		radeon_emit(cs, sync_flag | S_411_SRC_SEL(V_411_DATA)); /* CP_SYNC [31] | SRC_SEL[30:29] */
+		radeon_emit(cs, dst_va);			/* DST_ADDR_LO [31:0] */
+		radeon_emit(cs, (dst_va >> 32) & 0xffff);	/* DST_ADDR_HI [15:0] */
+		radeon_emit(cs, size | wr_confirm | raw_wait);	/* COMMAND [29:22] | BYTE_COUNT [20:0] */
+	}
+
+	/* See "copy_buffer" for explanation. */
+	if (sync_flag) {
+		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+		radeon_emit(cs, 0);
+	}
+}
+
 static void si_cp_dma_prepare(struct radv_cmd_buffer *cmd_buffer, uint64_t byte_count,
 			      uint64_t remaining_size, unsigned *flags)
 {
@@ -769,9 +809,9 @@ static void si_cp_dma_realign_engine(struct radv_cmd_buffer *cmd_buffer, unsigne
 				   dma_flags);
 }
 
-si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
-		      uint64_t src_va, uint64_t dest_va,
-		      uint64_t size)
+void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
+			   uint64_t src_va, uint64_t dest_va,
+			   uint64_t size)
 {
 	struct radv_device *device = cmd_buffer->device;
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
@@ -830,4 +870,28 @@ si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 	}
 	if (realign_size)
 		si_cp_dma_realign_engine(cmd_buffer, realign_size);
+}
+
+void si_cp_dma_clear_buffer(struct radv_cmd_buffer *cmd_buffer, uint64_t va,
+			    uint64_t size, unsigned value)
+{
+
+	if (!size)
+		return;
+
+	assert(va % 4 == 0 && size % 4 == 0);
+
+	while (size) {
+		unsigned byte_count = MIN2(size, CP_DMA_MAX_BYTE_COUNT);
+		unsigned dma_flags = 0;
+
+		si_cp_dma_prepare(cmd_buffer, byte_count, size, &dma_flags);
+
+		/* Emit the clear packet. */
+		si_emit_cp_dma_clear_buffer(cmd_buffer, va, byte_count, value,
+					    dma_flags);
+
+		size -= byte_count;
+		va += byte_count;
+	}
 }
