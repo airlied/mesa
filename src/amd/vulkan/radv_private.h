@@ -646,6 +646,9 @@ void si_write_scissors(struct radeon_winsys_cs *cs, int first,
 		       int count, const VkRect2D *scissors);
 uint32_t si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer);
 void si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer);
+void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
+			   uint64_t src_va, uint64_t dest_va,
+			   uint64_t size);
 bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
