@@ -1583,6 +1583,25 @@ radv_tex_mipfilter(VkSamplerMipmapMode mode)
 	}
 }
 
+static unsigned
+radv_tex_bordercolor(VkBorderColor bcolor)
+{
+	switch (bcolor) {
+	case VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK:
+	case VK_BORDER_COLOR_INT_TRANSPARENT_BLACK:
+		return V_008F3C_SQ_TEX_BORDER_COLOR_TRANS_BLACK;
+	case VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK:
+	case VK_BORDER_COLOR_INT_OPAQUE_BLACK:
+		return V_008F3C_SQ_TEX_BORDER_COLOR_OPAQUE_BLACK;
+	case VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE:
+	case VK_BORDER_COLOR_INT_OPAQUE_WHITE:
+		return V_008F3C_SQ_TEX_BORDER_COLOR_OPAQUE_WHITE;
+	default:
+		break;
+	}
+	return 0;
+}
+
 static void
 radv_init_sampler(struct radv_device *device,
 		  struct radv_sampler *sampler,
@@ -1612,7 +1631,7 @@ radv_init_sampler(struct radv_device *device,
 			     S_008F38_FILTER_PREC_FIX(1) |
 			     S_008F38_ANISO_OVERRIDE(is_vi));
 	sampler->state[3] = (S_008F3C_BORDER_COLOR_PTR(0) |
-			     S_008F3C_BORDER_COLOR_TYPE(0));
+			     S_008F3C_BORDER_COLOR_TYPE(radv_tex_bordercolor(pCreateInfo->borderColor)));
 }
 
 VkResult radv_CreateSampler(
