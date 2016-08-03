@@ -1,15 +1,11 @@
 
 fill out NIR->LLVM
-more formats
 Fast Clears
 MSAA
 HiZ
 DCC
 Geometry shaders
 Tessellation Shaders
-Compressed textures
 Compute & DMA queues
 Shader cache
-texture arrays
-vulkan event
 vulkan queries
