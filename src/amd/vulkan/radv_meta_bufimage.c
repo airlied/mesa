@@ -264,6 +264,7 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 static void
 create_bview(struct radv_cmd_buffer *cmd_buffer,
 	     struct radv_buffer *buffer,
+	     unsigned offset,
 	     unsigned bs,
 	     struct radv_buffer_view *bview)
 {
@@ -273,9 +274,9 @@ create_bview(struct radv_cmd_buffer *cmd_buffer,
 				      .flags = 0,
 				      .buffer = radv_buffer_to_handle(buffer),
 				      .format = vk_format_for_size(bs),
-				      .offset = 0,
-					      .range = VK_WHOLE_SIZE,
-					      }, cmd_buffer);
+				      .offset = offset,
+				      .range = VK_WHOLE_SIZE,
+			      }, cmd_buffer);
 
 }
 
@@ -301,11 +302,11 @@ itob_bind_src_image(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 itob_bind_dst_buffer(struct radv_cmd_buffer *cmd_buffer,
-		     struct radv_buffer *buffer,
+		     struct radv_meta_blit2d_buffer *dst,
 		     struct radv_meta_blit2d_rect *rect,
 		     struct itob_temps *tmp)
 {
-	create_bview(cmd_buffer, buffer, 4, &tmp->dst_bview);
+	create_bview(cmd_buffer, dst->buffer, dst->offset, dst->bs, &tmp->dst_bview);
 }
 
 static void
@@ -375,7 +376,7 @@ bind_pipeline(struct radv_cmd_buffer *cmd_buffer)
 void
 radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 			  struct radv_meta_blit2d_surf *src,
-			  struct radv_buffer *dst,
+			  struct radv_meta_blit2d_buffer *dst,
 			  unsigned num_rects,
 			  struct radv_meta_blit2d_rect *rects)
 {

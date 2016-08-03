@@ -375,18 +375,72 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 
 	radv_meta_begin_bufimage(cmd_buffer, &saved_state);
 	for (unsigned r = 0; r < regionCount; r++) {
+
+		/**
+		 * From the Vulkan 1.0.6 spec: 18.3 Copying Data Between Images
+		 *    extent is the size in texels of the source image to copy in width,
+		 *    height and depth. 1D images use only x and width. 2D images use x, y,
+		 *    width and height. 3D images use x, y, z, width, height and depth.
+		 *
+		 *
+		 * Also, convert the offsets and extent from units of texels to units of
+		 * blocks - which is the highest resolution accessible in this command.
+		 */
+		const VkOffset3D img_offset_el =
+			meta_region_offset_el(image, &pRegions[r].imageOffset);
+		const VkExtent3D bufferExtent = {
+			.width  = pRegions[r].bufferRowLength ?
+			pRegions[r].bufferRowLength : pRegions[r].imageExtent.width,
+			.height = pRegions[r].bufferImageHeight ?
+			pRegions[r].bufferImageHeight : pRegions[r].imageExtent.height,
+		};
+		const VkExtent3D buf_extent_el =
+			meta_region_extent_el(image, &bufferExtent);
+
+		/* Start creating blit rect */
 		const VkExtent3D img_extent_el =
 			meta_region_extent_el(image, &pRegions[r].imageExtent);
 		struct radv_meta_blit2d_rect rect = {
 			.width = img_extent_el.width,
 			.height =  img_extent_el.height,
 		};
-		struct radv_meta_blit2d_surf img_bsurf =
-			blit_surf_for_image_level_layer(image, pRegions[r].imageSubresource.mipLevel, pRegions[r].imageSubresource.baseArrayLayer);
 
-		radv_meta_image_to_buffer(cmd_buffer, &img_bsurf,
-					  buffer, 1, &rect);
+		/* Create blit surfaces */
+		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
+		struct radv_meta_blit2d_surf img_info =
+			blit_surf_for_image_level_layer(image, pRegions[r].imageSubresource.mipLevel,
+							pRegions[r].imageSubresource.baseArrayLayer);
+		struct radv_meta_blit2d_buffer buf_info = {
+			.bs = img_info.bs,
+			.buffer = buffer,
+			.offset = pRegions[r].bufferOffset,
+			.pitch = buf_extent_el.width,
+		};
+
+		/* Loop through each 3D or array slice */
+		unsigned num_slices_3d = img_extent_el.depth;
+		unsigned num_slices_array = pRegions[r].imageSubresource.layerCount;
+		unsigned slice_3d = 0;
+		unsigned slice_array = 0;
+		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
+
+			rect.src_x = img_offset_el.x;
+			rect.src_y = img_offset_el.y;
+
+
+			/* Perform Blit */
+			radv_meta_image_to_buffer(cmd_buffer, &img_info, &buf_info, 1, &rect);
+
+			buf_info.offset += buf_extent_el.width *
+			                    buf_extent_el.height * buf_info.bs;
+			img_info.layer++;
+			if (image->type == VK_IMAGE_TYPE_3D)
+				slice_3d++;
+			else
+				slice_array++;
+		}
 	}
+	radv_meta_end_bufimage(cmd_buffer, &saved_state);
 }
 
 void radv_CmdCopyImageToBuffer(

@@ -126,7 +126,7 @@ radv_meta_end_bufimage(struct radv_cmd_buffer *cmd_buffer,
 void
 radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 			  struct radv_meta_blit2d_surf *src,
-			  struct radv_buffer *dst,
+			  struct radv_meta_blit2d_buffer *dst,
 			  unsigned num_rects,
 			  struct radv_meta_blit2d_rect *rects);
 #ifdef __cplusplus
