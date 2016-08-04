@@ -556,7 +556,7 @@ void radv_UpdateDescriptorSets(
 			switch(writeset->descriptorType) {
 			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
 			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
-				unsigned idx = writeset->dstArrayElement;
+				unsigned idx = writeset->dstArrayElement + j;
 				idx += binding_layout->dynamic_offset_offset;
 				write_dynamic_buffer_descriptor(device, set->dynamic_descriptors + idx,
 								buffer_list, writeset->pBufferInfo + j);
