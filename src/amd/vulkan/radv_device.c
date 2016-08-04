@@ -353,7 +353,6 @@ void radv_GetPhysicalDeviceProperties(
 {
 	RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
 	VkSampleCountFlags sample_counts = 0xf;
-	const float time_stamp_base = 80.0;   
 	VkPhysicalDeviceLimits limits = {
 		.maxImageDimension1D                      = (1 << 14),
 		.maxImageDimension2D                      = (1 << 14),
@@ -497,7 +496,7 @@ void radv_GetPhysicalDeviceQueueFamilyProperties(
 		VK_QUEUE_COMPUTE_BIT |
 		VK_QUEUE_TRANSFER_BIT,
 		.queueCount = 1,
-		.timestampValidBits = 36, /* XXX: Real value here */
+		.timestampValidBits = 64,
 		.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
 	};
 }
