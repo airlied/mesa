@@ -417,6 +417,10 @@ static bool radv_is_sampler_format_supported(VkFormat format, bool *linear_sampl
 	num_format = radv_translate_tex_numformat(format, desc,
 						  vk_format_get_first_non_void_channel(format));
 
+	if (num_format == V_008F14_IMG_NUM_FORMAT_USCALED ||
+	    num_format == V_008F14_IMG_NUM_FORMAT_SSCALED)
+		return false;
+
 	if (num_format == V_008F14_IMG_NUM_FORMAT_UNORM ||
 	    num_format == V_008F14_IMG_NUM_FORMAT_SNORM ||
 	    num_format == V_008F14_IMG_NUM_FORMAT_FLOAT ||
