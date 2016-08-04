@@ -1403,11 +1403,12 @@ static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
 	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
 	params[5] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
-	base_data = get_src(ctx, instr->src[0]);
-
 	if (instr->num_components > 1)
 		data_type = LLVMVectorType(ctx->f32, instr->num_components);
-	base_data = LLVMBuildBitCast(ctx->builder, get_src(ctx, instr->src[0]),
+
+	base_data = to_float(ctx, get_src(ctx, instr->src[0]));
+	base_data = trim_vector(ctx, base_data, instr->num_components);
+	base_data = LLVMBuildBitCast(ctx->builder, base_data,
 				     data_type, "");
 	base_offset = get_src(ctx, instr->src[2]);      /* voffset */
 	while (writemask) {
