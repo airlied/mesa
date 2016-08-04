@@ -45,7 +45,7 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
                  struct radv_cmd_buffer *cmd_buffer)
 {
    cmd_buffer->state.pipeline = state->old_pipeline;
-   cmd_buffer->state.descriptors[0] = state->old_descriptor_set0;
+   radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
    memcpy(cmd_buffer->state.vertex_bindings, state->old_vertex_bindings,
           sizeof(state->old_vertex_bindings));
 

@@ -934,6 +934,42 @@ void radv_CmdBindIndexBuffer(
 	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->state.index_buffer->bo->bo, 8);
 }
 
+
+void radv_bind_descriptor_set(struct radv_cmd_buffer *cmd_buffer,
+			      struct radv_descriptor_set *set,
+			      unsigned idx)
+{
+	struct radeon_winsys *ws = cmd_buffer->device->ws;
+	uint64_t va;
+	if (!set)
+		return;
+
+	cmd_buffer->state.descriptors[idx] = set;
+
+	va = set->va;
+	for (unsigned j = 0; j < set->layout->buffer_count; ++j)
+		if (set->descriptors[j])
+			ws->cs_add_buffer(cmd_buffer->cs, set->descriptors[j]->bo, 7);
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs,
+				R_00B030_SPI_SHADER_USER_DATA_PS_0 + 8 * idx, 2);
+	radeon_emit(cmd_buffer->cs, set->va);
+	radeon_emit(cmd_buffer->cs, set->va >> 32);
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs,
+				R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * idx, 2);
+	radeon_emit(cmd_buffer->cs, set->va);
+	radeon_emit(cmd_buffer->cs, set->va >> 32);
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs,
+				R_00B900_COMPUTE_USER_DATA_0 + 8 * idx, 2);
+	radeon_emit(cmd_buffer->cs, set->va);
+	radeon_emit(cmd_buffer->cs, set->va >> 32);
+
+	if(set->bo.bo)
+		ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
+}
+
 void radv_CmdBindDescriptorSets(
 	VkCommandBuffer                             commandBuffer,
 	VkPipelineBindPoint                         pipelineBindPoint,
@@ -946,7 +982,6 @@ void radv_CmdBindDescriptorSets(
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_pipeline_layout, layout, _layout);
-	struct radeon_winsys *ws = cmd_buffer->device->ws;
 	unsigned dyn_idx = 0;
 
 	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
@@ -955,31 +990,7 @@ void radv_CmdBindDescriptorSets(
 	for (unsigned i = 0; i < descriptorSetCount; ++i) {
 		unsigned idx = i + firstSet;
 		RADV_FROM_HANDLE(radv_descriptor_set, set, pDescriptorSets[i]);
-		uint64_t va;
-
-		va = set->va;
-
-		for (unsigned j = 0; j < set->layout->buffer_count; ++j)
-			if (set->descriptors[j])
-				ws->cs_add_buffer(cmd_buffer->cs, set->descriptors[j]->bo, 7);
-
-		radeon_set_sh_reg_seq(cmd_buffer->cs,
-				      R_00B030_SPI_SHADER_USER_DATA_PS_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, set->va);
-		radeon_emit(cmd_buffer->cs, set->va >> 32);
-
-		radeon_set_sh_reg_seq(cmd_buffer->cs,
-				      R_00B130_SPI_SHADER_USER_DATA_VS_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, set->va);
-		radeon_emit(cmd_buffer->cs, set->va >> 32);
-
-		radeon_set_sh_reg_seq(cmd_buffer->cs,
-				      R_00B900_COMPUTE_USER_DATA_0 + 8 * idx, 2);
-		radeon_emit(cmd_buffer->cs, set->va);
-		radeon_emit(cmd_buffer->cs, set->va >> 32);
-
-		if(set->bo.bo)
-			ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
+		radv_bind_descriptor_set(cmd_buffer, set, idx);
 
 		for(unsigned j = 0; j < set->layout->dynamic_offset_count; ++j, ++dyn_idx) {
 			unsigned idx = j + layout->set[i].dynamic_offset_start;
