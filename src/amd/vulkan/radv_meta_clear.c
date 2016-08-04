@@ -722,8 +722,11 @@ static bool
 subpass_needs_clear(const struct radv_cmd_buffer *cmd_buffer)
 {
    const struct radv_cmd_state *cmd_state = &cmd_buffer->state;
-   uint32_t ds = cmd_state->subpass->depth_stencil_attachment;
+   uint32_t ds;
 
+   if (!cmd_state->subpass)
+	   return false;
+   ds = cmd_state->subpass->depth_stencil_attachment;
    for (uint32_t i = 0; i < cmd_state->subpass->color_count; ++i) {
       uint32_t a = cmd_state->subpass->color_attachments[i];
       if (cmd_state->attachments[a].pending_clear_aspects) {
@@ -990,6 +993,8 @@ void radv_CmdClearAttachments(
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_meta_saved_state saved_state;
 
+   if (!cmd_buffer->state.subpass)
+	   return;
    meta_clear_begin(&saved_state, cmd_buffer);
 
    /* FINISHME: We can do better than this dumb loop. It thrashes too much
