@@ -887,6 +887,8 @@ VkResult radv_BeginCommandBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	radv_reset_cmd_buffer(cmd_buffer);
 
+	memset(&cmd_buffer->state, 0, sizeof(cmd_buffer->state));
+
 	/* Flush read caches at the beginning of CS not flushed by the kernel. */
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_INV_ICACHE |
 		RADV_CMD_FLAG_INV_SMEM_L1;
