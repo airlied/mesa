@@ -1345,6 +1345,22 @@ void radv_CmdBeginRenderPass(
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
+void radv_CmdNextSubpass(
+    VkCommandBuffer                             commandBuffer,
+    VkSubpassContents                           contents)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+
+	si_emit_cache_flush(cmd_buffer);
+
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
+					      2048);
+
+	cmd_buffer->state.subpass++;
+	radv_emit_framebuffer_state(cmd_buffer);
+	radv_cmd_buffer_clear_subpass(cmd_buffer);
+}
+
 void radv_CmdDraw(
 	VkCommandBuffer                             commandBuffer,
 	uint32_t                                    vertexCount,
