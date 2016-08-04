@@ -1459,6 +1459,48 @@ void radv_CmdDispatch(
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
+void radv_CmdDispatchIndirect(
+	VkCommandBuffer                             commandBuffer,
+	VkBuffer                                    _buffer,
+	VkDeviceSize                                offset)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_buffer, buffer, _buffer);
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(buffer->bo->bo);
+	va += buffer->offset + offset;
+
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, buffer->bo->bo, 8);
+
+	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
+			     VK_SHADER_STAGE_COMPUTE_BIT);
+	si_emit_cache_flush(cmd_buffer);
+
+	unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 25);
+
+	for (unsigned i = 0; i < 3; ++i) {
+		radeon_emit(cmd_buffer->cs, PKT3(PKT3_COPY_DATA, 4, 0));
+		radeon_emit(cmd_buffer->cs, COPY_DATA_SRC_SEL(COPY_DATA_MEM) |
+					    COPY_DATA_DST_SEL(COPY_DATA_REG));
+		radeon_emit(cmd_buffer->cs, (va +  4 * i));
+		radeon_emit(cmd_buffer->cs, (va + 4 * i) >> 32);
+		radeon_emit(cmd_buffer->cs, (R_00B900_COMPUTE_USER_DATA_0 >> 2) + i);
+		radeon_emit(cmd_buffer->cs, 0);
+	}
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_SET_BASE, 2, 0) |
+				    PKT3_SHADER_TYPE_S(1));
+	radeon_emit(cmd_buffer->cs, 1);
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, va >> 32);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DISPATCH_INDIRECT, 1, 0) |
+				    PKT3_SHADER_TYPE_S(1));
+	radeon_emit(cmd_buffer->cs, 0);
+	radeon_emit(cmd_buffer->cs, 1);
+
+	assert(cmd_buffer->cs->cdw <= cdw_max);
+}
+
 void radv_unaligned_dispatch(
 	struct radv_cmd_buffer                      *cmd_buffer,
 	uint32_t                                    x,
