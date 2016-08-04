@@ -574,7 +574,7 @@ static void
 radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 {
 
-	if (cmd_buffer->state.dirty ) {
+	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_DYNAMIC_LINE_WIDTH) {
 		unsigned width = cmd_buffer->state.dynamic.line_width * 8;
 		radeon_set_context_reg(cmd_buffer->cs, R_028A08_PA_SU_LINE_CNTL,
 				       S_028A08_WIDTH(CLAMP(width, 0, 0xFFF)));
