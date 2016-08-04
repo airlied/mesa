@@ -941,10 +941,11 @@ void radv_bind_descriptor_set(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
 	uint64_t va;
-	if (!set)
-		return;
 
 	cmd_buffer->state.descriptors[idx] = set;
+
+	if (!set)
+		return;
 
 	va = set->va;
 	for (unsigned j = 0; j < set->layout->buffer_count; ++j)
