@@ -532,6 +532,29 @@ fail:
 	return r;
 }
 
+static unsigned
+radv_swizzle_conv(int chan, VkComponentSwizzle vk_swiz)
+{
+	switch (vk_swiz) {
+	case VK_COMPONENT_SWIZZLE_IDENTITY:
+		return chan;
+	case VK_COMPONENT_SWIZZLE_ZERO:
+		return VK_SWIZZLE_0;
+	case VK_COMPONENT_SWIZZLE_ONE:
+		return VK_SWIZZLE_1;
+	case VK_COMPONENT_SWIZZLE_R:
+		return VK_SWIZZLE_X;
+	case VK_COMPONENT_SWIZZLE_G:
+		return VK_SWIZZLE_Y;
+	case VK_COMPONENT_SWIZZLE_B:
+		return VK_SWIZZLE_Z;
+	case VK_COMPONENT_SWIZZLE_A:
+		return VK_SWIZZLE_W;
+	default:
+		return chan;
+	}
+}
+
 void
 radv_image_view_init(struct radv_image_view *iview,
 		     struct radv_device *device,
@@ -574,11 +597,11 @@ radv_image_view_init(struct radv_image_view *iview,
 	iview->base_layer = range->baseArrayLayer;
 	iview->base_mip = range->baseMipLevel;
 
-	static const unsigned char swizzle[] = {
-		VK_SWIZZLE_X,
-		VK_SWIZZLE_Y,
-		VK_SWIZZLE_Z,
-		VK_SWIZZLE_W
+	unsigned char swizzle[] = {
+		radv_swizzle_conv(0, pCreateInfo->components.r),
+		radv_swizzle_conv(1, pCreateInfo->components.g),
+		radv_swizzle_conv(2, pCreateInfo->components.b),
+		radv_swizzle_conv(3, pCreateInfo->components.a),
 	};
 	si_make_texture_descriptor(device, image, false,
 				   iview->type,
