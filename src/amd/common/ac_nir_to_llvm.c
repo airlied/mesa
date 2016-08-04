@@ -1295,14 +1295,14 @@ emit_llvm_intrinsic(struct nir_to_llvm_context *ctx, const char *name,
 }
 
 static LLVMValueRef
-get_buffer_size(struct nir_to_llvm_context *ctx, LLVMValueRef descriptor)
+get_buffer_size(struct nir_to_llvm_context *ctx, LLVMValueRef descriptor, bool in_elements)
 {
 	LLVMValueRef size =
 		LLVMBuildExtractElement(ctx->builder, descriptor,
 					LLVMConstInt(ctx->i32, 2, false), "");
 
 	/* VI only */
-	if (1) {
+	if (in_elements) {
 		/* On VI, the descriptor contains the size in bytes,
 		 * but TXQ must return the size in elements.
 		 * The stride is always non-zero for resources using TXQ.
@@ -1416,6 +1416,13 @@ static LLVMValueRef visit_load_push_constant(struct nir_to_llvm_context *ctx,
 	return LLVMBuildLoad(ctx->builder, ptr, "");
 }
 
+static LLVMValueRef visit_get_buffer_size(struct nir_to_llvm_context *ctx,
+                                          nir_intrinsic_instr *instr)
+{
+	LLVMValueRef desc = get_src(ctx, instr->src[0]);
+
+	return get_buffer_size(ctx, desc, false);
+}
 static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
                              nir_intrinsic_instr *instr)
 {
@@ -1847,7 +1854,7 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 		type = instr->variables[0]->deref.child->type;
 
 	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF)
-		return get_buffer_size(ctx, get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER));
+		return get_buffer_size(ctx, get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER), true);
 	params[0] = ctx->i32zero;
 	params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 	params[2] = LLVMConstInt(ctx->i32, 15, false);
@@ -1924,6 +1931,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_ubo:
 		result = visit_load_buffer(ctx, instr);
+		break;
+	case nir_intrinsic_get_buffer_size:
+		result = visit_get_buffer_size(ctx, instr);
 		break;
 	case nir_intrinsic_load_var:
 		result = visit_load_var(ctx, instr);
