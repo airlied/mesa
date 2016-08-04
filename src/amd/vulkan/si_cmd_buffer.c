@@ -582,6 +582,8 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 	enum chip_class chip_class = cmd_buffer->device->instance->physicalDevice.rad_info.chip_class;
 	unsigned cp_coher_cntl = 0;
 
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 128);
+
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_ICACHE)
 		cp_coher_cntl |= S_0085F0_SH_ICACHE_ACTION_ENA(1);
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_SMEM_L1)
