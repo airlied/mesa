@@ -410,22 +410,22 @@ uint32_t radv_translate_color_numformat(VkFormat format,
 
 static bool radv_is_sampler_format_supported(VkFormat format, bool *linear_sampling)
 {
-   const struct vk_format_description *desc = vk_format_description(format);
-   uint32_t num_format;
-   if (!desc || format == VK_FORMAT_UNDEFINED)
-      return false;
-   num_format = radv_translate_tex_numformat(format, desc,
-					     vk_format_get_first_non_void_channel(format));
+	const struct vk_format_description *desc = vk_format_description(format);
+	uint32_t num_format;
+	if (!desc || format == VK_FORMAT_UNDEFINED)
+		return false;
+	num_format = radv_translate_tex_numformat(format, desc,
+						  vk_format_get_first_non_void_channel(format));
 
-   if (num_format == V_008F14_IMG_NUM_FORMAT_UNORM ||
-       num_format == V_008F14_IMG_NUM_FORMAT_SNORM ||
-       num_format == V_008F14_IMG_NUM_FORMAT_FLOAT ||
-       num_format == V_008F14_IMG_NUM_FORMAT_SRGB)
-	   *linear_sampling = true;
-   else
-	   *linear_sampling = false;
-   return radv_translate_tex_dataformat(format, vk_format_description(format),
-					vk_format_get_first_non_void_channel(format)) != ~0U;
+	if (num_format == V_008F14_IMG_NUM_FORMAT_UNORM ||
+	    num_format == V_008F14_IMG_NUM_FORMAT_SNORM ||
+	    num_format == V_008F14_IMG_NUM_FORMAT_FLOAT ||
+	    num_format == V_008F14_IMG_NUM_FORMAT_SRGB)
+		*linear_sampling = true;
+	else
+		*linear_sampling = false;
+	return radv_translate_tex_dataformat(format, vk_format_description(format),
+					     vk_format_get_first_non_void_channel(format)) != ~0U;
 }
 
 
