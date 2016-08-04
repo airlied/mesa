@@ -1497,6 +1497,50 @@ static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
 	}
 }
 
+static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
+                                      nir_intrinsic_instr *instr)
+{
+	const char *name;
+	LLVMValueRef params[5];
+
+	params[0] = get_src(ctx, instr->src[2]);
+	params[1] = get_src(ctx, instr->src[0]);
+	params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
+	params[3] = get_src(ctx, instr->src[1]);      /* voffset */
+	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+
+	switch (instr->intrinsic) {
+	case nir_intrinsic_ssbo_atomic_add:
+		name = "llvm.amdgcn.buffer.atomic.add";
+		break;
+	case nir_intrinsic_ssbo_atomic_imin:
+		name = "llvm.amdgcn.buffer.atomic.smin";
+		break;
+	case nir_intrinsic_ssbo_atomic_umin:
+		name = "llvm.amdgcn.buffer.atomic.umin";
+		break;
+	case nir_intrinsic_ssbo_atomic_imax:
+		name = "llvm.amdgcn.buffer.atomic.smax";
+		break;
+	case nir_intrinsic_ssbo_atomic_umax:
+		name = "llvm.amdgcn.buffer.atomic.umax";
+		break;
+	case nir_intrinsic_ssbo_atomic_and:
+		name = "llvm.amdgcn.buffer.atomic.and";
+		break;
+	case nir_intrinsic_ssbo_atomic_or:
+		name = "llvm.amdgcn.buffer.atomic.or";
+		break;
+	case nir_intrinsic_ssbo_atomic_xor:
+		name = "llvm.amdgcn.buffer.atomic.xor";
+		break;
+	default:
+		abort();
+	}
+
+	return emit_llvm_intrinsic(ctx, name, ctx->i32, params, 5, 0);
+}
+
 static LLVMValueRef visit_load_buffer(struct nir_to_llvm_context *ctx,
                                       nir_intrinsic_instr *instr)
 {
@@ -1928,6 +1972,16 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_ssbo:
 		result = visit_load_buffer(ctx, instr);
+		break;
+	case nir_intrinsic_ssbo_atomic_add:
+	case nir_intrinsic_ssbo_atomic_imin:
+	case nir_intrinsic_ssbo_atomic_umin:
+	case nir_intrinsic_ssbo_atomic_imax:
+	case nir_intrinsic_ssbo_atomic_umax:
+	case nir_intrinsic_ssbo_atomic_and:
+	case nir_intrinsic_ssbo_atomic_or:
+	case nir_intrinsic_ssbo_atomic_xor:
+		result = visit_atomic_ssbo(ctx, instr);
 		break;
 	case nir_intrinsic_load_ubo:
 		result = visit_load_buffer(ctx, instr);
