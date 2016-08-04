@@ -1829,6 +1829,15 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 
 	res = emit_llvm_intrinsic(ctx, "llvm.SI.getresinfo.i32", ctx->v4i32,
 				  params, 10, LLVMReadNoneAttribute);
+
+	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE &&
+	    glsl_sampler_type_is_array(type)) {
+		LLVMValueRef two = LLVMConstInt(ctx->i32, 2, false);
+		LLVMValueRef six = LLVMConstInt(ctx->i32, 6, false);
+		LLVMValueRef z = LLVMBuildExtractElement(ctx->builder, res, two, "");
+		z = LLVMBuildSDiv(ctx->builder, z, six, "");
+		res = LLVMBuildInsertElement(ctx->builder, res, z, two, "");
+	}
 	return res;
 }
 
