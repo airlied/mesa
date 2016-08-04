@@ -242,7 +242,7 @@ si_make_texture_descriptor(struct radv_device *device,
 			   bool sampler,
 			   VkImageViewType view_type,
 			   VkFormat vk_format,
-			   const unsigned char state_swizzle[4],
+			   VkComponentMapping *mapping,
 			   unsigned first_level, unsigned last_level,
 			   unsigned first_layer, unsigned last_layer,
 			   unsigned width, unsigned height, unsigned depth,
@@ -250,12 +250,11 @@ si_make_texture_descriptor(struct radv_device *device,
 			   uint32_t *fmask_state)
 {
 	const struct vk_format_description *desc;
-	unsigned char swizzle[4];
+	enum vk_swizzle swizzle[4];
 	int first_non_void;
 	unsigned num_format, data_format, type;
 	uint64_t va;
 	
-
 	desc = vk_format_description(vk_format);
 
 	if (desc->colorspace == VK_FORMAT_COLORSPACE_ZS) {
@@ -266,13 +265,13 @@ si_make_texture_descriptor(struct radv_device *device,
 		case VK_FORMAT_X8_D24_UNORM_PACK32:
 		case VK_FORMAT_D24_UNORM_S8_UINT:
 		case VK_FORMAT_D32_SFLOAT_S8_UINT:
-			vk_format_compose_swizzles(swizzle_yyyy, state_swizzle, swizzle);
+			vk_format_compose_swizzles(mapping, swizzle_yyyy, swizzle);
 			break;
 		default:
-			vk_format_compose_swizzles(swizzle_xxxx, state_swizzle, swizzle);
+			vk_format_compose_swizzles(mapping, swizzle_xxxx, swizzle);
 		}
 	} else {
-		vk_format_compose_swizzles(desc->swizzle, state_swizzle, swizzle);
+		vk_format_compose_swizzles(mapping, desc->swizzle, swizzle);
 	}
 
 	first_non_void = vk_format_get_first_non_void_channel(vk_format);
@@ -403,12 +402,7 @@ radv_query_opaque_metadata(struct radv_device *device,
 			   struct radv_image *image,
 			   struct radeon_bo_metadata *md)
 {
-	static const unsigned char swizzle[] = {
-		VK_SWIZZLE_X,
-		VK_SWIZZLE_Y,
-		VK_SWIZZLE_Z,
-		VK_SWIZZLE_W
-	};
+	static const VkComponentMapping fixedmapping;
 	uint32_t desc[8], i;
 
 	/* Metadata image format format version 1:
@@ -428,7 +422,7 @@ radv_query_opaque_metadata(struct radv_device *device,
 
 	si_make_texture_descriptor(device, image, true,
 				   (VkImageViewType)image->type, image->vk_format,
-				   swizzle, 0, image->levels - 1, 0,
+				   &fixedmapping, 0, image->levels - 1, 0,
 				   0, //is_array ? image->array_size - 1 : 0,
 				   image->extent.width, image->extent.height,
 				   image->extent.depth,
@@ -532,29 +526,6 @@ fail:
 	return r;
 }
 
-static unsigned
-radv_swizzle_conv(int chan, VkComponentSwizzle vk_swiz)
-{
-	switch (vk_swiz) {
-	case VK_COMPONENT_SWIZZLE_IDENTITY:
-		return chan;
-	case VK_COMPONENT_SWIZZLE_ZERO:
-		return VK_SWIZZLE_0;
-	case VK_COMPONENT_SWIZZLE_ONE:
-		return VK_SWIZZLE_1;
-	case VK_COMPONENT_SWIZZLE_R:
-		return VK_SWIZZLE_X;
-	case VK_COMPONENT_SWIZZLE_G:
-		return VK_SWIZZLE_Y;
-	case VK_COMPONENT_SWIZZLE_B:
-		return VK_SWIZZLE_Z;
-	case VK_COMPONENT_SWIZZLE_A:
-		return VK_SWIZZLE_W;
-	default:
-		return chan;
-	}
-}
-
 void
 radv_image_view_init(struct radv_image_view *iview,
 		     struct radv_device *device,
@@ -597,16 +568,10 @@ radv_image_view_init(struct radv_image_view *iview,
 	iview->base_layer = range->baseArrayLayer;
 	iview->base_mip = range->baseMipLevel;
 
-	unsigned char swizzle[] = {
-		radv_swizzle_conv(0, pCreateInfo->components.r),
-		radv_swizzle_conv(1, pCreateInfo->components.g),
-		radv_swizzle_conv(2, pCreateInfo->components.b),
-		radv_swizzle_conv(3, pCreateInfo->components.a),
-	};
 	si_make_texture_descriptor(device, image, false,
 				   iview->type,
 				   pCreateInfo->format,
-				   swizzle,
+				   &pCreateInfo->components,
 				   range->baseMipLevel,
 				   range->baseMipLevel + range->levelCount - 1,
 				   range->baseArrayLayer,

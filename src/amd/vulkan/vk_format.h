@@ -257,16 +257,46 @@ vk_format_aspects(VkFormat format)
    }
 }
 
-static inline void vk_format_compose_swizzles(const unsigned char swz1[4],
-					      const unsigned char swz2[4],
-					      unsigned char dst[4])
+static inline enum vk_swizzle
+radv_swizzle_conv(int idx, const unsigned char chan[4], VkComponentSwizzle vk_swiz)
 {
-   unsigned i;
+	int x;
+	switch (vk_swiz) {
+	case VK_COMPONENT_SWIZZLE_IDENTITY:
+		return chan[idx];
+	case VK_COMPONENT_SWIZZLE_ZERO:
+		return VK_SWIZZLE_0;
+	case VK_COMPONENT_SWIZZLE_ONE:
+		return VK_SWIZZLE_1;
+	case VK_COMPONENT_SWIZZLE_R:
+		for (x = 0; x < 4; x++)
+			if (chan[x] == 0)
+				return x;
+	case VK_COMPONENT_SWIZZLE_G:
+		for (x = 0; x < 4; x++)
+			if (chan[x] == 1)
+				return x;
+	case VK_COMPONENT_SWIZZLE_B:
+		for (x = 0; x < 4; x++)
+			if (chan[x] == 2)
+				return x;
+	case VK_COMPONENT_SWIZZLE_A:
+		for (x = 0; x < 4; x++)
+			if (chan[x] == 3)
+				return x;
+	default:
+		return chan[idx];
+	}
+}
 
-   for (i = 0; i < 4; i++) {
-      dst[i] = swz2[i] <= VK_SWIZZLE_W ?
-               swz1[swz2[i]] : swz2[i];
-   }
+static inline void vk_format_compose_swizzles(const VkComponentMapping *mapping,
+					      const unsigned char swz[4],
+					      enum vk_swizzle dst[4])
+{
+	dst[0] = radv_swizzle_conv(0, swz, mapping->r);
+	dst[1] = radv_swizzle_conv(1, swz, mapping->g);
+	dst[2] = radv_swizzle_conv(2, swz, mapping->b);
+	dst[3] = radv_swizzle_conv(3, swz, mapping->a);
 }
 
 static inline bool
