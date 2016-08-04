@@ -1293,6 +1293,33 @@ emit_llvm_intrinsic(struct nir_to_llvm_context *ctx, const char *name,
 	}
 	return LLVMBuildCall(ctx->builder, function, params, param_count, "");
 }
+
+static LLVMValueRef
+get_buffer_size(struct nir_to_llvm_context *ctx, LLVMValueRef descriptor)
+{
+	LLVMValueRef size =
+		LLVMBuildExtractElement(ctx->builder, descriptor,
+					LLVMConstInt(ctx->i32, 2, false), "");
+
+	/* VI only */
+	if (1) {
+		/* On VI, the descriptor contains the size in bytes,
+		 * but TXQ must return the size in elements.
+		 * The stride is always non-zero for resources using TXQ.
+		 */
+		LLVMValueRef stride =
+			LLVMBuildExtractElement(ctx->builder, descriptor,
+						LLVMConstInt(ctx->i32, 1, false), "");
+		stride = LLVMBuildLShr(ctx->builder, stride,
+				       LLVMConstInt(ctx->i32, 16, false), "");
+		stride = LLVMBuildAnd(ctx->builder, stride,
+				      LLVMConstInt(ctx->i32, 0x3fff, false), "");
+
+		size = LLVMBuildUDiv(ctx->builder, size, stride, "");
+	}
+	return size;
+}
+
 /**
  * Given the i32 or vNi32 \p type, generate the textual name (e.g. for use with
  * intrinsic names).
@@ -1815,13 +1842,18 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 	LLVMValueRef res;
 	LLVMValueRef params[10];
 	const nir_variable *var = instr->variables[0]->var;
+	const struct glsl_type *type = instr->variables[0]->var->type;
+	if(instr->variables[0]->deref.child)
+		type = instr->variables[0]->deref.child->type;
 
+	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF)
+		return get_buffer_size(ctx, get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER));
 	params[0] = ctx->i32zero;
 	params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 	params[2] = LLVMConstInt(ctx->i32, 15, false);
 	params[3] = ctx->i32zero;
 	params[4] = ctx->i32zero;
-	params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero;
+	params[5] = glsl_sampler_type_is_array(type) ? ctx->i32one : ctx->i32zero;
 	params[6] = ctx->i32zero;
 	params[7] = ctx->i32zero;
 	params[8] = ctx->i32zero;
