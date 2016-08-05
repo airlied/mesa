@@ -1214,9 +1214,6 @@ static VkResult radv_compute_pipeline_create(
 				       MESA_SHADER_COMPUTE,
 				       pCreateInfo->stage.pSpecializationInfo, dump);
 
-	for (int i = 0; i < 3; ++i)
-		pipeline->compute.block_size[i] = shader->info.cs.local_size[i];
-
 	pipeline->shaders[MESA_SHADER_COMPUTE] = radv_shader_variant_create(device,
 									    shader,
 									    pipeline->layout,
