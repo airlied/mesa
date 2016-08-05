@@ -572,8 +572,7 @@ radv_image_view_init(struct radv_image_view *iview,
 				   iview->type,
 				   pCreateInfo->format,
 				   &pCreateInfo->components,
-				   range->baseMipLevel,
-				   range->baseMipLevel + range->levelCount - 1,
+				   0, range->levelCount - 1,
 				   range->baseArrayLayer,
 				   range->baseArrayLayer + range->layerCount - 1,
 				   iview->extent.width,
@@ -581,7 +580,8 @@ radv_image_view_init(struct radv_image_view *iview,
 				   iview->extent.depth,
 				   iview->descriptor,
 				   iview->fmask_descriptor);
-	si_set_mutable_tex_desc_fields(device, image, &image->surface.level[0], 0, 0,
+	si_set_mutable_tex_desc_fields(device, image, &image->surface.level[range->baseMipLevel], range->baseMipLevel,
+				       range->baseMipLevel,
 				       image->surface.blk_w, false, iview->descriptor);
 }
 
