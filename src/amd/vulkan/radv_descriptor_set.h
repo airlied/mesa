@@ -76,6 +76,8 @@ struct radv_pipeline_layout {
    uint32_t push_constant_size;
    uint32_t dynamic_offset_count;
 
+   unsigned char sha1[20];
+
    struct {
       bool has_dynamic_offsets;
    } stage[MESA_SHADER_STAGES];

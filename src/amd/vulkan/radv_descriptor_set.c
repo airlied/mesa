@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "util/mesa-sha1.h"
 #include "radv_private.h"
 #include "sid.h"
 
@@ -171,6 +172,7 @@ VkResult radv_CreatePipelineLayout(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	struct radv_pipeline_layout *layout;
+	struct mesa_sha1 *ctx;
 
 	assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
 
@@ -183,6 +185,8 @@ VkResult radv_CreatePipelineLayout(
 
 	unsigned dynamic_offset_count = 0;
 
+
+	ctx = _mesa_sha1_init();
 	memset(layout->stage, 0, sizeof(layout->stage));
 	for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
 		RADV_FROM_HANDLE(radv_descriptor_set_layout, set_layout,
@@ -195,6 +199,8 @@ VkResult radv_CreatePipelineLayout(
 			for (gl_shader_stage s = 0; s < MESA_SHADER_STAGES; s++) {
 			}
 		}
+		_mesa_sha1_update(ctx, set_layout->binding,
+				  sizeof(set_layout->binding[0]) * set_layout->binding_count);
 	}
 
 	layout->dynamic_offset_count = dynamic_offset_count;
@@ -206,7 +212,9 @@ VkResult radv_CreatePipelineLayout(
 	}
 
 	layout->push_constant_size = align(layout->push_constant_size, 16);
-
+	_mesa_sha1_update(ctx, &layout->push_constant_size,
+			  sizeof(layout->push_constant_size));
+	_mesa_sha1_final(ctx, layout->sha1);
 	*pPipelineLayout = radv_pipeline_layout_to_handle(layout);
 
 	return VK_SUCCESS;

@@ -25,25 +25,13 @@
 #include "util/debug.h"
 #include "radv_private.h"
 
-/* Remaining work:
- *
- * - Compact binding table layout so it's tight and not dependent on
- *   descriptor set layout.
- *
- * - Review prog_data struct for size and cacheability: struct
- *   brw_stage_prog_data has binding_table which uses a lot of uint32_t for 8
- *   bit quantities etc; param, pull_param, and image_params are pointers, we
- *   just need the compation map. use bit fields for all bools, eg
- *   dual_src_blend.
- */
-#if 0
-void
+#include "ac_nir_to_llvm.h"
+
+static void
 radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
 			 struct radv_device *device)
 {
 	cache->device = device;
-	//   radv_state_stream_init(&cache->program_stream,
-	//                         &device->instruction_block_pool);
 	pthread_mutex_init(&cache->mutex, NULL);
 
 	cache->kernel_count = 0;
@@ -58,61 +46,51 @@ radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
 	    !env_var_as_boolean("RADV_ENABLE_PIPELINE_CACHE", true))
 		cache->table_size = 0;
 	else
-		memset(cache->hash_table, 0xff, byte_size);
+		memset(cache->hash_table, 0, byte_size);
 }
 
-void
+static void
 radv_pipeline_cache_finish(struct radv_pipeline_cache *cache)
 {
-	//   radv_state_stream_finish(&cache->program_stream);
+	for (unsigned i = 0; i < cache->table_size; ++i)
+		if (cache->hash_table[i])
+			radv_free(&cache->alloc, cache->hash_table[i]);
 	pthread_mutex_destroy(&cache->mutex);
 	free(cache->hash_table);
 }
 
+
 struct cache_entry {
 	unsigned char sha1[20];
-	uint32_t prog_data_size;
-	uint32_t kernel_size;
-	uint32_t surface_count;
-	uint32_t sampler_count;
-	uint32_t image_count;
-
-	char prog_data[0];
-
-	/* kernel follows prog_data at next 64 byte aligned address */
+	uint32_t code_size;
+	struct ac_shader_variant_info variant_info;
+	struct ac_shader_config config;
+	uint32_t rsrc1, rsrc2;
+	uint32_t code[0];
 };
 
 static uint32_t
 entry_size(struct cache_entry *entry)
 {
-	/* This returns the number of bytes needed to serialize an entry, which
-	 * doesn't include the alignment padding bytes.
-	 */
-
-	struct brw_stage_prog_data *prog_data = (void *)entry->prog_data;
-	const uint32_t param_size =
-		prog_data->nr_params * sizeof(*prog_data->param);
-
-	const uint32_t map_size =
-		entry->surface_count * sizeof(struct radv_pipeline_binding) +
-		entry->sampler_count * sizeof(struct radv_pipeline_binding);
-
-	return sizeof(*entry) + entry->prog_data_size + param_size + map_size;
+	return sizeof(*entry) + entry->code_size;
 }
 
 void
-radv_hash_shader(unsigned char *hash, const void *key, size_t key_size,
-		 struct radv_shader_module *module,
+radv_hash_shader(unsigned char *hash, struct radv_shader_module *module,
 		 const char *entrypoint,
-		 const VkSpecializationInfo *spec_info)
+		 const VkSpecializationInfo *spec_info,
+		 const struct radv_pipeline_layout *layout,
+		 const union ac_shader_variant_key *key)
 {
 	struct mesa_sha1 *ctx;
 
 	ctx = _mesa_sha1_init();
-	_mesa_sha1_update(ctx, key, key_size);
+	if (key)
+		_mesa_sha1_update(ctx, key, sizeof(*key));
 	_mesa_sha1_update(ctx, module->sha1, sizeof(module->sha1));
 	_mesa_sha1_update(ctx, entrypoint, strlen(entrypoint));
-	/* hash in shader stage, pipeline layout? */
+	if (layout)
+		_mesa_sha1_update(ctx, layout->sha1, sizeof(layout->sha1));
 	if (spec_info) {
 		_mesa_sha1_update(ctx, spec_info->pMapEntries,
 				  spec_info->mapEntryCount * sizeof spec_info->pMapEntries[0]);
@@ -121,67 +99,78 @@ radv_hash_shader(unsigned char *hash, const void *key, size_t key_size,
 	_mesa_sha1_final(ctx, hash);
 }
 
-static uint32_t
+
+static struct cache_entry *
 radv_pipeline_cache_search_unlocked(struct radv_pipeline_cache *cache,
-				    const unsigned char *sha1,
-				    const struct brw_stage_prog_data **prog_data,
-				    struct radv_pipeline_bind_map *map)
+				    const unsigned char *sha1)
 {
 	const uint32_t mask = cache->table_size - 1;
 	const uint32_t start = (*(uint32_t *) sha1);
 
 	for (uint32_t i = 0; i < cache->table_size; i++) {
 		const uint32_t index = (start + i) & mask;
-		const uint32_t offset = cache->hash_table[index];
+		struct cache_entry *entry = cache->hash_table[index];
 
-		if (offset == ~0)
-			return NO_KERNEL;
-#if 0
-		struct cache_entry *entry =
-			cache->program_stream.block_pool->map + offset;
+		if (!entry)
+			return NULL;
+
 		if (memcmp(entry->sha1, sha1, sizeof(entry->sha1)) == 0) {
-			if (prog_data) {
-				assert(map);
-				void *p = entry->prog_data;
-				*prog_data = p;
-				p += entry->prog_data_size;
-				p += (*prog_data)->nr_params * sizeof(*(*prog_data)->param);
-				map->surface_count = entry->surface_count;
-				map->sampler_count = entry->sampler_count;
-				map->image_count = entry->image_count;
-				map->surface_to_descriptor = p;
-				p += map->surface_count * sizeof(struct radv_pipeline_binding);
-				map->sampler_to_descriptor = p;
-			}
-			return offset + align_u32(entry_size(entry), 64);
-#endif
-	 
+			return entry;
 		}
 	}
 
 	unreachable("hash table should never be full");
 }
 
-uint32_t
+static struct cache_entry *
 radv_pipeline_cache_search(struct radv_pipeline_cache *cache,
-			   const unsigned char *sha1,
-			   const struct brw_stage_prog_data **prog_data,
-			   struct radv_pipeline_bind_map *map)
+			   const unsigned char *sha1)
 {
-	uint32_t kernel;
+	struct cache_entry *entry;
 
 	pthread_mutex_lock(&cache->mutex);
 
-	kernel = radv_pipeline_cache_search_unlocked(cache, sha1, prog_data, map);
+	entry = radv_pipeline_cache_search_unlocked(cache, sha1);
 
 	pthread_mutex_unlock(&cache->mutex);
 
-	return kernel;
+	return entry;
 }
+
+struct radv_shader_variant *
+radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
+					       struct radv_pipeline_cache *cache,
+					       const unsigned char *sha1)
+{
+	struct cache_entry *entry = radv_pipeline_cache_search(cache, sha1);
+	struct radv_shader_variant *variant;
+
+	if (!entry)
+		return NULL;
+
+	variant = calloc(1, sizeof(struct radv_shader_variant));
+	if (!variant)
+		return NULL;
+
+	variant->config = entry->config;
+	variant->info = entry->variant_info;
+	variant->rsrc1 = entry->rsrc1;
+	variant->rsrc2 = entry->rsrc2;
+
+	variant->bo = device->ws->buffer_create(device->ws, entry->code_size, 256,
+						RADEON_DOMAIN_GTT, RADEON_FLAG_CPU_ACCESS);
+
+	void *ptr = device->ws->buffer_map(variant->bo);
+	memcpy(ptr, entry->code, entry->code_size);
+	device->ws->buffer_unmap(variant->bo);
+
+	return variant;
+}
+
 
 static void
 radv_pipeline_cache_set_entry(struct radv_pipeline_cache *cache,
-			      struct cache_entry *entry, uint32_t entry_offset)
+			      struct cache_entry *entry)
 {
 	const uint32_t mask = cache->table_size - 1;
 	const uint32_t start = (*(uint32_t *) entry->sha1);
@@ -191,15 +180,16 @@ radv_pipeline_cache_set_entry(struct radv_pipeline_cache *cache,
 
 	for (uint32_t i = 0; i < cache->table_size; i++) {
 		const uint32_t index = (start + i) & mask;
-		if (cache->hash_table[index] == ~0) {
-			cache->hash_table[index] = entry_offset;
+		if (!cache->hash_table[index]) {
+			cache->hash_table[index] = entry;
 			break;
 		}
 	}
 
-	cache->total_size += entry_size(entry) + entry->kernel_size;
+	cache->total_size += entry_size(entry);
 	cache->kernel_count++;
 }
+
 
 static VkResult
 radv_pipeline_cache_grow(struct radv_pipeline_cache *cache)
@@ -207,8 +197,8 @@ radv_pipeline_cache_grow(struct radv_pipeline_cache *cache)
 	const uint32_t table_size = cache->table_size * 2;
 	const uint32_t old_table_size = cache->table_size;
 	const size_t byte_size = table_size * sizeof(cache->hash_table[0]);
-	uint32_t *table;
-	uint32_t *old_table = cache->hash_table;
+	struct cache_entry **table;
+	struct cache_entry **old_table = cache->hash_table;
 
 	table = malloc(byte_size);
 	if (table == NULL)
@@ -219,16 +209,13 @@ radv_pipeline_cache_grow(struct radv_pipeline_cache *cache)
 	cache->kernel_count = 0;
 	cache->total_size = 0;
 
-	memset(cache->hash_table, 0xff, byte_size);
+	memset(cache->hash_table, 0, byte_size);
 	for (uint32_t i = 0; i < old_table_size; i++) {
-		const uint32_t offset = old_table[i];
-		if (offset == ~0)
+		struct cache_entry *entry = old_table[i];
+		if (!entry)
 			continue;
-#if 0
-		struct cache_entry *entry =
-			cache->program_stream.block_pool->map + offset;
-		radv_pipeline_cache_set_entry(cache, entry, offset);
-#endif
+
+		radv_pipeline_cache_set_entry(cache, entry);
 	}
 
 	free(old_table);
@@ -238,7 +225,7 @@ radv_pipeline_cache_grow(struct radv_pipeline_cache *cache)
 
 static void
 radv_pipeline_cache_add_entry(struct radv_pipeline_cache *cache,
-			      struct cache_entry *entry, uint32_t entry_offset)
+			      struct cache_entry *entry)
 {
 	if (cache->kernel_count == cache->table_size / 2)
 		radv_pipeline_cache_grow(cache);
@@ -247,94 +234,39 @@ radv_pipeline_cache_add_entry(struct radv_pipeline_cache *cache,
 	 * have enough space to add this new kernel. Only add it if there's room.
 	 */
 	if (cache->kernel_count < cache->table_size / 2)
-		radv_pipeline_cache_set_entry(cache, entry, entry_offset);
+		radv_pipeline_cache_set_entry(cache, entry);
 }
 
-uint32_t
-radv_pipeline_cache_upload_kernel(struct radv_pipeline_cache *cache,
+void
+radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 				  const unsigned char *sha1,
-				  const void *kernel, size_t kernel_size,
-				  const struct brw_stage_prog_data **prog_data,
-				  size_t prog_data_size,
-				  struct radv_pipeline_bind_map *map)
+				  struct radv_shader_variant *variant,
+				  const void *code, unsigned code_size)
 {
 	pthread_mutex_lock(&cache->mutex);
-
-	/* Before uploading, check again that another thread didn't upload this
-	 * shader while we were compiling it.
-	 */
-	if (sha1) {
-		uint32_t cached_kernel =
-			radv_pipeline_cache_search_unlocked(cache, sha1, prog_data, map);
-		if (cached_kernel != NO_KERNEL) {
-			pthread_mutex_unlock(&cache->mutex);
-			return cached_kernel;
-		}
+	struct cache_entry *entry = radv_pipeline_cache_search_unlocked(cache, sha1);
+	if (entry) {
+		pthread_mutex_unlock(&cache->mutex);
+		return;
 	}
 
-	struct cache_entry *entry;
-
-	assert((*prog_data)->nr_pull_params == 0);
-	assert((*prog_data)->nr_image_params == 0);
-
-	const uint32_t param_size =
-		(*prog_data)->nr_params * sizeof(*(*prog_data)->param);
-
-	const uint32_t map_size =
-		map->surface_count * sizeof(struct radv_pipeline_binding) +
-		map->sampler_count * sizeof(struct radv_pipeline_binding);
-
-	const uint32_t preamble_size =
-		align_u32(sizeof(*entry) + prog_data_size + param_size + map_size, 64);
-
-	const uint32_t size = preamble_size + kernel_size;
-#if 0
-	assert(size < cache->program_stream.block_pool->block_size);
-	const struct radv_state state =
-		radv_state_stream_alloc(&cache->program_stream, size, 64);
-#endif
-	entry = state.map;
-	entry->prog_data_size = prog_data_size;
-	entry->surface_count = map->surface_count;
-	entry->sampler_count = map->sampler_count;
-	entry->image_count = map->image_count;
-	entry->kernel_size = kernel_size;
-
-	void *p = entry->prog_data;
-	memcpy(p, *prog_data, prog_data_size);
-	p += prog_data_size;
-
-	memcpy(p, (*prog_data)->param, param_size);
-	((struct brw_stage_prog_data *)entry->prog_data)->param = p;
-	p += param_size;
-
-	memcpy(p, map->surface_to_descriptor,
-	       map->surface_count * sizeof(struct radv_pipeline_binding));
-	map->surface_to_descriptor = p;
-	p += map->surface_count * sizeof(struct radv_pipeline_binding);
-
-	memcpy(p, map->sampler_to_descriptor,
-	       map->sampler_count * sizeof(struct radv_pipeline_binding));
-	map->sampler_to_descriptor = p;
-
-	if (sha1) {
-		assert(radv_pipeline_cache_search_unlocked(cache, sha1,
-							   NULL, NULL) == NO_KERNEL);
-
-		memcpy(entry->sha1, sha1, sizeof(entry->sha1));
-		radv_pipeline_cache_add_entry(cache, entry, state.offset);
+	entry = radv_alloc(&cache->alloc, sizeof(*entry) + code_size, 8,
+			   VK_SYSTEM_ALLOCATION_SCOPE_CACHE);
+	if (!entry) {
+		pthread_mutex_unlock(&cache->mutex);
+		return;
 	}
 
+	memcpy(entry->sha1, sha1, 20);
+	memcpy(entry->code, code, code_size);
+	entry->config = variant->config;
+	entry->variant_info = variant->info;
+	entry->rsrc1 = variant->rsrc1;
+	entry->rsrc2 = variant->rsrc2;
+	entry->code_size = code_size;
+
+	radv_pipeline_cache_add_entry(cache, entry);
 	pthread_mutex_unlock(&cache->mutex);
-
-	memcpy(state.map + preamble_size, kernel, kernel_size);
-
-	if (!cache->device->info.has_llc)
-		radv_state_clflush(state);
-
-	*prog_data = (const struct brw_stage_prog_data *) entry->prog_data;
-
-	return state.offset + preamble_size;
 }
 
 struct cache_header {
@@ -344,7 +276,6 @@ struct cache_header {
 	uint32_t device_id;
 	uint8_t  uuid[VK_UUID_SIZE];
 };
-
 static void
 radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 			 const void *data, size_t size)
@@ -360,7 +291,7 @@ radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 		return;
 	if (header.header_version != VK_PIPELINE_CACHE_HEADER_VERSION_ONE)
 		return;
-	if (header.vendor_id != 0x8086)
+	if (header.vendor_id != 0x1002)
 		return;
 	if (header.device_id != device->chipset_id)
 		return;
@@ -368,49 +299,25 @@ radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 	if (memcmp(header.uuid, uuid, VK_UUID_SIZE) != 0)
 		return;
 
-	void *end = (void *) data + size;
-	void *p = (void *) data + header.header_size;
+	char *end = (void *) data + size;
+	char *p = (void *) data + header.header_size;
 
-	while (p < end) {
-		struct cache_entry *entry = p;
+	while (end - p >= sizeof(struct cache_entry)) {
+		struct cache_entry *entry = (struct cache_entry*)p;
+		struct cache_entry *dest_entry;
+		if(end - p < sizeof(*entry) + entry->code_size)
+			break;
 
-		void *data = entry->prog_data;
-
-		/* Make a copy of prog_data so that it's mutable */
-		uint8_t prog_data_tmp[512];
-		assert(entry->prog_data_size <= sizeof(prog_data_tmp));
-		memcpy(prog_data_tmp, data, entry->prog_data_size);
-		struct brw_stage_prog_data *prog_data = (void *)prog_data_tmp;
-		data += entry->prog_data_size;
-
-		prog_data->param = data;
-		data += prog_data->nr_params * sizeof(*prog_data->param);
-
-		struct radv_pipeline_binding *surface_to_descriptor = data;
-		data += entry->surface_count * sizeof(struct radv_pipeline_binding);
-		struct radv_pipeline_binding *sampler_to_descriptor = data;
-		data += entry->sampler_count * sizeof(struct radv_pipeline_binding);
-		void *kernel = data;
-
-		struct radv_pipeline_bind_map map = {
-			.surface_count = entry->surface_count,
-			.sampler_count = entry->sampler_count,
-			.image_count = entry->image_count,
-			.surface_to_descriptor = surface_to_descriptor,
-			.sampler_to_descriptor = sampler_to_descriptor
-		};
-
-		const struct brw_stage_prog_data *const_prog_data = prog_data;
-#if 0
-		radv_pipeline_cache_upload_kernel(cache, entry->sha1,
-						  kernel, entry->kernel_size,
-						  &const_prog_data,
-						  entry->prog_data_size, &map);
-#endif
-		p = kernel + entry->kernel_size;
+		dest_entry = radv_alloc(&cache->alloc, sizeof(*entry) + entry->code_size,
+					8, VK_SYSTEM_ALLOCATION_SCOPE_CACHE);
+		if (dest_entry) {
+			memcpy(dest_entry, entry, sizeof(*entry) + entry->code_size);
+			radv_pipeline_cache_set_entry(cache, dest_entry);
+		}
+		p += sizeof (*entry) + entry->code_size;
 	}
 }
-#endif
+
 VkResult radv_CreatePipelineCache(
 	VkDevice                                    _device,
 	const VkPipelineCacheCreateInfo*            pCreateInfo,
@@ -428,14 +335,20 @@ VkResult radv_CreatePipelineCache(
 			    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 	if (cache == NULL)
 		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
-#if 0
-	//   radv_pipeline_cache_init(cache, device);
 
-	if (pCreateInfo->initialDataSize > 0)
+	if (pAllocator)
+		cache->alloc = *pAllocator;
+	else
+		cache->alloc = device->alloc;
+
+	radv_pipeline_cache_init(cache, device);
+
+	if (pCreateInfo->initialDataSize > 0) {
 		radv_pipeline_cache_load(cache,
 					 pCreateInfo->pInitialData,
 					 pCreateInfo->initialDataSize);
-#endif
+	}
+
 	*pPipelineCache = radv_pipeline_cache_to_handle(cache);
 
 	return VK_SUCCESS;
@@ -449,7 +362,7 @@ void radv_DestroyPipelineCache(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_pipeline_cache, cache, _cache);
 
-	//   radv_pipeline_cache_finish(cache);
+	radv_pipeline_cache_finish(cache);
 
 	radv_free2(&device->alloc, pAllocator, cache);
 }
@@ -464,13 +377,11 @@ VkResult radv_GetPipelineCacheData(
 	RADV_FROM_HANDLE(radv_pipeline_cache, cache, _cache);
 	struct cache_header *header;
 
-	// const size_t size = sizeof(*header) + cache->total_size;
-	const size_t size = 0;
+	const size_t size = sizeof(*header) + cache->total_size;
 	if (pData == NULL) {
 		*pDataSize = size;
 		return VK_SUCCESS;
 	}
-#if 0
 	if (*pDataSize < sizeof(*header)) {
 		*pDataSize = 0;
 		return VK_INCOMPLETE;
@@ -479,33 +390,25 @@ VkResult radv_GetPipelineCacheData(
 	header = p;
 	header->header_size = sizeof(*header);
 	header->header_version = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
-	header->vendor_id = 0x8086;
+	header->vendor_id = 0x1002;
 	header->device_id = device->chipset_id;
 	radv_device_get_cache_uuid(header->uuid);
 	p += header->header_size;
    
 	struct cache_entry *entry;
 	for (uint32_t i = 0; i < cache->table_size; i++) {
-		if (cache->hash_table[i] == ~0)
+		if (!cache->hash_table[i])
 			continue;
-		entry = cache->program_stream.block_pool->map + cache->hash_table[i];
+		entry = cache->hash_table[i];
 		const uint32_t size = entry_size(entry);
-		if (end < p + size + entry->kernel_size)
+		if (end < p + size)
 			break;
 
 		memcpy(p, entry, size);
 		p += size;
-
-		void *kernel = (void *) entry + align_u32(size, 64);
-
-		memcpy(p, kernel, entry->kernel_size);
-		p += entry->kernel_size;
 	}
 	*pDataSize = p - pData;
-#endif
       
-
-	*pDataSize = 0;
 	return VK_SUCCESS;
 }
 
@@ -514,17 +417,11 @@ radv_pipeline_cache_merge(struct radv_pipeline_cache *dst,
 			  struct radv_pipeline_cache *src)
 {
 	for (uint32_t i = 0; i < src->table_size; i++) {
-		const uint32_t offset = src->hash_table[i];
-		if (offset == ~0)
-			continue;
-		struct cache_entry *entry = NULL;
-#if 0
-		src->program_stream.block_pool->map + offset;
-		if (radv_pipeline_cache_search(dst, entry->sha1, NULL, NULL) != NO_KERNEL)
+		struct cache_entry *entry = src->hash_table[i];
+		if (!entry || radv_pipeline_cache_search(dst, entry->sha1))
 			continue;
 
-		radv_pipeline_cache_add_entry(dst, entry, offset);
-#endif
+		radv_pipeline_cache_add_entry(dst, entry);
       
 	}
 }
