@@ -2195,10 +2195,17 @@ static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
 }
 
 static void emit_prepare_cube_coords(struct nir_to_llvm_context *ctx,
-				     LLVMValueRef *coords_arg, int num_coords)
+				     LLVMValueRef *coords_arg, int num_coords, bool is_array)
 {
 	LLVMValueRef coords[4];
 	cube_to_2d_coords(ctx, num_coords, coords_arg, coords);
+
+	if (is_array) {
+		/* for cube arrays coord.z = coord.w(array_index) * 8 + face */
+		/* coords_arg.w component - array_index for cube arrays */
+		LLVMValueRef tmp = LLVMBuildFMul(ctx->builder, coords_arg[3], LLVMConstReal(ctx->f32, 8.0), "");
+		coords[2] = LLVMBuildFAdd(ctx->builder, tmp, coords[2], "");
+	}
 
 	memcpy(coords_arg, coords, sizeof(coords));
 }
@@ -2235,7 +2242,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 			coords[chan] = to_float(ctx, coords[chan]);
 		if (instr->coord_components == 3)
 			coords[3] = LLVMGetUndef(ctx->f32);
-		emit_prepare_cube_coords(ctx, coords, instr->coord_components);
+		emit_prepare_cube_coords(ctx, coords, instr->coord_components, instr->is_array);
 	}
 
 	/* pack derivatives */
