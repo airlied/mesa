@@ -224,12 +224,12 @@ static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
 		return nr_samples > 1 ? V_008F1C_SQ_RSRC_IMG_2D_MSAA :
 		V_008F1C_SQ_RSRC_IMG_2D;
 	case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
+	case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
 		return nr_samples > 1 ? V_008F1C_SQ_RSRC_IMG_2D_MSAA_ARRAY :
 		V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
 	case VK_IMAGE_VIEW_TYPE_3D:
 		return V_008F1C_SQ_RSRC_IMG_3D;
 	case VK_IMAGE_VIEW_TYPE_CUBE:
-	case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
 		return V_008F1C_SQ_RSRC_IMG_CUBE;
 	}
 }
