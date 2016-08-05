@@ -72,6 +72,9 @@ struct ac_shader_variant_info {
 			bool has_pcoord;
 			bool can_discard;
 		} fs;
+		struct {
+			unsigned block_size[3];
+		} cs;
 	};
 };
 

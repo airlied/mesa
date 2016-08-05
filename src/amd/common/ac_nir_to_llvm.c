@@ -3255,4 +3255,8 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 	/* +3 for scratch wave offset and VCC */
 	config->num_sgprs = MAX2(config->num_sgprs,
 	                         shader_info->num_input_sgprs + 3);
+	if (nir->stage == MESA_SHADER_COMPUTE) {
+		for (int i = 0; i < 3; ++i)
+			shader_info->cs.block_size[i] = nir->info.cs.local_size[i];
+	}
 }

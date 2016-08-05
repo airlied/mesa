@@ -1069,11 +1069,11 @@ radv_bind_compute_pipeline(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B81C_COMPUTE_NUM_THREAD_X, 3);
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[0]));
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[0]));
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[1]));
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[1]));
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[2]));
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[2]));
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
@@ -1526,16 +1526,17 @@ void radv_unaligned_dispatch(
 	uint32_t                                    z)
 {
 	struct radv_pipeline *pipeline = cmd_buffer->state.compute_pipeline;
+	struct radv_shader_variant *compute_shader = pipeline->shaders[MESA_SHADER_COMPUTE];
 	uint32_t blocks[3], remainder[3];
 
-	blocks[0] = round_up_u32(x, pipeline->compute.block_size[0]);
-	blocks[1] = round_up_u32(y, pipeline->compute.block_size[1]);
-	blocks[2] = round_up_u32(z, pipeline->compute.block_size[2]);
+	blocks[0] = round_up_u32(x, compute_shader->info.cs.block_size[0]);
+	blocks[1] = round_up_u32(y, compute_shader->info.cs.block_size[1]);
+	blocks[2] = round_up_u32(z, compute_shader->info.cs.block_size[2]);
 
 	/* If aligned, these should be an entire block size, not 0 */
-	remainder[0] = x + pipeline->compute.block_size[0] - align_u32_npot(x, pipeline->compute.block_size[0]);
-	remainder[1] = y + pipeline->compute.block_size[1] - align_u32_npot(y, pipeline->compute.block_size[1]);
-	remainder[2] = z + pipeline->compute.block_size[2] - align_u32_npot(z, pipeline->compute.block_size[2]);
+	remainder[0] = x + compute_shader->info.cs.block_size[0] - align_u32_npot(x, compute_shader->info.cs.block_size[0]);
+	remainder[1] = y + compute_shader->info.cs.block_size[1] - align_u32_npot(y, compute_shader->info.cs.block_size[1]);
+	remainder[2] = z + compute_shader->info.cs.block_size[2] - align_u32_npot(z, compute_shader->info.cs.block_size[2]);
 
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
@@ -1544,13 +1545,13 @@ void radv_unaligned_dispatch(
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B81C_COMPUTE_NUM_THREAD_X, 3);
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[0]) |
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[0]) |
 		    S_00B81C_NUM_THREAD_PARTIAL(remainder[0]));
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[1]) |
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[1]) |
 		    S_00B81C_NUM_THREAD_PARTIAL(remainder[1]));
 	radeon_emit(cmd_buffer->cs,
-		    S_00B81C_NUM_THREAD_FULL(pipeline->compute.block_size[2]) |
+		    S_00B81C_NUM_THREAD_FULL(compute_shader->info.cs.block_size[2]) |
 		    S_00B81C_NUM_THREAD_PARTIAL(remainder[2]));
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B900_COMPUTE_USER_DATA_0 + 10 * 4, 3);
