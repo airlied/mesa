@@ -535,14 +535,14 @@ static const VkPipelineVertexInputStateCreateInfo normal_vi_create_info = {
 
 static nir_shader *
 build_nir_copy_fragment_shader(struct radv_device *device,
-                               texel_fetch_build_func txf_func)
+                               texel_fetch_build_func txf_func, char* name)
 {
 	const struct glsl_type *vec4 = glsl_vec4_type();
 	const struct glsl_type *vec2 = glsl_vector_type(GLSL_TYPE_FLOAT, 2);
 	nir_builder b;
 
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_FRAGMENT, NULL);
-	b.shader->info.name = ralloc_strdup(b.shader, "meta_blit2d_fs");
+	b.shader->info.name = ralloc_strdup(b.shader, name);
 
 	nir_variable *tex_pos_in = nir_variable_create(b.shader, nir_var_shader_in,
 						       vec2, "v_tex_pos");
@@ -603,14 +603,17 @@ blit2d_init_pipeline(struct radv_device *device,
 {
 	VkResult result;
 	unsigned fs_key = radv_format_meta_fs_key(format);
+	const char *name;
 
 	texel_fetch_build_func src_func;
 	switch(src_type) {
 	case BLIT2D_SRC_TYPE_IMAGE:
 		src_func = build_nir_texel_fetch;
+		name = "meta_blit2d_image_fs";
 		break;
 	case BLIT2D_SRC_TYPE_BUFFER:
 		src_func = build_nir_buffer_fetch;
+		name = "meta_blit2d_buffer_fs";
 		break;
 	}
 
@@ -618,7 +621,7 @@ blit2d_init_pipeline(struct radv_device *device,
 	struct radv_shader_module fs = { .nir = NULL };
 
 
-	fs.nir = build_nir_copy_fragment_shader(device, src_func);
+	fs.nir = build_nir_copy_fragment_shader(device, src_func, name);
 	vi_create_info = &normal_vi_create_info;
 
 	struct radv_shader_module vs = {

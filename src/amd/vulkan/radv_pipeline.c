@@ -343,9 +343,14 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 	void *code = NULL;
 	unsigned code_size;
 
+	if (module->nir)
+		_mesa_sha1_compute(module->nir->info.name,
+				   strlen(module->nir->info.name),
+				   module->sha1);
+
 	radv_hash_shader(sha1, module, entrypoint, spec_info, layout, key);
 
-	if (cache && !module->nir) {
+	if (cache) {
 		variant = radv_create_shader_variant_from_pipeline_cache(pipeline->device,
 									 cache,
 									 sha1);
