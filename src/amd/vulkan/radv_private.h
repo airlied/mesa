@@ -407,6 +407,8 @@ struct radv_queue {
 	struct radv_state_pool *                     pool;
 };
 
+struct cache_entry;
+
 struct radv_pipeline_cache {
 	struct radv_device *                          device;
 	pthread_mutex_t                              mutex;
@@ -414,8 +416,21 @@ struct radv_pipeline_cache {
 	uint32_t                                     total_size;
 	uint32_t                                     table_size;
 	uint32_t                                     kernel_count;
-	uint32_t *                                   hash_table;
+	struct cache_entry **                        hash_table;
+
+	VkAllocationCallbacks                        alloc;
 };
+
+struct radv_shader_variant *
+radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
+					       struct radv_pipeline_cache *cache,
+					       const unsigned char *sha1);
+
+void
+radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
+				  const unsigned char *sha1,
+				  struct radv_shader_variant *variant,
+				  const void *code, unsigned code_size);
 
 struct radv_device {
 	VK_LOADER_DATA                              _loader_data;
@@ -696,10 +711,14 @@ struct radv_shader_module {
 	char                                         data[0];
 };
 
-void radv_hash_shader(unsigned char *hash, const void *key, size_t key_size,
-		      struct radv_shader_module *module,
-		      const char *entrypoint,
-		      const VkSpecializationInfo *spec_info);
+union ac_shader_variant_key;
+
+void
+radv_hash_shader(unsigned char *hash, struct radv_shader_module *module,
+		 const char *entrypoint,
+		 const VkSpecializationInfo *spec_info,
+		 const struct radv_pipeline_layout *layout,
+		 const union ac_shader_variant_key *key);
 
 static inline gl_shader_stage
 vk_to_mesa_shader_stage(VkShaderStageFlagBits vk_stage)
@@ -795,9 +814,6 @@ struct radv_pipeline {
 			unsigned prim;
 			bool prim_restart_enable;
 		} graphics;
-		struct {
-			int block_size[3];
-		} compute;
 	};
 };
 

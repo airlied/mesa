@@ -257,6 +257,8 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
                                                        struct nir_shader *shader,
                                                        struct radv_pipeline_layout *layout,
                                                        const union ac_shader_variant_key *key,
+						       void** code_out,
+						       unsigned *code_size_out,
 						       bool dump)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
@@ -311,7 +313,11 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	memcpy(ptr, binary.code, binary.code_size);
 	device->ws->buffer_unmap(variant->bo);
 
-	free(binary.code);
+	if (code_out) {
+		*code_out = binary.code;
+		*code_size_out = binary.code_size;
+	} else
+		free(binary.code);
 	free(binary.config);
 	free(binary.rodata);
 	free(binary.global_symbol_offsets);
@@ -322,6 +328,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 
 static struct radv_shader_variant *
 radv_pipeline_compile(struct radv_pipeline *pipeline,
+		      struct radv_pipeline_cache *cache,
 		      struct radv_shader_module *module,
 		      const char *entrypoint,
 		      gl_shader_stage stage,
@@ -330,16 +337,39 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 		      const union ac_shader_variant_key *key,
 		      bool dump)
 {
+	unsigned char sha1[20];
 	struct radv_shader_variant *variant;
-	nir_shader *nir = radv_shader_compile_to_nir(pipeline->device,
-						     module, entrypoint, stage,
-						     spec_info, dump);
+	nir_shader *nir;
+	void *code = NULL;
+	unsigned code_size;
+
+	radv_hash_shader(sha1, module, entrypoint, spec_info, layout, key);
+
+	if (cache && !module->nir) {
+		variant = radv_create_shader_variant_from_pipeline_cache(pipeline->device,
+									 cache,
+									 sha1);
+		if (variant)
+			return variant;
+	}
+
+	nir = radv_shader_compile_to_nir(pipeline->device,
+				         module, entrypoint, stage,
+					 spec_info, dump);
 	if (nir == NULL)
 		return NULL;
 
-	variant = radv_shader_variant_create(pipeline->device, nir, layout, key, dump);
+	variant = radv_shader_variant_create(pipeline->device, nir, layout, key,
+					     &code, &code_size, dump);
 	if (!module->nir)
 			ralloc_free(nir);
+
+	if (variant && cache)
+		radv_pipeline_cache_insert_shader(cache, sha1, variant, code,
+						  code_size);
+
+	if (code)
+		free(code);
 	return variant;
 }
 
@@ -1029,7 +1059,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		union ac_shader_variant_key key = radv_compute_vs_key(pCreateInfo);
 
 		pipeline->shaders[MESA_SHADER_VERTEX] =
-			 radv_pipeline_compile(pipeline, modules[MESA_SHADER_VERTEX],
+			 radv_pipeline_compile(pipeline, cache, modules[MESA_SHADER_VERTEX],
 					       pStages[MESA_SHADER_VERTEX]->pName,
 					       MESA_SHADER_VERTEX,
 					       pStages[MESA_SHADER_VERTEX]->pSpecializationInfo,
@@ -1054,7 +1084,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		const VkPipelineShaderStageCreateInfo *stage = pStages[MESA_SHADER_FRAGMENT];
 
 		pipeline->shaders[MESA_SHADER_FRAGMENT] =
-			 radv_pipeline_compile(pipeline, modules[MESA_SHADER_FRAGMENT],
+			 radv_pipeline_compile(pipeline, cache, modules[MESA_SHADER_FRAGMENT],
 					       stage ? stage->pName : "main",
 					       MESA_SHADER_FRAGMENT,
 					       stage ? stage->pSpecializationInfo : NULL,
@@ -1208,7 +1238,7 @@ static VkResult radv_compute_pipeline_create(
 	pipeline->layout = radv_pipeline_layout_from_handle(pCreateInfo->layout);
 
 	pipeline->shaders[MESA_SHADER_COMPUTE] =
-		 radv_pipeline_compile(pipeline, module,
+		 radv_pipeline_compile(pipeline, cache, module,
 				       pCreateInfo->stage.pName,
 				       MESA_SHADER_COMPUTE,
 				       pCreateInfo->stage.pSpecializationInfo,
