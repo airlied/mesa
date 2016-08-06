@@ -732,6 +732,8 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 			     VK_SHADER_STAGE_ALL_GRAPHICS);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
+
+	si_emit_cache_flush(cmd_buffer);
 }
 
 static void
