@@ -153,4 +153,12 @@ void radv_DestroyRenderPass(
 	radv_free2(&device->alloc, pAllocator, pass);
 }
 
+void radv_GetRenderAreaGranularity(
+    VkDevice                                    device,
+    VkRenderPass                                renderPass,
+    VkExtent2D*                                 pGranularity)
+{
+	pGranularity->width = 1;
+	pGranularity->height = 1;
+}
 	  
