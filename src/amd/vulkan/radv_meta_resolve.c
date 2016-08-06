@@ -232,7 +232,7 @@ create_pipeline(struct radv_device *device,
    }
 
    result = radv_graphics_pipeline_create(device_h,
-      VK_NULL_HANDLE,
+      radv_pipeline_cache_to_handle(&device->meta_state.cache),
       &(VkGraphicsPipelineCreateInfo) {
          .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
          .stageCount = 2,

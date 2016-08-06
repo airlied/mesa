@@ -23,6 +23,11 @@
 
 #include "radv_meta.h"
 
+#include <fcntl.h>
+#include <limits.h>
+#include <pwd.h>
+#include <sys/stat.h>
+
 void
 radv_meta_save(struct radv_meta_saved_state *state,
               const struct radv_cmd_buffer *cmd_buffer,
@@ -124,6 +129,105 @@ meta_free(void* _device, void *data)
    return device->alloc.pfnFree(device->alloc.pUserData, data);
 }
 
+static bool
+radv_builtin_cache_path(char *path)
+{
+	char *xdg_cache_home = getenv("XDG_CACHE_HOME");
+	const char *suffix = "/radv_builtin_shaders";
+	const char *suffix2 = "/.cache/radv_builtin_shaders";
+	struct passwd pwd, *result;
+	char path2[PATH_MAX + 1]; /* PATH_MAX is not a real max,but suffices here. */
+
+	if (xdg_cache_home) {
+
+		if (strlen(xdg_cache_home) + strlen(suffix) > PATH_MAX)
+			return false;
+
+		strcpy(path, xdg_cache_home);
+		strcat(path, suffix);
+		return true;
+	}
+
+	getpwuid_r(getuid(), &pwd, path2, PATH_MAX - strlen(suffix2), &result);
+	if (!result)
+		return false;
+
+	strcpy(path, pwd.pw_dir);
+	strcat(path, "/.cache");
+	mkdir(path, 0755);
+
+	strcat(path, suffix);
+	return true;
+}
+
+static void
+radv_load_meta_pipeline(struct radv_device *device)
+{
+	char path[PATH_MAX + 1];
+	struct stat st;
+	void *data = NULL;
+
+	if (!radv_builtin_cache_path(path))
+		return;
+
+	int fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return;
+	if (fstat(fd, &st))
+		goto fail;
+	data = malloc(st.st_size);
+	if (!data)
+		goto fail;
+	if(read(fd, data, st.st_size) == -1)
+		goto fail;
+
+	radv_pipeline_cache_load(&device->meta_state.cache, data, st.st_size);
+fail:
+	free(data);
+	close(fd);
+}
+
+static void
+radv_store_meta_pipeline(struct radv_device *device)
+{
+	char path[PATH_MAX + 1], path2[PATH_MAX + 7];
+	size_t size;
+	void *data = NULL;
+
+	if (!device->meta_state.cache.modified)
+		return;
+
+	if (radv_GetPipelineCacheData(radv_device_to_handle(device),
+				     radv_pipeline_cache_to_handle(&device->meta_state.cache),
+				      &size, NULL))
+		return;
+
+	if (!radv_builtin_cache_path(path))
+		return;
+
+	strcpy(path2, path);
+	strcat(path2, "XXXXXX");
+	int fd = mkstemp(path2);//open(path, O_WRONLY | O_CREAT, 0600);
+	if (fd < 0)
+		return;
+	data = malloc(size);
+	if (!data)
+		goto fail;
+
+	if (radv_GetPipelineCacheData(radv_device_to_handle(device),
+				     radv_pipeline_cache_to_handle(&device->meta_state.cache),
+				      &size, data))
+		goto fail;
+	if(write(fd, data, size) == -1)
+		goto fail;
+
+	rename(path2, path);
+fail:
+	free(data);
+	close(fd);
+	unlink(path2);
+}
+
 VkResult
 radv_device_init_meta(struct radv_device *device)
 {
@@ -135,6 +239,10 @@ radv_device_init_meta(struct radv_device *device)
       .pfnReallocation = meta_realloc,
       .pfnFree = meta_free,
    };
+
+   device->meta_state.cache.alloc = device->meta_state.alloc;
+   radv_pipeline_cache_init(&device->meta_state.cache, device);
+   radv_load_meta_pipeline(device);
 
    result = radv_device_init_meta_clear_state(device);
    if (result != VK_SUCCESS)
@@ -183,4 +291,6 @@ radv_device_finish_meta(struct radv_device *device)
 
    radv_device_finish_meta_bufimage_state(device);
 
+   radv_store_meta_pipeline(device);
+   radv_pipeline_cache_finish(&device->meta_state.cache);
 }

@@ -740,7 +740,7 @@ blit2d_init_pipeline(struct radv_device *device,
 	};
 
 	result = radv_graphics_pipeline_create(radv_device_to_handle(device),
-					       VK_NULL_HANDLE,
+					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc,
 					       &device->meta_state.blit2d.pipelines[src_type][fs_key]);

@@ -27,13 +27,14 @@
 
 #include "ac_nir_to_llvm.h"
 
-static void
+void
 radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
 			 struct radv_device *device)
 {
 	cache->device = device;
 	pthread_mutex_init(&cache->mutex, NULL);
 
+	cache->modified = false;
 	cache->kernel_count = 0;
 	cache->total_size = 0;
 	cache->table_size = 1024;
@@ -49,7 +50,7 @@ radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
 		memset(cache->hash_table, 0, byte_size);
 }
 
-static void
+void
 radv_pipeline_cache_finish(struct radv_pipeline_cache *cache)
 {
 	for (unsigned i = 0; i < cache->table_size; ++i)
@@ -266,6 +267,8 @@ radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 	entry->code_size = code_size;
 
 	radv_pipeline_cache_add_entry(cache, entry);
+
+	cache->modified = true;
 	pthread_mutex_unlock(&cache->mutex);
 }
 
@@ -276,7 +279,7 @@ struct cache_header {
 	uint32_t device_id;
 	uint8_t  uuid[VK_UUID_SIZE];
 };
-static void
+void
 radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 			 const void *data, size_t size)
 {

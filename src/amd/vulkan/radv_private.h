@@ -339,8 +339,46 @@ struct radv_instance {
 VkResult radv_init_wsi(struct radv_physical_device *physical_device);
 void radv_finish_wsi(struct radv_physical_device *physical_device);
 
+struct cache_entry;
+
+struct radv_pipeline_cache {
+	struct radv_device *                          device;
+	pthread_mutex_t                              mutex;
+
+	uint32_t                                     total_size;
+	uint32_t                                     table_size;
+	uint32_t                                     kernel_count;
+	struct cache_entry **                        hash_table;
+	bool                                         modified;
+
+	VkAllocationCallbacks                        alloc;
+};
+
+void
+radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
+			 struct radv_device *device);
+void
+radv_pipeline_cache_finish(struct radv_pipeline_cache *cache);
+void
+radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
+			 const void *data, size_t size);
+
+struct radv_shader_variant *
+radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
+					       struct radv_pipeline_cache *cache,
+					       const unsigned char *sha1);
+
+void
+radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
+				  const unsigned char *sha1,
+				  struct radv_shader_variant *variant,
+				  const void *code, unsigned code_size);
+
+
 struct radv_meta_state {
 	VkAllocationCallbacks alloc;
+
+	struct radv_pipeline_cache cache;
 
 	/**
 	 * Use array element `i` for images with `2^i` samples.
@@ -406,31 +444,6 @@ struct radv_queue {
 
 	struct radv_state_pool *                     pool;
 };
-
-struct cache_entry;
-
-struct radv_pipeline_cache {
-	struct radv_device *                          device;
-	pthread_mutex_t                              mutex;
-
-	uint32_t                                     total_size;
-	uint32_t                                     table_size;
-	uint32_t                                     kernel_count;
-	struct cache_entry **                        hash_table;
-
-	VkAllocationCallbacks                        alloc;
-};
-
-struct radv_shader_variant *
-radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
-					       struct radv_pipeline_cache *cache,
-					       const unsigned char *sha1);
-
-void
-radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
-				  const unsigned char *sha1,
-				  struct radv_shader_variant *variant,
-				  const void *code, unsigned code_size);
 
 struct radv_device {
 	VK_LOADER_DATA                              _loader_data;
