@@ -167,8 +167,9 @@ radv_device_init_meta_itob_state(struct radv_device *device)
 	};
 
 	result = radv_CreateComputePipelines(radv_device_to_handle(device),
-					     NULL, 1, &vk_pipeline_info,
-					     NULL, &device->meta_state.itob.pipeline);
+					     radv_pipeline_cache_to_handle(&device->meta_state.cache),
+					     1, &vk_pipeline_info, NULL,
+					     &device->meta_state.itob.pipeline);
 	if (result != VK_SUCCESS)
 		goto fail;
 	return VK_SUCCESS;
