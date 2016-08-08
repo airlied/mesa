@@ -423,14 +423,15 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 		if (!(ps->info.fs.input_mask & (1u << i)))
 			continue;
 
+		ps_offset = util_bitcount(ps->info.fs.input_mask & ((1u << i) - 1));
+		ps_offset += pcoord_offset;
+
 		if (!(vs->info.vs.export_mask & (1u << i))) {
 			radeon_set_context_reg(cmd_buffer->cs, R_028644_SPI_PS_INPUT_CNTL_0 + 4 * ps_offset,
 					       S_028644_OFFSET(0x20));
 			continue;
 		}
 
-		ps_offset = util_bitcount(ps->info.fs.input_mask & ((1u << i) - 1));
-		ps_offset += pcoord_offset;
 		vs_offset = util_bitcount(vs->info.vs.export_mask & ((1u << i) - 1));
 		flat_shade = !!(ps->info.fs.flat_shaded_mask & (1u << ps_offset));
 
