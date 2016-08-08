@@ -9,3 +9,5 @@ Tessellation Shaders
 Compute & DMA queues
 Shader cache
 vulkan queries
+secondary command buffers
+compute shared memory
