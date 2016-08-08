@@ -260,6 +260,15 @@ static void amdgpu_winsys_query_info(struct radeon_winsys *rws,
 	*info = ((struct amdgpu_winsys *)rws)->info;
 }
 
+static void radv_amdgpu_winsys_destroy(struct radeon_winsys *rws)
+{
+	struct amdgpu_winsys *ws = (struct amdgpu_winsys*)rws;
+
+	AddrDestroy(ws->addrlib);
+	amdgpu_device_deinitialize(ws->dev);
+	FREE(rws);
+}
+
 struct radeon_winsys *
 radv_amdgpu_winsys_create(int fd)
 {
@@ -283,6 +292,7 @@ radv_amdgpu_winsys_create(int fd)
 		goto fail;
 
 	ws->base.query_info = amdgpu_winsys_query_info;
+	ws->base.destroy = radv_amdgpu_winsys_destroy;
 	radv_amdgpu_bo_init_functions(ws);
 	radv_amdgpu_cs_init_functions(ws);
 	radv_amdgpu_surface_init_functions(ws);

@@ -89,7 +89,7 @@ static void
 radv_physical_device_finish(struct radv_physical_device *device)
 {
 	radv_finish_wsi(device);
-	//ralloc_free(device->compiler);
+	device->ws->destroy(device->ws);
 }
 
 static const VkExtensionProperties global_extensions[] = {
