@@ -819,7 +819,6 @@ struct radv_pipeline {
 	uint32_t va_offset[MAX_VERTEX_ATTRIBS];
 	uint32_t num_vertex_attribs;
 	uint32_t                                     binding_stride[MAX_VBS];
-	bool                                         instancing_enable[MAX_VBS];
 
 	union {
 		struct {
