@@ -1875,7 +1875,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 		params[2] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[4] = i1false;  /* r128 */
-		params[5] = glsl_sampler_type_is_array(var->type) ? ctx->i32one : ctx->i32zero; /* da */
+		params[5] = glsl_sampler_type_is_array(var->type) ? i1true : i1false; /* da */
 		params[6] = i1false;  /* glc */
 		params[7] = i1false;  /* slc */
 
