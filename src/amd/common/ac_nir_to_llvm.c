@@ -1924,6 +1924,22 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 	return res;
 }
 
+static void emit_waitcnt(struct nir_to_llvm_context *ctx)
+{
+	LLVMValueRef args[1] = {
+		LLVMConstInt(ctx->i32, 0xf70, false),
+	};
+	emit_llvm_intrinsic(ctx, "llvm.amdgcn.s.waitcnt",
+			    ctx->voidt, args, 1, 0);
+}
+
+static void emit_barrier(struct nir_to_llvm_context *ctx)
+{
+	// TODO tess
+	emit_llvm_intrinsic(ctx, "llvm.amdgcn.s.barrier",
+			    ctx->voidt, NULL, 0, 0);
+}
+
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
 {
@@ -2009,6 +2025,12 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		emit_llvm_intrinsic(ctx, "llvm.AMDGPU.kilp",
 				    LLVMVoidTypeInContext(ctx->context),
 				    NULL, 0, 0);
+		break;
+	case nir_intrinsic_memory_barrier:
+		emit_waitcnt(ctx);
+		break;
+	case nir_intrinsic_barrier:
+		emit_barrier(ctx);
 		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
