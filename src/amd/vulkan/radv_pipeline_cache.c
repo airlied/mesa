@@ -296,7 +296,7 @@ radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 		return;
 	if (header.vendor_id != 0x1002)
 		return;
-	if (header.device_id != device->chipset_id)
+	if (header.device_id != device->instance->physicalDevice.rad_info.pci_id)
 		return;
 	radv_device_get_cache_uuid(uuid);
 	if (memcmp(header.uuid, uuid, VK_UUID_SIZE) != 0)
@@ -394,7 +394,7 @@ VkResult radv_GetPipelineCacheData(
 	header->header_size = sizeof(*header);
 	header->header_version = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
 	header->vendor_id = 0x1002;
-	header->device_id = device->chipset_id;
+	header->device_id = device->instance->physicalDevice.rad_info.pci_id;
 	radv_device_get_cache_uuid(header->uuid);
 	p += header->header_size;
    
