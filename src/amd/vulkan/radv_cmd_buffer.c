@@ -1516,7 +1516,7 @@ void radv_CmdDrawIndexedIndirect(
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_INDEX_BUFFER_SIZE, 0, 0));
 	radeon_emit(cmd_buffer->cs, index_max_size);
 
-	radv_emit_indirect_draw(cmd_buffer, _buffer, offset, drawCount, stride, false);
+	radv_emit_indirect_draw(cmd_buffer, _buffer, offset, drawCount, stride, true);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
