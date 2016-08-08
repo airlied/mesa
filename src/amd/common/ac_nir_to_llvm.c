@@ -1366,7 +1366,7 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	}
 
 	build_int_type_name(LLVMTypeOf(tinfo->args[0]), type, sizeof(type));
-	sprintf(intr_name, "%s%s.%s", name, infix, type);
+	sprintf(intr_name, "%s%s%s.%s", name, instr->is_shadow ? ".c" : "", infix, type);
 
 	return emit_llvm_intrinsic(ctx, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
 				   LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
@@ -2237,6 +2237,11 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		address[count++] = lod;
 	}
 
+	/* Pack depth comparison value */
+	if (instr->is_shadow) {
+		address[count++] = get_src(ctx, instr->src[1].src);
+	}
+
 	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
 		for (chan = 0; chan < instr->coord_components; chan++)
 			coords[chan] = to_float(ctx, coords[chan]);
@@ -2253,7 +2258,8 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		address[count++] = coords[2];
 
 	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && instr->num_srcs > 1) {
-		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
+		int lod_idx = instr->is_shadow ? 2 : 1;
+		LLVMValueRef lod = get_src(ctx, instr->src[lod_idx].src);
 		address[count++] = lod;
 	} else if(instr->op == nir_texop_txs) {
 		LLVMValueRef lod = get_src(ctx, instr->src[0].src);
