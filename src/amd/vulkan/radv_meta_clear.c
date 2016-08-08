@@ -224,12 +224,12 @@ static VkResult
 create_color_pipeline(struct radv_device *device,
                       VkFormat vk_format,
                       uint32_t frag_output,
-                      struct radv_pipeline **pipeline)
+                      struct radv_pipeline **pipeline,
+		      VkRenderPass *pass)
 {
    struct nir_shader *vs_nir;
    struct nir_shader *fs_nir;
    VkResult result;
-   VkRenderPass render_pass;
    build_color_shaders(&vs_nir, &fs_nir, frag_output);
 
    const VkPipelineVertexInputStateCreateInfo vi_state = {
@@ -314,16 +314,14 @@ create_color_pipeline(struct radv_device *device,
                                          .pPreserveAttachments = (uint32_t[]) { 0 },
                                      },
                                      .dependencyCount = 0,
-                                  }, &device->meta_state.alloc, &render_pass);
+                                  }, &device->meta_state.alloc, pass);
 
    if (result != VK_SUCCESS)
 	   return result;
-   result = create_pipeline(device, radv_render_pass_from_handle(render_pass),
+   result = create_pipeline(device, radv_render_pass_from_handle(*pass),
 			    vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
 			    &device->meta_state.alloc, pipeline);
 
-   radv_DestroyRenderPass(radv_device_to_handle(device), render_pass,
-                          &device->meta_state.alloc);
    return result;
 }
 
@@ -336,6 +334,14 @@ destroy_pipeline(struct radv_device *device, struct radv_pipeline *pipeline)
    RADV_CALL(DestroyPipeline)(radv_device_to_handle(device),
                              radv_pipeline_to_handle(pipeline),
                              &device->meta_state.alloc);
+
+}
+
+static void
+destroy_render_pass(struct radv_device *device, VkRenderPass renderpass)
+{
+	RADV_CALL(DestroyRenderPass)(radv_device_to_handle(device), renderpass,
+				     &device->meta_state.alloc);
 }
 
 void
@@ -345,10 +351,14 @@ radv_device_finish_meta_clear_state(struct radv_device *device)
 
    for (uint32_t i = 0; i < ARRAY_SIZE(state->clear.color_pipelines); ++i) {
 	   destroy_pipeline(device, state->clear.color_pipelines[i]);
+	   destroy_render_pass(device, state->clear.render_pass[i]);
    }
    destroy_pipeline(device, state->clear.depth_only_pipeline);
+   destroy_render_pass(device, state->clear.depth_only_rp);
    destroy_pipeline(device, state->clear.stencil_only_pipeline);
+   destroy_render_pass(device, state->clear.stencil_only_rp);
    destroy_pipeline(device, state->clear.depthstencil_pipeline);
+   destroy_render_pass(device, state->clear.depthstencil_rp);
 }
 
 static void
@@ -452,10 +462,10 @@ build_depthstencil_shader(struct nir_shader **out_vs, struct nir_shader **out_fs
 static VkResult
 create_depthstencil_pipeline(struct radv_device *device,
                              VkImageAspectFlags aspects,
-                             struct radv_pipeline **pipeline)
+                             struct radv_pipeline **pipeline,
+			     VkRenderPass *render_pass)
 {
    struct nir_shader *vs_nir, *fs_nir;
-   VkRenderPass render_pass;
    VkResult result;
 
    build_depthstencil_shader(&vs_nir, &fs_nir);
@@ -531,17 +541,14 @@ create_depthstencil_pipeline(struct radv_device *device,
                                          .pPreserveAttachments = (uint32_t[]) { 0 },
                                      },
                                      .dependencyCount = 0,
-                                  }, &device->meta_state.alloc, &render_pass);
+					}, &device->meta_state.alloc, render_pass);
    if (result != VK_SUCCESS)
       return result;
 
 
-   result =  create_pipeline(device, radv_render_pass_from_handle(render_pass),
+   result =  create_pipeline(device, radv_render_pass_from_handle(*render_pass),
 			     vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
 			     &device->meta_state.alloc, pipeline);
-
-   radv_DestroyRenderPass(radv_device_to_handle(device), render_pass,
-                          &device->meta_state.alloc);
    return result;
 }
 
@@ -670,27 +677,31 @@ radv_device_init_meta_clear_state(struct radv_device *device)
       VkFormat format = pipeline_formats[i];
       unsigned fs_key = radv_format_meta_fs_key(format);
       assert(!state->clear.color_pipelines[fs_key]);
-      res = create_color_pipeline(device, format, 0, &state->clear.color_pipelines[fs_key]);
+      res = create_color_pipeline(device, format, 0, &state->clear.color_pipelines[fs_key],
+				  &state->clear.render_pass[fs_key]);
       if (res != VK_SUCCESS)
 	goto fail;
 
    }
    res = create_depthstencil_pipeline(device,
                                       VK_IMAGE_ASPECT_DEPTH_BIT,
-                                      &state->clear.depth_only_pipeline);
+                                      &state->clear.depth_only_pipeline,
+				      &state->clear.depth_only_rp);
    if (res != VK_SUCCESS)
       goto fail;
 
    res = create_depthstencil_pipeline(device,
                                       VK_IMAGE_ASPECT_STENCIL_BIT,
-                                      &state->clear.stencil_only_pipeline);
+                                      &state->clear.stencil_only_pipeline,
+				      &state->clear.stencil_only_rp);
    if (res != VK_SUCCESS)
       goto fail;
 
    res = create_depthstencil_pipeline(device,
                                       VK_IMAGE_ASPECT_DEPTH_BIT |
                                       VK_IMAGE_ASPECT_STENCIL_BIT,
-                                      &state->clear.depthstencil_pipeline);
+                                      &state->clear.depthstencil_pipeline,
+				      &state->clear.depthstencil_rp);
    if (res != VK_SUCCESS)
       goto fail;
 
