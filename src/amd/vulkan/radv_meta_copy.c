@@ -203,6 +203,10 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_meta_saved_state saved_state;
 
+	if (image->vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+		radv_finishme("blitting d32/s8\n");
+		return;
+	}
 	radv_meta_begin_bufimage(cmd_buffer, &saved_state);
 	for (unsigned r = 0; r < regionCount; r++) {
 
