@@ -535,7 +535,7 @@ static const VkPipelineVertexInputStateCreateInfo normal_vi_create_info = {
 
 static nir_shader *
 build_nir_copy_fragment_shader(struct radv_device *device,
-                               texel_fetch_build_func txf_func, char* name)
+                               texel_fetch_build_func txf_func, const char* name)
 {
 	const struct glsl_type *vec4 = glsl_vec4_type();
 	const struct glsl_type *vec2 = glsl_vector_type(GLSL_TYPE_FLOAT, 2);
