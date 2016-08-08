@@ -1254,7 +1254,7 @@ void radv_CmdExecuteCommands(
 	//   RADV_FROM_HANDLE(radv_cmd_buffer, primary, commandBuffer);
 
 	//   assert(primary->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-
+	radv_finishme("secondary command buffers\n");
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
 		//      RADV_FROM_HANDLE(radv_cmd_buffer, secondary, pCmdBuffers[i]);
 
