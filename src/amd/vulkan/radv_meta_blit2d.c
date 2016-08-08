@@ -644,36 +644,38 @@ blit2d_init_pipeline(struct radv_device *device,
 		},
 	};
 
-	result = radv_CreateRenderPass(radv_device_to_handle(device),
-                                  &(VkRenderPassCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                                     .attachmentCount = 1,
-                                     .pAttachments = &(VkAttachmentDescription) {
-                                         .format = format,
-                                         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                                         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                                         .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                     },
-                                     .subpassCount = 1,
-                                     .pSubpasses = &(VkSubpassDescription) {
-                                         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                         .inputAttachmentCount = 0,
-                                         .colorAttachmentCount = 1,
-                                         .pColorAttachments = &(VkAttachmentReference) {
-                                            .attachment = 0,
-                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
-                                         },
-                                         .pResolveAttachments = NULL,
-                                         .pDepthStencilAttachment = &(VkAttachmentReference) {
-                                            .attachment = VK_ATTACHMENT_UNUSED,
-                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
-                                         },
-                                         .preserveAttachmentCount = 1,
-                                         .pPreserveAttachments = (uint32_t[]) { 0 },
-                                     },
-                                     .dependencyCount = 0,
-                                  }, &device->meta_state.alloc, &device->meta_state.blit2d.render_passes[fs_key]);
+	if (!device->meta_state.blit2d.render_passes[fs_key]) {
+		result = radv_CreateRenderPass(radv_device_to_handle(device),
+					       &(VkRenderPassCreateInfo) {
+						       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+						       .attachmentCount = 1,
+						       .pAttachments = &(VkAttachmentDescription) {
+						       .format = format,
+						       .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+						       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+						       .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+						       .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+						       },
+					       .subpassCount = 1,
+					       .pSubpasses = &(VkSubpassDescription) {
+						       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+						       .inputAttachmentCount = 0,
+						       .colorAttachmentCount = 1,
+						       .pColorAttachments = &(VkAttachmentReference) {
+							       .attachment = 0,
+							       .layout = VK_IMAGE_LAYOUT_GENERAL,
+							},
+					       .pResolveAttachments = NULL,
+					       .pDepthStencilAttachment = &(VkAttachmentReference) {
+						       .attachment = VK_ATTACHMENT_UNUSED,
+						       .layout = VK_IMAGE_LAYOUT_GENERAL,
+					       },
+					       .preserveAttachmentCount = 1,
+					       .pPreserveAttachments = (uint32_t[]) { 0 },
+					       },
+					.dependencyCount = 0,
+				 }, &device->meta_state.alloc, &device->meta_state.blit2d.render_passes[fs_key]);
+	}
 
 	const VkGraphicsPipelineCreateInfo vk_pipeline_info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
