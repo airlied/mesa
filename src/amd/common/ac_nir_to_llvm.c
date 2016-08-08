@@ -2494,7 +2494,7 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 					    ctx->base_vertex, "");
 
 	for (unsigned i = 0; i < attrib_count; ++i, ++idx) {
-		t_offset = LLVMConstInt(ctx->i32, index, false);
+		t_offset = LLVMConstInt(ctx->i32, index + i, false);
 
 		t_list = build_indexed_load_const(ctx, t_list_ptr, t_offset);
 		args[0] = t_list;
