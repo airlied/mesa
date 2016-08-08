@@ -7,7 +7,6 @@ DCC
 Geometry shaders
 Tessellation Shaders
 Compute & DMA queues
-Shader cache
-vulkan queries
+pipeline statistics queries
 secondary command buffers
 compute shared memory
