@@ -1138,19 +1138,6 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 			&vi_info->pVertexBindingDescriptions[i];
 
 		pipeline->binding_stride[desc->binding] = desc->stride;
-
-		/* Step rate is programmed per vertex element (attribute), not
-		 * binding. Set up a map of which bindings step per instance, for
-		 * reference by vertex element setup. */
-		switch (desc->inputRate) {
-		default:
-		case VK_VERTEX_INPUT_RATE_VERTEX:
-			pipeline->instancing_enable[desc->binding] = false;
-			break;
-		case VK_VERTEX_INPUT_RATE_INSTANCE:
-			pipeline->instancing_enable[desc->binding] = true;
-			break;
-		}
 	}
 
 	return VK_SUCCESS;
