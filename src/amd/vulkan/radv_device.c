@@ -806,6 +806,10 @@ VkResult radv_AllocateMemory(
 	mem->bo.bo = device->ws->buffer_create(device->ws, alloc_size, 32768,
 					       domain, 0);
 
+	if (!mem->bo.bo) {
+		result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+		goto fail;
+	}
 	mem->type_index = pAllocateInfo->memoryTypeIndex;
 
 	*pMem = radv_device_memory_to_handle(mem);
