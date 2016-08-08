@@ -455,7 +455,6 @@ struct radv_device {
 	VkAllocationCallbacks                       alloc;
 
 	struct radv_instance *                       instance;
-	uint32_t                                    chipset_id;
 	struct radeon_winsys *ws;
 	struct radeon_winsys_ctx *hw_ctx;
 
