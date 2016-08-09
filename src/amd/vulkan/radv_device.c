@@ -1253,11 +1253,9 @@ si_tile_mode_index(const struct radv_image *image, unsigned level, bool stencil)
 
 static void
 radv_initialise_color_surface(struct radv_device *device,
-			      struct radv_framebuffer *framebuffer,
-			      int index,
+			      struct radv_color_buffer_info *cb,
 			      struct radv_image_view *iview)
 {
-	struct radv_color_buffer_info *cb = &framebuffer->attachments[index].cb;
 	const struct vk_format_description *desc;
 	unsigned ntype, format, swap, endian;
 	unsigned blend_clamp = 0, blend_bypass = 0;
@@ -1357,11 +1355,9 @@ radv_initialise_color_surface(struct radv_device *device,
 
 static void
 radv_initialise_ds_surface(struct radv_device *device,
-			   struct radv_framebuffer *framebuffer,
-			   int index,
+			   struct radv_ds_buffer_info *ds,
 			   struct radv_image_view *iview)
 {
-	struct radv_ds_buffer_info *ds = &framebuffer->attachments[index].ds;
 	unsigned level = iview->base_mip;
 	unsigned format;
 	uint64_t va, s_offs, z_offs;
@@ -1464,9 +1460,9 @@ VkResult radv_CreateFramebuffer(
 		struct radv_image_view *iview = radv_image_view_from_handle(_iview);
 		framebuffer->attachments[i].attachment = iview;
 		if (iview->aspect_mask & VK_IMAGE_ASPECT_COLOR_BIT) {
-			radv_initialise_color_surface(device, framebuffer, i, iview);
+			radv_initialise_color_surface(device, &framebuffer->attachments[i].cb, iview);
 		} else if (iview->aspect_mask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
-			radv_initialise_ds_surface(device, framebuffer, i, iview);
+			radv_initialise_ds_surface(device, &framebuffer->attachments[i].ds, iview);
 		}
 	}
 
