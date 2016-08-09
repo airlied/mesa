@@ -1789,9 +1789,12 @@ static LLVMValueRef get_image_coords(struct nir_to_llvm_context *ctx,
 	count = image_type_to_components_count(glsl_get_sampler_dim(type),
 					       glsl_sampler_type_is_array(type));
 
-	if (count == 1)
-		res = src0;
-	else {
+	if (count == 1) {
+		if (instr->src[0].ssa->num_components)
+			res = LLVMBuildExtractElement(ctx->builder, src0, masks[0], "");
+		else
+			res = src0;
+	} else {
 		int chan;
 		for (chan = 0; chan < count; ++chan) {
 			coords[chan] = LLVMBuildExtractElement(ctx->builder, src0, masks[chan], "");
