@@ -213,24 +213,23 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 }
 
 static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
-			     unsigned nr_samples)
+			     unsigned nr_layers, unsigned nr_samples, bool is_single_layer)
 {
-	switch (view_type) {
-	case VK_IMAGE_VIEW_TYPE_1D:
-		return V_008F1C_SQ_RSRC_IMG_1D;
-	case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
-		return V_008F1C_SQ_RSRC_IMG_1D_ARRAY;
-	case VK_IMAGE_VIEW_TYPE_2D:
-		return nr_samples > 1 ? V_008F1C_SQ_RSRC_IMG_2D_MSAA :
-		V_008F1C_SQ_RSRC_IMG_2D;
-	case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
-	case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
-		return nr_samples > 1 ? V_008F1C_SQ_RSRC_IMG_2D_MSAA_ARRAY :
-		V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
-	case VK_IMAGE_VIEW_TYPE_3D:
-		return V_008F1C_SQ_RSRC_IMG_3D;
-	case VK_IMAGE_VIEW_TYPE_CUBE:
+	if (view_type == VK_IMAGE_VIEW_TYPE_CUBE)
 		return V_008F1C_SQ_RSRC_IMG_CUBE;
+	switch (image_type) {
+	case VK_IMAGE_TYPE_1D:
+		return nr_layers > 1 ? V_008F1C_SQ_RSRC_IMG_1D_ARRAY : V_008F1C_SQ_RSRC_IMG_1D;
+	case VK_IMAGE_TYPE_2D:
+		if (nr_samples > 1)
+			return nr_layers > 1 ? V_008F1C_SQ_RSRC_IMG_2D_MSAA_ARRAY : V_008F1C_SQ_RSRC_IMG_2D_MSAA;
+		else
+			return nr_layers > 1 ? V_008F1C_SQ_RSRC_IMG_2D_ARRAY : V_008F1C_SQ_RSRC_IMG_2D;
+	case VK_IMAGE_TYPE_3D:
+		if (view_type == VK_IMAGE_VIEW_TYPE_3D)
+			return V_008F1C_SQ_RSRC_IMG_3D;
+		else
+			return V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
 	}
 }
 /**
@@ -303,7 +302,7 @@ si_make_texture_descriptor(struct radv_device *device,
 		type = radv_tex_dim(res->target, target, res->nr_samples);
 	}
 #endif
-	type = radv_tex_dim(image->type, view_type, image->samples);
+	type = radv_tex_dim(image->type, view_type, image->array_size, image->samples, last_layer == first_layer);
 	if (type == V_008F1C_SQ_RSRC_IMG_1D_ARRAY) {
 	        height = 1;
 		depth = image->array_size;
@@ -386,7 +385,7 @@ si_make_texture_descriptor(struct radv_device *device,
 			S_008F1C_DST_SEL_Z(V_008F1C_SQ_SEL_X) |
 			S_008F1C_DST_SEL_W(V_008F1C_SQ_SEL_X) |
 			S_008F1C_TILING_INDEX(tex->fmask.tile_mode_index) |
-			S_008F1C_TYPE(radv_tex_dim(image->type, 0, 0));
+			S_008F1C_TYPE(radv_tex_dim(image->type, view_type, 1, 0, false));
 		fmask_state[4] = S_008F20_DEPTH(depth - 1) |
 			S_008F20_PITCH(tex->fmask.pitch_in_pixels - 1);
 		fmask_state[5] = S_008F24_BASE_ARRAY(first_layer) |
