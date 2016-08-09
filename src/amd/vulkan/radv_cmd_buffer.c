@@ -471,10 +471,11 @@ radv_emit_scissor(struct radv_cmd_buffer *cmd_buffer)
 
 static void
 radv_emit_fb_color_state(struct radv_cmd_buffer *cmd_buffer,
+			 int index,
 			 struct radv_color_buffer_info *cb)
 {
 	bool is_vi = cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= VI;
-	radeon_set_context_reg_seq(cmd_buffer->cs, R_028C60_CB_COLOR0_BASE + cb->color_index * 0x3c, is_vi ? 14 : 13);
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028C60_CB_COLOR0_BASE + index * 0x3c, is_vi ? 14 : 13);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_base);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_pitch);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_slice);
@@ -534,7 +535,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
 
 		assert(att->attachment->aspect_mask & VK_IMAGE_ASPECT_COLOR_BIT);
-		radv_emit_fb_color_state(cmd_buffer, &att->cb);
+		radv_emit_fb_color_state(cmd_buffer, i, &att->cb);
 	}
 
 	for (i = subpass->color_count; i < 8; i++)
