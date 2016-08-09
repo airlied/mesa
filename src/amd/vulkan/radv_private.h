@@ -998,7 +998,6 @@ struct radv_sampler {
 };
 
 struct radv_color_buffer_info {
-	uint32_t color_index;
 	uint32_t cb_color_base;
 	uint32_t cb_color_pitch;
 	uint32_t cb_color_slice;
