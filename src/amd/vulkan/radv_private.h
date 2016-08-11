@@ -393,7 +393,7 @@ struct radv_meta_state {
 		struct radv_pipeline *stencil_only_pipeline;
 		VkRenderPass depthstencil_rp;
 		struct radv_pipeline *depthstencil_pipeline;
-	} clear;
+	} clear[1 + MAX_SAMPLES_LOG2];
 
 	struct {
 		VkRenderPass render_pass;
