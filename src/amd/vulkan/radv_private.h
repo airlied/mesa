@@ -698,7 +698,8 @@ radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    const void *data, unsigned *out_offset);
 void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
-
+void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_samples);
+unsigned radv_cayman_get_maxdist(int log_samples);
 /*
  * Takes x,y,z as exact numbers of invocations, instead of blocks.
  *
