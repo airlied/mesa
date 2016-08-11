@@ -604,14 +604,15 @@ static void
 radv_pipeline_compute_spi_color_formats(struct radv_pipeline *pipeline,
 					const VkGraphicsPipelineCreateInfo *pCreateInfo,
 					uint32_t blend_enable,
-					uint32_t blend_need_alpha)
+					uint32_t blend_need_alpha,
+					bool single_cb_enable)
 {
 	RADV_FROM_HANDLE(radv_render_pass, pass, pCreateInfo->renderPass);
 	struct radv_subpass *subpass = pass->subpasses + pCreateInfo->subpass;
 	struct radv_blend_state *blend = &pipeline->graphics.blend;
 	unsigned col_format = 0;
 
-	for (unsigned i = 0; i < subpass->color_count; ++i) {
+	for (unsigned i = 0; i < (single_cb_enable ? 1 : subpass->color_count); ++i) {
 		struct radv_render_pass_attachment *attachment;
 		unsigned cf;
 
@@ -670,14 +671,19 @@ radv_pipeline_compute_is_int8(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 
 static void
 radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
-			       const VkGraphicsPipelineCreateInfo *pCreateInfo)
+			       const VkGraphicsPipelineCreateInfo *pCreateInfo,
+			       const struct radv_graphics_pipeline_create_info *extra)
 {
 	const VkPipelineColorBlendStateCreateInfo *vkblend = pCreateInfo->pColorBlendState;
 	struct radv_blend_state *blend = &pipeline->graphics.blend;
 	unsigned mode = V_028808_CB_NORMAL;
 	uint32_t blend_enable = 0, blend_need_alpha = 0;
 	int i;
-
+	bool single_cb_enable = false;
+	if (extra && extra->custom_blend_mode) {
+		single_cb_enable = true;
+		mode = extra->custom_blend_mode;
+	}
 	blend->cb_color_control = 0;
 	if (vkblend->logicOpEnable)
 		blend->cb_color_control |= S_028808_ROP3(vkblend->logicOp | (vkblend->logicOp << 4));
@@ -752,7 +758,7 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 		blend->cb_color_control |= S_028808_MODE(V_028808_CB_DISABLE);
 
 	radv_pipeline_compute_spi_color_formats(pipeline, pCreateInfo,
-						blend_enable, blend_need_alpha);
+						blend_enable, blend_need_alpha, single_cb_enable);
 }
 
 static uint32_t si_translate_stencil_op(enum VkStencilOp op)
@@ -1062,7 +1068,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		modules[stage] = radv_shader_module_from_handle(pStages[stage]->module);
 	}
 
-	radv_pipeline_init_blend_state(pipeline, pCreateInfo);
+	radv_pipeline_init_blend_state(pipeline, pCreateInfo, extra);
 
 	/* */
 	if (modules[MESA_SHADER_VERTEX]) {
