@@ -35,6 +35,7 @@
 #include <llvm-c/TargetMachine.h>
 
 #include "sid.h"
+#include "r600d_common.h"
 #include "ac_binary.h"
 #include "ac_llvm_util.h"
 #include "ac_nir_to_llvm.h"
@@ -860,7 +861,6 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 		S_028BE4_PIX_CENTER(1) | // TODO verify
 		S_028BE4_QUANT_MODE(V_028BE4_X_16_8_FIXED_POINT_1_256TH);
 
-	raster->pa_sc_mode_cntl_0 = 0;
 	raster->pa_su_sc_mode_cntl =
 		S_028814_FACE(vkraster->frontFace) |
 		S_028814_CULL_FRONT(!!(vkraster->cullMode & VK_CULL_MODE_FRONT_BIT)) |
@@ -868,6 +868,59 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 		S_028814_POLY_MODE(vkraster->polygonMode != VK_POLYGON_MODE_FILL) |
 		S_028814_POLYMODE_FRONT_PTYPE(si_translate_fill(vkraster->polygonMode)) |
 		S_028814_POLYMODE_BACK_PTYPE(si_translate_fill(vkraster->polygonMode));
+}
+
+static void
+radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
+				     const VkGraphicsPipelineCreateInfo *pCreateInfo)
+{
+	const VkPipelineMultisampleStateCreateInfo *vkms = pCreateInfo->pMultisampleState;
+	struct radv_blend_state *blend = &pipeline->graphics.blend;
+	struct radv_multisample_state *ms = &pipeline->graphics.ms;
+	unsigned num_tile_pipes = pipeline->device->instance->physicalDevice.rad_info.num_tile_pipes;
+	int ps_iter_samples = 1;
+	uint32_t mask = 0xffff;
+
+	ms->num_samples = vkms->rasterizationSamples;
+	ms->pa_sc_line_cntl = S_028BDC_DX10_DIAMOND_TEST_ENA(1);
+	ms->pa_sc_aa_config = 0;
+	ms->db_eqaa = S_028804_HIGH_QUALITY_INTERSECTIONS(1) |
+		S_028804_STATIC_ANCHOR_ASSOCIATIONS(1);
+	ms->pa_sc_mode_cntl_1 =
+		S_028A4C_WALK_FENCE_ENABLE(1) | //TODO linear dst fixes
+		S_028A4C_WALK_FENCE_SIZE(num_tile_pipes == 2 ? 2 : 3) |
+		/* always 1: */
+		S_028A4C_WALK_ALIGN8_PRIM_FITS_ST(1) |
+		S_028A4C_SUPERTILE_WALK_ORDER_ENABLE(1) |
+		S_028A4C_TILE_WALK_ORDER_ENABLE(1) |
+		S_028A4C_MULTI_SHADER_ENGINE_PRIM_DISCARD_ENABLE(1) |
+		EG_S_028A4C_FORCE_EOV_CNTDWN_ENABLE(1) |
+		EG_S_028A4C_FORCE_EOV_REZ_ENABLE(1);
+
+	if (vkms->rasterizationSamples > 1) {
+		unsigned log_samples = util_logbase2(vkms->rasterizationSamples);
+		unsigned log_ps_iter_samples = util_logbase2(util_next_power_of_two(ps_iter_samples));
+		ms->pa_sc_mode_cntl_0 = S_028A48_MSAA_ENABLE(1);
+		ms->pa_sc_line_cntl |= S_028BDC_EXPAND_LINE_WIDTH(1); /* CM_R_028BDC_PA_SC_LINE_CNTL */
+		ms->db_eqaa |= S_028804_MAX_ANCHOR_SAMPLES(log_samples) |
+			S_028804_PS_ITER_SAMPLES(log_ps_iter_samples) |
+			S_028804_MASK_EXPORT_NUM_SAMPLES(log_samples) |
+			S_028804_ALPHA_TO_MASK_NUM_SAMPLES(log_samples);
+		ms->pa_sc_aa_config |= S_028BE0_MSAA_NUM_SAMPLES(log_samples) |
+			S_028BE0_MAX_SAMPLE_DIST(radv_cayman_get_maxdist(log_samples)) |
+			S_028BE0_MSAA_EXPOSED_SAMPLES(log_samples); /* CM_R_028BE0_PA_SC_AA_CONFIG */
+		ms->pa_sc_mode_cntl_1 |= EG_S_028A4C_PS_ITER_SAMPLE(ps_iter_samples > 1);
+	}
+
+	if (vkms->alphaToCoverageEnable)
+		blend->db_alpha_to_mask |= S_028B70_ALPHA_TO_MASK_ENABLE(1);
+
+	if (vkms->pSampleMask) {
+		mask = vkms->pSampleMask[0] & 0xffff;
+	}
+
+	ms->pa_sc_aa_mask[0] = mask | (mask << 16);
+	ms->pa_sc_aa_mask[1] = mask | (mask << 16);
 }
 
 static uint32_t
@@ -1113,7 +1166,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 
 	radv_pipeline_init_depth_stencil_state(pipeline, pCreateInfo);
 	radv_pipeline_init_raster_state(pipeline, pCreateInfo);
-
+	radv_pipeline_init_multisample_state(pipeline, pCreateInfo);
 	pipeline->graphics.prim = si_translate_prim(pCreateInfo->pInputAssemblyState->topology);
 	if (extra && extra->use_rectlist)
 		pipeline->graphics.prim = V_008958_DI_PT_RECTLIST;

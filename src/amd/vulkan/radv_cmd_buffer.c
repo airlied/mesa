@@ -268,6 +268,27 @@ static unsigned radv_pack_float_12p4(float x)
 }
 
 static void
+radv_update_multisample_state(struct radv_cmd_buffer *cmd_buffer,
+			      struct radv_pipeline *pipeline)
+{
+	int num_samples = pipeline->graphics.ms.num_samples;
+	struct radv_multisample_state *ms = &pipeline->graphics.ms;
+
+	radeon_set_context_reg_seq(cmd_buffer->cs, CM_R_028BDC_PA_SC_LINE_CNTL, 2);
+	radeon_emit(cmd_buffer->cs, ms->pa_sc_line_cntl);
+	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_config);
+
+	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA, ms->db_eqaa);
+	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1, ms->pa_sc_mode_cntl_1);
+
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028C38_PA_SC_AA_MASK_X0Y0_X1Y0, 2);
+	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_mask[0]);
+	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_mask[1]);
+
+	radv_cayman_emit_msaa_sample_locs(cmd_buffer->cs, num_samples);
+}
+
+static void
 radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 				struct radv_pipeline *pipeline)
 {
@@ -295,18 +316,6 @@ radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_back_scale);
 	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_back_offset);
 
-	radeon_set_context_reg_seq(cmd_buffer->cs, CM_R_028BDC_PA_SC_LINE_CNTL, 2);
-	radeon_emit(cmd_buffer->cs, S_028BDC_LAST_PIXEL(1));
-	radeon_emit(cmd_buffer->cs, 0);
-
-	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA,
-			       S_028804_HIGH_QUALITY_INTERSECTIONS(1) |
-			       S_028804_STATIC_ANCHOR_ASSOCIATIONS(1));
-	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1,
-			       EG_S_028A4C_FORCE_EOV_CNTDWN_ENABLE(1) |
-			       EG_S_028A4C_FORCE_EOV_REZ_ENABLE(1));
-	radeon_set_context_reg(cmd_buffer->cs, R_028C38_PA_SC_AA_MASK_X0Y0_X1Y0, 0xffffffff);
-	radeon_set_context_reg(cmd_buffer->cs, R_028C3C_PA_SC_AA_MASK_X0Y1_X1Y1, 0xffffffff);
 }
 
 static void
@@ -448,7 +457,7 @@ radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
 	radv_emit_graphics_depth_stencil_state(cmd_buffer, pipeline);
 	radv_emit_graphics_blend_state(cmd_buffer, pipeline);
 	radv_emit_graphics_raster_state(cmd_buffer, pipeline);
-
+	radv_update_multisample_state(cmd_buffer, pipeline);
 	radv_emit_vertex_shader(cmd_buffer, pipeline);
 	radv_emit_fragment_shader(cmd_buffer, pipeline);
 }
@@ -467,7 +476,7 @@ radv_emit_scissor(struct radv_cmd_buffer *cmd_buffer)
 	si_write_scissors(cmd_buffer->cs, 0, count,
 			  cmd_buffer->state.dynamic.scissor.scissors);
 	radeon_set_context_reg(cmd_buffer->cs, R_028A48_PA_SC_MODE_CNTL_0,
-			       cmd_buffer->state.pipeline->graphics.raster.pa_sc_mode_cntl_0 | S_028A48_VPORT_SCISSOR_ENABLE(count ? 1 : 0));
+			       cmd_buffer->state.pipeline->graphics.ms.pa_sc_mode_cntl_0 | S_028A48_VPORT_SCISSOR_ENABLE(count ? 1 : 0));
 }
 
 static void
