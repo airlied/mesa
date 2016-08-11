@@ -870,6 +870,28 @@ uint32_t radv_translate_tex_numformat(VkFormat format,
 				      const struct vk_format_description *desc,
 				      int first_non_void);
 
+struct radv_fmask_info {
+	uint64_t offset;
+	uint64_t size;
+	unsigned alignment;
+	unsigned pitch_in_pixels;
+	unsigned bank_height;
+	unsigned slice_tile_max;
+	unsigned tile_mode_index;
+};
+
+struct radv_cmask_info {
+	uint64_t offset;
+	uint64_t size;
+	unsigned alignment;
+	unsigned pitch;
+	unsigned height;
+	unsigned xalign;
+	unsigned yalign;
+	unsigned slice_tile_max;
+	unsigned base_address_reg;
+};
+
 struct radv_image {
 	VkImageType type;
 	/* The original VkFormat provided by the client.  This may not match any
@@ -892,6 +914,9 @@ struct radv_image {
 	VkDeviceSize offset;
 	uint32_t dcc_offset;
 	struct radeon_surf surface;
+
+	struct radv_fmask_info fmask;
+	struct radv_cmask_info cmask;
 };
 
 static inline uint32_t
