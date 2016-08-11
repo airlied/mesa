@@ -791,8 +791,6 @@ struct radv_raster_state {
 	uint32_t pa_su_point_size;
 	uint32_t pa_su_point_minmax;
 	uint32_t pa_su_line_cntl;
-	uint32_t pa_sc_line_cntl;
-	uint32_t pa_sc_mode_cntl_0;
 	uint32_t pa_su_vtx_cntl;
 	uint32_t pa_su_poly_offset_clamp;
 	uint32_t pa_su_sc_mode_cntl;
@@ -800,6 +798,16 @@ struct radv_raster_state {
 	uint32_t pa_su_poly_offset_front_offset;
 	uint32_t pa_su_poly_offset_back_scale;
 	uint32_t pa_su_poly_offset_back_offset;
+};
+
+struct radv_multisample_state {
+	uint32_t db_eqaa;
+	uint32_t pa_sc_line_cntl;
+	uint32_t pa_sc_mode_cntl_0;
+	uint32_t pa_sc_mode_cntl_1;
+	uint32_t pa_sc_aa_config;
+	uint32_t pa_sc_aa_mask[2];
+	unsigned num_samples;
 };
 
 struct radv_pipeline {
@@ -825,7 +833,7 @@ struct radv_pipeline {
 			struct radv_blend_state blend;
 			struct radv_depth_stencil_state ds;
 			struct radv_raster_state raster;
-
+			struct radv_multisample_state ms;
 			unsigned prim;
 			bool prim_restart_enable;
 		} graphics;
