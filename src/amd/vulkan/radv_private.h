@@ -780,6 +780,7 @@ struct radv_blend_state {
 
 	uint32_t spi_shader_col_format;
 	uint32_t cb_shader_mask;
+	uint32_t db_alpha_to_mask;
 };
 
 unsigned radv_format_meta_fs_key(VkFormat format);

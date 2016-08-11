@@ -684,6 +684,11 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 	else
 		blend->cb_color_control |= S_028808_ROP3(0xcc);
 
+	blend->db_alpha_to_mask = S_028B70_ALPHA_TO_MASK_OFFSET0(2) |
+		S_028B70_ALPHA_TO_MASK_OFFSET1(2) |
+		S_028B70_ALPHA_TO_MASK_OFFSET2(2) |
+		S_028B70_ALPHA_TO_MASK_OFFSET3(2);
+
 	blend->cb_target_mask = 0;
 	for (i = 0; i < vkblend->attachmentCount; i++) {
 		const VkPipelineColorBlendAttachmentState *att = &vkblend->pAttachments[i];
