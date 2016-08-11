@@ -432,12 +432,8 @@ struct radv_meta_state {
 	} btoi;
 
 	struct {
-		/** Pipeline [i] resolves an image with 2^(i+1) samples.  */
-		VkPipeline                                pipelines[MAX_SAMPLES_LOG2];
-
+		VkPipeline                                pipeline;
 		VkRenderPass                              pass;
-		VkPipelineLayout                          pipeline_layout;
-		VkDescriptorSetLayout                     ds_layout;
 	} resolve;
 };
 
@@ -837,6 +833,7 @@ struct radv_pipeline {
 
 struct radv_graphics_pipeline_create_info {
 	bool                                         use_rectlist;
+	uint32_t                                     custom_blend_mode;
 };
 
 VkResult
