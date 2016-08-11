@@ -1281,6 +1281,7 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->cb_color_view = S_028C6C_SLICE_START(iview->base_layer) |
 		S_028C6C_SLICE_MAX(iview->base_layer + iview->extent.depth - 1);
 
+	cb->micro_tile_mode = iview->image->surface.micro_tile_mode;
 	pitch_tile_max = level_info->nblk_x / 8 - 1;
 	slice_tile_max = (level_info->nblk_x * level_info->nblk_y) / 64 - 1;
 	tile_mode_index = si_tile_mode_index(iview->image, iview->base_mip, false);

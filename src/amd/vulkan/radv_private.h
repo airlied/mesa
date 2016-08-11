@@ -951,7 +951,7 @@ radv_init_metadata(struct radv_device *device,
 		   struct radeon_bo_metadata *metadata);
 
 struct radv_image_view {
-	const struct radv_image *image; /**< VkImageViewCreateInfo::image */
+	struct radv_image *image; /**< VkImageViewCreateInfo::image */
 	struct radv_bo *bo;
 	uint32_t offset; /**< Offset into bo. */
 
@@ -982,7 +982,8 @@ void radv_image_view_init(struct radv_image_view *view,
 			  const VkImageViewCreateInfo* pCreateInfo,
 			  struct radv_cmd_buffer *cmd_buffer,
 			  VkImageUsageFlags usage_mask);
-
+void radv_image_set_optimal_micro_tile_mode(struct radv_device *device,
+					    struct radv_image *image, uint32_t micro_tile_mode);
 struct radv_buffer_view {
 	struct radv_bo *bo;
 	VkFormat vk_format;
@@ -1045,6 +1046,7 @@ struct radv_color_buffer_info {
 	uint32_t cb_color_fmask_slice;
 	uint32_t cb_clear_value0;
 	uint32_t cb_clear_value1;
+	uint32_t micro_tile_mode;
 };
 
 struct radv_ds_buffer_info {
