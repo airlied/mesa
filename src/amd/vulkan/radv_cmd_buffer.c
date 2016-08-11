@@ -743,11 +743,12 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	si_emit_cache_flush(cmd_buffer);
 }
 
-static void
+void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
                             struct radv_subpass *subpass)
 {
 	cmd_buffer->state.subpass = subpass;
+	radv_emit_framebuffer_state(cmd_buffer);
 }
 
 static void
@@ -1348,7 +1349,6 @@ void radv_CmdBeginRenderPass(
 	si_emit_cache_flush(cmd_buffer);
 
 	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses);
-	radv_emit_framebuffer_state(cmd_buffer);
 	radv_cmd_buffer_clear_subpass(cmd_buffer);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
