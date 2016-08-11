@@ -350,16 +350,15 @@ si_make_texture_descriptor(struct radv_device *device,
 		}
 	}
 
-	if (fmask_state)
-		memset(fmask_state, 0, (8 * 4));
-#if 0
 	/* Initialize the sampler view for FMASK. */
-	if (tex->fmask.size) {
+	if (image->fmask.size) {
 		uint32_t fmask_format;
+		uint64_t gpu_address = device->ws->buffer_get_va(image->bo->bo);
+		uint64_t va;
 
-		va = tex->resource.gpu_address + tex->fmask.offset;
+		va = gpu_address + image->fmask.offset;
 
-		switch (res->nr_samples) {
+		switch (image->samples) {
 		case 2:
 			fmask_format = V_008F14_IMG_DATA_FORMAT_FMASK8_S2_F2;
 			break;
@@ -384,16 +383,15 @@ si_make_texture_descriptor(struct radv_device *device,
 			S_008F1C_DST_SEL_Y(V_008F1C_SQ_SEL_X) |
 			S_008F1C_DST_SEL_Z(V_008F1C_SQ_SEL_X) |
 			S_008F1C_DST_SEL_W(V_008F1C_SQ_SEL_X) |
-			S_008F1C_TILING_INDEX(tex->fmask.tile_mode_index) |
+			S_008F1C_TILING_INDEX(image->fmask.tile_mode_index) |
 			S_008F1C_TYPE(radv_tex_dim(image->type, view_type, 1, 0, false));
 		fmask_state[4] = S_008F20_DEPTH(depth - 1) |
-			S_008F20_PITCH(tex->fmask.pitch_in_pixels - 1);
+			S_008F20_PITCH(image->fmask.pitch_in_pixels - 1);
 		fmask_state[5] = S_008F24_BASE_ARRAY(first_layer) |
 			S_008F24_LAST_ARRAY(last_layer);
 		fmask_state[6] = 0;
 		fmask_state[7] = 0;
 	}
-#endif
 }
 
 static void
@@ -469,6 +467,132 @@ radv_init_metadata(struct radv_device *device,
 	radv_query_opaque_metadata(device, image, metadata);
 }
 
+/* The number of samples can be specified independently of the texture. */
+static void
+radv_image_get_fmask_info(struct radv_device *device,
+			  struct radv_image *image,
+			  unsigned nr_samples,
+			  struct radv_fmask_info *out)
+{
+	/* FMASK is allocated like an ordinary texture. */
+	struct radeon_surf fmask = image->surface;
+
+	memset(out, 0, sizeof(*out));
+
+	fmask.bo_alignment = 0;
+	fmask.bo_size = 0;
+	fmask.nsamples = 1;
+	fmask.flags |= RADEON_SURF_FMASK;
+
+	/* Force 2D tiling if it wasn't set. This may occur when creating
+	 * FMASK for MSAA resolve on R6xx. On R6xx, the single-sample
+	 * destination buffer must have an FMASK too. */
+	fmask.flags = RADEON_SURF_CLR(fmask.flags, MODE);
+	fmask.flags |= RADEON_SURF_SET(RADEON_SURF_MODE_2D, MODE);
+
+	fmask.flags |= RADEON_SURF_HAS_TILE_MODE_INDEX;
+
+	switch (nr_samples) {
+	case 2:
+	case 4:
+		fmask.bpe = 1;
+		break;
+	case 8:
+		fmask.bpe = 4;
+		break;
+	default:
+		return;
+	}
+
+	device->ws->surface_init(device->ws, &fmask);
+	assert(fmask.level[0].mode == RADEON_SURF_MODE_2D);
+
+	out->slice_tile_max = (fmask.level[0].nblk_x * fmask.level[0].nblk_y) / 64;
+	if (out->slice_tile_max)
+		out->slice_tile_max -= 1;
+
+	out->tile_mode_index = fmask.tiling_index[0];
+	out->pitch_in_pixels = fmask.level[0].nblk_x;
+	out->bank_height = fmask.bankh;
+	out->alignment = MAX2(256, fmask.bo_alignment);
+	out->size = fmask.bo_size;
+}
+
+static void
+radv_image_alloc_fmask(struct radv_device *device,
+		       struct radv_image *image)
+{
+	radv_image_get_fmask_info(device, image, image->samples, &image->fmask);
+
+	image->fmask.offset = align64(image->size, image->fmask.alignment);
+	image->size = image->fmask.offset + image->fmask.size;
+}
+
+static void
+radv_image_get_cmask_info(struct radv_device *device,
+			  struct radv_image *image,
+			  struct radv_cmask_info *out)
+{
+	unsigned pipe_interleave_bytes = device->instance->physicalDevice.rad_info.pipe_interleave_bytes;
+	unsigned num_pipes = device->instance->physicalDevice.rad_info.num_tile_pipes;
+	unsigned cl_width, cl_height;
+
+	switch (num_pipes) {
+	case 2:
+		cl_width = 32;
+		cl_height = 16;
+		break;
+	case 4:
+		cl_width = 32;
+		cl_height = 32;
+		break;
+	case 8:
+		cl_width = 64;
+		cl_height = 32;
+		break;
+	case 16: /* Hawaii */
+		cl_width = 64;
+		cl_height = 64;
+		break;
+	default:
+		assert(0);
+		return;
+	}
+
+	unsigned base_align = num_pipes * pipe_interleave_bytes;
+
+	unsigned width = align(image->surface.npix_x, cl_width*8);
+	unsigned height = align(image->surface.npix_y, cl_height*8);
+	unsigned slice_elements = (width * height) / (8*8);
+
+	/* Each element of CMASK is a nibble. */
+	unsigned slice_bytes = slice_elements / 2;
+
+	out->pitch = width;
+	out->height = height;
+	out->xalign = cl_width * 8;
+	out->yalign = cl_height * 8;
+	out->slice_tile_max = (width * height) / (128*128);
+	if (out->slice_tile_max)
+		out->slice_tile_max -= 1;
+
+	out->alignment = MAX2(256, base_align);
+	out->size = image->array_size *
+		    align(slice_bytes, base_align);
+}
+
+static void
+radv_image_alloc_cmask(struct radv_device *device,
+		       struct radv_image *image)
+{
+	radv_image_get_cmask_info(device, image, &image->cmask);
+
+	image->cmask.offset = align64(image->size, image->cmask.alignment);
+	image->size = image->cmask.offset + image->cmask.size;
+
+	//rtex->cb_color_info |= SI_S_028C70_FAST_CLEAR(1); TODO
+}
+
 VkResult
 radv_image_create(VkDevice _device,
 		  const struct radv_image_create_info *create_info,
@@ -506,6 +630,11 @@ radv_image_create(VkDevice _device,
 	radv_init_surface(device, &image->surface, create_info);
 
 	device->ws->surface_init(device->ws, &image->surface);
+
+	if (image->samples > 1) {
+		radv_image_alloc_fmask(device, image);
+		radv_image_alloc_cmask(device, image);
+	}
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 
