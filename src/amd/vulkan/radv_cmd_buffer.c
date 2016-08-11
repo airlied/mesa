@@ -1650,7 +1650,7 @@ void radv_CmdEndRenderPass(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
 	si_emit_cache_flush(cmd_buffer);
-	//   radv_cmd_buffer_resolve_subpass(cmd_buffer);
+	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 }
 
 void radv_CmdPipelineBarrier(
