@@ -822,6 +822,13 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 
 	radv_physical_device_get_format_properties(physical_device, format,
 						   &format_props);
+	if (tiling == VK_IMAGE_TILING_LINEAR) {
+		format_feature_flags = format_props.linearTilingFeatures;
+	} else if (tiling == VK_IMAGE_TILING_OPTIMAL) {
+		format_feature_flags = format_props.optimalTilingFeatures;
+	} else {
+		unreachable("bad VkImageTiling");
+	}
 
 	switch (type) {
 	default:
@@ -850,6 +857,39 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 		break;
 	}
 
+	if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+	    type == VK_IMAGE_TYPE_2D &&
+	    (format_feature_flags & (VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+				     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
+	    !(createFlags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) &&
+	    !(usage & VK_IMAGE_USAGE_STORAGE_BIT)) {
+		sampleCounts |= VK_SAMPLE_COUNT_4_BIT;
+	}
+
+	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
+		if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+			goto unsupported;
+		}
+	}
+
+	if (usage & VK_IMAGE_USAGE_STORAGE_BIT) {
+		if (!(format_feature_flags & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)) {
+			goto unsupported;
+		}
+	}
+
+	if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+		if (!(format_feature_flags & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)) {
+			goto unsupported;
+		}
+	}
+
+	if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+		if (!(format_feature_flags & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+			goto unsupported;
+		}
+	}
+
 	*pImageFormatProperties = (VkImageFormatProperties) {
 		.maxExtent = maxExtent,
 		.maxMipLevels = maxMipLevels,
@@ -863,6 +903,16 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 	};
 
 	return VK_SUCCESS;
+unsupported:
+	*pImageFormatProperties = (VkImageFormatProperties) {
+		.maxExtent = { 0, 0, 0 },
+		.maxMipLevels = 0,
+		.maxArrayLayers = 0,
+		.sampleCounts = 0,
+		.maxResourceSize = 0,
+	};
+
+	return VK_ERROR_FORMAT_NOT_SUPPORTED;
 }
 
 void radv_GetPhysicalDeviceSparseImageFormatProperties(
