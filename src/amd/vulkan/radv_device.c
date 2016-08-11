@@ -1263,15 +1263,21 @@ radv_initialise_color_surface(struct radv_device *device,
 	uint64_t va;
 	const struct radeon_surf *surf = &iview->image->surface;
 	const struct radeon_surf_level *level_info = &surf->level[iview->base_mip];
-    
+
+	desc = vk_format_description(iview->vk_format);
+
 	memset(cb, 0, sizeof(*cb));
 
 	va = device->ws->buffer_get_va(iview->bo->bo) + iview->offset;
 	va += level_info->offset;
 	cb->cb_color_base = va >> 8;
 
+	/* CMASK variables */
+	va = device->ws->buffer_get_va(iview->bo->bo);
+	va += iview->image->cmask.offset;
 	cb->cb_color_cmask = va >> 8;
-	cb->cb_color_fmask = va >> 8;
+	cb->cb_color_cmask_slice = iview->image->cmask.slice_tile_max;
+
 	cb->cb_color_view = S_028C6C_SLICE_START(iview->base_layer) |
 		S_028C6C_SLICE_MAX(iview->base_layer + iview->extent.depth - 1);
 
@@ -1282,9 +1288,32 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->cb_color_pitch = S_028C64_TILE_MAX(pitch_tile_max);
 	cb->cb_color_slice = S_028C68_TILE_MAX(slice_tile_max);
 
-	cb->cb_color_pitch |= S_028C64_FMASK_TILE_MAX(pitch_tile_max);
-	cb->cb_color_fmask_slice = S_028C88_TILE_MAX(slice_tile_max);
-	desc = vk_format_description(iview->vk_format);
+	/* Intensity is implemented as Red, so treat it that way. */
+	cb->cb_color_attrib = S_028C74_FORCE_DST_ALPHA_1(desc->swizzle[3] == VK_SWIZZLE_1) |
+		S_028C74_TILE_MODE_INDEX(tile_mode_index);
+
+	if (iview->image->samples > 1) {
+		unsigned log_samples = util_logbase2(iview->image->samples);
+
+		cb->cb_color_attrib |= S_028C74_NUM_SAMPLES(log_samples) |
+			S_028C74_NUM_FRAGMENTS(log_samples);
+	}
+
+	if (iview->image->fmask.size) {
+		va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->fmask.offset;
+		if (device->instance->physicalDevice.rad_info.chip_class >= CIK)
+			cb->cb_color_pitch |= S_028C64_FMASK_TILE_MAX(iview->image->fmask.pitch_in_pixels / 8 - 1);
+		cb->cb_color_attrib |= S_028C74_FMASK_TILE_MODE_INDEX(iview->image->fmask.tile_mode_index);
+		cb->cb_color_fmask = va >> 8;
+		cb->cb_color_fmask_slice = S_028C88_TILE_MAX(iview->image->fmask.slice_tile_max);
+	} else {
+		/* This must be set for fast clear to work without FMASK. */
+		if (device->instance->physicalDevice.rad_info.chip_class >= CIK)
+			cb->cb_color_pitch |= S_028C64_FMASK_TILE_MAX(pitch_tile_max);
+		cb->cb_color_attrib |= S_028C74_FMASK_TILE_MODE_INDEX(tile_mode_index);
+		cb->cb_color_fmask = cb->cb_color_base;
+		cb->cb_color_fmask_slice = S_028C88_TILE_MAX(slice_tile_max);
+	}
 
 	ntype = radv_translate_color_numformat(iview->vk_format,
 					       desc,
@@ -1322,15 +1351,9 @@ radv_initialise_color_surface(struct radv_device *device,
 		S_028C70_BLEND_BYPASS(blend_bypass) |
 		S_028C70_NUMBER_TYPE(ntype) |
 		S_028C70_ENDIAN(endian);
-    
-	/* Intensity is implemented as Red, so treat it that way. */
-	cb->cb_color_attrib = S_028C74_FORCE_DST_ALPHA_1(desc->swizzle[3] == VK_SWIZZLE_1) | S_028C74_FMASK_TILE_MODE_INDEX(tile_mode_index) |
-		S_028C74_TILE_MODE_INDEX(tile_mode_index);
-
-	if (iview->image->samples > 1) {
-		radv_finishme("multisample");
-	}
-
+	if (iview->image->samples > 1)
+		if (iview->image->fmask.size)
+			cb->cb_color_info |= S_028C70_COMPRESSION(1);
 	if (device->instance->physicalDevice.rad_info.chip_class >= VI) {
 		unsigned max_uncompressed_block_size = 2;
 		if (iview->image->samples > 1) {
@@ -1344,7 +1367,7 @@ radv_initialise_color_surface(struct radv_device *device,
 			S_028C78_INDEPENDENT_64B_BLOCKS(1);
 	}
 
-#if 0//TODO
+#if 0//TODO SI
 	/* This must be set for fast clear to work without FMASK. */
 	if (!rtex->fmask.size && sctx->b.chip_class == SI) {
 		unsigned bankh = util_logbase2(rtex->surface.bankh);
@@ -1394,6 +1417,10 @@ radv_initialise_ds_surface(struct radv_device *device,
 		S_028008_SLICE_MAX(iview->base_layer + iview->extent.depth - 1);
 	ds->db_depth_info = S_02803C_ADDR5_SWIZZLE_MASK(1);
 	ds->db_z_info = S_028040_FORMAT(format);
+
+	if (iview->image->samples > 1)
+		ds->db_z_info |= S_028040_NUM_SAMPLES(util_logbase2(iview->image->samples));
+
 	if (iview->image->surface.flags & RADEON_SURF_SBUFFER)
 		ds->db_stencil_info = S_028044_FORMAT(V_028044_STENCIL_8);
 	else
