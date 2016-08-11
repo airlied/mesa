@@ -32,6 +32,7 @@
 #include "util/bitset.h"
 #include "radv_amdgpu_winsys.h"
 #include "radv_amdgpu_surface.h"
+#include "sid.h"
 #ifndef NO_ENTRIES
 #define NO_ENTRIES 32
 #endif
@@ -255,6 +256,18 @@ static int compute_level(ADDR_HANDLE addrlib,
    return 0;
 }
 
+static void set_micro_tile_mode(struct radeon_surf *surf,
+                                struct radeon_info *info)
+{
+   uint32_t tile_mode = info->si_tile_mode_array[surf->tiling_index[0]];
+
+   if (info->chip_class >= CIK)
+      surf->micro_tile_mode = G_009910_MICRO_TILE_MODE_NEW(tile_mode);
+   else
+      surf->micro_tile_mode = G_009910_MICRO_TILE_MODE(tile_mode);
+}
+
+
 static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 				      struct radeon_surf *surf)
 {
@@ -363,7 +376,8 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
    /* TODO: update addrlib to a newer version, remove this, and
     * set flags.matchStencilTileCfg = 1 to fix stencil texturing.
     */
-   AddrSurfInfoIn.flags.noStencil = 1;
+   if (surf->last_level > 0)
+      AddrSurfInfoIn.flags.noStencil = 1;
 
    /* Set preferred macrotile parameters. This is usually required
     * for shared resources. This is for 2D tiling only. */
@@ -411,6 +425,7 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
       if (level == 0) {
          surf->bo_alignment = AddrSurfInfoOut.baseAlign;
          surf->pipe_config = AddrSurfInfoOut.pTileInfo->pipeConfig - 1;
+         set_micro_tile_mode(surf, &ws->info);
 
          /* For 2D modes only. */
          if (AddrSurfInfoOut.tileMode >= ADDR_TM_2D_TILED_THIN1) {
