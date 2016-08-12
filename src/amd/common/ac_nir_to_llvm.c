@@ -2611,7 +2611,10 @@ handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 	variable->data.driver_location = idx * 4;
 	ctx->input_mask |= ((1ull << attrib_count) - 1) << variable->data.location;
 
-	interp = lookup_interp_param(ctx, variable->data.interpolation, 0);
+	if (glsl_get_base_type(variable->type) == GLSL_TYPE_FLOAT)
+		interp = lookup_interp_param(ctx, variable->data.interpolation, 0);
+	else
+		interp = NULL;
 
 	for (unsigned i = 0; i < attrib_count; ++i)
 		ctx->inputs[radeon_llvm_reg_index_soa(idx + i, 0)] = interp;
