@@ -105,17 +105,20 @@ struct nir_to_llvm_context {
 	LLVMValueRef f32one;
 	LLVMValueRef v4f32empty;
 
+	unsigned range_md_kind;
 	unsigned uniform_md_kind;
 	LLVMValueRef empty_md;
 	LLVMValueRef const_md;
 	gl_shader_stage stage;
 
+	LLVMValueRef lds;
 	LLVMValueRef inputs[RADEON_LLVM_MAX_INPUTS * 4];
 	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS * 4];
 	uint64_t input_mask;
 	uint64_t output_mask;
 	int num_locals;
 	LLVMValueRef *locals;
+	bool has_ddxy;
 };
 
 struct ac_tex_info {
@@ -436,6 +439,8 @@ static void setup_types(struct nir_to_llvm_context *ctx)
 	args[2] = LLVMConstInt(ctx->i32, 1, 0);
 	ctx->const_md = LLVMMDNodeInContext(ctx->context, args, 3);
 
+	ctx->range_md_kind = LLVMGetMDKindIDInContext(ctx->context,
+						      "range", 5);
 	ctx->uniform_md_kind =
 	    LLVMGetMDKindIDInContext(ctx->context, "amdgpu.uniform", 14);
 	ctx->empty_md = LLVMMDNodeInContext(ctx->context, NULL, 0);
@@ -916,6 +921,146 @@ static LLVMValueRef emit_unpack_half_2x16(struct nir_to_llvm_context *ctx,
 	return result;
 }
 
+/**
+ * Set range metadata on an instruction.  This can only be used on load and
+ * call instructions.  If you know an instruction can only produce the values
+ * 0, 1, 2, you would do set_range_metadata(value, 0, 3);
+ * \p lo is the minimum value inclusive.
+ * \p hi is the maximum value exclusive.
+ */
+static void set_range_metadata(struct nir_to_llvm_context *ctx,
+			       LLVMValueRef value, unsigned lo, unsigned hi)
+{
+	LLVMValueRef range_md, md_args[2];
+	LLVMTypeRef type = LLVMTypeOf(value);
+	LLVMContextRef context = LLVMGetTypeContext(type);
+
+	md_args[0] = LLVMConstInt(type, lo, false);
+	md_args[1] = LLVMConstInt(type, hi, false);
+	range_md = LLVMMDNodeInContext(context, md_args, 2);
+	LLVMSetMetadata(value, ctx->range_md_kind, range_md);
+}
+
+static LLVMValueRef get_thread_id(struct nir_to_llvm_context *ctx)
+{
+	LLVMValueRef tid;
+	LLVMValueRef tid_args[2];
+	tid_args[0] = LLVMConstInt(ctx->i32, 0xffffffff, false);
+	tid_args[1] = ctx->i32zero;
+	tid_args[1] = emit_llvm_intrinsic(ctx,
+					  "llvm.amdgcn.mbcnt.lo", ctx->i32,
+					  tid_args, 2, LLVMReadNoneAttribute);
+
+	tid = emit_llvm_intrinsic(ctx,
+				  "llvm.amdgcn.mbcnt.hi", ctx->i32,
+				  tid_args, 2, LLVMReadNoneAttribute);
+	set_range_metadata(ctx, tid, 0, 64);
+	return tid;
+}
+
+/*
+ * SI implements derivatives using the local data store (LDS)
+ * All writes to the LDS happen in all executing threads at
+ * the same time. TID is the Thread ID for the current
+ * thread and is a value between 0 and 63, representing
+ * the thread's position in the wavefront.
+ *
+ * For the pixel shader threads are grouped into quads of four pixels.
+ * The TIDs of the pixels of a quad are:
+ *
+ *  +------+------+
+ *  |4n + 0|4n + 1|
+ *  +------+------+
+ *  |4n + 2|4n + 3|
+ *  +------+------+
+ *
+ * So, masking the TID with 0xfffffffc yields the TID of the top left pixel
+ * of the quad, masking with 0xfffffffd yields the TID of the top pixel of
+ * the current pixel's column, and masking with 0xfffffffe yields the TID
+ * of the left pixel of the current pixel's row.
+ *
+ * Adding 1 yields the TID of the pixel to the right of the left pixel, and
+ * adding 2 yields the TID of the pixel below the top pixel.
+ */
+/* masks for thread ID. */
+#define TID_MASK_TOP_LEFT 0xfffffffc
+#define TID_MASK_TOP      0xfffffffd
+#define TID_MASK_LEFT     0xfffffffe
+static LLVMValueRef emit_ddxy(struct nir_to_llvm_context *ctx,
+			      nir_alu_instr *instr,
+			      LLVMValueRef src0)
+{
+	LLVMValueRef indices[2];
+	LLVMValueRef store_ptr, load_ptr0, load_ptr1;
+	LLVMValueRef tl, trbl, result;
+	LLVMValueRef tl_tid, trbl_tid;
+	LLVMValueRef args[2];
+	unsigned mask;
+	int idx;
+	ctx->has_ddxy = true;
+	if (!ctx->lds)
+		ctx->lds = LLVMAddGlobalInAddressSpace(ctx->module,
+						       LLVMArrayType(ctx->i32, 64),
+						       "ddxy_lds", LOCAL_ADDR_SPACE);
+
+	indices[0] = ctx->i32zero;
+	indices[1] = get_thread_id(ctx);
+	store_ptr = LLVMBuildGEP(ctx->builder, ctx->lds,
+				 indices, 2, "");
+
+	if (instr->op == nir_op_fddx_fine || instr->op == nir_op_fddx)
+		mask = TID_MASK_LEFT;
+	else if (instr->op == nir_op_fddy_fine || instr->op == nir_op_fddy)
+		mask = TID_MASK_TOP;
+	else
+		mask = TID_MASK_TOP_LEFT;
+
+	tl_tid = LLVMBuildAnd(ctx->builder, indices[1],
+			      LLVMConstInt(ctx->i32, mask, false), "");
+	indices[1] = tl_tid;
+	load_ptr0 = LLVMBuildGEP(ctx->builder, ctx->lds,
+				 indices, 2, "");
+
+	/* for DDX we want to next X pixel, DDY next Y pixel. */
+	if (instr->op == nir_op_fddx_fine ||
+	    instr->op == nir_op_fddx_coarse ||
+	    instr->op == nir_op_fddx)
+		idx = 1;
+	else
+		idx = 2;
+
+	trbl_tid = LLVMBuildAdd(ctx->builder, indices[1],
+				LLVMConstInt(ctx->i32, idx, false), "");
+	indices[1] = trbl_tid;
+	load_ptr1 = LLVMBuildGEP(ctx->builder, ctx->lds,
+				 indices, 2, "");
+
+	/* TONGA compare here */
+	if (1) {
+		args[0] = LLVMBuildMul(ctx->builder, tl_tid,
+				       LLVMConstInt(ctx->i32, 4, false), "");
+		args[1] = src0;
+		tl = emit_llvm_intrinsic(ctx, "llvm.amdgcn.ds.bpermute",
+					 ctx->i32, args, 2,
+					 LLVMReadNoneAttribute);
+
+		args[0] = LLVMBuildMul(ctx->builder, trbl_tid,
+				       LLVMConstInt(ctx->i32, 4, false), "");
+		trbl = emit_llvm_intrinsic(ctx, "llvm.amdgcn.ds.bpermute",
+					   ctx->i32, args, 2,
+					   LLVMReadNoneAttribute);
+	} else {
+		LLVMBuildStore(ctx->builder, src0, store_ptr);
+
+		tl = LLVMBuildLoad(ctx->builder, load_ptr0, "");
+		trbl = LLVMBuildLoad(ctx->builder, load_ptr1, "");
+	}
+	tl = LLVMBuildBitCast(ctx->builder, tl, ctx->f32, "");
+	trbl = LLVMBuildBitCast(ctx->builder, trbl, ctx->f32, "");
+	result = LLVMBuildFSub(ctx->builder, trbl, tl, "");
+	return result;
+}
+
 static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 {
 	LLVMValueRef src[4], result = NULL;
@@ -1208,6 +1353,14 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		break;
 	case nir_op_unpack_half_2x16:
 		result = emit_unpack_half_2x16(ctx, src[0]);
+		break;
+	case nir_op_fddx:
+	case nir_op_fddy:
+	case nir_op_fddx_fine:
+	case nir_op_fddy_fine:
+	case nir_op_fddx_coarse:
+	case nir_op_fddy_coarse:
+		result = emit_ddxy(ctx, instr, src[0]);
 		break;
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
