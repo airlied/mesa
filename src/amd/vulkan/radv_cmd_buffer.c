@@ -307,13 +307,6 @@ radv_emit_graphics_raster_state(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028BE4_PA_SU_VTX_CNTL,
 			       raster->pa_su_vtx_cntl);
-
-	radeon_set_context_reg_seq(cmd_buffer->cs, R_028B80_PA_SU_POLY_OFFSET_FRONT_SCALE, 4);
-	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_front_scale);
-	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_front_offset);
-	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_back_scale);
-	radeon_emit(cmd_buffer->cs, raster->pa_su_poly_offset_back_offset);
-
 }
 
 static void
@@ -663,6 +656,17 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 		radeon_set_context_reg(cmd_buffer->cs, R_028024_DB_DEPTH_BOUNDS_MAX, d->depth_bounds.max);
 	}
 
+	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_PIPELINE |
+				       RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS)) {
+		struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+
+		radeon_set_context_reg_seq(cmd_buffer->cs, R_028B7C_PA_SU_POLY_OFFSET_CLAMP, 5);
+		radeon_emit(cmd_buffer->cs, fui(d->depth_bias.clamp)); /* CLAMP */
+		radeon_emit(cmd_buffer->cs, fui(d->depth_bias.slope)); /* FRONT SCALE */
+		radeon_emit(cmd_buffer->cs, fui(d->depth_bias.bias)); /* FRONT OFFSET */
+		radeon_emit(cmd_buffer->cs, fui(d->depth_bias.slope)); /* BACK SCALE */
+		radeon_emit(cmd_buffer->cs, fui(d->depth_bias.bias)); /* BACK OFFSET */
+	}
 	cmd_buffer->state.dirty = 0;
 }
 
