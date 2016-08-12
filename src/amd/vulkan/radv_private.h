@@ -790,12 +790,7 @@ struct radv_raster_state {
 	uint32_t pa_su_point_minmax;
 	uint32_t pa_su_line_cntl;
 	uint32_t pa_su_vtx_cntl;
-	uint32_t pa_su_poly_offset_clamp;
 	uint32_t pa_su_sc_mode_cntl;
-	uint32_t pa_su_poly_offset_front_scale;
-	uint32_t pa_su_poly_offset_front_offset;
-	uint32_t pa_su_poly_offset_back_scale;
-	uint32_t pa_su_poly_offset_back_offset;
 };
 
 struct radv_multisample_state {
