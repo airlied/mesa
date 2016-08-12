@@ -812,9 +812,6 @@ radv_pipeline_init_depth_stencil_state(struct radv_pipeline *pipeline,
 		ds->db_stencil_control |= S_02842C_STENCILZPASS_BF(si_translate_stencil_op(vkds->back.passOp));
 		ds->db_stencil_control |= S_02842C_STENCILZFAIL_BF(si_translate_stencil_op(vkds->back.depthFailOp));
 	}
-
-	ds->db_depth_bounds_min = fui(vkds->minDepthBounds);
-	ds->db_depth_bounds_max = fui(vkds->maxDepthBounds);
 }
 
 static uint32_t si_translate_fill(VkPolygonMode func)

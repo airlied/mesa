@@ -256,8 +256,6 @@ radv_emit_graphics_depth_stencil_state(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_depth_stencil_state *ds = &pipeline->graphics.ds;
 	radeon_set_context_reg(cmd_buffer->cs, R_028800_DB_DEPTH_CONTROL, ds->db_depth_control);
 	radeon_set_context_reg(cmd_buffer->cs, R_02842C_DB_STENCIL_CONTROL, ds->db_stencil_control);
-	radeon_set_context_reg(cmd_buffer->cs, R_028020_DB_DEPTH_BOUNDS_MIN, ds->db_depth_bounds_min);
-	radeon_set_context_reg(cmd_buffer->cs, R_028024_DB_DEPTH_BOUNDS_MAX, ds->db_depth_bounds_max);
 }
 
 /* 12.4 fixed-point */
@@ -657,6 +655,14 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 			    S_028434_STENCILWRITEMASK_BF(d->stencil_write_mask.back) |
 			    S_028434_STENCILOPVAL_BF(1));
 	}
+
+	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_PIPELINE |
+				       RADV_CMD_DIRTY_DYNAMIC_DEPTH_BOUNDS)) {
+		struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+		radeon_set_context_reg(cmd_buffer->cs, R_028020_DB_DEPTH_BOUNDS_MIN, d->depth_bounds.min);
+		radeon_set_context_reg(cmd_buffer->cs, R_028024_DB_DEPTH_BOUNDS_MAX, d->depth_bounds.max);
+	}
+
 	cmd_buffer->state.dirty = 0;
 }
 

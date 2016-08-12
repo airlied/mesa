@@ -767,8 +767,6 @@ struct radv_shader_variant {
 struct radv_depth_stencil_state {
 	uint32_t db_depth_control;
 	uint32_t db_stencil_control;
-	uint32_t db_depth_bounds_min;
-	uint32_t db_depth_bounds_max;
 };
 
 struct radv_blend_state {
