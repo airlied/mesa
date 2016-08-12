@@ -3256,7 +3256,9 @@ static void ac_llvm_finalize_module(struct nir_to_llvm_context * ctx)
 	LLVMAddInstructionCombiningPass(passmgr);
 
 	/* Run the pass */
+	LLVMInitializeFunctionPassManager(passmgr);
 	LLVMRunFunctionPassManager(passmgr, ctx->main_function);
+	LLVMFinalizeFunctionPassManager(passmgr);
 
 	LLVMDisposeBuilder(ctx->builder);
 	LLVMDisposePassManager(passmgr);
