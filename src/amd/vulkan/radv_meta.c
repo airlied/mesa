@@ -280,9 +280,7 @@ fail_clear:
 void
 radv_device_finish_meta(struct radv_device *device)
 {
-#if 0
    radv_device_finish_meta_resolve_state(device);
-#endif
    radv_device_finish_meta_clear_state(device);
 #if 0
    radv_device_finish_meta_blit_state(device);
