@@ -787,6 +787,11 @@ radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer)
       if (!cmd_state->attachments[a].pending_clear_aspects)
          continue;
 
+      if (i) {
+         radv_finishme("clearing multiple color attachments\n");
+         continue;
+      }
+
       assert(cmd_state->attachments[a].pending_clear_aspects ==
              VK_IMAGE_ASPECT_COLOR_BIT);
 
