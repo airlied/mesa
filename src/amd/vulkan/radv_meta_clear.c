@@ -1028,60 +1028,6 @@ void radv_CmdClearAttachments(
    meta_clear_end(&saved_state, cmd_buffer);
 }
 
-static void
-do_buffer_fill(struct radv_cmd_buffer *cmd_buffer,
-               struct radv_bo *dest, uint64_t dest_offset,
-               int width, int height, VkFormat fill_format, uint32_t data)
-{
-   VkDevice vk_device = radv_device_to_handle(cmd_buffer->device);
-
-   VkImageCreateInfo image_info = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .format = fill_format,
-      .extent = {
-         .width = width,
-         .height = height,
-         .depth = 1,
-      },
-      .mipLevels = 1,
-      .arrayLayers = 1,
-      .samples = 1,
-      .tiling = VK_IMAGE_TILING_LINEAR,
-      .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .flags = 0,
-   };
-
-   VkImage dest_image;
-   image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-   radv_CreateImage(vk_device, &image_info,
-                   &cmd_buffer->pool->alloc, &dest_image);
-
-   /* We could use a vk call to bind memory, but that would require
-    * creating a dummy memory object etc. so there's really no point.
-    */
-   radv_image_from_handle(dest_image)->bo = dest;
-   radv_image_from_handle(dest_image)->offset = dest_offset;
-
-   const VkClearValue clear_value = {
-      .color = {
-         .uint32 = { data, data, data, data }
-      }
-   };
-
-   const VkImageSubresourceRange range = {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .baseMipLevel = 0,
-      .levelCount = 1,
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-   };
-
-   radv_cmd_clear_image(cmd_buffer, radv_image_from_handle(dest_image),
-                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                       &clear_value, 1, &range);
-}
-
 void radv_CmdFillBuffer(
     VkCommandBuffer                             commandBuffer,
     VkBuffer                                    dstBuffer,
