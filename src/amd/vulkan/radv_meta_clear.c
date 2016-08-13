@@ -418,6 +418,14 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
       },
    };
 
+   struct radv_subpass clear_subpass = {
+      .color_count = 1,
+      .color_attachments = (uint32_t[]) { subpass->color_attachments[clear_att->colorAttachment]},
+      .depth_stencil_attachment = VK_ATTACHMENT_UNUSED,
+   };
+
+   radv_cmd_buffer_set_subpass(cmd_buffer, &clear_subpass);
+
    radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
    struct radv_buffer vertex_buffer = {
      .device = device,
@@ -437,6 +445,8 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
    }
 
    RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
+
+   radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
 }
 
 
@@ -786,11 +796,6 @@ radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer)
 
       if (!cmd_state->attachments[a].pending_clear_aspects)
          continue;
-
-      if (i) {
-         radv_finishme("clearing multiple color attachments\n");
-         continue;
-      }
 
       assert(cmd_state->attachments[a].pending_clear_aspects ==
              VK_IMAGE_ASPECT_COLOR_BIT);
