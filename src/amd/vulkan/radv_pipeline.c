@@ -1174,6 +1174,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	for (uint32_t i = 0; i < vi_info->vertexAttributeDescriptionCount; i++) {
 		const VkVertexInputAttributeDescription *desc =
 			&vi_info->pVertexAttributeDescriptions[i];
+		unsigned loc = desc->location;
 		const struct vk_format_description *format_desc;
 		int first_non_void;
 		uint32_t num_format, data_format;
@@ -1183,17 +1184,18 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		num_format = radv_translate_buffer_numformat(format_desc, first_non_void);
 		data_format = radv_translate_buffer_dataformat(format_desc, first_non_void);
 
-		pipeline->va_rsrc_word3[i] = S_008F0C_DST_SEL_X(si_map_swizzle(format_desc->swizzle[0])) |
+		pipeline->va_rsrc_word3[loc] = S_008F0C_DST_SEL_X(si_map_swizzle(format_desc->swizzle[0])) |
 			S_008F0C_DST_SEL_Y(si_map_swizzle(format_desc->swizzle[1])) |
 			S_008F0C_DST_SEL_Z(si_map_swizzle(format_desc->swizzle[2])) |
 			S_008F0C_DST_SEL_W(si_map_swizzle(format_desc->swizzle[3])) |
 			S_008F0C_NUM_FORMAT(num_format) |
 			S_008F0C_DATA_FORMAT(data_format);
 
-		pipeline->va_offset[i] = desc->offset;
-		pipeline->va_binding[i] = desc->binding;
+		pipeline->va_offset[loc] = desc->offset;
+		pipeline->va_binding[loc] = desc->binding;
+		pipeline->num_vertex_attribs = MAX2(pipeline->num_vertex_attribs, loc + 1);
 	}
-	pipeline->num_vertex_attribs = vi_info->vertexAttributeDescriptionCount;
+
 	for (uint32_t i = 0; i < vi_info->vertexBindingDescriptionCount; i++) {
 		const VkVertexInputBindingDescription *desc =
 			&vi_info->pVertexBindingDescriptions[i];
