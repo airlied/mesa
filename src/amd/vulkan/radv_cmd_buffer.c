@@ -1421,6 +1421,7 @@ void radv_CmdNextSubpass(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
 	si_emit_cache_flush(cmd_buffer);
+	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
 					      2048);
