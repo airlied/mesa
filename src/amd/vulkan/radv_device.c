@@ -509,13 +509,13 @@ void radv_GetPhysicalDeviceMemoryProperties(
 
 	pMemoryProperties->memoryTypeCount = 3;
 	pMemoryProperties->memoryTypes[0] = (VkMemoryType) {
-		.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		.heapIndex = 0,
 	};
 	pMemoryProperties->memoryTypes[1] = (VkMemoryType) {
-		.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		.heapIndex = 0,
 	};
 	pMemoryProperties->memoryTypes[2] = (VkMemoryType) {
@@ -785,6 +785,7 @@ VkResult radv_AllocateMemory(
 	struct radv_device_memory *mem;
 	VkResult result;
 	enum radeon_bo_domain domain;
+	uint32_t flags = 0;
 	assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
 	if (pAllocateInfo->allocationSize == 0) {
@@ -803,8 +804,13 @@ VkResult radv_AllocateMemory(
 		domain = RADEON_DOMAIN_GTT;
 	else
 		domain = RADEON_DOMAIN_VRAM;
+
+	if (pAllocateInfo->memoryTypeIndex == 0)
+		flags |= RADEON_FLAG_NO_CPU_ACCESS;
+	else
+		flags |= RADEON_FLAG_CPU_ACCESS;
 	mem->bo.bo = device->ws->buffer_create(device->ws, alloc_size, 32768,
-					       domain, 0);
+					       domain, flags);
 
 	if (!mem->bo.bo) {
 		result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
