@@ -331,15 +331,15 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_0286C4_SPI_VS_OUT_CONFIG,
 			       S_0286C4_VS_EXPORT_COUNT(export_count - 1));
 	radeon_set_context_reg(cmd_buffer->cs, R_02870C_SPI_SHADER_POS_FORMAT,
-			       S_02870C_POS0_EXPORT_FORMAT(vs->info.vs.pos_export_format[0]) |
+			       S_02870C_POS0_EXPORT_FORMAT(V_02870C_SPI_SHADER_4COMP) |
 			       S_02870C_POS1_EXPORT_FORMAT(vs->info.vs.pos_exports > 1 ?
-							   vs->info.vs.pos_export_format[1] :
+							   V_02870C_SPI_SHADER_4COMP :
 							   V_02870C_SPI_SHADER_NONE) |
 			       S_02870C_POS2_EXPORT_FORMAT(vs->info.vs.pos_exports > 2 ?
-							   vs->info.vs.pos_export_format[2] :
+							   V_02870C_SPI_SHADER_4COMP :
 							   V_02870C_SPI_SHADER_NONE) |
 			       S_02870C_POS3_EXPORT_FORMAT(vs->info.vs.pos_exports > 3 ?
-							   vs->info.vs.pos_export_format[3] :
+							   V_02870C_SPI_SHADER_4COMP :
 							   V_02870C_SPI_SHADER_NONE));
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B120_SPI_SHADER_PGM_LO_VS, 4);

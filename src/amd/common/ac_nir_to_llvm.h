@@ -63,7 +63,6 @@ struct ac_shader_variant_info {
 			unsigned vgpr_comp_cnt;
 			uint32_t export_mask;
 			bool writes_pointsize;
-			uint8_t pos_export_format[4];
 			uint8_t clip_dist_mask;
 		} vs;
 		struct {
