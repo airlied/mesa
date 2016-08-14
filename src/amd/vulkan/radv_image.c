@@ -631,7 +631,7 @@ radv_image_create(VkDevice _device,
 
 	device->ws->surface_init(device->ws, &image->surface);
 
-	if (image->samples > 1) {
+	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
 		radv_image_alloc_cmask(device, image);
 	}
