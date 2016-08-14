@@ -2869,6 +2869,10 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 	unsigned attrib_count = glsl_count_attribute_slots(variable->type, false);
 
 	variable->data.driver_location = idx * 4;
+
+	if (idx == VARYING_SLOT_CLIP_DIST0) {
+		ctx->shader_info->vs.clip_dist_mask = (1 << glsl_get_length(variable->type)) - 1;
+	}
 	for (unsigned i = 0; i < attrib_count; ++i) {
 		for (unsigned chan = 0; chan < 4; chan++) {
 			ctx->outputs[radeon_llvm_reg_index_soa(idx + i, chan)] =
@@ -3086,11 +3090,13 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 	int index;
 	LLVMValueRef args[9];
 	LLVMValueRef pos_args[4][9] = { { 0 } };
+	unsigned pos_export_size[4];
 	LLVMValueRef psize_value = 0;
 	int i;
 
 	for (unsigned i = 0; i < RADEON_LLVM_MAX_OUTPUTS; ++i) {
 		LLVMValueRef values[4];
+		unsigned pes;
 		if (!(ctx->output_mask & (1ull << i)))
 			continue;
 
@@ -3098,9 +3104,18 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 			values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
 					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
 
-		if (i == VARYING_SLOT_POS)
+		if (i == VARYING_SLOT_POS) {
 			target = V_008DFC_SQ_EXP_POS;
-		else if (i == VARYING_SLOT_PSIZ) {
+			pes = 4;
+		} else if (i == VARYING_SLOT_CLIP_DIST0) {
+			target = V_008DFC_SQ_EXP_POS + 2;
+			pes = ctx->shader_info->vs.clip_dist_mask & 0xf;
+			pes = util_bitcount(pes);
+		} else if (i == VARYING_SLOT_CLIP_DIST1) {
+			target = V_008DFC_SQ_EXP_POS + 3;
+			pes = (ctx->shader_info->vs.clip_dist_mask & 0xf0) >> 4;
+			pes = util_bitcount(pes);
+		} else if (i == VARYING_SLOT_PSIZ) {
 			ctx->shader_info->vs.writes_pointsize = true;
 			psize_value = values[0];
 			continue;
@@ -3114,6 +3129,9 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 
 		if (target >= V_008DFC_SQ_EXP_POS &&
 		    target <= (V_008DFC_SQ_EXP_POS + 3)) {
+			if (pes == 3)
+				pes = 4;
+			pos_export_size[target - V_008DFC_SQ_EXP_POS] = pes;
 			memcpy(pos_args[target - V_008DFC_SQ_EXP_POS],
 			       args, sizeof(args));
 		} else {
@@ -3126,6 +3144,7 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 
 	/* We need to add the position output manually if it's missing. */
 	if (!pos_args[0][0]) {
+		pos_export_size[0] = 4;
 		pos_args[0][0] = LLVMConstInt(ctx->i32, 0xf, false);
 		pos_args[0][1] = ctx->i32zero; /* EXEC mask */
 		pos_args[0][2] = ctx->i32zero; /* last export? */
@@ -3150,6 +3169,7 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 
 		if (ctx->shader_info->vs.writes_pointsize == true)
 			pos_args[1][5] = psize_value;
+		pos_export_size[1] = 1;
 	}
 	for (i = 0; i < 4; i++) {
 		if (pos_args[i][0])
@@ -3162,6 +3182,7 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 			continue;
 
 		/* Specify the target we are exporting */
+		ctx->shader_info->vs.pos_export_format[pos_idx] = pos_export_size[i];
 		pos_args[i][3] = LLVMConstInt(ctx->i32, V_008DFC_SQ_EXP_POS + pos_idx++, false);
 		if (pos_idx == num_pos_exports)
 			pos_args[i][2] = ctx->i32one;
