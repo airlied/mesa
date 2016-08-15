@@ -116,6 +116,7 @@ meta_prepare_blit(struct radv_cmd_buffer *cmd_buffer,
                   struct radv_meta_saved_state *saved_state)
 {
 	radv_meta_save(saved_state, cmd_buffer, 0);
+	cmd_buffer->state.dynamic.viewport.count = 0;
 }
 
 static void
@@ -131,31 +132,22 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
                VkFilter blit_filter)
 {
 	struct radv_device *device = cmd_buffer->device;
-
+	unsigned offset = 0;
 	struct blit_vb_data {
 		float pos[2];
 		float tex_coord[3];
-	} *vb_data;
+	} vb_data[3];
 
 	assert(src_image->samples == dest_image->samples);
-#if 0
-	unsigned vb_size = sizeof(struct radv_vue_header) + 3 * sizeof(*vb_data);
-
-	struct radv_state vb_state =
-		radv_cmd_buffer_alloc_dynamic_state(cmd_buffer, vb_size, 16);
-	memset(vb_state.map, 0, sizeof(struct radv_vue_header));
-	vb_data = vb_state.map + sizeof(struct radv_vue_header);
-
+	unsigned vb_size = 3 * sizeof(*vb_data);
 	vb_data[0] = (struct blit_vb_data) {
 		.pos = {
-			dest_offset.x + dest_extent.width,
-			dest_offset.y + dest_extent.height,
+			dest_offset.x,
+			dest_offset.y,
 		},
 		.tex_coord = {
-			(float)(src_offset.x + src_extent.width)
-			/ (float)src_iview->extent.width,
-			(float)(src_offset.y + src_extent.height)
-			/ (float)src_iview->extent.height,
+			(float)(src_offset.x) / (float)src_iview->extent.width,
+			(float)(src_offset.y) / (float)src_iview->extent.height,
 			(float)src_offset.z / (float)src_iview->extent.depth,
 		},
 	};
@@ -175,36 +167,30 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 
 	vb_data[2] = (struct blit_vb_data) {
 		.pos = {
-			dest_offset.x,
+			dest_offset.x + dest_extent.width,
 			dest_offset.y,
 		},
 		.tex_coord = {
-			(float)src_offset.x / (float)src_iview->extent.width,
+			(float)(src_offset.x + src_extent.width) / (float)src_iview->extent.width,
 			(float)src_offset.y / (float)src_iview->extent.height,
 			(float)src_offset.z / (float)src_iview->extent.depth,
 		},
 	};
+	radv_cmd_buffer_upload_data(cmd_buffer, vb_size, 16, vb_data, &offset);
 
-	if (!device->info.has_llc)
-		radv_state_clflush(vb_state);
-
-	int vb_size = 8;
 	struct radv_buffer vertex_buffer = {
 		.device = device,
 		.size = vb_size,
-		.bo = &device->dynamic_state_block_pool.bo,
-		.offset = vb_state.offset,
+		.bo = &cmd_buffer->upload.upload_bo,
+		.offset = offset,
 	};
-#endif
-	struct radv_buffer vertex_buffer;
-	radv_CmdBindVertexBuffers(radv_cmd_buffer_to_handle(cmd_buffer), 0, 2,
+
+	radv_CmdBindVertexBuffers(radv_cmd_buffer_to_handle(cmd_buffer), 0, 1,
 				  (VkBuffer[]) {
-					  radv_buffer_to_handle(&vertex_buffer),
 						  radv_buffer_to_handle(&vertex_buffer)
 						  },
 				  (VkDeviceSize[]) {
 					  0,
-						  0,  //sizeof(struct radv_vue_header),
 						  });
 
 	VkSampler sampler;
@@ -508,39 +494,27 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 
 	VkPipelineVertexInputStateCreateInfo vi_create_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 2,
+		.vertexBindingDescriptionCount = 1,
 		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
 			{
 				.binding = 0,
-				.stride = 0,
-				.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
-			},
-			{
-				.binding = 1,
 				.stride = 5 * sizeof(float),
 				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 			},
 		},
-		.vertexAttributeDescriptionCount = 3,
+		.vertexAttributeDescriptionCount = 2,
 		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
 			{
-				/* VUE Header */
+				/* Position */
 				.location = 0,
 				.binding = 0,
-				.format = VK_FORMAT_R32G32B32A32_UINT,
-				.offset = 0
-			},
-			{
-				/* Position */
-				.location = 1,
-				.binding = 1,
 				.format = VK_FORMAT_R32G32_SFLOAT,
 				.offset = 0
 			},
 			{
 				/* Texture Coordinate */
-				.location = 2,
-				.binding = 1,
+				.location = 1,
+				.binding = 0,
 				.format = VK_FORMAT_R32G32B32_SFLOAT,
 				.offset = 8
 			}
@@ -605,8 +579,8 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 		},
 		.pViewportState = &(VkPipelineViewportStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-			.viewportCount = 1,
-			.scissorCount = 1,
+			.viewportCount = 0,
+			.scissorCount = 0,
 		},
 		.pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -634,10 +608,8 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 		},
 		.pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-			.dynamicStateCount = 9,
+			.dynamicStateCount = 7,
 			.pDynamicStates = (VkDynamicState[]) {
-				VK_DYNAMIC_STATE_VIEWPORT,
-				VK_DYNAMIC_STATE_SCISSOR,
 				VK_DYNAMIC_STATE_LINE_WIDTH,
 				VK_DYNAMIC_STATE_DEPTH_BIAS,
 				VK_DYNAMIC_STATE_BLEND_CONSTANTS,
