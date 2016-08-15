@@ -154,8 +154,8 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		unsigned slice_array = 0;
 		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
 
-			rect.dst_x += img_offset_el.x;
-			rect.dst_y += img_offset_el.y;
+			rect.dst_x = img_offset_el.x;
+			rect.dst_y = img_offset_el.y;
 
 
 			/* Perform Blit */
@@ -360,10 +360,10 @@ void radv_CmdCopyImage(
 		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
 
 			/* Finish creating blit rect */
-			rect.dst_x += dst_offset_el.x;
-			rect.dst_y += dst_offset_el.y;
-			rect.src_x += src_offset_el.x;
-			rect.src_y += src_offset_el.y;
+			rect.dst_x = dst_offset_el.x;
+			rect.dst_y = dst_offset_el.y;
+			rect.src_x = src_offset_el.x;
+			rect.src_y = src_offset_el.y;
 
 			/* Perform Blit */
 			radv_meta_blit2d(cmd_buffer, &b_src, NULL, &b_dst, 1, &rect);
