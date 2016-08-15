@@ -67,17 +67,6 @@ meta_region_offset_el(const struct radv_image *image,
 }
 
 static struct radv_meta_blit2d_surf
-blit_surf_for_image(const struct radv_image* image)
-{
-	return (struct radv_meta_blit2d_surf) {
-		.bs = vk_format_get_blocksize(image->vk_format),
-		.level = 0,
-		.layer = 0,
-		.image = image,
-	};
-}
-
-static struct radv_meta_blit2d_surf
 blit_surf_for_image_level_layer(const struct radv_image* image, int level, int layer)
 {
 	return (struct radv_meta_blit2d_surf) {
@@ -368,6 +357,8 @@ void radv_CmdCopyImage(
 			/* Perform Blit */
 			radv_meta_blit2d(cmd_buffer, &b_src, NULL, &b_dst, 1, &rect);
 
+			b_src.layer++;
+			b_dst.layer++;
 			if (dest_image->type == VK_IMAGE_TYPE_3D)
 				slice_3d++;
 			else
