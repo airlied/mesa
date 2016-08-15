@@ -86,6 +86,10 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_meta_saved_state saved_state;
 
+	if (image->vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+		radv_finishme("copying d32/s8\n");
+		return;
+	}
 	/* The Vulkan 1.0 spec says "dstImage must have a sample count equal to
 	 * VK_SAMPLE_COUNT_1_BIT."
 	 */
