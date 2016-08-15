@@ -306,12 +306,38 @@ static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 	struct amdgpu_ctx *ctx = amdgpu_ctx(_ctx);
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
 	amdgpu_bo_list_handle bo_list;
+	struct amdgpu_winsys *ws = ctx->ws;
 
 	if (cs->failed)
 		abort();
 
-	r = amdgpu_bo_list_create(cs->ws->dev, cs->num_buffers, cs->handles,
-				  cs->priorities, &bo_list);
+	if (cs->ws->debug_all_bos) {
+		struct amdgpu_winsys_bo *bo;
+		amdgpu_bo_handle *handles;
+		unsigned num = 0;
+
+		pthread_mutex_lock(&ws->global_bo_list_lock);
+
+		handles = malloc(sizeof(handles[0]) * ws->num_buffers);
+		if (!handles) {
+			pthread_mutex_unlock(&ws->global_bo_list_lock);
+			return -ENOMEM;
+		}
+
+		LIST_FOR_EACH_ENTRY(bo, &ws->global_bo_list, global_list_item) {
+			assert(num < ws->num_buffers);
+			handles[num++] = bo->bo;
+		}
+
+		r = amdgpu_bo_list_create(ws->dev, ws->num_buffers,
+					  handles, NULL,
+					  &bo_list);
+		free(handles);
+		pthread_mutex_unlock(&ws->global_bo_list_lock);
+	} else {
+		r = amdgpu_bo_list_create(cs->ws->dev, cs->num_buffers, cs->handles,
+					  cs->priorities, &bo_list);
+	}
 	if (r) {
 		fprintf(stderr, "amdgpu: Failed to created the BO list for submission\n");
 		return r;
@@ -365,6 +391,7 @@ static struct radeon_winsys_ctx *amdgpu_ctx_create(struct radeon_winsys *_ws)
 		fprintf(stderr, "amdgpu: amdgpu_cs_ctx_create failed. (%i)\n", r);
 		goto error_create;
 	}
+	ctx->ws = ws;
 	return (struct radeon_winsys_ctx *)ctx;
 error_create:
 	return NULL;

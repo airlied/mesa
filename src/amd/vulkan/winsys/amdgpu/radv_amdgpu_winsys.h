@@ -4,6 +4,7 @@
 #include "radv_radeon_winsys.h"
 #include "addrlib/addrinterface.h"
 #include <amdgpu.h>
+#include "util/list.h"
 
 struct amdgpu_winsys {
   struct radeon_winsys base;
@@ -15,6 +16,11 @@ struct amdgpu_winsys {
 
   uint32_t rev_id;
   unsigned family;
+
+  bool debug_all_bos;
+  pthread_mutex_t global_bo_list_lock;
+  struct list_head global_bo_list;
+  unsigned num_buffers;
 };
 
 static inline struct amdgpu_winsys *
