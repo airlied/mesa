@@ -37,10 +37,29 @@
 static void amdgpu_winsys_bo_destroy(struct radeon_winsys_bo *_bo)
 {
 	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+
+	if (bo->ws->debug_all_bos) {
+		pthread_mutex_lock(&bo->ws->global_bo_list_lock);
+		LIST_DEL(&bo->global_list_item);
+		bo->ws->num_buffers--;
+		pthread_mutex_unlock(&bo->ws->global_bo_list_lock);
+	}
 	amdgpu_bo_va_op(bo->bo, 0, bo->size, bo->va, 0, AMDGPU_VA_OP_UNMAP);
 	amdgpu_va_range_free(bo->va_handle);
 	amdgpu_bo_free(bo->bo);
 	FREE(bo);
+}
+
+static void amdgpu_add_buffer_to_global_list(struct amdgpu_winsys_bo *bo)
+{
+	struct amdgpu_winsys *ws = bo->ws;
+
+	if (bo->ws->debug_all_bos) {
+		pthread_mutex_lock(&ws->global_bo_list_lock);
+		LIST_ADDTAIL(&bo->global_list_item, &ws->global_bo_list);
+		ws->num_buffers++;
+		pthread_mutex_unlock(&ws->global_bo_list_lock);
+	}
 }
 
 static struct radeon_winsys_bo *
@@ -101,6 +120,8 @@ amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
 	bo->initial_domain = initial_domain;
 	bo->size = size;
 	bo->is_shared = false;
+	bo->ws = ws;
+	amdgpu_add_buffer_to_global_list(bo);
 	return (struct radeon_winsys_bo *)bo;
 error_va_map:   
 	amdgpu_va_range_free(va_handle);

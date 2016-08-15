@@ -291,6 +291,9 @@ radv_amdgpu_winsys_create(int fd)
 	if (!do_winsys_init(ws, fd))
 		goto fail;
 
+	ws->debug_all_bos = getenv("RADV_DEBUG_ALL_BOS") ? true : false;
+	LIST_INITHEAD(&ws->global_bo_list);
+	pthread_mutex_init(&ws->global_bo_list_lock, NULL);
 	ws->base.query_info = amdgpu_winsys_query_info;
 	ws->base.destroy = radv_amdgpu_winsys_destroy;
 	radv_amdgpu_bo_init_functions(ws);
