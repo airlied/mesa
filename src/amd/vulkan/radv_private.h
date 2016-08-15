@@ -477,7 +477,7 @@ struct radv_descriptor_set {
 	const struct radv_descriptor_set_layout *layout;
 	struct list_head descriptor_pool;
 	uint32_t size;
-	uint32_t buffer_count;
+
 	struct radv_buffer_view *buffer_views;
 	struct radv_bo bo;
 	uint64_t va;
