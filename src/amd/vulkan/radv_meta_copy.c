@@ -324,9 +324,11 @@ void radv_CmdCopyImage(
 
 		/* Create blit surfaces */
 		struct radv_meta_blit2d_surf b_src =
-			blit_surf_for_image(src_image);
+			blit_surf_for_image_level_layer(src_image, pRegions[r].srcSubresource.mipLevel,
+				pRegions[r].srcSubresource.baseArrayLayer);
 		struct radv_meta_blit2d_surf b_dst =
-			blit_surf_for_image(dest_image);
+			blit_surf_for_image_level_layer(dest_image, pRegions[r].dstSubresource.mipLevel,
+				pRegions[r].dstSubresource.baseArrayLayer);
 
 		/**
 		 * From the Vulkan 1.0.6 spec: 18.4 Copying Data Between Buffers and Images
@@ -358,22 +360,6 @@ void radv_CmdCopyImage(
 		while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
 
 			/* Finish creating blit rect */
-#if 0
-			isl_surf_get_image_offset_el(&dst_surf->isl,
-						     pRegions[r].dstSubresource.mipLevel,
-						     pRegions[r].dstSubresource.baseArrayLayer
-						     + slice_array,
-						     dst_offset_el.z + slice_3d,
-						     &rect.dst_x,
-						     &rect.dst_y);
-			isl_surf_get_image_offset_el(&src_surf->isl,
-						     pRegions[r].srcSubresource.mipLevel,
-						     pRegions[r].srcSubresource.baseArrayLayer
-						     + slice_array,
-						     src_offset_el.z + slice_3d,
-						     &rect.src_x,
-						     &rect.src_y);
-#endif
 			rect.dst_x += dst_offset_el.x;
 			rect.dst_y += dst_offset_el.y;
 			rect.src_x += src_offset_el.x;
