@@ -173,6 +173,7 @@ radv_cmd_buffer_resize_upload_buf(struct radv_cmd_buffer *cmd_buffer,
 		return false;
 	}
 
+	device->ws->cs_add_buffer(cmd_buffer->cs, bo, 8);
 	if (cmd_buffer->upload.upload_bo.bo) {
 		upload = malloc(sizeof(*upload));
 
@@ -1054,8 +1055,6 @@ void radv_bind_descriptor_set(struct radv_cmd_buffer *cmd_buffer,
 
 	if(set->bo.bo)
 		ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
-	else
-		ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->upload.upload_bo.bo, 8);
 }
 
 void radv_CmdBindDescriptorSets(
