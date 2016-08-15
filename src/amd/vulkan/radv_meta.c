@@ -278,9 +278,7 @@ radv_device_finish_meta(struct radv_device *device)
 {
    radv_device_finish_meta_resolve_state(device);
    radv_device_finish_meta_clear_state(device);
-#if 0
    radv_device_finish_meta_blit_state(device);
-#endif
    radv_device_finish_meta_blit2d_state(device);
 
    radv_device_finish_meta_bufimage_state(device);
