@@ -1054,6 +1054,8 @@ void radv_bind_descriptor_set(struct radv_cmd_buffer *cmd_buffer,
 
 	if(set->bo.bo)
 		ws->cs_add_buffer(cmd_buffer->cs, set->bo.bo, 8);
+	else
+		ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->upload.upload_bo.bo, 8);
 }
 
 void radv_CmdBindDescriptorSets(
