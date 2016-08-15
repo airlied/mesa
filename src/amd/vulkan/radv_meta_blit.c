@@ -115,7 +115,7 @@ static void
 meta_prepare_blit(struct radv_cmd_buffer *cmd_buffer,
                   struct radv_meta_saved_state *saved_state)
 {
-	radv_meta_save(saved_state, cmd_buffer, 0);
+	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
 	cmd_buffer->state.dynamic.viewport.count = 0;
 }
 
@@ -471,11 +471,6 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 	if (result != VK_SUCCESS)
 		goto fail;
 
-	/* We don't use a vertex shader for blitting, but instead build and pass
-	 * the VUEs directly to the rasterization backend.  However, we do need
-	 * to provide GLSL source for the vertex shader so that the compiler
-	 * does not dead-code our inputs.
-	 */
 	struct radv_shader_module vs = {
 		.nir = build_nir_vertex_shader(),
 	};
