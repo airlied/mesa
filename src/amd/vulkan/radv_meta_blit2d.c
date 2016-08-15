@@ -255,7 +255,8 @@ void
 radv_meta_begin_blit2d(struct radv_cmd_buffer *cmd_buffer,
 		       struct radv_meta_saved_state *save)
 {
-	radv_meta_save(save, cmd_buffer, 0);
+	radv_meta_save(save, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
+	cmd_buffer->state.dynamic.viewport.count = 0;
 }
 
 static void
@@ -689,8 +690,8 @@ blit2d_init_pipeline(struct radv_device *device,
 		},
 		.pViewportState = &(VkPipelineViewportStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-			.viewportCount = 1,
-			.scissorCount = 1,
+			.viewportCount = 0,
+			.scissorCount = 0,
 		},
 		.pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -718,10 +719,8 @@ blit2d_init_pipeline(struct radv_device *device,
 		},
 		.pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-			.dynamicStateCount = 9,
+			.dynamicStateCount = 7,
 			.pDynamicStates = (VkDynamicState[]) {
-				VK_DYNAMIC_STATE_VIEWPORT,
-				VK_DYNAMIC_STATE_SCISSOR,
 				VK_DYNAMIC_STATE_LINE_WIDTH,
 				VK_DYNAMIC_STATE_DEPTH_BIAS,
 				VK_DYNAMIC_STATE_BLEND_CONSTANTS,
