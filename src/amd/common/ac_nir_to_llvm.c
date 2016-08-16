@@ -125,6 +125,7 @@ struct ac_tex_info {
 	LLVMValueRef args[12];
 	int arg_count;
 	LLVMTypeRef dst_type;
+	bool has_offset;
 };
 
 static LLVMValueRef
@@ -1498,12 +1499,15 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	const char *infix = "";
 	char intr_name[127];
 	char type[64];
-
+	bool is_shadow = instr->is_shadow;
+	bool has_offset = tinfo->has_offset;
 	switch (instr->op) {
 	case nir_texop_txf:
 		name = instr->sampler_dim == GLSL_SAMPLER_DIM_MS ? "llvm.SI.image.load" :
 		       instr->sampler_dim == GLSL_SAMPLER_DIM_BUF ? "llvm.SI.vs.load.input" :
 			"llvm.SI.image.load.mip";
+		is_shadow = false;
+		has_offset = false;
 		break;
 	case nir_texop_txb:
 		infix = ".b";
@@ -1514,12 +1518,31 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_texop_txs:
 		name = "llvm.SI.getresinfo";
 		break;
+	case nir_texop_query_levels:
+		name = "llvm.SI.getresinfo";
+		break;
+	case nir_texop_texture_samples:
+		name = "llvm.SI.getresinfo";
+		break;
+	case nir_texop_tex:
+		if (ctx->stage != MESA_SHADER_FRAGMENT)
+			infix = ".lz";
+		break;
+	case nir_texop_txd:
+		infix = ".d";
+		break;
+	case nir_texop_lod:
+		name = "llvm.SI.getlod";
+		is_shadow = false;
+		has_offset = false;
+		break;
 	default:
 		break;
 	}
 
 	build_int_type_name(LLVMTypeOf(tinfo->args[0]), type, sizeof(type));
-	sprintf(intr_name, "%s%s%s.%s", name, instr->is_shadow ? ".c" : "", infix, type);
+	sprintf(intr_name, "%s%s%s%s.%s", name, is_shadow ? ".c" : "", infix,
+		has_offset ? ".o" : "", type);
 
 	return emit_llvm_intrinsic(ctx, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
 				   LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
@@ -2291,7 +2314,9 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->args[1] = res_ptr;
 	num_args = 2;
 
-	if (instr->op == nir_texop_txf || instr->op == nir_texop_query_levels ||
+	if (instr->op == nir_texop_txf ||
+	    instr->op == nir_texop_query_levels ||
+	    instr->op == nir_texop_texture_samples ||
 	    instr->op == nir_texop_txs)
 		tinfo->dst_type = ctx->v4i32;
 	else {
@@ -2328,14 +2353,17 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 		*res_ptr = get_sampler_desc(ctx, instr->texture, DESC_BUFFER);
 	else
 		*res_ptr = get_sampler_desc(ctx, instr->texture, DESC_IMAGE);
-	if (samp_ptr && instr->sampler)
-		*samp_ptr = get_sampler_desc(ctx, instr->sampler, DESC_SAMPLER);
+	if (samp_ptr) {
+		if (instr->sampler)
+			*samp_ptr = get_sampler_desc(ctx, instr->sampler, DESC_SAMPLER);
+		else
+			*samp_ptr = get_sampler_desc(ctx, instr->texture, DESC_SAMPLER);
+	}
 	if (fmask_ptr && instr->sampler)
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, DESC_FMASK);
 }
 
 static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
-			      int num_coords,
 			      LLVMValueRef *in, LLVMValueRef *out)
 {
 	LLVMValueRef coords[4];
@@ -2376,10 +2404,46 @@ static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
 }
 
 static void emit_prepare_cube_coords(struct nir_to_llvm_context *ctx,
-				     LLVMValueRef *coords_arg, int num_coords, bool is_array)
+				     LLVMValueRef *coords_arg, int num_coords,
+				     bool is_array, LLVMValueRef *derivs_arg)
 {
 	LLVMValueRef coords[4];
-	cube_to_2d_coords(ctx, num_coords, coords_arg, coords);
+	int i;
+	cube_to_2d_coords(ctx, coords_arg, coords);
+
+	if (derivs_arg) {
+		LLVMValueRef derivs[4];
+		int axis;
+
+		/* Convert cube derivatives to 2D derivatives. */
+		for (axis = 0; axis < 2; axis++) {
+			LLVMValueRef shifted_cube_coords[4], shifted_coords[4];
+
+			/* Shift the cube coordinates by the derivatives to get
+			 * the cube coordinates of the "neighboring pixel".
+			 */
+			for (i = 0; i < 3; i++)
+				shifted_cube_coords[i] =
+					LLVMBuildFAdd(ctx->builder, coords_arg[i],
+						      derivs_arg[axis*3+i], "");
+			shifted_cube_coords[3] = LLVMGetUndef(ctx->f32);
+
+			/* Project the shifted cube coordinates onto the face. */
+			cube_to_2d_coords(ctx, shifted_cube_coords,
+					  shifted_coords);
+
+			/* Subtract both sets of 2D coordinates to get 2D derivatives.
+			 * This won't work if the shifted coordinates ended up
+			 * in a different face.
+			 */
+			for (i = 0; i < 2; i++)
+				derivs[axis * 2 + i] =
+					LLVMBuildFSub(ctx->builder, shifted_coords[i],
+						      coords[i], "");
+		}
+
+		memcpy(derivs_arg, derivs, sizeof(derivs));
+	}
 
 	if (is_array) {
 		/* for cube arrays coord.z = coord.w(array_index) * 8 + face */
@@ -2399,51 +2463,121 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	unsigned dmask = 0xf;
 	LLVMValueRef address[16];
 	LLVMValueRef coords[5];
-	LLVMValueRef coord;
+	LLVMValueRef coord = NULL, lod = NULL, comparitor = NULL, bias, offsets = NULL;
 	LLVMTypeRef data_type = ctx->i32;
 	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL;
+	LLVMValueRef ddx = NULL, ddy = NULL;
+	LLVMValueRef derivs[6];
 	unsigned chan, count = 0;
+	unsigned lod_src;
+	unsigned const_src = 0, num_deriv_comp = 0;
 
 	tex_fetch_ptrs(ctx, instr, &res_ptr, &samp_ptr, &fmask_ptr);
 
-	coord = get_src(ctx, instr->src[0].src);
+	for (unsigned i = 0; i < instr->num_srcs; i++) {
+		switch (instr->src[i].src_type) {
+		case nir_tex_src_coord:
+			coord = get_src(ctx, instr->src[i].src);
+			break;
+		case nir_tex_src_projector:
+			break;
+		case nir_tex_src_comparitor:
+			comparitor = get_src(ctx, instr->src[i].src);
+			break;
+		case nir_tex_src_offset:
+			offsets = get_src(ctx, instr->src[i].src);
+			const_src = i;
+			break;
+		case nir_tex_src_bias:
+			bias = get_src(ctx, instr->src[i].src);
+			break;
+		case nir_tex_src_lod:
+			lod = get_src(ctx, instr->src[i].src);
+			break;
+		case nir_tex_src_ms_index:
+		case nir_tex_src_ms_mcs:
+			break;
+		case nir_tex_src_ddx:
+			ddx = get_src(ctx, instr->src[i].src);
+			num_deriv_comp = instr->src[i].src.ssa->num_components;
+			break;
+		case nir_tex_src_ddy:
+			ddy = get_src(ctx, instr->src[i].src);
+			break;
+		case nir_tex_src_texture_offset:
+		case nir_tex_src_sampler_offset:
+		case nir_tex_src_plane:
+			break;
+		}
+	}
 
-	for (chan = 0; chan < instr->coord_components; chan++)
-		coords[chan] = llvm_extract_elem(ctx, coord, chan);
+	if (coord)
+		for (chan = 0; chan < instr->coord_components; chan++)
+			coords[chan] = llvm_extract_elem(ctx, coord, chan);
 
-	/* TODO pack offsets */
+	if (offsets && instr->op != nir_texop_txf) {
+		LLVMValueRef offset[3], pack;
+
+		tinfo.has_offset = true;
+		for (chan = 0; chan < 3; chan++) {
+			offset[chan] = llvm_extract_elem(ctx, offsets, chan);
+			offset[chan] = LLVMBuildAnd(ctx->builder, offset[chan],
+						    LLVMConstInt(ctx->i32, 0x3f, false), "");
+			if (chan)
+				offset[chan] = LLVMBuildShl(ctx->builder, offset[chan],
+							    LLVMConstInt(ctx->i32, chan * 8, false), "");
+		}
+		pack = LLVMBuildOr(ctx->builder, offset[0], offset[1], "");
+		pack = LLVMBuildOr(ctx->builder, pack, offset[2], "");
+		address[count++] = pack;
+
+	}
 	/* pack LOD bias value */
-	if (instr->op == nir_texop_txb) {
-		LLVMValueRef lod = get_src(ctx, instr->src[1].src);
-		address[count++] = lod;
+	if (instr->op == nir_texop_txb && bias) {
+		address[count++] = bias;
 	}
 
 	/* Pack depth comparison value */
-	if (instr->is_shadow) {
-		address[count++] = get_src(ctx, instr->src[1].src);
+	if (instr->is_shadow && comparitor) {
+		address[count++] = comparitor;
 	}
 
-	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
+	/* pack derivatives */
+	if (ddx || ddy) {
+		for (unsigned i = 0; i < num_deriv_comp; i++) {
+			derivs[i * 2] = to_float(ctx, llvm_extract_elem(ctx, ddx, i));
+			derivs[i * 2 + 1] = to_float(ctx, llvm_extract_elem(ctx, ddy, i));
+		}
+	}
+
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE && coord) {
 		for (chan = 0; chan < instr->coord_components; chan++)
 			coords[chan] = to_float(ctx, coords[chan]);
 		if (instr->coord_components == 3)
 			coords[3] = LLVMGetUndef(ctx->f32);
-		emit_prepare_cube_coords(ctx, coords, instr->coord_components, instr->is_array);
+		emit_prepare_cube_coords(ctx, coords, instr->coord_components, instr->is_array, derivs);
+		if (num_deriv_comp)
+			num_deriv_comp--;
 	}
 
-	/* pack derivatives */
-	address[count++] = coords[0];
-	if (instr->coord_components > 1)
-		address[count++] = coords[1];
-	if (instr->coord_components > 2)
-		address[count++] = coords[2];
+	if (ddx || ddy) {
+		for (unsigned i = 0; i < num_deriv_comp * 2; i++)
+			address[count++] = derivs[i];
+	}
 
-	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && instr->num_srcs > 1) {
-		int lod_idx = instr->is_shadow ? 2 : 1;
-		LLVMValueRef lod = get_src(ctx, instr->src[lod_idx].src);
+	/* Pack texture coordinates */
+	if (coord) {
+		address[count++] = coords[0];
+		if (instr->coord_components > 1)
+			address[count++] = coords[1];
+		if (instr->coord_components > 2)
+			address[count++] = coords[2];
+	}
+
+	/* Pack LOD */
+	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && lod) {
 		address[count++] = lod;
 	} else if(instr->op == nir_texop_txs) {
-		LLVMValueRef lod = get_src(ctx, instr->src[0].src);
 		count = 0;
 		address[count++] = lod;
 	}
@@ -2455,12 +2589,30 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	/* TODO sample FMASK magic */
 
-	/* TODO TXF offset support */
+	if (offsets && instr->op == nir_texop_txf) {
+		nir_const_value *const_offset =
+			nir_src_as_const_value(instr->src[const_src].src);
+
+		assert(const_offset);
+		if (instr->coord_components > 2)
+			address[2] = LLVMBuildAdd(ctx->builder,
+						  address[2], LLVMConstInt(ctx->i32, const_offset->i32[2], false), "");
+		if (instr->coord_components > 1)
+			address[1] = LLVMBuildAdd(ctx->builder,
+						  address[1], LLVMConstInt(ctx->i32, const_offset->i32[1], false), "");
+		address[0] = LLVMBuildAdd(ctx->builder,
+					  address[0], LLVMConstInt(ctx->i32, const_offset->i32[0], false), "");
+
+	}
 
 	/* TODO TG4 support */
 	set_tex_fetch_args(ctx, &tinfo, instr, res_ptr, samp_ptr, address, count, dmask);
 
 	result = build_tex_intrinsic(ctx, instr, &tinfo);
+
+	if (instr->op == nir_texop_query_levels ||
+	    instr->op == nir_texop_texture_samples)
+		result = LLVMBuildExtractElement(ctx->builder, result, LLVMConstInt(ctx->i32, 3, false), "");
 
 	if (result) {
 		assert(instr->dest.is_ssa);
