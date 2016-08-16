@@ -2522,9 +2522,11 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	if (offsets && instr->op != nir_texop_txf) {
 		LLVMValueRef offset[3], pack;
+		for (chan = 0; chan < 3; ++chan)
+			offset[chan] = ctx->i32zero;
 
 		tinfo.has_offset = true;
-		for (chan = 0; chan < 3; chan++) {
+		for (chan = 0; chan < get_llvm_num_components(offsets); chan++) {
 			offset[chan] = llvm_extract_elem(ctx, offsets, chan);
 			offset[chan] = LLVMBuildAnd(ctx->builder, offset[chan],
 						    LLVMConstInt(ctx->i32, 0x3f, false), "");
