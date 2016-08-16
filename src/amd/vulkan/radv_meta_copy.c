@@ -412,8 +412,30 @@ void radv_CmdUpdateBuffer(
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
-	struct radv_meta_saved_state saved_state;
+	uint64_t words = dataSize / 4;
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
+	va += dstOffset += dst_buffer->offset;
 
+	assert(!(dataSize & 3));
+	assert(!(va & 3));
 
-	radv_finishme("update buffer support");
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
+
+	while (words) {
+		uint64_t count = MIN2(words, 0x3FF0);
+
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, count + 4);
+
+		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + words, 0));
+		radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEMORY_SYNC) |
+		                            S_370_WR_CONFIRM(!!(count == words)) |
+		                            S_370_ENGINE_SEL(V_370_ME));
+		radeon_emit(cmd_buffer->cs, va);
+		radeon_emit(cmd_buffer->cs, va >> 32);
+		radeon_emit_array(cmd_buffer->cs, pData, count);
+
+		words -= count;
+		pData += count;
+		va += count * 4;
+	}
 }
