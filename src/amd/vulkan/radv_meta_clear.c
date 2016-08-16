@@ -381,14 +381,23 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
    const uint32_t samples = iview->image->samples;
    const uint32_t samples_log2 = ffs(samples) - 1;
    unsigned fs_key = radv_format_meta_fs_key(iview->vk_format);
-   struct radv_pipeline *pipeline =
-     device->meta_state.clear[samples_log2].color_pipelines[fs_key];
+   struct radv_pipeline *pipeline;
    VkClearColorValue clear_value = clear_att->clearValue.color;
-
    VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
-   VkPipeline pipeline_h = radv_pipeline_to_handle(pipeline);
+   VkPipeline pipeline_h;
    uint32_t offset;
 
+   if (fs_key == -1) {
+	   radv_finishme("color clears incomplete");
+	   return;
+   }
+   pipeline = device->meta_state.clear[samples_log2].color_pipelines[fs_key];
+   pipeline_h = radv_pipeline_to_handle(pipeline);
+
+   if (!pipeline) {
+	   radv_finishme("color clears incomplete");
+	   return;
+   }
    assert(samples_log2 < ARRAY_SIZE(device->meta_state.clear));
    assert(pipeline);
    assert(clear_att->aspectMask == VK_IMAGE_ASPECT_COLOR_BIT);
