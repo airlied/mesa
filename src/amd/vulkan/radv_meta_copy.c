@@ -414,8 +414,6 @@ void radv_CmdUpdateBuffer(
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 	struct radv_meta_saved_state saved_state;
 
-#if 0
-	do_buffer_copy(cmd_buffer, src_buffer->bo, src_offset,
-		       dst_buffer->bo, dstOffset, dataSize);
-#endif
+
+	radv_finishme("update buffer support");
 }
