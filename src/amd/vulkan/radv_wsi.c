@@ -210,23 +210,19 @@ VkResult radv_QueuePresentKHR(
 
       assert(swapchain->device == queue->device);
       if (swapchain->fences[0] == VK_NULL_HANDLE) {
-#if 0
          result = radv_CreateFence(radv_device_to_handle(queue->device),
             &(VkFenceCreateInfo) {
                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                .flags = 0,
             }, &swapchain->alloc, &swapchain->fences[0]);
-#endif
          if (result != VK_SUCCESS)
             return result;
       } else {
-#if 0
          radv_ResetFences(radv_device_to_handle(queue->device),
                          1, &swapchain->fences[0]);
-#endif
       }
 
-      //TODO      radv_QueueSubmit(_queue, 0, NULL, swapchain->fences[0]);
+      radv_QueueSubmit(_queue, 0, NULL, swapchain->fences[0]);
 
       result = swapchain->queue_present(swapchain, queue,
                                         pPresentInfo->pImageIndices[i]);
@@ -238,12 +234,12 @@ VkResult radv_QueuePresentKHR(
       swapchain->fences[2] = swapchain->fences[1];
       swapchain->fences[1] = swapchain->fences[0];
       swapchain->fences[0] = last;
-#if 0//TODO
+
       if (last != VK_NULL_HANDLE) {
          radv_WaitForFences(radv_device_to_handle(queue->device),
                            1, &last, true, 1);
       }
-#endif
+
    }
 
    return VK_SUCCESS;
