@@ -604,6 +604,11 @@ VkResult radv_CreateDevice(
 		goto fail_free;
 	}
 
+	device->empty_cs = device->ws->cs_create(device->ws, RING_GFX);
+	radeon_emit(device->empty_cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
+	radeon_emit(device->empty_cs, CONTEXT_CONTROL_LOAD_ENABLE(1));
+	radeon_emit(device->empty_cs, CONTEXT_CONTROL_SHADOW_ENABLE(1));
+	device->ws->cs_finalize(device->empty_cs);
 	*pDevice = radv_device_to_handle(device);
 	return VK_SUCCESS;
 fail_free:
@@ -723,8 +728,13 @@ VkResult radv_QueueSubmit(
 			ret = queue->device->ws->cs_submit(ctx, cmd_buffer->cs, base_fence);
 		}
 	}
-	if (fence)
+
+	if (fence) {
+		if (!submitCount)
+			ret = queue->device->ws->cs_submit(ctx, queue->device->empty_cs, base_fence);
+
 		fence->submitted = true;
+	}
 
 	return VK_SUCCESS;
 }
