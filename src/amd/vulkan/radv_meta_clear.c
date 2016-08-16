@@ -43,11 +43,13 @@ meta_clear_begin(struct radv_meta_saved_state *saved_state,
 {
    radv_meta_save(saved_state, cmd_buffer,
                  (1 << VK_DYNAMIC_STATE_VIEWPORT) |
+                 (1 << VK_DYNAMIC_STATE_SCISSOR) |
                  (1 << VK_DYNAMIC_STATE_STENCIL_REFERENCE) |
                  (1 << VK_DYNAMIC_STATE_STENCIL_WRITE_MASK));
 
    /* Avoid uploading more viewport states than necessary */
    cmd_buffer->state.dynamic.viewport.count = 0;
+   cmd_buffer->state.dynamic.scissor.count = 0;
 }
 
 static void
@@ -160,10 +162,8 @@ create_pipeline(struct radv_device *device,
          },
          .pViewportState = &(VkPipelineViewportStateCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .pViewports = NULL, /* dynamic */
-            .scissorCount = 1,
-            .pScissors = NULL, /* dynamic */
+            .viewportCount = 0,
+            .scissorCount = 0,
          },
          .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -190,11 +190,9 @@ create_pipeline(struct radv_device *device,
              * we need only restore dynamic state was vkCmdSet.
              */
             .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 8,
+            .dynamicStateCount = 6,
             .pDynamicStates = (VkDynamicState[]) {
                /* Everything except stencil write mask */
-               VK_DYNAMIC_STATE_VIEWPORT,
-               VK_DYNAMIC_STATE_SCISSOR,
                VK_DYNAMIC_STATE_LINE_WIDTH,
                VK_DYNAMIC_STATE_DEPTH_BIAS,
                VK_DYNAMIC_STATE_BLEND_CONSTANTS,

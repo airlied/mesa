@@ -255,8 +255,9 @@ void
 radv_meta_begin_blit2d(struct radv_cmd_buffer *cmd_buffer,
 		       struct radv_meta_saved_state *save)
 {
-	radv_meta_save(save, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
+	radv_meta_save(save, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT) | (1 << VK_DYNAMIC_STATE_SCISSOR));
 	cmd_buffer->state.dynamic.viewport.count = 0;
+	cmd_buffer->state.dynamic.scissor.count = 0;
 }
 
 static void
