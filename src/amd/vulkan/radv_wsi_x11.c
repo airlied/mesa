@@ -518,8 +518,6 @@ x11_acquire_next_image(struct radv_swapchain *radv_chain,
       for (uint32_t i = 0; i < chain->image_count; i++) {
          if (!chain->images[i].busy) {
             /* We found a non-busy image */
-	   //TODO REMOVE
-	   if (chain->images[i].shm_fence)
             xshmfence_await(chain->images[i].shm_fence);
             *image_index = i;
             return VK_SUCCESS;
@@ -557,7 +555,6 @@ x11_queue_present(struct radv_swapchain *radv_chain,
 
    options |= XCB_PRESENT_OPTION_ASYNC;
 
-   if (image->shm_fence) /*TODO REMOVE*/
    xshmfence_reset(image->shm_fence);
 
    xcb_void_cookie_t cookie =

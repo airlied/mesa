@@ -163,10 +163,8 @@ void radv_DestroySwapchainKHR(
    RADV_FROM_HANDLE(radv_swapchain, swapchain, _swapchain);
 
    for (unsigned i = 0; i < ARRAY_SIZE(swapchain->fences); i++) {
-#if 0
       if (swapchain->fences[i] != VK_NULL_HANDLE)
          radv_DestroyFence(device, swapchain->fences[i], pAllocator);
-#endif
    }
 
    swapchain->destroy(swapchain, pAllocator);
