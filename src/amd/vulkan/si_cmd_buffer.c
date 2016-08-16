@@ -480,6 +480,9 @@ void
 si_write_scissors(struct radeon_winsys_cs *cs, int first,
                   int count, const VkRect2D *scissors)
 {
+	if (count == 0)
+		return;
+
 	radeon_set_context_reg_seq(cs, R_028250_PA_SC_VPORT_SCISSOR_0_TL, 2);
 	radeon_emit(cs, S_028250_TL_X(scissors[0].offset.x) |
 		    S_028250_TL_Y(scissors[0].offset.y) |
