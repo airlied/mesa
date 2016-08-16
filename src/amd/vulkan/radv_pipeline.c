@@ -234,6 +234,13 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	indirect_mask |= nir_var_local;
 
 	nir_lower_indirect_derefs(nir, indirect_mask);
+
+	static const nir_lower_tex_options tex_options = {
+	  .lower_txp = ~0,
+	};
+
+	nir_lower_tex(nir, &tex_options);
+
 	nir_lower_vars_to_ssa(nir);
 	nir_lower_var_copies(nir);
 	nir_lower_global_vars_to_local(nir);
