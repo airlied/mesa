@@ -456,6 +456,7 @@ struct radv_device {
 
 	struct radv_meta_state                       meta_state;
 	struct radv_queue                            queue;
+	struct radeon_winsys_cs *empty_cs;
 };
 
 void radv_device_get_cache_uuid(void *uuid);
