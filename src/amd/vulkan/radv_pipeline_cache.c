@@ -315,7 +315,7 @@ radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 					8, VK_SYSTEM_ALLOCATION_SCOPE_CACHE);
 		if (dest_entry) {
 			memcpy(dest_entry, entry, sizeof(*entry) + entry->code_size);
-			radv_pipeline_cache_set_entry(cache, dest_entry);
+			radv_pipeline_cache_add_entry(cache, dest_entry);
 		}
 		p += sizeof (*entry) + entry->code_size;
 	}
