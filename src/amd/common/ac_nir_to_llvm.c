@@ -2409,13 +2409,14 @@ static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
 
 static void emit_prepare_cube_coords(struct nir_to_llvm_context *ctx,
 				     LLVMValueRef *coords_arg, int num_coords,
+				     bool is_deriv,
 				     bool is_array, LLVMValueRef *derivs_arg)
 {
 	LLVMValueRef coords[4];
 	int i;
 	cube_to_2d_coords(ctx, coords_arg, coords);
 
-	if (derivs_arg) {
+	if (is_deriv && derivs_arg) {
 		LLVMValueRef derivs[4];
 		int axis;
 
@@ -2559,7 +2560,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 			coords[chan] = to_float(ctx, coords[chan]);
 		if (instr->coord_components == 3)
 			coords[3] = LLVMGetUndef(ctx->f32);
-		emit_prepare_cube_coords(ctx, coords, instr->coord_components, instr->is_array, derivs);
+		emit_prepare_cube_coords(ctx, coords, instr->coord_components, instr->op == nir_texop_txd, instr->is_array, derivs);
 		if (num_deriv_comp)
 			num_deriv_comp--;
 	}
