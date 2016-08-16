@@ -484,8 +484,8 @@ si_write_scissors(struct radeon_winsys_cs *cs, int first,
 	radeon_emit(cs, S_028250_TL_X(scissors[0].offset.x) |
 		    S_028250_TL_Y(scissors[0].offset.y) |
 		    S_028250_WINDOW_OFFSET_DISABLE(1));
-	radeon_emit(cs, S_028254_BR_X(scissors[0].extent.width) |
-		    S_028254_BR_Y(scissors[0].extent.height));
+	radeon_emit(cs, S_028254_BR_X(scissors[0].offset.x + scissors[0].extent.width) |
+		    S_028254_BR_Y(scissors[0].offset.y + scissors[0].extent.height));
 }
 
 uint32_t
