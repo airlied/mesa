@@ -215,7 +215,7 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
 			     unsigned nr_layers, unsigned nr_samples, bool is_single_layer)
 {
-	if (view_type == VK_IMAGE_VIEW_TYPE_CUBE)
+	if (view_type == VK_IMAGE_VIEW_TYPE_CUBE || view_type == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY)
 		return V_008F1C_SQ_RSRC_IMG_CUBE;
 	switch (image_type) {
 	case VK_IMAGE_TYPE_1D:
