@@ -1521,9 +1521,6 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_texop_query_levels:
 		name = "llvm.SI.getresinfo";
 		break;
-	case nir_texop_texture_samples:
-		name = "llvm.SI.getresinfo";
-		break;
 	case nir_texop_tex:
 		if (ctx->stage != MESA_SHADER_FRAGMENT)
 			infix = ".lz";
@@ -2516,6 +2513,22 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		}
 	}
 
+	if (instr->op == nir_texop_texture_samples) {
+		LLVMValueRef res, samples;
+		res = LLVMBuildBitCast(ctx->builder, res_ptr, ctx->v8i32, "");
+		samples = LLVMBuildExtractElement(ctx->builder, res,
+						  LLVMConstInt(ctx->i32, 3, false), "");
+		samples = LLVMBuildLShr(ctx->builder, samples,
+					LLVMConstInt(ctx->i32, 16, false), "");
+		samples = LLVMBuildAnd(ctx->builder, samples,
+				       LLVMConstInt(ctx->i32, 0xf, false), "");
+		samples = LLVMBuildShl(ctx->builder, ctx->i32one,
+				       samples, "");
+
+		result = samples;
+		goto write_result;
+	}
+
 	if (coord)
 		for (chan = 0; chan < instr->coord_components; chan++)
 			coords[chan] = llvm_extract_elem(ctx, coord, chan);
@@ -2623,10 +2636,10 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	result = build_tex_intrinsic(ctx, instr, &tinfo);
 
-	if (instr->op == nir_texop_query_levels ||
-	    instr->op == nir_texop_texture_samples)
+	if (instr->op == nir_texop_query_levels)
 		result = LLVMBuildExtractElement(ctx->builder, result, LLVMConstInt(ctx->i32, 3, false), "");
 
+write_result:
 	if (result) {
 		assert(instr->dest.is_ssa);
 		result = to_integer(ctx, result);
