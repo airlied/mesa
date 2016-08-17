@@ -218,7 +218,6 @@ void si_init_config(struct radv_physical_device *physical_device,
 	unsigned raster_config, raster_config_1;
 	int i;
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
-	uint64_t border_color_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->border_color_bo.bo);
 	radeon_emit(cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
 	radeon_emit(cs, CONTEXT_CONTROL_LOAD_ENABLE(1));
 	radeon_emit(cs, CONTEXT_CONTROL_SHADOW_ENABLE(1));
@@ -417,9 +416,6 @@ void si_init_config(struct radv_physical_device *physical_device,
 	if (physical_device->rad_info.family == CHIP_STONEY)
 		radeon_set_context_reg(cs, R_028C40_PA_SC_SHADER_CONTROL, 0);
 
-	radeon_set_context_reg(cs, R_028080_TA_BC_BASE_ADDR, border_color_va >> 8);
-	if (physical_device->rad_info.chip_class >= CIK)
-		radeon_set_context_reg(cs, R_028084_TA_BC_BASE_ADDR_HI, border_color_va >> 40);
 	si_init_compute(physical_device, cs);
 }
 
