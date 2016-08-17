@@ -82,7 +82,10 @@ VkResult radv_CreateDescriptorSetLayout(
 		case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
 			set_layout->binding[b].dynamic_offset_count = 1;
 			set_layout->dynamic_shader_stages |= binding->stageFlags;
-			/* fall through */
+			set_layout->binding[b].size = 0;
+			set_layout->binding[b].buffer_count = 1;
+			alignment = 1;
+			break;
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 		case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 		case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
