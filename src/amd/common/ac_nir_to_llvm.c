@@ -2546,7 +2546,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	/* Pack depth comparison value */
 	if (instr->is_shadow && comparitor) {
-		address[count++] = comparitor;
+		address[count++] = llvm_extract_elem(ctx, comparitor, 0);
 	}
 
 	/* pack derivatives */
@@ -2613,8 +2613,12 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	}
 
 	/* TODO TG4 support */
-	if (instr->op == nir_texop_tg4)
-		dmask = 1 << instr->component;
+	if (instr->op == nir_texop_tg4) {
+		if (instr->is_shadow)
+			dmask = 1;
+		else
+			dmask = 1 << instr->component;
+	}
 	set_tex_fetch_args(ctx, &tinfo, instr, res_ptr, samp_ptr, address, count, dmask);
 
 	result = build_tex_intrinsic(ctx, instr, &tinfo);
