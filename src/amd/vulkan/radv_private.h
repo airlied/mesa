@@ -660,9 +660,7 @@ struct radv_cmd_buffer {
 	uint32_t dynamic_buffers[16 * MAX_DYNAMIC_BUFFERS];
 	VkShaderStageFlags push_constant_stages;
 
-	struct radv_bo border_color_bo;
 	struct radv_cmd_buffer_upload upload;
-	uint32_t texture_border_offset;
 
 	bool record_fail;
 };

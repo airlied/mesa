@@ -138,11 +138,6 @@ static VkResult radv_create_cmd_buffer(
 	cmd_buffer->upload.size = 0;
 	list_inithead(&cmd_buffer->upload.list);
 
-	cmd_buffer->border_color_bo.bo = device->ws->buffer_create(device->ws,
-								   4096 * 4, 16,
-								   RADEON_DOMAIN_VRAM,
-								   RADEON_FLAG_CPU_ACCESS);
-	device->ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->border_color_bo.bo, 8);
 	return VK_SUCCESS;
 
 fail:
@@ -917,7 +912,6 @@ radv_cmd_buffer_destroy(struct radv_cmd_buffer *cmd_buffer)
 
 	if (cmd_buffer->upload.upload_bo.bo)
 		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->upload.upload_bo.bo);
-	cmd_buffer->device->ws->buffer_destroy(cmd_buffer->border_color_bo.bo);
 	cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs);
 	radv_free(&cmd_buffer->pool->alloc, cmd_buffer);
 }
