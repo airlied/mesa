@@ -52,6 +52,8 @@ struct amdgpu_cs {
 	unsigned                    max_num_old_ib_buffers;
 	unsigned                    *ib_size_ptr;
 	bool                        failed;
+
+	int                         buffer_hash_table[1024];
 };
 
 static inline struct amdgpu_cs *
@@ -140,6 +142,10 @@ static boolean amdgpu_init_cs(struct amdgpu_cs *cs,
 	}
 	cs->request.number_of_ibs = 1;
 	cs->request.ibs = &cs->ib;
+
+	for (int i = 0; i < ARRAY_SIZE(cs->buffer_hash_table); ++i) {
+		cs->buffer_hash_table[i] = -1;
+	}
 	return true;
 }
 
@@ -262,6 +268,10 @@ static void amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	cs->ib_size_ptr = NULL;
 	cs->failed = false;
 
+	for (int i = 0; i < ARRAY_SIZE(cs->buffer_hash_table); ++i) {
+		cs->buffer_hash_table[i] = -1;
+	}
+
 	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 
 	for (unsigned i = 0; i < cs->num_old_ib_buffers; ++i)
@@ -271,18 +281,40 @@ static void amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	cs->ib.ib_mc_address = amdgpu_winsys_bo(cs->ib_buffer)->va;
 }
 
+static int amdgpu_cs_find_buffer(struct amdgpu_cs *cs,
+				 struct amdgpu_winsys_bo *bo)
+{
+	unsigned hash = ((uintptr_t)bo->bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
+	int index = cs->buffer_hash_table[hash];
+
+	if (index == -1)
+		return -1;
+
+	if(cs->handles[index] == bo->bo)
+		return index;
+
+	for (unsigned i = 0; i < cs->num_buffers; ++i) {
+		if (cs->handles[i] == bo->bo) {
+			cs->buffer_hash_table[hash] = i;
+			return i;
+		}
+	}
+	return -1;
+}
+
+
 static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 				 struct radeon_winsys_bo *_bo,
 				 uint8_t priority)
 {
 	struct amdgpu_cs *cs = amdgpu_cs(_cs);
 	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	unsigned hash;
+	int index = amdgpu_cs_find_buffer(cs, bo);
 
-	for (unsigned i = 0; i < cs->num_buffers; ++i) {
-		if (cs->handles[i] == bo->bo) {
-			cs->priorities[i] = MAX2(cs->priorities[i], priority);
-			return;
-		}
+	if (index != -1) {
+		cs->priorities[index] = MAX2(cs->priorities[index], priority);
+		return;
 	}
 
 	if (cs->num_buffers == cs->max_num_buffers) {
@@ -294,6 +326,10 @@ static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 
 	cs->handles[cs->num_buffers] = bo->bo;
 	cs->priorities[cs->num_buffers] = priority;
+
+	hash = ((uintptr_t)bo->bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
+	cs->buffer_hash_table[hash] = cs->num_buffers;
+
 	++cs->num_buffers;
 }
 
