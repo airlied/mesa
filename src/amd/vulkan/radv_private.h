@@ -489,6 +489,11 @@ struct radv_descriptor_set {
 
 struct radv_descriptor_pool {
 	struct list_head descriptor_sets;
+
+	struct radv_bo bo;
+	uint8_t *mapped_ptr;
+	uint64_t current_offset;
+	uint64_t size;
 };
 
 struct radv_buffer {
