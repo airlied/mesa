@@ -268,18 +268,40 @@ radv_descriptor_set_create(struct radv_device *device,
 
 	set->layout = layout;
 	if (layout->size) {
+		uint32_t layout_size = align_u32(layout->size, 32);
 		if (!cmd_buffer) {
-			if (pool->bo.bo) {
+			if (pool->current_offset + layout_size <= pool->size) {
 				set->bo = pool->bo;
 				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + pool->current_offset);
 				set->va = device->ws->buffer_get_va(set->bo.bo) + pool->current_offset;
-				pool->current_offset += align_u32(layout->size, 32);
-			} else {
-				set->bo.bo = device->ws->buffer_create(device->ws, layout->size,
-								       32, RADEON_DOMAIN_VRAM, 0);
+				pool->current_offset += layout_size;
 
-				set->mapped_ptr = (uint32_t*)device->ws->buffer_map(set->bo.bo);
-				set->va = device->ws->buffer_get_va(set->bo.bo);
+			} else {
+				int entry = pool->free_list, prev_entry = -1;
+				uint32_t offset;
+				while (entry >= 0) {
+					if (pool->free_nodes[entry].size >= layout_size) {
+						if (prev_entry >= 0)
+							pool->free_nodes[prev_entry].next = pool->free_nodes[entry].next;
+						else
+							pool->free_list = pool->free_nodes[entry].next;
+						break;
+					}
+					prev_entry = entry;
+					entry = pool->free_nodes[entry].next;
+				}
+
+				if (entry < 0) {
+					radv_free2(&device->alloc, NULL, set);
+					return vk_error(VK_ERROR_OUT_OF_DEVICE_MEMORY);
+				}
+				offset = pool->free_nodes[entry].offset;
+				pool->free_nodes[entry].next = pool->full_list;
+				pool->full_list = entry;
+
+				set->bo = pool->bo;
+				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + pool->current_offset);
+				set->va = device->ws->buffer_get_va(set->bo.bo) + pool->current_offset;
 			}
 		} else {
 			unsigned bo_offset;
@@ -328,8 +350,13 @@ radv_descriptor_set_destroy(struct radv_device *device,
 			    bool free_bo)
 {
 	if (free_bo) {
-		assert(set->bo.bo != pool->bo.bo);
-		device->ws->buffer_destroy(set->bo.bo);
+		assert(pool->full_list >= 0);
+		int next = pool->free_nodes[pool->full_list].next;
+		pool->free_nodes[pool->full_list].next = pool->free_list;
+		pool->free_nodes[pool->full_list].offset = (uint8_t*)set->mapped_ptr - pool->mapped_ptr;
+		pool->free_nodes[pool->full_list].size = align_u32(set->layout->size, 32);
+		pool->free_list = pool->full_list;
+		pool->full_list = next;
 	}
 	if (set->dynamic_descriptors)
 		radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
@@ -370,7 +397,8 @@ VkResult radv_CreateDescriptorPool(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	struct radv_descriptor_pool *pool;
-	int size = sizeof(struct radv_descriptor_pool);
+	int size = sizeof(struct radv_descriptor_pool) +
+	           pCreateInfo->maxSets * sizeof(struct radv_descriptor_pool_free_node);
 	uint64_t bo_size = 0;
 	pool = radv_alloc2(&device->alloc, pAllocator, size, 8,
 			   VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -378,6 +406,14 @@ VkResult radv_CreateDescriptorPool(
 		return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
 
 	memset(pool, 0, sizeof(*pool));
+
+	pool->free_list = -1;
+	pool->full_list = 0;
+	pool->free_nodes[pCreateInfo->maxSets - 1].next = -1;
+	pool->max_sets = pCreateInfo->maxSets;
+
+	for (int i = 0; i  + 1 < pCreateInfo->maxSets; ++i)
+		pool->free_nodes[i].next = i + 1;
 
 	/* we align sets on 64 bytes, an count multiples of 32 bytes for descriptors,
 	 * so we may need to align up to 32 bytes per descriptor set. */
@@ -406,12 +442,10 @@ VkResult radv_CreateDescriptorPool(
 		}
 	}
 
-	if (!(pCreateInfo->flags & VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)) {
-		pool->bo.bo = device->ws->buffer_create(device->ws, bo_size,
-						        32, RADEON_DOMAIN_VRAM, 0);
-		pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo.bo);
-		pool->size = bo_size;
-	}
+	pool->bo.bo = device->ws->buffer_create(device->ws, bo_size,
+					        32, RADEON_DOMAIN_VRAM, 0);
+	pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo.bo);
+	pool->size = bo_size;
 
 	list_inithead(&pool->descriptor_sets);
 	*pDescriptorPool = radv_descriptor_pool_to_handle(pool);
@@ -450,6 +484,12 @@ VkResult radv_ResetDescriptorPool(
 	}
 
 	pool->current_offset = 0;
+	pool->free_list = -1;
+	pool->full_list = 0;
+	pool->free_nodes[pool->max_sets - 1].next = -1;
+
+	for (int i = 0; i  + 1 < pool->max_sets; ++i)
+		pool->free_nodes[i].next = i + 1;
 
 	return VK_SUCCESS;
 }

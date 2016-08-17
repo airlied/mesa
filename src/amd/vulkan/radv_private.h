@@ -487,6 +487,12 @@ struct radv_descriptor_set {
 	struct radv_bo *descriptors[0];
 };
 
+struct radv_descriptor_pool_free_node {
+	int next;
+	uint32_t offset;
+	uint32_t size;
+};
+
 struct radv_descriptor_pool {
 	struct list_head descriptor_sets;
 
@@ -494,6 +500,11 @@ struct radv_descriptor_pool {
 	uint8_t *mapped_ptr;
 	uint64_t current_offset;
 	uint64_t size;
+
+	int free_list;
+	int full_list;
+	uint32_t max_sets;
+	struct radv_descriptor_pool_free_node free_nodes[];
 };
 
 struct radv_buffer {
