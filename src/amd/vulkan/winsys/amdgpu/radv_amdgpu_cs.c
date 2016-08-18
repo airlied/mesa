@@ -340,6 +340,26 @@ static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 	amdgpu_cs_add_buffer_internal(cs, bo->bo, priority);
 }
 
+static void amdgpu_cs_execute_secondary(struct radeon_winsys_cs *_parent,
+					struct radeon_winsys_cs *_child)
+{
+	struct amdgpu_cs *parent = amdgpu_cs(_parent);
+	struct amdgpu_cs *child = amdgpu_cs(_child);
+
+	for (unsigned i = 0; i < child->num_buffers; ++i) {
+		amdgpu_cs_add_buffer_internal(parent, child->handles[i],
+					      child->priorities[i]);
+	}
+
+	if (parent->base.cdw + 4 > parent->base.max_dw)
+		amdgpu_cs_grow(&parent->base, 4);
+
+	parent->base.buf[parent->base.cdw++] = PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0);
+	parent->base.buf[parent->base.cdw++] = child->ib.ib_mc_address;
+	parent->base.buf[parent->base.cdw++] = child->ib.ib_mc_address >> 32;
+	parent->base.buf[parent->base.cdw++] = child->ib.size;
+}
+
 static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 				   struct radeon_winsys_cs *_cs,
 				   struct radeon_winsys_fence *_fence)
@@ -482,6 +502,7 @@ void radv_amdgpu_cs_init_functions(struct amdgpu_winsys *ws)
 	ws->base.cs_finalize = amdgpu_cs_finalize;
 	ws->base.cs_reset = amdgpu_cs_reset;
 	ws->base.cs_add_buffer = amdgpu_cs_add_buffer;
+	ws->base.cs_execute_secondary = amdgpu_cs_execute_secondary;
 	ws->base.cs_submit = amdgpu_winsys_cs_submit;
 	ws->base.create_fence = amdgpu_create_fence;
 	ws->base.destroy_fence = amdgpu_destroy_fence;

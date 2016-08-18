@@ -290,6 +290,9 @@ struct radeon_winsys {
 			      struct radeon_winsys_bo *bo,
 			      uint8_t priority);
 
+	void (*cs_execute_secondary)(struct radeon_winsys_cs *parent,
+				    struct radeon_winsys_cs *child);
+
 	int (*surface_init)(struct radeon_winsys *ws,
 			    struct radeon_surf *surf);
 
