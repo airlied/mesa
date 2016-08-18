@@ -272,18 +272,22 @@ radv_swizzle_conv(int idx, const unsigned char chan[4], VkComponentSwizzle vk_sw
 		for (x = 0; x < 4; x++)
 			if (chan[x] == 0)
 				return x;
+		return VK_SWIZZLE_0;
 	case VK_COMPONENT_SWIZZLE_G:
 		for (x = 0; x < 4; x++)
 			if (chan[x] == 1)
 				return x;
+		return VK_SWIZZLE_0;
 	case VK_COMPONENT_SWIZZLE_B:
 		for (x = 0; x < 4; x++)
 			if (chan[x] == 2)
 				return x;
+		return VK_SWIZZLE_0;
 	case VK_COMPONENT_SWIZZLE_A:
 		for (x = 0; x < 4; x++)
 			if (chan[x] == 3)
 				return x;
+		return VK_SWIZZLE_1;
 	default:
 		return chan[idx];
 	}
