@@ -304,6 +304,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 			S_00B84C_SCRATCH_EN(scratch_enabled) |
 			S_00B84C_TGID_X_EN(1) | S_00B84C_TGID_Y_EN(1) |
 			S_00B84C_TGID_Z_EN(1) | S_00B84C_TIDIG_COMP_CNT(2) |
+			S_00B84C_TG_SIZE_EN(1) |
 			S_00B84C_LDS_SIZE(variant->config.lds_size);
 		break;
 	}

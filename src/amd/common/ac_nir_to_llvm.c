@@ -66,6 +66,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
+	LLVMValueRef tg_size;
 
 	LLVMValueRef vertex_buffers;
 	LLVMValueRef base_vertex;
@@ -300,6 +301,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3); /* grid size */
 		user_sgpr_count = arg_idx;
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3);
+		arg_types[arg_idx++] = ctx->i32;
 		sgpr_count = arg_idx;
 
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3);
@@ -371,6 +373,8 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		ctx->num_work_groups =
 		    LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->workgroup_ids =
+		    LLVMGetParam(ctx->main_function, arg_idx++);
+		ctx->tg_size =
 		    LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->local_invocation_ids =
 		    LLVMGetParam(ctx->main_function, arg_idx++);
@@ -2192,6 +2196,17 @@ static void emit_barrier(struct nir_to_llvm_context *ctx)
 			    ctx->voidt, NULL, 0, 0);
 }
 
+static LLVMValueRef
+visit_load_local_invocation_index(struct nir_to_llvm_context *ctx)
+{
+	LLVMValueRef result;
+	LLVMValueRef thread_id = get_thread_id(ctx);
+	result = LLVMBuildAnd(ctx->builder, ctx->tg_size,
+			      LLVMConstInt(ctx->i32, 0xfc0, false), "");
+
+	return LLVMBuildAdd(ctx->builder, result, thread_id, "");
+}
+
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
 {
@@ -2228,6 +2243,9 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_load_num_work_groups:
 		result = ctx->num_work_groups;
+		break;
+	case nir_intrinsic_load_local_invocation_index:
+		result = visit_load_local_invocation_index(ctx);
 		break;
 	case nir_intrinsic_load_push_constant:
 		result = visit_load_push_constant(ctx, instr);
