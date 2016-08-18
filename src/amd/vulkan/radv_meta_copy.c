@@ -426,7 +426,7 @@ void radv_CmdUpdateBuffer(
 
 		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, count + 4);
 
-		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + words, 0));
+		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + count, 0));
 		radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEMORY_SYNC) |
 		                            S_370_WR_CONFIRM(!!(count == words)) |
 		                            S_370_ENGINE_SEL(V_370_ME));
