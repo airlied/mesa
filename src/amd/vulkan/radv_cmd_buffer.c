@@ -972,9 +972,11 @@ VkResult radv_BeginCommandBuffer(
 		RADV_CMD_FLAG_INV_SMEM_L1;
 
 	/* setup initial configuration into command buffer */
-	si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
-	radv_set_db_count_control(cmd_buffer);
-	si_emit_cache_flush(cmd_buffer);
+	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
+		si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
+		radv_set_db_count_control(cmd_buffer);
+		si_emit_cache_flush(cmd_buffer);
+	}
 	return VK_SUCCESS;
 }
 
@@ -1327,16 +1329,12 @@ void radv_CmdExecuteCommands(
 	uint32_t                                    commandBufferCount,
 	const VkCommandBuffer*                      pCmdBuffers)
 {
-	//   RADV_FROM_HANDLE(radv_cmd_buffer, primary, commandBuffer);
+	RADV_FROM_HANDLE(radv_cmd_buffer, primary, commandBuffer);
 
-	//   assert(primary->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-	radv_finishme("secondary command buffers\n");
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
-		//      RADV_FROM_HANDLE(radv_cmd_buffer, secondary, pCmdBuffers[i]);
+		RADV_FROM_HANDLE(radv_cmd_buffer, secondary, pCmdBuffers[i]);
 
-		//      assert(secondary->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY);
-
-		//.     radv_cmd_buffer_add_secondary(primary, secondary);
+		primary->device->ws->cs_execute_secondary(primary->cs, secondary->cs);
 	}
 }
 VkResult radv_CreateCommandPool(
