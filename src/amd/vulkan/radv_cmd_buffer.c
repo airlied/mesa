@@ -1415,9 +1415,9 @@ void radv_CmdBeginRenderPass(
 	si_emit_cache_flush(cmd_buffer);
 
 	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses);
-	radv_cmd_buffer_clear_subpass(cmd_buffer);
-
 	assert(cmd_buffer->cs->cdw <= cdw_max);
+
+	radv_cmd_buffer_clear_subpass(cmd_buffer);
 }
 
 void radv_CmdNextSubpass(
