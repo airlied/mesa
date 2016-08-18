@@ -2071,6 +2071,74 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 
 }
 
+static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
+                                       nir_intrinsic_instr *instr)
+{
+	LLVMValueRef params[6];
+	int param_count = 0;
+	const nir_variable *var = instr->variables[0]->var;
+	LLVMValueRef i1false = LLVMConstInt(ctx->i1, 0, 0);
+	LLVMValueRef i1true = LLVMConstInt(ctx->i1, 1, 0);
+	const char *base_name = "llvm.amdgcn.image.atomic";
+	const char *atomic_name;
+	LLVMValueRef coords;
+	char intrinsic_name[32], coords_type[8];
+
+	params[param_count++] = get_src(ctx, instr->src[2]);
+	if (instr->intrinsic == nir_intrinsic_image_atomic_comp_swap)
+		params[param_count++] = get_src(ctx, instr->src[3]);
+
+	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
+		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
+		coords = params[param_count++] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
+									LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
+		params[param_count++] = ctx->i32zero; /* voffset */
+		params[param_count++] = i1false;  /* glc */
+		params[param_count++] = i1false;  /* slc */
+	} else {
+		coords = params[param_count++] = get_image_coords(ctx, instr);
+		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
+		params[param_count++] = i1false; /* r128 */
+		params[param_count++] = glsl_sampler_type_is_array(var->type) ? i1true : i1false;      /* da */
+		params[param_count++] = i1false;  /* slc */
+	}
+
+	switch (instr->intrinsic) {
+	case nir_intrinsic_image_atomic_add:
+		atomic_name = "add";
+		break;
+	case nir_intrinsic_image_atomic_min:
+		atomic_name = "smin";
+		break;
+	case nir_intrinsic_image_atomic_max:
+		atomic_name = "smax";
+		break;
+	case nir_intrinsic_image_atomic_and:
+		atomic_name = "and";
+		break;
+	case nir_intrinsic_image_atomic_or:
+		atomic_name = "or";
+		break;
+	case nir_intrinsic_image_atomic_xor:
+		atomic_name = "xor";
+		break;
+	case nir_intrinsic_image_atomic_exchange:
+		atomic_name = "swap";
+		break;
+	case nir_intrinsic_image_atomic_comp_swap:
+		atomic_name = "cmpswap";
+		break;
+	default:
+		abort();
+	}
+	build_int_type_name(LLVMTypeOf(coords),
+			    coords_type, sizeof(coords_type));
+
+	snprintf(intrinsic_name, sizeof(intrinsic_name),
+			 "%s.%s.%s", base_name, atomic_name, coords_type);
+	return emit_llvm_intrinsic(ctx, intrinsic_name, ctx->i32, params, param_count, 0);
+}
+
 static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 				     nir_intrinsic_instr *instr)
 {
@@ -2200,6 +2268,16 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_image_store:
 		visit_image_store(ctx, instr);
+		break;
+	case nir_intrinsic_image_atomic_add:
+	case nir_intrinsic_image_atomic_min:
+	case nir_intrinsic_image_atomic_max:
+	case nir_intrinsic_image_atomic_and:
+	case nir_intrinsic_image_atomic_or:
+	case nir_intrinsic_image_atomic_xor:
+	case nir_intrinsic_image_atomic_exchange:
+	case nir_intrinsic_image_atomic_comp_swap:
+		result = visit_image_atomic(ctx, instr);
 		break;
 	case nir_intrinsic_image_size:
 		result = visit_image_size(ctx, instr);
