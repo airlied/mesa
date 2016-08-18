@@ -1566,10 +1566,11 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 		desc_ptr = ctx->push_constants;
 		base_offset = ctx->options->layout->push_constant_size;
 		base_offset +=  16 * layout->binding[binding].dynamic_offset_offset;
-	}
+		stride = LLVMConstInt(ctx->i32, 16, false);
+	} else
+		stride = LLVMConstInt(ctx->i32, layout->binding[binding].size, false);
 
 	offset = LLVMConstInt(ctx->i32, base_offset, false);
-	stride = LLVMConstInt(ctx->i32, layout->binding[binding].size, false);
 	index = LLVMBuildMul(ctx->builder, index, stride, "");
 	offset = LLVMBuildAdd(ctx->builder, offset, index, "");
 
