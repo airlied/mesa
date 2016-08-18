@@ -282,19 +282,19 @@ static void amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 }
 
 static int amdgpu_cs_find_buffer(struct amdgpu_cs *cs,
-				 struct amdgpu_winsys_bo *bo)
+				 amdgpu_bo_handle bo)
 {
-	unsigned hash = ((uintptr_t)bo->bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
+	unsigned hash = ((uintptr_t)bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
 	int index = cs->buffer_hash_table[hash];
 
 	if (index == -1)
 		return -1;
 
-	if(cs->handles[index] == bo->bo)
+	if(cs->handles[index] == bo)
 		return index;
 
 	for (unsigned i = 0; i < cs->num_buffers; ++i) {
-		if (cs->handles[i] == bo->bo) {
+		if (cs->handles[i] == bo) {
 			cs->buffer_hash_table[hash] = i;
 			return i;
 		}
@@ -302,13 +302,10 @@ static int amdgpu_cs_find_buffer(struct amdgpu_cs *cs,
 	return -1;
 }
 
-
-static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
-				 struct radeon_winsys_bo *_bo,
-				 uint8_t priority)
+static void amdgpu_cs_add_buffer_internal(struct amdgpu_cs *cs,
+					  amdgpu_bo_handle bo,
+					  uint8_t priority)
 {
-	struct amdgpu_cs *cs = amdgpu_cs(_cs);
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
 	unsigned hash;
 	int index = amdgpu_cs_find_buffer(cs, bo);
 
@@ -324,13 +321,23 @@ static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 		cs->max_num_buffers = new_count;
 	}
 
-	cs->handles[cs->num_buffers] = bo->bo;
+	cs->handles[cs->num_buffers] = bo;
 	cs->priorities[cs->num_buffers] = priority;
 
-	hash = ((uintptr_t)bo->bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
+	hash = ((uintptr_t)bo >> 6) & (ARRAY_SIZE(cs->buffer_hash_table) - 1);
 	cs->buffer_hash_table[hash] = cs->num_buffers;
 
 	++cs->num_buffers;
+}
+
+static void amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
+				 struct radeon_winsys_bo *_bo,
+				 uint8_t priority)
+{
+	struct amdgpu_cs *cs = amdgpu_cs(_cs);
+	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+
+	amdgpu_cs_add_buffer_internal(cs, bo->bo, priority);
 }
 
 static int amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
