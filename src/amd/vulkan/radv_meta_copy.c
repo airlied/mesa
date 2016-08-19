@@ -67,14 +67,20 @@ meta_region_offset_el(const struct radv_image *image,
 }
 
 static struct radv_meta_blit2d_surf
-blit_surf_for_image_level_layer(const struct radv_image* image, int level, int layer)
+blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFlags aspectMask,
+				int level, int layer)
 {
+	VkFormat format = image->vk_format;
+	if (aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT)
+		format = vk_format_depth_only(format);
+	else if (aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT)
+		format = vk_format_stencil_only(format);
 	return (struct radv_meta_blit2d_surf) {
-			.bs = vk_format_get_blocksize(image->vk_format),
-			.level = level,
-			.layer = layer,
-			.image = image,
-			};
+		.bs = vk_format_get_blocksize(format),
+		.level = level,
+		.layer = layer,
+		.image = image,
+	};
 }
 
 static void
@@ -131,8 +137,11 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		/* Create blit surfaces */
 		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		struct radv_meta_blit2d_surf img_bsurf =
-			blit_surf_for_image_level_layer(image, pRegions[r].imageSubresource.mipLevel,
+			blit_surf_for_image_level_layer(image,
+							pRegions[r].imageSubresource.aspectMask,
+							pRegions[r].imageSubresource.mipLevel,
 							pRegions[r].imageSubresource.baseArrayLayer);
+
 		struct radv_meta_blit2d_buffer buf_bsurf = {
 			.bs = img_bsurf.bs,
 			.buffer = buffer,
@@ -196,10 +205,6 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_meta_saved_state saved_state;
 
-	if (image->vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-		radv_finishme("blitting d32/s8\n");
-		return;
-	}
 	radv_meta_begin_bufimage(cmd_buffer, &saved_state);
 	for (unsigned r = 0; r < regionCount; r++) {
 
@@ -235,7 +240,9 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 		/* Create blit surfaces */
 		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		struct radv_meta_blit2d_surf img_info =
-			blit_surf_for_image_level_layer(image, pRegions[r].imageSubresource.mipLevel,
+			blit_surf_for_image_level_layer(image,
+							pRegions[r].imageSubresource.aspectMask,
+							pRegions[r].imageSubresource.mipLevel,
 							pRegions[r].imageSubresource.baseArrayLayer);
 		struct radv_meta_blit2d_buffer buf_info = {
 			.bs = img_info.bs,
@@ -317,11 +324,15 @@ void radv_CmdCopyImage(
 
 		/* Create blit surfaces */
 		struct radv_meta_blit2d_surf b_src =
-			blit_surf_for_image_level_layer(src_image, pRegions[r].srcSubresource.mipLevel,
-				pRegions[r].srcSubresource.baseArrayLayer);
+			blit_surf_for_image_level_layer(src_image,
+							pRegions[r].srcSubresource.aspectMask,
+							pRegions[r].srcSubresource.mipLevel,
+							pRegions[r].srcSubresource.baseArrayLayer);
 		struct radv_meta_blit2d_surf b_dst =
-			blit_surf_for_image_level_layer(dest_image, pRegions[r].dstSubresource.mipLevel,
-				pRegions[r].dstSubresource.baseArrayLayer);
+			blit_surf_for_image_level_layer(dest_image,
+							pRegions[r].dstSubresource.aspectMask,
+							pRegions[r].dstSubresource.mipLevel,
+							pRegions[r].dstSubresource.baseArrayLayer);
 
 		/**
 		 * From the Vulkan 1.0.6 spec: 18.4 Copying Data Between Buffers and Images

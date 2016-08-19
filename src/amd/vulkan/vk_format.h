@@ -373,6 +373,26 @@ vk_format_is_color(VkFormat format)
    return !vk_format_is_depth_or_stencil(format);
 }
 
+static inline VkFormat
+vk_format_depth_only(VkFormat format)
+{
+	switch (format) {
+	case VK_FORMAT_D16_UNORM_S8_UINT:
+		return VK_FORMAT_D16_UNORM;
+	case VK_FORMAT_D24_UNORM_S8_UINT:
+		return VK_FORMAT_X8_D24_UNORM_PACK32;
+	case VK_FORMAT_D32_SFLOAT_S8_UINT:
+		return VK_FORMAT_D32_SFLOAT;
+	default:
+		return format;
+	}
+}
+
+static inline VkFormat
+vk_format_stencil_only(VkFormat format)
+{
+	return VK_FORMAT_S8_UINT;
+}
 #ifdef __cplusplus
 } // extern "C" {
 #endif
