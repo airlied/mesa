@@ -851,7 +851,7 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 	case VK_IMAGE_TYPE_3D:
 		maxExtent.width = 2048;
 		maxExtent.height = 2048;
-		maxExtent.depth = 1;
+		maxExtent.depth = 2048;
 		maxMipLevels = 12; /* log2(maxWidth) + 1 */
 		maxArraySize = 1;
 		break;
