@@ -985,6 +985,16 @@ VkResult radv_BeginCommandBuffer(
 		radv_set_db_count_control(cmd_buffer);
 		si_emit_cache_flush(cmd_buffer);
 	}
+
+	if (pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT) {
+		cmd_buffer->state.framebuffer = radv_framebuffer_from_handle(pBeginInfo->pInheritanceInfo->framebuffer);
+		cmd_buffer->state.pass = radv_render_pass_from_handle(pBeginInfo->pInheritanceInfo->renderPass);
+
+		struct radv_subpass *subpass =
+			&cmd_buffer->state.pass->subpasses[pBeginInfo->pInheritanceInfo->subpass];
+		radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
+	}
+
 	return VK_SUCCESS;
 }
 
