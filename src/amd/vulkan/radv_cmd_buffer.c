@@ -30,7 +30,7 @@
 #include "radv_cs.h"
 #include "sid.h"
 #include "vk_format.h"
-
+#include "radv_meta.h"
 const struct radv_dynamic_state default_dynamic_state = {
 	.viewport = {
 		.count = 0,
@@ -1728,6 +1728,27 @@ void radv_CmdEndRenderPass(
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 }
 
+static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					 struct radv_image *image,
+					 VkAccessFlags src_access,
+					 VkAccessFlags dst_access)
+{
+	/*TODO fill out more things in here */
+	if (src_access & VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
+		if (dst_access & (VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_HOST_READ_BIT)) {
+			VkImageSubresourceRange range;
+
+			range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			range.baseMipLevel = 0;
+			range.levelCount = 1;
+			range.baseArrayLayer = 0;
+			range.layerCount = 1;
+
+			radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
+		}
+	}
+}
+
 void radv_CmdPipelineBarrier(
 	VkCommandBuffer                             commandBuffer,
 	VkPipelineStageFlags                        srcStageMask,
@@ -1755,8 +1776,13 @@ void radv_CmdPipelineBarrier(
 	}
 
 	for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
+		RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
 		src_flags |= pImageMemoryBarriers[i].srcAccessMask;
 		dst_flags |= pImageMemoryBarriers[i].dstAccessMask;
+
+		radv_handle_image_transition(cmd_buffer, image,
+					     pImageMemoryBarriers[i].srcAccessMask,
+					     pImageMemoryBarriers[i].dstAccessMask);
 	}
 
 	enum radv_cmd_flush_bits flush_bits = 0;
