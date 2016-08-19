@@ -364,7 +364,6 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
     *   driver team).
     */
    AddrSurfInfoIn.flags.dccCompatible = !(surf->flags & RADEON_SURF_Z_OR_SBUFFER) &&
-                                        !(surf->flags & RADEON_SURF_SCANOUT) &&
                                         !(surf->flags & RADEON_SURF_DISABLE_DCC) &&
                                         !compressed && AddrDccIn.numSamples <= 1 &&
                                         ((surf->array_size == 1 && surf->npix_z == 1) ||
@@ -373,8 +372,12 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
    AddrSurfInfoIn.flags.noStencil = (surf->flags & RADEON_SURF_SBUFFER) == 0;
    AddrSurfInfoIn.flags.compressZ = AddrSurfInfoIn.flags.depth;
 
-   /* TODO: update addrlib to a newer version, remove this, and
-    * set flags.matchStencilTileCfg = 1 to fix stencil texturing.
+   /* noStencil = 0 can result in a depth part that is incompatible with
+    * mipmapped texturing. So set noStencil = 1 when mipmaps are requested (in
+    * this case, we may end up setting stencil_adjusted).
+    *
+    * TODO: update addrlib to a newer version, remove this, and
+    * use flags.matchStencilTileCfg = 1 as an alternative fix.
     */
    if (surf->last_level > 0)
       AddrSurfInfoIn.flags.noStencil = 1;
@@ -455,9 +458,11 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
          if (r)
             return r;
 
-         if (level == 0) {
-            surf->stencil_offset = surf->stencil_level[0].offset;
+	 /* DB uses the depth pitch for both stencil and depth. */
+         if (surf->stencil_level[level].nblk_x != surf->level[level].nblk_x)
+            surf->stencil_adjusted = true;
 
+         if (level == 0) {
             /* For 2D modes only. */
             if (AddrSurfInfoOut.tileMode >= ADDR_TM_2D_TILED_THIN1) {
                surf->stencil_tile_split =
