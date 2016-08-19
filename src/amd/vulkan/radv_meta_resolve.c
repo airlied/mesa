@@ -349,16 +349,13 @@ cleanup:
 
 static void
 emit_resolve(struct radv_cmd_buffer *cmd_buffer,
-             struct radv_image_view *src_iview,
              const VkOffset2D *src_offset,
-             struct radv_image_view *dest_iview,
              const VkOffset2D *dest_offset,
              const VkExtent2D *resolve_extent)
 {
 	struct radv_device *device = cmd_buffer->device;
 	VkDevice device_h = radv_device_to_handle(device);
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
-	const struct radv_image *src_image = src_iview->image;
 	uint32_t offset;
 	const struct vertex_attrs vertex_data[3] = {
 		{
@@ -576,12 +573,10 @@ void radv_CmdResolveImage(
 						      VK_SUBPASS_CONTENTS_INLINE);
 
 			emit_resolve(cmd_buffer,
-				     &src_iview,
 				     &(VkOffset2D) {
 					     .x = srcOffset.x,
 					     .y = srcOffset.y,
 				     },
-				     &dest_iview,
 				     &(VkOffset2D) {
 					     .x = dstOffset.x,
 					     .y = dstOffset.y,
@@ -651,9 +646,7 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 		 * 3DSTATE_DRAWING_RECTANGLE when draing a 3DPRIM_RECTLIST?
 		 */
 		emit_resolve(cmd_buffer,
-			     src_iview,
 			     &(VkOffset2D) { 0, 0 },
-			     dest_iview,
 			     &(VkOffset2D) { 0, 0 },
 			     &(VkExtent2D) { fb->width, fb->height });
 	}
