@@ -252,6 +252,9 @@ radv_emit_graphics_depth_stencil_state(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_depth_stencil_state *ds = &pipeline->graphics.ds;
 	radeon_set_context_reg(cmd_buffer->cs, R_028800_DB_DEPTH_CONTROL, ds->db_depth_control);
 	radeon_set_context_reg(cmd_buffer->cs, R_02842C_DB_STENCIL_CONTROL, ds->db_stencil_control);
+
+	radeon_set_context_reg(cmd_buffer->cs, R_028000_DB_RENDER_CONTROL, ds->db_render_control);
+	radeon_set_context_reg(cmd_buffer->cs, R_028010_DB_RENDER_OVERRIDE2, ds->db_render_override2);
 }
 
 /* 12.4 fixed-point */
@@ -385,8 +388,6 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ps->rsrc1);
 	radeon_emit(cmd_buffer->cs, ps->rsrc2);
 
-	radeon_set_context_reg(cmd_buffer->cs, R_028000_DB_RENDER_CONTROL, 0);
-	radeon_set_context_reg(cmd_buffer->cs, R_028010_DB_RENDER_OVERRIDE2, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_02880C_DB_SHADER_CONTROL,
 			       S_02880C_KILL_ENABLE(!!ps->info.fs.can_discard) |
 			       S_02880C_Z_ORDER(V_02880C_EARLY_Z_THEN_LATE_Z));
@@ -514,10 +515,6 @@ radv_emit_fb_ds_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ds->db_depth_size);	/* R_028058_DB_DEPTH_SIZE */
 	radeon_emit(cmd_buffer->cs, ds->db_depth_slice);	/* R_02805C_DB_DEPTH_SLICE */
 
-	radeon_set_context_reg_seq(cmd_buffer->cs, R_028028_DB_STENCIL_CLEAR, 2);
-	radeon_emit(cmd_buffer->cs, ds->db_stencil_clear); /* R_028028_DB_STENCIL_CLEAR */
-	radeon_emit(cmd_buffer->cs, ds->db_depth_clear); /* R_02802C_DB_DEPTH_CLEAR */
-
 	radeon_set_context_reg(cmd_buffer->cs, R_028ABC_DB_HTILE_SURFACE, ds->db_htile_surface);
 	radeon_set_context_reg(cmd_buffer->cs, R_028B78_PA_SU_POLY_OFFSET_DB_FMT_CNTL,
 			       ds->pa_su_poly_offset_db_fmt_cntl);
@@ -551,6 +548,15 @@ static void radv_set_optimal_micro_tile_mode(struct radv_device *device,
 		att->cb.cb_color_attrib |= S_028C74_TILE_MODE_INDEX(tile_mode_index);
 		att->cb.micro_tile_mode = micro_tile_mode;
 	}
+}
+
+void
+radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+			   VkClearDepthStencilValue ds_clear_value)
+{
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028028_DB_STENCIL_CLEAR, 2);
+	radeon_emit(cmd_buffer->cs, ds_clear_value.stencil); /* R_028028_DB_STENCIL_CLEAR */
+	radeon_emit(cmd_buffer->cs, fui(ds_clear_value.depth)); /* R_02802C_DB_DEPTH_CLEAR */
 }
 
 static void
@@ -587,10 +593,12 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 	if(subpass->depth_stencil_attachment != VK_ATTACHMENT_UNUSED) {
 		int idx = subpass->depth_stencil_attachment;
 		struct radv_attachment_info *att = &framebuffer->attachments[idx];
-
+		struct radv_image *image = att->attachment->image;
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
 
 		radv_emit_fb_ds_state(cmd_buffer, &att->ds);
+
+		radv_emit_depth_clear_regs(cmd_buffer, image->ds_clear_value);
 	} else {
 		radeon_set_context_reg_seq(cmd_buffer->cs, R_028040_DB_Z_INFO, 2);
 		radeon_emit(cmd_buffer->cs, S_028040_FORMAT(V_028040_Z_INVALID)); /* R_028040_DB_Z_INFO */

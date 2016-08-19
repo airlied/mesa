@@ -715,6 +715,8 @@ void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_samples);
 unsigned radv_cayman_get_maxdist(int log_samples);
+void radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+				VkClearDepthStencilValue ds_clear_value);
 /*
  * Takes x,y,z as exact numbers of invocations, instead of blocks.
  *
@@ -782,6 +784,8 @@ struct radv_shader_variant {
 struct radv_depth_stencil_state {
 	uint32_t db_depth_control;
 	uint32_t db_stencil_control;
+	uint32_t db_render_control;
+	uint32_t db_render_override2;
 };
 
 struct radv_blend_state {
@@ -849,8 +853,12 @@ struct radv_pipeline {
 };
 
 struct radv_graphics_pipeline_create_info {
-	bool                                         use_rectlist;
-	uint32_t                                     custom_blend_mode;
+	bool use_rectlist;
+	bool db_depth_clear;
+	bool db_stencil_clear;
+	bool db_depth_disable_expclear;
+	bool db_stencil_disable_expclear;
+	uint32_t custom_blend_mode;
 };
 
 VkResult
@@ -1087,8 +1095,6 @@ struct radv_ds_buffer_info {
 	uint32_t db_depth_view;
 	uint32_t db_depth_size;
 	uint32_t db_depth_slice;
-	uint32_t db_stencil_clear;
-	uint32_t db_depth_clear;
 	uint32_t db_htile_surface;
 	uint32_t db_htile_data_base;
 	uint32_t pa_su_poly_offset_db_fmt_cntl;
