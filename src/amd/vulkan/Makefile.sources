@@ -40,6 +40,7 @@ VULKAN_FILES := \
 	radv_meta_clear.c \
 	radv_meta_copy.c \
 	radv_meta_resolve.c \
+	radv_meta_decompress.c \
         radv_pass.c \
 	radv_pipeline.c \
 	radv_pipeline_cache.c \

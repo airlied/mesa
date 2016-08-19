@@ -437,6 +437,11 @@ struct radv_meta_state {
 		VkPipeline                                pipeline;
 		VkRenderPass                              pass;
 	} resolve;
+
+	struct {
+		VkPipeline                                pipeline;
+		VkRenderPass                              pass;
+	} depth_decomp;
 };
 
 struct radv_queue {
@@ -860,6 +865,8 @@ struct radv_graphics_pipeline_create_info {
 	bool db_stencil_clear;
 	bool db_depth_disable_expclear;
 	bool db_stencil_disable_expclear;
+	bool db_flush_depth_inplace;
+	bool db_flush_stencil_inplace;
 	uint32_t custom_blend_mode;
 };
 

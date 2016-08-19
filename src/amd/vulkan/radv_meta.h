@@ -52,6 +52,9 @@ void radv_device_finish_meta_clear_state(struct radv_device *device);
 VkResult radv_device_init_meta_resolve_state(struct radv_device *device);
 void radv_device_finish_meta_resolve_state(struct radv_device *device);
 
+VkResult radv_device_init_meta_depth_decomp_state(struct radv_device *device);
+void radv_device_finish_meta_depth_decomp_state(struct radv_device *device);
+
 VkResult radv_device_init_meta_blit_state(struct radv_device *device);
 void radv_device_finish_meta_blit_state(struct radv_device *device);
 
@@ -129,6 +132,11 @@ radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 			  struct radv_meta_blit2d_buffer *dst,
 			  unsigned num_rects,
 			  struct radv_meta_blit2d_rect *rects);
+
+void
+radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
+				    struct radv_image *image,
+				    VkImageSubresourceRange *subresourceRange);
 #ifdef __cplusplus
 }
 #endif
