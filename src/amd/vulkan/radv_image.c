@@ -29,6 +29,7 @@
 #include "vk_format.h"
 #include "radv_radeon_winsys.h"
 #include "sid.h"
+#include "util/debug.h"
 static unsigned
 radv_choose_tiling(struct radv_device *Device,
 		   const struct radv_image_create_info *create_info)
@@ -593,6 +594,86 @@ radv_image_alloc_cmask(struct radv_device *device,
 	//rtex->cb_color_info |= SI_S_028C70_FAST_CLEAR(1); TODO
 }
 
+
+static unsigned
+radv_image_get_htile_size(struct radv_device *device,
+			  struct radv_image *image)
+{
+	unsigned cl_width, cl_height, width, height;
+	unsigned slice_elements, slice_bytes, base_align;
+	unsigned num_pipes = device->instance->physicalDevice.rad_info.num_tile_pipes;
+	unsigned pipe_interleave_bytes = device->instance->physicalDevice.rad_info.pipe_interleave_bytes;
+
+	/* Overalign HTILE on P2 configs to work around GPU hangs in
+	 * piglit/depthstencil-render-miplevels 585.
+	 *
+	 * This has been confirmed to help Kabini & Stoney, where the hangs
+	 * are always reproducible. I think I have seen the test hang
+	 * on Carrizo too, though it was very rare there.
+	 */
+	if (device->instance->physicalDevice.rad_info.chip_class >= CIK && num_pipes < 4)
+		num_pipes = 4;
+
+	switch (num_pipes) {
+	case 1:
+		cl_width = 32;
+		cl_height = 16;
+		break;
+	case 2:
+		cl_width = 32;
+		cl_height = 32;
+		break;
+	case 4:
+		cl_width = 64;
+		cl_height = 32;
+		break;
+	case 8:
+		cl_width = 64;
+		cl_height = 64;
+		break;
+	case 16:
+		cl_width = 128;
+		cl_height = 64;
+		break;
+	default:
+		assert(0);
+		return 0;
+	}
+
+	width = align(image->surface.npix_x, cl_width * 8);
+	height = align(image->surface.npix_y, cl_height * 8);
+
+	slice_elements = (width * height) / (8 * 8);
+	slice_bytes = slice_elements * 4;
+
+	base_align = num_pipes * pipe_interleave_bytes;
+
+	image->htile.pitch = width;
+	image->htile.height = height;
+	image->htile.xalign = cl_width * 8;
+	image->htile.yalign = cl_height * 8;
+
+	return image->array_size *
+		align(slice_bytes, base_align);
+}
+
+static void
+radv_image_alloc_htile(struct radv_device *device,
+		       struct radv_image *image)
+{
+	if (env_var_as_boolean("RADV_HIZ_DISABLE", true))
+		return;
+
+	image->htile.size = radv_image_get_htile_size(device, image);
+
+	if (image->htile.size)
+		return;
+
+	image->htile.offset = align64(image->size, 32768);
+	image->size = image->htile.offset + image->htile.size;
+	image->htile.inited = false;
+}
+
 VkResult
 radv_image_create(VkDevice _device,
 		  const struct radv_image_create_info *create_info,
@@ -634,7 +715,13 @@ radv_image_create(VkDevice _device,
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
 		radv_image_alloc_cmask(device, image);
+	} else if (vk_format_is_depth(pCreateInfo->format)) {
+
+		image->can_sample_z = true;
+		image->can_sample_s = !image->surface.stencil_adjusted;
+		radv_image_alloc_htile(device, image);
 	}
+
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 

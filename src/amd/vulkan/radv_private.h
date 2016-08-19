@@ -909,6 +909,16 @@ struct radv_cmask_info {
 	unsigned base_address_reg;
 };
 
+struct r600_htile_info {
+	uint64_t offset;
+	uint64_t size;
+	unsigned pitch;
+	unsigned height;
+	unsigned xalign;
+	unsigned yalign;
+	bool inited;
+};
+
 struct radv_image {
 	VkImageType type;
 	/* The original VkFormat provided by the client.  This may not match any
@@ -934,6 +944,15 @@ struct radv_image {
 
 	struct radv_fmask_info fmask;
 	struct radv_cmask_info cmask;
+
+	/* Depth buffer compression and fast clear. */
+	struct r600_htile_info htile;
+	bool depth_cleared; /* if it was cleared at least once */
+	bool stencil_cleared; /* if it was cleared at least once */
+	bool can_sample_z;
+	bool can_sample_s;
+
+	VkClearDepthStencilValue ds_clear_value;
 };
 
 static inline uint32_t
