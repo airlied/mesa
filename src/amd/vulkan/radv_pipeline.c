@@ -795,7 +795,8 @@ static uint32_t si_translate_stencil_op(enum VkStencilOp op)
 }
 static void
 radv_pipeline_init_depth_stencil_state(struct radv_pipeline *pipeline,
-				       const VkGraphicsPipelineCreateInfo *pCreateInfo)
+				       const VkGraphicsPipelineCreateInfo *pCreateInfo,
+				       const struct radv_graphics_pipeline_create_info *extra)
 {
 	const VkPipelineDepthStencilStateCreateInfo *vkds = pCreateInfo->pDepthStencilState;
 	struct radv_depth_stencil_state *ds = &pipeline->graphics.ds;
@@ -819,6 +820,15 @@ radv_pipeline_init_depth_stencil_state(struct radv_pipeline *pipeline,
 		ds->db_stencil_control |= S_02842C_STENCILFAIL_BF(si_translate_stencil_op(vkds->back.failOp));
 		ds->db_stencil_control |= S_02842C_STENCILZPASS_BF(si_translate_stencil_op(vkds->back.passOp));
 		ds->db_stencil_control |= S_02842C_STENCILZFAIL_BF(si_translate_stencil_op(vkds->back.depthFailOp));
+	}
+
+	if (extra) {
+
+		ds->db_render_control |= S_028000_DEPTH_CLEAR_ENABLE(extra->db_depth_clear);
+		ds->db_render_control |= S_028000_STENCIL_CLEAR_ENABLE(extra->db_stencil_clear);
+
+		ds->db_render_override2 |= S_028010_DISABLE_ZMASK_EXPCLEAR_OPTIMIZATION(extra->db_depth_disable_expclear);
+		ds->db_render_override2 |= S_028010_DISABLE_SMEM_EXPCLEAR_OPTIMIZATION(extra->db_stencil_disable_expclear);
 	}
 }
 
@@ -1169,7 +1179,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	if (fs_m.nir)
 		ralloc_free(fs_m.nir);
 
-	radv_pipeline_init_depth_stencil_state(pipeline, pCreateInfo);
+	radv_pipeline_init_depth_stencil_state(pipeline, pCreateInfo, extra);
 	radv_pipeline_init_raster_state(pipeline, pCreateInfo);
 	radv_pipeline_init_multisample_state(pipeline, pCreateInfo);
 	pipeline->graphics.prim = si_translate_prim(pCreateInfo->pInputAssemblyState->topology);
