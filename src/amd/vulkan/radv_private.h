@@ -81,6 +81,8 @@ typedef uint32_t xcb_window_t;
 #define MAX_SAMPLES_LOG2 4 /* SKL supports 16 samples */
 #define NUM_META_FS_KEYS 11
 
+#define NUM_DEPTH_CLEAR_PIPELINES 3
+
 #define radv_noreturn __attribute__((__noreturn__))
 #define radv_printflike(a, b) __attribute__((__format__(__printf__, a, b)))
 
@@ -387,12 +389,12 @@ struct radv_meta_state {
 		VkRenderPass render_pass[NUM_META_FS_KEYS];
 		struct radv_pipeline *color_pipelines[NUM_META_FS_KEYS];
 
-		VkRenderPass depth_only_rp;
-		struct radv_pipeline *depth_only_pipeline;
-		VkRenderPass stencil_only_rp;
-		struct radv_pipeline *stencil_only_pipeline;
-		VkRenderPass depthstencil_rp;
-		struct radv_pipeline *depthstencil_pipeline;
+		VkRenderPass depth_only_rp[NUM_DEPTH_CLEAR_PIPELINES];
+		struct radv_pipeline *depth_only_pipeline[NUM_DEPTH_CLEAR_PIPELINES];
+		VkRenderPass stencil_only_rp[NUM_DEPTH_CLEAR_PIPELINES];
+		struct radv_pipeline *stencil_only_pipeline[NUM_DEPTH_CLEAR_PIPELINES];
+		VkRenderPass depthstencil_rp[NUM_DEPTH_CLEAR_PIPELINES];
+		struct radv_pipeline *depthstencil_pipeline[NUM_DEPTH_CLEAR_PIPELINES];
 	} clear[1 + MAX_SAMPLES_LOG2];
 
 	struct {
