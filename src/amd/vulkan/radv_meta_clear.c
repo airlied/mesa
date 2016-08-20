@@ -857,7 +857,8 @@ radv_check_depth_htile_clear(struct radv_cmd_buffer *cmd_buffer,
    if (image->htile.inited)
       return;
 
-   uint64_t gpu_address = cmd_buffer->device->ws->buffer_get_va(image->bo->bo) + image->htile.offset;
+   uint64_t gpu_address = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
+   gpu_address += image->offset + image->htile.offset;
    si_cp_dma_clear_buffer(cmd_buffer, gpu_address, image->htile.size, 0);
    image->htile.inited = true;
 }
