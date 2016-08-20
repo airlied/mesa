@@ -666,7 +666,7 @@ radv_image_alloc_htile(struct radv_device *device,
 
 	image->htile.size = radv_image_get_htile_size(device, image);
 
-	if (image->htile.size)
+	if (!image->htile.size)
 		return;
 
 	image->htile.offset = align64(image->size, 32768);
