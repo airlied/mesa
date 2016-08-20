@@ -80,7 +80,6 @@ static bool radv_amdgpu_fence_wait(struct radeon_winsys *_ws,
 			      bool absolute,
 			      uint64_t timeout)
 {
-	struct radv_amdgpu_winsys *ws = radv_amdgpu_winsys(_ws);
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
 	unsigned flags = absolute ? AMDGPU_QUERY_FENCE_TIMEOUT_IS_ABSOLUTE : 0;
 	int r;
@@ -155,7 +154,6 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 {
 	struct radv_amdgpu_cs *cs;
 	uint32_t ib_size = 20 * 1024 * 4;
-	int r;
 	cs = calloc(1, sizeof(struct radv_amdgpu_cs));
 	if (!cs)
 		return NULL;
