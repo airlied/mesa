@@ -671,6 +671,7 @@ radv_image_alloc_htile(struct radv_device *device,
 
 	image->htile.offset = align64(image->size, 32768);
 	image->size = image->htile.offset + image->htile.size;
+	image->alignment = align64(image->alignment, 32768);
 }
 
 VkResult
@@ -711,6 +712,9 @@ radv_image_create(VkDevice _device,
 
 	device->ws->surface_init(device->ws, &image->surface);
 
+	image->size = image->surface.bo_size;
+	image->alignment = image->surface.bo_alignment;
+
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
 		radv_image_alloc_cmask(device, image);
@@ -721,8 +725,6 @@ radv_image_create(VkDevice _device,
 		radv_image_alloc_htile(device, image);
 	}
 
-	image->size = image->surface.bo_size;
-	image->alignment = image->surface.bo_alignment;
 
 	if (create_info->stride && create_info->stride != image->surface.level[0].pitch_bytes) {
 		image->surface.level[0].nblk_x = create_info->stride / image->surface.bpe;
