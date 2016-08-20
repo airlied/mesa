@@ -1825,18 +1825,21 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 		/* The clear will initialize htile. */
 		return;
 	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
-	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           image->htile.size) {
 		/* TODO: merge with the clear if applicable */
 		radv_initialize_htile(cmd_buffer, image);
 	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           image->htile.size) {
 		radv_finishme("create valid htile\n");
 		/*
 		 * might not be that bad, due to a folowing clear, but blit's are
 		 * going to be a problem.
 		 */
 	} else if (src_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           image->htile.size) {
 
 		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		range.baseMipLevel = 0;
