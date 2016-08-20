@@ -671,7 +671,6 @@ radv_image_alloc_htile(struct radv_device *device,
 
 	image->htile.offset = align64(image->size, 32768);
 	image->size = image->htile.offset + image->htile.size;
-	image->htile.inited = false;
 }
 
 VkResult

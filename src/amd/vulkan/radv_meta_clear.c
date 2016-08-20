@@ -849,22 +849,6 @@ subpass_needs_clear(const struct radv_cmd_buffer *cmd_buffer)
    return false;
 }
 
-static void
-radv_check_depth_htile_clear(struct radv_cmd_buffer *cmd_buffer,
-			     struct radv_image *image)
-{
-   if (!image->htile.size)
-      return;
-
-   if (image->htile.inited)
-      return;
-
-   uint64_t gpu_address = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-   gpu_address += image->offset + image->htile.offset;
-   si_cp_dma_clear_buffer(cmd_buffer, gpu_address, image->htile.size, 0);
-   image->htile.inited = true;
-}
-
 /**
  * Emit any pending attachment clears for the current subpass.
  *
@@ -912,8 +896,6 @@ radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer)
    uint32_t ds = cmd_state->subpass->depth_stencil_attachment.attachment;
 
    if (ds != VK_ATTACHMENT_UNUSED) {
-
-      radv_check_depth_htile_clear(cmd_buffer, cmd_state->framebuffer->attachments[ds].attachment->image);
 
       if (cmd_state->attachments[ds].pending_clear_aspects) {
 

@@ -934,7 +934,6 @@ struct r600_htile_info {
 	unsigned height;
 	unsigned xalign;
 	unsigned yalign;
-	bool inited;
 };
 
 struct radv_image {
