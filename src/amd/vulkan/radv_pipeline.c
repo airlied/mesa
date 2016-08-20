@@ -625,7 +625,7 @@ radv_pipeline_compute_spi_color_formats(struct radv_pipeline *pipeline,
 		struct radv_render_pass_attachment *attachment;
 		unsigned cf;
 
-		attachment = pass->attachments + subpass->color_attachments[i];
+		attachment = pass->attachments + subpass->color_attachments[i].attachment;
 
 		cf = si_choose_spi_color_format(attachment->format,
 						blend_enable & (1 << i),
@@ -669,7 +669,7 @@ radv_pipeline_compute_is_int8(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 	for (unsigned i = 0; i < subpass->color_count; ++i) {
 		struct radv_render_pass_attachment *attachment;
 
-		attachment = pass->attachments + subpass->color_attachments[i];
+		attachment = pass->attachments + subpass->color_attachments[i].attachment;
 
 		if (format_is_int8(attachment->format))
 			is_int8 |= 1 << i;
@@ -1055,7 +1055,7 @@ radv_pipeline_init_dynamic_state(struct radv_pipeline *pipeline,
 	 *    pDepthStencilState [...] may only be NULL if renderPass and subpass
 	 *    specify a subpass that has no depth/stencil attachment.
 	 */
-	if (subpass->depth_stencil_attachment != VK_ATTACHMENT_UNUSED) {
+	if (subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
 		if (states & (1 << VK_DYNAMIC_STATE_DEPTH_BOUNDS)) {
 			assert(pCreateInfo->pDepthStencilState);
 			dynamic->depth_bounds.min =

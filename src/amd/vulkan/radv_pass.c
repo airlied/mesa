@@ -61,6 +61,8 @@ VkResult radv_CreateRenderPass(
 		att->samples = pCreateInfo->pAttachments[i].samples;
 		att->load_op = pCreateInfo->pAttachments[i].loadOp;
 		att->stencil_load_op = pCreateInfo->pAttachments[i].stencilLoadOp;
+		att->initial_layout =  pCreateInfo->pAttachments[i].initialLayout;
+		att->final_layout =  pCreateInfo->pAttachments[i].finalLayout;
 		// att->store_op = pCreateInfo->pAttachments[i].storeOp;
 		// att->stencil_store_op = pCreateInfo->pAttachments[i].stencilStoreOp;
 	}
@@ -77,7 +79,7 @@ VkResult radv_CreateRenderPass(
 
 	pass->subpass_attachments =
 		radv_alloc2(&device->alloc, pAllocator,
-			    subpass_attachment_count * sizeof(uint32_t), 8,
+			    subpass_attachment_count * sizeof(VkAttachmentReference), 8,
 			    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 	if (pass->subpass_attachments == NULL) {
 		if (subpass_attachment_count) {
@@ -100,7 +102,7 @@ VkResult radv_CreateRenderPass(
 
 			for (uint32_t j = 0; j < desc->inputAttachmentCount; j++) {
 				subpass->input_attachments[j]
-					= desc->pInputAttachments[j].attachment;
+					= desc->pInputAttachments[j];
 			}
 		}
 
@@ -110,7 +112,7 @@ VkResult radv_CreateRenderPass(
 
 			for (uint32_t j = 0; j < desc->colorAttachmentCount; j++) {
 				subpass->color_attachments[j]
-					= desc->pColorAttachments[j].attachment;
+					= desc->pColorAttachments[j];
 			}
 		}
 
@@ -121,7 +123,8 @@ VkResult radv_CreateRenderPass(
 
 			for (uint32_t j = 0; j < desc->colorAttachmentCount; j++) {
 				uint32_t a = desc->pResolveAttachments[j].attachment;
-				subpass->resolve_attachments[j] = a;
+				subpass->resolve_attachments[j]
+					= desc->pResolveAttachments[j];
 				if (a != VK_ATTACHMENT_UNUSED)
 					subpass->has_resolve = true;
 			}
@@ -129,9 +132,9 @@ VkResult radv_CreateRenderPass(
 
 		if (desc->pDepthStencilAttachment) {
 			subpass->depth_stencil_attachment =
-				desc->pDepthStencilAttachment->attachment;
+				*desc->pDepthStencilAttachment;
 		} else {
-			subpass->depth_stencil_attachment = VK_ATTACHMENT_UNUSED;
+			subpass->depth_stencil_attachment.attachment = VK_ATTACHMENT_UNUSED;
 		}
 	}
 	*pRenderPass = radv_render_pass_to_handle(pass);

@@ -31,6 +31,13 @@
 #include "sid.h"
 #include "vk_format.h"
 #include "radv_meta.h"
+
+static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					 struct radv_image *image,
+					 VkImageLayout src_layout,
+					 VkImageLayout dst_layout,
+					 VkImageSubresourceRange range);
+
 const struct radv_dynamic_state default_dynamic_state = {
 	.viewport = {
 		.count = 0,
@@ -568,12 +575,12 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 	int dst_resolve_micro_tile_mode = -1;
 
 	if (subpass->has_resolve) {
-		uint32_t a = subpass->resolve_attachments[0];
+		uint32_t a = subpass->resolve_attachments[0].attachment;
 		const struct radv_image *image = framebuffer->attachments[a].attachment->image;
 		dst_resolve_micro_tile_mode = image->surface.micro_tile_mode;
 	}
 	for (i = 0; i < subpass->color_count; ++i) {
-		int idx = subpass->color_attachments[i];
+		int idx = subpass->color_attachments[i].attachment;
 		struct radv_attachment_info *att = &framebuffer->attachments[idx];
 
 		if (dst_resolve_micro_tile_mode != -1) {
@@ -590,8 +597,8 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 		radeon_set_context_reg(cmd_buffer->cs, R_028C70_CB_COLOR0_INFO + i * 0x3C,
 				       S_028C70_FORMAT(V_028C70_COLOR_INVALID));
 
-	if(subpass->depth_stencil_attachment != VK_ATTACHMENT_UNUSED) {
-		int idx = subpass->depth_stencil_attachment;
+	if(subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
+		int idx = subpass->depth_stencil_attachment.attachment;
 		struct radv_attachment_info *att = &framebuffer->attachments[idx];
 		struct radv_image *image = att->attachment->image;
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
@@ -820,10 +827,47 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	si_emit_cache_flush(cmd_buffer);
 }
 
+static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buffer,
+                                                 VkAttachmentReference att)
+{
+	unsigned idx = att.attachment;
+	struct radv_image_view *view = cmd_buffer->state.framebuffer->attachments[idx].attachment;
+	VkImageSubresourceRange range;
+	range.aspectMask = 0;
+	range.baseMipLevel = view->base_mip;
+	range.levelCount = 1;
+	range.baseArrayLayer = view->base_layer;
+	range.layerCount = cmd_buffer->state.framebuffer->layers;
+
+	radv_handle_image_transition(cmd_buffer,
+				     view->image,
+				     cmd_buffer->state.attachments[idx].current_layout,
+				     att.layout, range);
+
+	cmd_buffer->state.attachments[idx].current_layout = att.layout;
+
+
+}
+
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
                             struct radv_subpass *subpass)
 {
+	for (unsigned i = 0; i < subpass->color_count; ++i) {
+		radv_handle_subpass_image_transition(cmd_buffer,
+						     subpass->color_attachments[i]);
+	}
+
+	for (unsigned i = 0; i < subpass->input_count; ++i) {
+		radv_handle_subpass_image_transition(cmd_buffer,
+						     subpass->input_attachments[i]);
+	}
+
+	if (subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
+		radv_handle_subpass_image_transition(cmd_buffer,
+						     subpass->depth_stencil_attachment);
+	}
+
 	cmd_buffer->state.subpass = subpass;
 	radv_emit_framebuffer_state(cmd_buffer);
 }
@@ -878,6 +922,8 @@ radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
 			assert(info->clearValueCount > i);
 			state->attachments[i].clear_value = info->pClearValues[i];
 		}
+
+		state->attachments[i].current_layout = att->initial_layout;
 	}
 }
 
@@ -1736,6 +1782,12 @@ void radv_CmdEndRenderPass(
 
 	si_emit_cache_flush(cmd_buffer);
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);
+
+	for (unsigned i = 0; i < cmd_buffer->state.framebuffer->attachment_count; ++i) {
+		VkImageLayout layout = cmd_buffer->state.pass->attachments[i].final_layout;
+		radv_handle_subpass_image_transition(cmd_buffer,
+		                      (VkAttachmentReference){i, layout});
+	}
 }
 
 
@@ -1757,8 +1809,6 @@ static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
-					 VkAccessFlags src_access,
-					 VkAccessFlags dst_access,
 					 VkImageLayout src_layout,
 					 VkImageLayout dst_layout,
 					 VkImageSubresourceRange range)
@@ -1782,7 +1832,10 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 		range.baseMipLevel = 0;
 		range.levelCount = 1;
 
+		/* Broken */
+#if 0
 		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
+#endif
 	}
 }
 
@@ -1818,8 +1871,6 @@ void radv_CmdPipelineBarrier(
 		dst_flags |= pImageMemoryBarriers[i].dstAccessMask;
 
 		radv_handle_image_transition(cmd_buffer, image,
-					     pImageMemoryBarriers[i].srcAccessMask,
-					     pImageMemoryBarriers[i].dstAccessMask,
 					     pImageMemoryBarriers[i].oldLayout,
 					     pImageMemoryBarriers[i].newLayout,
 					     pImageMemoryBarriers[i].subresourceRange);
