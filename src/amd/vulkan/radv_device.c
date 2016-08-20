@@ -1490,7 +1490,8 @@ radv_initialise_ds_surface(struct radv_device *device,
 			/* Use all of the htile_buffer for depth if there's no stencil. */
 			ds->db_stencil_info |= S_028044_TILE_STENCIL_DISABLE(1);
 
-		va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->htile.offset;
+		va = device->ws->buffer_get_va(iview->bo->bo) + iview->offset +
+		     iview->image->htile.offset;
 		ds->db_htile_data_base = va >> 8;
 		ds->db_htile_surface = S_028ABC_FULL_CACHE(1);
 	} else {
