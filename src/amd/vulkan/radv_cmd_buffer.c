@@ -1738,24 +1738,51 @@ void radv_CmdEndRenderPass(
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 }
 
+
+static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
+				  struct radv_image *image)
+{
+	uint64_t gpu_address = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
+	gpu_address += image->offset + image->htile.offset;
+
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
+	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+	si_emit_cache_flush(cmd_buffer);
+
+	si_cp_dma_clear_buffer(cmd_buffer, gpu_address, image->htile.size, 0xf);
+
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
+	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+}
+
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkAccessFlags src_access,
-					 VkAccessFlags dst_access)
+					 VkAccessFlags dst_access,
+					 VkImageLayout src_layout,
+					 VkImageLayout dst_layout,
+					 VkImageSubresourceRange range)
 {
 	/*TODO fill out more things in here */
-	if (src_access & VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
-		if (dst_access & (VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_HOST_READ_BIT)) {
-			VkImageSubresourceRange range;
+	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
+	    dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		/* TODO: merge with the clear if applicable */
+		radv_initialize_htile(cmd_buffer, image);
+	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		radv_finishme("create valid htile\n");
+		/*
+		 * might not be that bad, due to a folowing clear, but blit's are
+		 * going to be a problem.
+		 */
+	} else if (src_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 
-			range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			range.baseMipLevel = 0;
-			range.levelCount = 1;
-			range.baseArrayLayer = 0;
-			range.layerCount = 1;
+		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
 
-			radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
-		}
+		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
 	}
 }
 
@@ -1792,7 +1819,10 @@ void radv_CmdPipelineBarrier(
 
 		radv_handle_image_transition(cmd_buffer, image,
 					     pImageMemoryBarriers[i].srcAccessMask,
-					     pImageMemoryBarriers[i].dstAccessMask);
+					     pImageMemoryBarriers[i].dstAccessMask,
+					     pImageMemoryBarriers[i].oldLayout,
+					     pImageMemoryBarriers[i].newLayout,
+					     pImageMemoryBarriers[i].subresourceRange);
 	}
 
 	enum radv_cmd_flush_bits flush_bits = 0;
