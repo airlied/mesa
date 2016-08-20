@@ -1788,6 +1788,9 @@ void radv_CmdEndRenderPass(
 		radv_handle_subpass_image_transition(cmd_buffer,
 		                      (VkAttachmentReference){i, layout});
 	}
+
+	cmd_buffer->state.pass = NULL;
+	cmd_buffer->state.subpass = NULL;
 }
 
 
