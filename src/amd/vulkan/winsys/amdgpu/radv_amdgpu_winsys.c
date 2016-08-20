@@ -55,7 +55,7 @@
 #define     CIK__PIPE_CONFIG__ADDR_SURF_P16_32X32_8X16   16
 #define     CIK__PIPE_CONFIG__ADDR_SURF_P16_32X32_16X16  17
 
-static unsigned cik_get_num_tile_pipes(struct amdgpu_gpu_info *info)
+static unsigned radv_cik_get_num_tile_pipes(struct amdgpu_gpu_info *info)
 {
 	unsigned mode2d = info->gb_tile_mode[CIK_TILE_MODE_COLOR_2D];
 
@@ -86,7 +86,7 @@ static unsigned cik_get_num_tile_pipes(struct amdgpu_gpu_info *info)
 }
 
 static bool
-do_winsys_init(struct amdgpu_winsys *ws, int fd)
+do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 {
 	struct amdgpu_buffer_size_alignments alignment_info = {};
 	struct amdgpu_heap_info vram, gtt;
@@ -228,7 +228,7 @@ do_winsys_init(struct amdgpu_winsys *ws, int fd)
 	ws->info.has_userptr = TRUE;
 	ws->info.num_render_backends = ws->amdinfo.rb_pipes;
 	ws->info.clock_crystal_freq = ws->amdinfo.gpu_counter_freq;
-	ws->info.num_tile_pipes = cik_get_num_tile_pipes(&ws->amdinfo);
+	ws->info.num_tile_pipes = radv_cik_get_num_tile_pipes(&ws->amdinfo);
 	ws->info.pipe_interleave_bytes = 256 << ((ws->amdinfo.gb_addr_cfg >> 4) & 0x7);
 	ws->info.has_virtual_memory = TRUE;
 	ws->info.has_sdma = dma.available_rings != 0;
@@ -254,15 +254,15 @@ fail:
 	return false;
 }
 
-static void amdgpu_winsys_query_info(struct radeon_winsys *rws,
+static void radv_amdgpu_winsys_query_info(struct radeon_winsys *rws,
                                      struct radeon_info *info)
 {
-	*info = ((struct amdgpu_winsys *)rws)->info;
+	*info = ((struct radv_amdgpu_winsys *)rws)->info;
 }
 
 static void radv_amdgpu_winsys_destroy(struct radeon_winsys *rws)
 {
-	struct amdgpu_winsys *ws = (struct amdgpu_winsys*)rws;
+	struct radv_amdgpu_winsys *ws = (struct radv_amdgpu_winsys*)rws;
 
 	AddrDestroy(ws->addrlib);
 	amdgpu_device_deinitialize(ws->dev);
@@ -274,13 +274,13 @@ radv_amdgpu_winsys_create(int fd)
 {
 	uint32_t drm_major, drm_minor, r;
 	amdgpu_device_handle dev;
-	struct amdgpu_winsys *ws;
+	struct radv_amdgpu_winsys *ws;
    
 	r = amdgpu_device_initialize(fd, &drm_major, &drm_minor, &dev);
 	if (r)
 		return NULL;
 
-	ws = calloc(1, sizeof(struct amdgpu_winsys));
+	ws = calloc(1, sizeof(struct radv_amdgpu_winsys));
 	if (!ws)
 		return NULL;
 
@@ -294,7 +294,7 @@ radv_amdgpu_winsys_create(int fd)
 	ws->debug_all_bos = getenv("RADV_DEBUG_ALL_BOS") ? true : false;
 	LIST_INITHEAD(&ws->global_bo_list);
 	pthread_mutex_init(&ws->global_bo_list_lock, NULL);
-	ws->base.query_info = amdgpu_winsys_query_info;
+	ws->base.query_info = radv_amdgpu_winsys_query_info;
 	ws->base.destroy = radv_amdgpu_winsys_destroy;
 	radv_amdgpu_bo_init_functions(ws);
 	radv_amdgpu_cs_init_functions(ws);

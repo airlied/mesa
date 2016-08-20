@@ -6,7 +6,7 @@
 #include <amdgpu.h>
 #include "util/list.h"
 
-struct amdgpu_winsys {
+struct radv_amdgpu_winsys {
   struct radeon_winsys base;
   amdgpu_device_handle dev;
 
@@ -23,8 +23,8 @@ struct amdgpu_winsys {
   unsigned num_buffers;
 };
 
-static inline struct amdgpu_winsys *
-amdgpu_winsys(struct radeon_winsys *base)
+static inline struct radv_amdgpu_winsys *
+radv_amdgpu_winsys(struct radeon_winsys *base)
 {
-   return (struct amdgpu_winsys*)base;
+   return (struct radv_amdgpu_winsys*)base;
 }
