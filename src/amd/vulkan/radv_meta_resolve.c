@@ -621,8 +621,8 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 	meta_resolve_save(&saved_state, cmd_buffer);
 
 	for (uint32_t i = 0; i < subpass->color_count; ++i) {
-		uint32_t src_att = subpass->color_attachments[i];
-		uint32_t dest_att = subpass->resolve_attachments[i];
+		uint32_t src_att = subpass->color_attachments[i].attachment;
+		uint32_t dest_att = subpass->resolve_attachments[i].attachment;
 
 		if (dest_att == VK_ATTACHMENT_UNUSED)
 			continue;

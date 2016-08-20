@@ -628,6 +628,7 @@ void radv_dynamic_state_copy(struct radv_dynamic_state *dest,
 struct radv_attachment_state {
 	VkImageAspectFlags                           pending_clear_aspects;
 	VkClearValue                                 clear_value;
+	VkImageLayout                                current_layout;
 };
 
 struct radv_cmd_state {
@@ -1129,11 +1130,11 @@ struct radv_framebuffer {
    
 struct radv_subpass {
 	uint32_t                                     input_count;
-	uint32_t *                                   input_attachments;
+	VkAttachmentReference *                      input_attachments;
 	uint32_t                                     color_count;
-	uint32_t *                                   color_attachments;
-	uint32_t *                                   resolve_attachments;
-	uint32_t                                     depth_stencil_attachment;
+	VkAttachmentReference *                      color_attachments;
+	VkAttachmentReference *                      resolve_attachments;
+	VkAttachmentReference                        depth_stencil_attachment;
 
 	/** Subpass has at least one resolve attachment */
 	bool                                         has_resolve;
@@ -1144,6 +1145,8 @@ struct radv_render_pass_attachment {
 	uint32_t                                     samples;
 	VkAttachmentLoadOp                           load_op;
 	VkAttachmentLoadOp                           stencil_load_op;
+	VkImageLayout                                initial_layout;
+	VkImageLayout                                final_layout;
 };
 
 struct radv_render_pass {
