@@ -1835,10 +1835,7 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 		range.baseMipLevel = 0;
 		range.levelCount = 1;
 
-		/* Broken */
-#if 0
 		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
-#endif
 	}
 }
 
