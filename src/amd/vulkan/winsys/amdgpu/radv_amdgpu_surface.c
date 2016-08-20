@@ -45,7 +45,7 @@
 #define CIASICIDGFXENGINE_SOUTHERNISLAND 0x0000000A
 #endif
 
-static int amdgpu_surface_sanity(const struct radeon_surf *surf)
+static int radv_amdgpu_surface_sanity(const struct radeon_surf *surf)
 {
    unsigned type = RADEON_SURF_GET(surf->flags, TYPE);
 
@@ -98,12 +98,12 @@ static int amdgpu_surface_sanity(const struct radeon_surf *surf)
    return 0;
 }
 
-static void *ADDR_API allocSysMem(const ADDR_ALLOCSYSMEM_INPUT * pInput)
+static void *ADDR_API radv_allocSysMem(const ADDR_ALLOCSYSMEM_INPUT * pInput)
 {
    return malloc(pInput->sizeInBytes);
 }
 
-static ADDR_E_RETURNCODE ADDR_API freeSysMem(const ADDR_FREESYSMEM_INPUT * pInput)
+static ADDR_E_RETURNCODE ADDR_API radv_freeSysMem(const ADDR_FREESYSMEM_INPUT * pInput)
 {
    free(pInput->pVirtAddr);
    return ADDR_OK;
@@ -138,8 +138,8 @@ ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family,
    addrCreateInput.chipFamily = family;
    addrCreateInput.chipRevision = rev_id;
    addrCreateInput.createFlags = createFlags;
-   addrCreateInput.callbacks.allocSysMem = allocSysMem;
-   addrCreateInput.callbacks.freeSysMem = freeSysMem;
+   addrCreateInput.callbacks.allocSysMem = radv_allocSysMem;
+   addrCreateInput.callbacks.freeSysMem = radv_freeSysMem;
    addrCreateInput.callbacks.debugPrint = 0;
    addrCreateInput.regValue = regValue;
 
@@ -150,13 +150,13 @@ ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family,
    return addrCreateOutput.hLib;
 }
 
-static int compute_level(ADDR_HANDLE addrlib,
-                         struct radeon_surf *surf, bool is_stencil,
-                         unsigned level, unsigned type, bool compressed,
-                         ADDR_COMPUTE_SURFACE_INFO_INPUT *AddrSurfInfoIn,
-                         ADDR_COMPUTE_SURFACE_INFO_OUTPUT *AddrSurfInfoOut,
-                         ADDR_COMPUTE_DCCINFO_INPUT *AddrDccIn,
-                         ADDR_COMPUTE_DCCINFO_OUTPUT *AddrDccOut)
+static int radv_compute_level(ADDR_HANDLE addrlib,
+                              struct radeon_surf *surf, bool is_stencil,
+                              unsigned level, unsigned type, bool compressed,
+                              ADDR_COMPUTE_SURFACE_INFO_INPUT *AddrSurfInfoIn,
+                              ADDR_COMPUTE_SURFACE_INFO_OUTPUT *AddrSurfInfoOut,
+                              ADDR_COMPUTE_DCCINFO_INPUT *AddrDccIn,
+                              ADDR_COMPUTE_DCCINFO_OUTPUT *AddrDccOut)
 {
    struct radeon_surf_level *surf_level;
    ADDR_E_RETURNCODE ret;
@@ -256,8 +256,8 @@ static int compute_level(ADDR_HANDLE addrlib,
    return 0;
 }
 
-static void set_micro_tile_mode(struct radeon_surf *surf,
-                                struct radeon_info *info)
+static void radv_set_micro_tile_mode(struct radeon_surf *surf,
+                                     struct radeon_info *info)
 {
    uint32_t tile_mode = info->si_tile_mode_array[surf->tiling_index[0]];
 
@@ -268,10 +268,10 @@ static void set_micro_tile_mode(struct radeon_surf *surf,
 }
 
 
-static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
-				      struct radeon_surf *surf)
+static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
+					   struct radeon_surf *surf)
 {
-   struct amdgpu_winsys *ws = amdgpu_winsys(_ws);
+   struct radv_amdgpu_winsys *ws = radv_amdgpu_winsys(_ws);
    unsigned level, mode, type;
    bool compressed;
    ADDR_COMPUTE_SURFACE_INFO_INPUT AddrSurfInfoIn = {0};
@@ -282,7 +282,7 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
    ADDR_TILEINFO AddrTileInfoOut = {0};
    int r;
 
-   r = amdgpu_surface_sanity(surf);
+   r = radv_amdgpu_surface_sanity(surf);
    if (r)
       return r;
 
@@ -420,7 +420,7 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 
    /* Calculate texture layout information. */
    for (level = 0; level <= surf->last_level; level++) {
-      r = compute_level(ws->addrlib, surf, false, level, type, compressed,
+      r = radv_compute_level(ws->addrlib, surf, false, level, type, compressed,
                         &AddrSurfInfoIn, &AddrSurfInfoOut, &AddrDccIn, &AddrDccOut);
       if (r)
          return r;
@@ -428,7 +428,7 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
       if (level == 0) {
          surf->bo_alignment = AddrSurfInfoOut.baseAlign;
          surf->pipe_config = AddrSurfInfoOut.pTileInfo->pipeConfig - 1;
-         set_micro_tile_mode(surf, &ws->info);
+         radv_set_micro_tile_mode(surf, &ws->info);
 
          /* For 2D modes only. */
          if (AddrSurfInfoOut.tileMode >= ADDR_TM_2D_TILED_THIN1) {
@@ -453,7 +453,7 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
       AddrTileInfoIn.tileSplitBytes = surf->stencil_tile_split;
 
       for (level = 0; level <= surf->last_level; level++) {
-         r = compute_level(ws->addrlib, surf, true, level, type, compressed,
+         r = radv_compute_level(ws->addrlib, surf, true, level, type, compressed,
                            &AddrSurfInfoIn, &AddrSurfInfoOut, &AddrDccIn, &AddrDccOut);
          if (r)
             return r;
@@ -486,14 +486,14 @@ static int amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
    return 0;
 }
 
-static int amdgpu_winsys_surface_best(struct radeon_winsys *rws,
+static int radv_amdgpu_winsys_surface_best(struct radeon_winsys *rws,
 				      struct radeon_surf *surf)
 {
    return 0;
 }
 
-void radv_amdgpu_surface_init_functions(struct amdgpu_winsys *ws)
+void radv_amdgpu_surface_init_functions(struct radv_amdgpu_winsys *ws)
 {
-   ws->base.surface_init = amdgpu_winsys_surface_init;
-   ws->base.surface_best = amdgpu_winsys_surface_best;
+   ws->base.surface_init = radv_amdgpu_winsys_surface_init;
+   ws->base.surface_best = radv_amdgpu_winsys_surface_best;
 }

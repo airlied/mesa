@@ -36,17 +36,17 @@
 #include "radv_radeon_winsys.h"
 
 #include "radv_amdgpu_winsys.h"
-struct amdgpu_ctx {
-	struct amdgpu_winsys *ws;
+struct radv_amdgpu_ctx {
+	struct radv_amdgpu_winsys *ws;
 	amdgpu_context_handle ctx;
 	uint64_t last_seq_no;
 };
 
-static inline struct amdgpu_ctx *
-amdgpu_ctx(struct radeon_winsys_ctx *base)
+static inline struct radv_amdgpu_ctx *
+radv_amdgpu_ctx(struct radeon_winsys_ctx *base)
 {
-	return (struct amdgpu_ctx *)base;
+	return (struct radv_amdgpu_ctx *)base;
 }
 			       
 
-void radv_amdgpu_cs_init_functions(struct amdgpu_winsys *ws);
+void radv_amdgpu_cs_init_functions(struct radv_amdgpu_winsys *ws);

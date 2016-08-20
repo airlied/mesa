@@ -27,7 +27,7 @@
  */
 #pragma once
 #include "radv_amdgpu_winsys.h"
-struct amdgpu_winsys_bo {
+struct radv_amdgpu_winsys_bo {
 	amdgpu_bo_handle bo;
 	amdgpu_va_handle va_handle;
 
@@ -36,15 +36,15 @@ struct amdgpu_winsys_bo {
 	uint64_t size;
 	bool is_shared;
 
-	struct amdgpu_winsys *ws;
+	struct radv_amdgpu_winsys *ws;
 	struct list_head global_list_item;
 };
 
 static inline
-struct amdgpu_winsys_bo *amdgpu_winsys_bo(struct radeon_winsys_bo *bo)
+struct radv_amdgpu_winsys_bo *radv_amdgpu_winsys_bo(struct radeon_winsys_bo *bo)
 {
-	return (struct amdgpu_winsys_bo *)bo;
+	return (struct radv_amdgpu_winsys_bo *)bo;
 }
 
-void radv_amdgpu_bo_init_functions(struct amdgpu_winsys *ws);
+void radv_amdgpu_bo_init_functions(struct radv_amdgpu_winsys *ws);
 

@@ -34,9 +34,9 @@
 #include <amdgpu_drm.h>
 #include <inttypes.h>
 
-static void amdgpu_winsys_bo_destroy(struct radeon_winsys_bo *_bo)
+static void radv_amdgpu_winsys_bo_destroy(struct radeon_winsys_bo *_bo)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 
 	if (bo->ws->debug_all_bos) {
 		pthread_mutex_lock(&bo->ws->global_bo_list_lock);
@@ -50,9 +50,9 @@ static void amdgpu_winsys_bo_destroy(struct radeon_winsys_bo *_bo)
 	FREE(bo);
 }
 
-static void amdgpu_add_buffer_to_global_list(struct amdgpu_winsys_bo *bo)
+static void radv_amdgpu_add_buffer_to_global_list(struct radv_amdgpu_winsys_bo *bo)
 {
-	struct amdgpu_winsys *ws = bo->ws;
+	struct radv_amdgpu_winsys *ws = bo->ws;
 
 	if (bo->ws->debug_all_bos) {
 		pthread_mutex_lock(&ws->global_bo_list_lock);
@@ -63,20 +63,20 @@ static void amdgpu_add_buffer_to_global_list(struct amdgpu_winsys_bo *bo)
 }
 
 static struct radeon_winsys_bo *
-amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
-			uint64_t size,
-			unsigned alignment,
-			enum radeon_bo_domain initial_domain,
-			unsigned flags)
+radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
+			     uint64_t size,
+			     unsigned alignment,
+			     enum radeon_bo_domain initial_domain,
+			     unsigned flags)
 {
-	struct amdgpu_winsys *ws = amdgpu_winsys(_ws);
-	struct amdgpu_winsys_bo *bo;
+	struct radv_amdgpu_winsys *ws = radv_amdgpu_winsys(_ws);
+	struct radv_amdgpu_winsys_bo *bo;
 	struct amdgpu_bo_alloc_request request = {0};
 	amdgpu_bo_handle buf_handle;
 	uint64_t va = 0;
 	amdgpu_va_handle va_handle;
 	int r;
-	bo = CALLOC_STRUCT(amdgpu_winsys_bo);
+	bo = CALLOC_STRUCT(radv_amdgpu_winsys_bo);
 	if (!bo) {
 		return NULL;
 	}
@@ -121,7 +121,7 @@ amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
 	bo->size = size;
 	bo->is_shared = false;
 	bo->ws = ws;
-	amdgpu_add_buffer_to_global_list(bo);
+	radv_amdgpu_add_buffer_to_global_list(bo);
 	return (struct radeon_winsys_bo *)bo;
 error_va_map:   
 	amdgpu_va_range_free(va_handle);
@@ -134,16 +134,16 @@ error_bo_alloc:
 	return NULL;
 }
 
-static uint64_t amdgpu_winsys_bo_get_va(struct radeon_winsys_bo *_bo)
+static uint64_t radv_amdgpu_winsys_bo_get_va(struct radeon_winsys_bo *_bo)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 	return bo->va;
 }
 
 static void *
-amdgpu_winsys_bo_map(struct radeon_winsys_bo *_bo)
+radv_amdgpu_winsys_bo_map(struct radeon_winsys_bo *_bo)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 	int ret;
 	void *data;
 	ret = amdgpu_bo_cpu_map(bo->bo, &data);
@@ -153,19 +153,19 @@ amdgpu_winsys_bo_map(struct radeon_winsys_bo *_bo)
 }
 
 static void
-amdgpu_winsys_bo_unmap(struct radeon_winsys_bo *_bo)
+radv_amdgpu_winsys_bo_unmap(struct radeon_winsys_bo *_bo)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 	amdgpu_bo_cpu_unmap(bo->bo);
 }
 
 static struct radeon_winsys_bo *
-amdgpu_winsys_bo_from_fd(struct radeon_winsys *_ws,
-			 int fd, unsigned *stride,
-			 unsigned *offset)
+radv_amdgpu_winsys_bo_from_fd(struct radeon_winsys *_ws,
+			      int fd, unsigned *stride,
+			      unsigned *offset)
 {
-	struct amdgpu_winsys *ws = amdgpu_winsys(_ws);
-	struct amdgpu_winsys_bo *bo;
+	struct radv_amdgpu_winsys *ws = radv_amdgpu_winsys(_ws);
+	struct radv_amdgpu_winsys_bo *bo;
 	uint64_t va;
 	amdgpu_va_handle va_handle;
 	enum amdgpu_bo_handle_type type = amdgpu_bo_handle_type_dma_buf_fd;
@@ -173,7 +173,7 @@ amdgpu_winsys_bo_from_fd(struct radeon_winsys *_ws,
 	struct amdgpu_bo_info info = {0};
 	enum radeon_bo_domain initial = 0;
 	int r;
-	bo = CALLOC_STRUCT(amdgpu_winsys_bo);
+	bo = CALLOC_STRUCT(radv_amdgpu_winsys_bo);
 	if (!bo)
 		return NULL;
 
@@ -218,11 +218,11 @@ error:
 }
 
 static bool
-amdgpu_winsys_get_fd(struct radeon_winsys *_ws,
-		     struct radeon_winsys_bo *_bo,
-		     int *fd)
+radv_amdgpu_winsys_get_fd(struct radeon_winsys *_ws,
+			  struct radeon_winsys_bo *_bo,
+			  int *fd)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 	enum amdgpu_bo_handle_type type = amdgpu_bo_handle_type_dma_buf_fd;
 	int r;
 	unsigned handle;
@@ -235,7 +235,7 @@ amdgpu_winsys_get_fd(struct radeon_winsys *_ws,
 	return true;
 }
 
-static unsigned eg_tile_split_rev(unsigned eg_tile_split)
+static unsigned radv_eg_tile_split_rev(unsigned eg_tile_split)
 {
 	switch (eg_tile_split) {
 	case 64:    return 0;
@@ -250,10 +250,10 @@ static unsigned eg_tile_split_rev(unsigned eg_tile_split)
 }
 
 static void
-amdgpu_winsys_bo_set_metadata(struct radeon_winsys_bo *_bo,
-			      struct radeon_bo_metadata *md)
+radv_amdgpu_winsys_bo_set_metadata(struct radeon_winsys_bo *_bo,
+				   struct radeon_bo_metadata *md)
 {
-	struct amdgpu_winsys_bo *bo = amdgpu_winsys_bo(_bo);
+	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 	struct amdgpu_bo_metadata metadata = {0};
 	uint32_t tiling_flags = 0;
 
@@ -268,7 +268,7 @@ amdgpu_winsys_bo_set_metadata(struct radeon_winsys_bo *_bo,
 	tiling_flags |= AMDGPU_TILING_SET(BANK_WIDTH, util_logbase2(md->bankw));
 	tiling_flags |= AMDGPU_TILING_SET(BANK_HEIGHT, util_logbase2(md->bankh));
 	if (md->tile_split)
-		tiling_flags |= AMDGPU_TILING_SET(TILE_SPLIT, eg_tile_split_rev(md->tile_split));
+		tiling_flags |= AMDGPU_TILING_SET(TILE_SPLIT, radv_eg_tile_split_rev(md->tile_split));
 	tiling_flags |= AMDGPU_TILING_SET(MACRO_TILE_ASPECT, util_logbase2(md->mtilea));
 	tiling_flags |= AMDGPU_TILING_SET(NUM_BANKS, util_logbase2(md->num_banks)-1);
 
@@ -284,14 +284,14 @@ amdgpu_winsys_bo_set_metadata(struct radeon_winsys_bo *_bo,
 	amdgpu_bo_set_metadata(bo->bo, &metadata);
 }
 
-void radv_amdgpu_bo_init_functions(struct amdgpu_winsys *ws)
+void radv_amdgpu_bo_init_functions(struct radv_amdgpu_winsys *ws)
 {
-	ws->base.buffer_create = amdgpu_winsys_bo_create;
-	ws->base.buffer_destroy = amdgpu_winsys_bo_destroy;
-	ws->base.buffer_get_va = amdgpu_winsys_bo_get_va;
-	ws->base.buffer_map = amdgpu_winsys_bo_map;
-	ws->base.buffer_unmap = amdgpu_winsys_bo_unmap;
-	ws->base.buffer_from_fd = amdgpu_winsys_bo_from_fd;
-	ws->base.buffer_get_fd = amdgpu_winsys_get_fd;
-	ws->base.buffer_set_metadata = amdgpu_winsys_bo_set_metadata;
+	ws->base.buffer_create = radv_amdgpu_winsys_bo_create;
+	ws->base.buffer_destroy = radv_amdgpu_winsys_bo_destroy;
+	ws->base.buffer_get_va = radv_amdgpu_winsys_bo_get_va;
+	ws->base.buffer_map = radv_amdgpu_winsys_bo_map;
+	ws->base.buffer_unmap = radv_amdgpu_winsys_bo_unmap;
+	ws->base.buffer_from_fd = radv_amdgpu_winsys_bo_from_fd;
+	ws->base.buffer_get_fd = radv_amdgpu_winsys_get_fd;
+	ws->base.buffer_set_metadata = radv_amdgpu_winsys_bo_set_metadata;
 }
