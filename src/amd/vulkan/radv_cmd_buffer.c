@@ -36,7 +36,8 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkImageLayout src_layout,
 					 VkImageLayout dst_layout,
-					 VkImageSubresourceRange range);
+					 VkImageSubresourceRange range,
+					 VkImageAspectFlags pending_clears);
 
 const struct radv_dynamic_state default_dynamic_state = {
 	.viewport = {
@@ -842,7 +843,8 @@ static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buf
 	radv_handle_image_transition(cmd_buffer,
 				     view->image,
 				     cmd_buffer->state.attachments[idx].current_layout,
-				     att.layout, range);
+				     att.layout, range,
+				     cmd_buffer->state.attachments[idx].pending_clear_aspects);
 
 	cmd_buffer->state.attachments[idx].current_layout = att.layout;
 
@@ -1814,11 +1816,16 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkImageLayout src_layout,
 					 VkImageLayout dst_layout,
-					 VkImageSubresourceRange range)
+					 VkImageSubresourceRange range,
+					 VkImageAspectFlags pending_clears)
 {
 	/*TODO fill out more things in here */
-	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
-	    dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+	if (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	    (pending_clears & vk_format_aspects(image->vk_format))) {
+		/* The clear will initialize htile. */
+		return;
+	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
+	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 		/* TODO: merge with the clear if applicable */
 		radv_initialize_htile(cmd_buffer, image);
 	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
@@ -1873,7 +1880,8 @@ void radv_CmdPipelineBarrier(
 		radv_handle_image_transition(cmd_buffer, image,
 					     pImageMemoryBarriers[i].oldLayout,
 					     pImageMemoryBarriers[i].newLayout,
-					     pImageMemoryBarriers[i].subresourceRange);
+					     pImageMemoryBarriers[i].subresourceRange,
+					     0);
 	}
 
 	enum radv_cmd_flush_bits flush_bits = 0;
