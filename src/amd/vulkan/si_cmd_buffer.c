@@ -814,8 +814,6 @@ void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 			   uint64_t src_va, uint64_t dest_va,
 			   uint64_t size)
 {
-	struct radv_device *device = cmd_buffer->device;
-	struct radeon_winsys_cs *cs = cmd_buffer->cs;
 	uint64_t main_src_va, main_dest_va;
 	uint64_t skipped_size = 0, realign_size = 0;
 

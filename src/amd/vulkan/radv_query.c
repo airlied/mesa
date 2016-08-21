@@ -77,6 +77,8 @@ VkResult radv_CreateQueryPool(
 	case VK_QUERY_TYPE_TIMESTAMP:
 		pool->stride = 8;
 		break;
+	default:
+		unreachable("creating unhandled query type");
 	}
 
 	pool->type = pCreateInfo->queryType;
@@ -126,7 +128,6 @@ VkResult radv_GetQueryPoolResults(
 	VkDeviceSize                                stride,
 	VkQueryResultFlags                          flags)
 {
-	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_query_pool, pool, queryPool);
 	char *data = pData;
 	VkResult result = VK_SUCCESS;
@@ -173,6 +174,8 @@ VkResult radv_GetQueryPoolResults(
 				dest += 4;
 			}
 			break;
+		default:
+			unreachable("trying to get results of unhandled query type");
 		}
 		}
 
@@ -242,6 +245,8 @@ void radv_CmdCopyQueryPoolResults(
 			radeon_emit(cs, dest_va);
 			radeon_emit(cs, dest_va >> 32);
 			break;
+		default:
+			unreachable("trying to get results of unhandled query type");
 		}
 
 		/* The flag could be still changed while the data copy is busy and we
@@ -316,6 +321,8 @@ void radv_CmdBeginQuery(
 		radeon_emit(cs, va);
 		radeon_emit(cs, va >> 32);
 		break;
+	default:
+		unreachable("beginning unhandled query type");
 	}
 }
 
@@ -354,6 +361,8 @@ void radv_CmdEndQuery(
 		radeon_emit(cs, (va + pool->stride - 16) >> 32);
 
 		break;
+	default:
+		unreachable("ending unhandled query type");
 	}
 
 	radeon_check_space(cmd_buffer->device->ws, cs, 5);
