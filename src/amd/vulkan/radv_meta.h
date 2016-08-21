@@ -46,6 +46,13 @@ struct radv_meta_saved_state {
    char push_constants[128];
 };
 
+struct radv_meta_saved_compute_state {
+   struct radv_descriptor_set *old_descriptor_set0;
+   struct radv_pipeline *old_pipeline;
+
+   char push_constants[128];
+};
+
 VkResult radv_device_init_meta_clear_state(struct radv_device *device);
 void radv_device_finish_meta_clear_state(struct radv_device *device);
 
@@ -69,6 +76,16 @@ radv_meta_save(struct radv_meta_saved_state *state,
 void
 radv_meta_restore(const struct radv_meta_saved_state *state,
                  struct radv_cmd_buffer *cmd_buffer);
+
+void
+radv_meta_save_compute(struct radv_meta_saved_compute_state *state,
+                       const struct radv_cmd_buffer *cmd_buffer,
+                       unsigned push_constant_size);
+
+void
+radv_meta_restore_compute(const struct radv_meta_saved_compute_state *state,
+                          struct radv_cmd_buffer *cmd_buffer,
+                          unsigned push_constant_size);
 
 VkImageViewType
 radv_meta_get_view_type(const struct radv_image *image);

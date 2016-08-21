@@ -66,6 +66,33 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
    cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS;
 }
 
+void
+radv_meta_save_compute(struct radv_meta_saved_compute_state *state,
+                       const struct radv_cmd_buffer *cmd_buffer,
+                       unsigned push_constant_size)
+{
+   state->old_pipeline = cmd_buffer->state.compute_pipeline;
+   state->old_descriptor_set0 = cmd_buffer->state.descriptors[0];
+
+   if (push_constant_size)
+      memcpy(state->push_constants, cmd_buffer->push_constants, push_constant_size);
+}
+
+void
+radv_meta_restore_compute(const struct radv_meta_saved_compute_state *state,
+                          struct radv_cmd_buffer *cmd_buffer,
+                          unsigned push_constant_size)
+{
+   radv_CmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                        state->old_pipeline);
+   radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
+
+   if (push_constant_size) {
+      memcpy(cmd_buffer->push_constants, state->push_constants, push_constant_size);
+      cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
+   }
+}
+
 VkImageViewType
 radv_meta_get_view_type(const struct radv_image *image)
 {
