@@ -35,8 +35,6 @@ radv_choose_tiling(struct radv_device *Device,
 		   const struct radv_image_create_info *create_info)
 {
 	const VkImageCreateInfo *pCreateInfo = create_info->vk_info;
-	const struct vk_format_description *desc = vk_format_description(pCreateInfo->format);
-	//   bool force_tiling = templ->flags & R600_RESOURCE_FLAG_FORCE_TILING;
 
 	if (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR) {
 		assert(pCreateInfo->samples <= 1);
@@ -96,6 +94,8 @@ radv_init_surface(struct radv_device *device,
 	case VK_IMAGE_TYPE_3D:
 		surface->flags |= RADEON_SURF_SET(RADEON_SURF_TYPE_3D, TYPE);
 		break;
+	default:
+		unreachable("unhandled image type");
 	}
 
 	if (is_depth) {
@@ -158,7 +158,6 @@ radv_make_buffer_descriptor(struct radv_device *device,
 	uint64_t gpu_address = device->ws->buffer_get_va(buffer->bo->bo);
 	uint64_t va = gpu_address + buffer->offset;
 	unsigned num_format, data_format;
-	unsigned num_records;
 	int first_non_void;
 	desc = vk_format_description(vk_format);
 	first_non_void = vk_format_get_first_non_void_channel(vk_format);
@@ -231,6 +230,8 @@ static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
 			return V_008F1C_SQ_RSRC_IMG_3D;
 		else
 			return V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
+	default:
+		unreachable("illegale image type");
 	}
 }
 /**
@@ -253,8 +254,7 @@ si_make_texture_descriptor(struct radv_device *device,
 	enum vk_swizzle swizzle[4];
 	int first_non_void;
 	unsigned num_format, data_format, type;
-	uint64_t va;
-	
+
 	desc = vk_format_description(vk_format);
 
 	if (desc->colorspace == VK_FORMAT_COLORSPACE_ZS) {
@@ -683,7 +683,6 @@ radv_image_create(VkDevice _device,
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	const VkImageCreateInfo *pCreateInfo = create_info->vk_info;
 	struct radv_image *image = NULL;
-	VkResult r;
 
 	assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
 
@@ -734,12 +733,6 @@ radv_image_create(VkDevice _device,
 	*pImage = radv_image_to_handle(image);
 
 	return VK_SUCCESS;
-
-fail:
-	if (image)
-		radv_free2(&device->alloc, alloc, image);
-
-	return r;
 }
 
 void

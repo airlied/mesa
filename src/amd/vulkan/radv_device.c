@@ -1514,7 +1514,6 @@ VkResult radv_CreateFramebuffer(
 	VkFramebuffer*                              pFramebuffer)
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
-	RADV_FROM_HANDLE(radv_render_pass, pass, pCreateInfo->renderPass);
 	struct radv_framebuffer *framebuffer;
 
 	assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);

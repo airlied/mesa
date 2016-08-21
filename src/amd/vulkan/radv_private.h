@@ -1151,7 +1151,7 @@ struct radv_render_pass_attachment {
 struct radv_render_pass {
 	uint32_t                                     attachment_count;
 	uint32_t                                     subpass_count;
-	uint32_t *                                   subpass_attachments;
+	VkAttachmentReference *                      subpass_attachments;
 	struct radv_render_pass_attachment *          attachments;
 	struct radv_subpass                           subpasses[0];
 };

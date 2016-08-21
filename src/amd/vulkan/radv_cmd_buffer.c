@@ -140,6 +140,11 @@ static VkResult radv_create_cmd_buffer(
 	}
 
 	cmd_buffer->cs = device->ws->cs_create(device->ws, RING_GFX);
+	if (!cmd_buffer->cs) {
+		result = VK_ERROR_OUT_OF_HOST_MEMORY;
+		goto fail;
+	}
+
 	*pCommandBuffer = radv_cmd_buffer_to_handle(cmd_buffer);
 
 	cmd_buffer->upload.offset = 0;
@@ -541,7 +546,7 @@ static void radv_set_optimal_micro_tile_mode(struct radv_device *device,
 					     uint32_t micro_tile_mode)
 {
 	struct radv_image *image = att->attachment->image;
-	uint32_t tile_mode_index, old_tmi;
+	uint32_t tile_mode_index;
 	if (image->surface.nsamples <= 1)
 		return;
 
@@ -757,7 +762,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	    cmd_buffer->state.pipeline->num_vertex_attribs) {
 		unsigned vb_offset;
 		void *vb_ptr;
-		uint32_t ve, i = 0;
+		uint32_t i = 0;
 		uint32_t num_attribs = cmd_buffer->state.pipeline->num_vertex_attribs;
 		uint64_t va;
 
@@ -1088,14 +1093,12 @@ void radv_bind_descriptor_set(struct radv_cmd_buffer *cmd_buffer,
 			      unsigned idx)
 {
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
-	uint64_t va;
 
 	cmd_buffer->state.descriptors[idx] = set;
 
 	if (!set)
 		return;
 
-	va = set->va;
 	for (unsigned j = 0; j < set->layout->buffer_count; ++j)
 		if (set->descriptors[j])
 			ws->cs_add_buffer(cmd_buffer->cs, set->descriptors[j]->bo, 7);

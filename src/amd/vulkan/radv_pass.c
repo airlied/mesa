@@ -66,7 +66,8 @@ VkResult radv_CreateRenderPass(
 		// att->store_op = pCreateInfo->pAttachments[i].storeOp;
 		// att->stencil_store_op = pCreateInfo->pAttachments[i].stencilStoreOp;
 	}
-	uint32_t subpass_attachment_count = 0, *p;
+	uint32_t subpass_attachment_count = 0;
+	VkAttachmentReference *p;
 	for (uint32_t i = 0; i < pCreateInfo->subpassCount; i++) {
 		const VkSubpassDescription *desc = &pCreateInfo->pSubpasses[i];
 
