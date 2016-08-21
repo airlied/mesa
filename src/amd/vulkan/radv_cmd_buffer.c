@@ -1199,8 +1199,14 @@ radv_bind_compute_pipeline(struct radv_cmd_buffer *cmd_buffer,
                            struct radv_pipeline *pipeline)
 {
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
-	struct radv_shader_variant *compute_shader = pipeline->shaders[MESA_SHADER_COMPUTE];
-	uint64_t va = ws->buffer_get_va(compute_shader->bo);
+	struct radv_shader_variant *compute_shader;
+	uint64_t va;
+
+	if (!pipeline)
+		return;
+
+	compute_shader = pipeline->shaders[MESA_SHADER_COMPUTE];
+	va = ws->buffer_get_va(compute_shader->bo);
 
 	ws->cs_add_buffer(cmd_buffer->cs, compute_shader->bo, 8);
 
