@@ -292,8 +292,14 @@ radv_device_init_meta(struct radv_device *device)
    result = radv_device_init_meta_depth_decomp_state(device);
    if (result != VK_SUCCESS)
      goto fail_blit2d;
+
+   result = radv_device_init_meta_buffer_state(device);
+   if (result != VK_SUCCESS)
+     goto fail_buffer;
    return VK_SUCCESS;
 
+fail_buffer:
+   radv_device_finish_meta_blit2d_state(device);
 fail_blit2d:
    radv_device_finish_meta_blit_state(device);
 fail_blit:
@@ -307,6 +313,7 @@ fail_clear:
 void
 radv_device_finish_meta(struct radv_device *device)
 {
+   radv_device_finish_meta_buffer_state(device);
    radv_device_finish_meta_resolve_state(device);
    radv_device_finish_meta_clear_state(device);
    radv_device_finish_meta_blit_state(device);
