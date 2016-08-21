@@ -1889,8 +1889,22 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 		return to_integer(ctx, build_gather_values(ctx, values, ve));
 		break;
 	case nir_var_local:
+		radv_get_deref_offset(ctx, &instr->variables[0]->deref, false,
+				      &const_index, &indir_index);
 		for (unsigned chan = 0; chan < ve; chan++) {
-			values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx + chan], "");
+			if (indir_index) {
+				unsigned count = glsl_count_attribute_slots(
+					instr->variables[0]->var->type, false);
+				LLVMValueRef tmp_vec = build_gather_values_extended(
+						ctx, ctx->locals + idx + chan, count,
+						4, true);
+
+				values[chan] = LLVMBuildExtractElement(ctx->builder,
+								       tmp_vec,
+								       indir_index, "");
+			} else {
+				values[chan] = LLVMBuildLoad(ctx->builder, ctx->locals[idx + chan + const_index * 4], "");
+			}
 		}
 		return to_integer(ctx, build_gather_values(ctx, values, ve));
 	case nir_var_shader_out:
@@ -1964,14 +1978,31 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 		}
 		break;
 	case nir_var_local:
+		radv_get_deref_offset(ctx, &instr->variables[0]->deref, false,
+				      &const_index, &indir_index);
 		for (unsigned chan = 0; chan < 4; chan++) {
-			if (writemask & (1 << chan)) {
-				temp_ptr = ctx->locals[idx + chan];
+			if (!(writemask & (1 << chan)))
+				continue;
 
-				if (get_llvm_num_components(src) == 1)
-					value = src;
-				else
-					value = LLVMBuildExtractElement(ctx->builder, src, LLVMConstInt(ctx->i32, chan, false), "");
+			if (get_llvm_num_components(src) == 1)
+				value = src;
+			else
+				value = LLVMBuildExtractElement(ctx->builder, src,
+								LLVMConstInt(ctx->i32, chan, false), "");
+			if (indir_index) {
+				unsigned count = glsl_count_attribute_slots(
+					instr->variables[0]->var->type, false);
+				LLVMValueRef tmp_vec = build_gather_values_extended(
+					ctx, ctx->locals + idx + chan, count,
+					4, true);
+
+				tmp_vec = LLVMBuildInsertElement(ctx->builder, tmp_vec,
+								 value, indir_index, "");
+				build_store_values_extended(ctx, ctx->locals + idx + chan,
+							    count, 4, tmp_vec);
+			} else {
+				temp_ptr = ctx->locals[idx + chan + const_index * 4];
+
 				LLVMBuildStore(ctx->builder, value, temp_ptr);
 			}
 		}
@@ -3209,8 +3240,9 @@ setup_locals(struct nir_to_llvm_context *ctx,
 	int i, j;
 	ctx->num_locals = 0;
 	nir_foreach_variable(variable, &func->impl->locals) {
+		unsigned attrib_count = glsl_count_attribute_slots(variable->type, false);
 		variable->data.driver_location = ctx->num_locals * 4;
-		ctx->num_locals++;
+		ctx->num_locals += attrib_count;
 	}
 	ctx->locals = malloc(4 * ctx->num_locals * sizeof(LLVMValueRef));
 	if (!ctx->locals)
