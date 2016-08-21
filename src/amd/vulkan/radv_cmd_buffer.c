@@ -881,10 +881,10 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
+				 struct radv_render_pass *pass,
                                  const VkRenderPassBeginInfo *info)
 {
 	struct radv_cmd_state *state = &cmd_buffer->state;
-	RADV_FROM_HANDLE(radv_render_pass, pass, info->renderPass);
 
 	radv_free(&cmd_buffer->pool->alloc, state->attachments);
 
@@ -925,7 +925,7 @@ radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
 		}
 
 		state->attachments[i].pending_clear_aspects = clear_aspects;
-		if (clear_aspects) {
+		if (clear_aspects && info) {
 			assert(info->clearValueCount > i);
 			state->attachments[i].clear_value = info->pClearValues[i];
 		}
@@ -1045,6 +1045,8 @@ VkResult radv_BeginCommandBuffer(
 
 		struct radv_subpass *subpass =
 			&cmd_buffer->state.pass->subpasses[pBeginInfo->pInheritanceInfo->subpass];
+
+		radv_cmd_state_setup_attachments(cmd_buffer, cmd_buffer->state.pass, NULL);
 		radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
 	}
 
@@ -1479,7 +1481,7 @@ void radv_CmdBeginRenderPass(
 	cmd_buffer->state.framebuffer = framebuffer;
 	cmd_buffer->state.pass = pass;
 	cmd_buffer->state.render_area = pRenderPassBegin->renderArea;
-	radv_cmd_state_setup_attachments(cmd_buffer, pRenderPassBegin);
+	radv_cmd_state_setup_attachments(cmd_buffer, pass, pRenderPassBegin);
 
 	si_emit_cache_flush(cmd_buffer);
 
