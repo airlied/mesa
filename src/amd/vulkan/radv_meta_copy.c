@@ -24,9 +24,6 @@
 #include "radv_meta.h"
 #include "vk_format.h"
 
-#include "sid.h"
-#include "radv_cs.h"
-
 static VkExtent3D
 meta_image_block_size(const struct radv_image *image)
 {
@@ -378,71 +375,4 @@ void radv_CmdCopyImage(
 	}
 
 	radv_meta_end_blit2d(cmd_buffer, &saved_state);
-}
-
-void radv_CmdCopyBuffer(
-	VkCommandBuffer                             commandBuffer,
-	VkBuffer                                    srcBuffer,
-	VkBuffer                                    destBuffer,
-	uint32_t                                    regionCount,
-	const VkBufferCopy*                         pRegions)
-{
-	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-	RADV_FROM_HANDLE(radv_buffer, src_buffer, srcBuffer);
-	RADV_FROM_HANDLE(radv_buffer, dest_buffer, destBuffer);
-	struct radv_device *device = cmd_buffer->device;
-
-	struct radv_meta_saved_state saved_state;
-
-	for (unsigned r = 0; r < regionCount; r++) {
-		uint64_t src_offset = src_buffer->offset + pRegions[r].srcOffset;
-		uint64_t dest_offset = dest_buffer->offset + pRegions[r].dstOffset;
-		uint64_t copy_size = pRegions[r].size;
-		uint64_t src_va, dest_va;
-
-		device->ws->cs_add_buffer(cmd_buffer->cs, src_buffer->bo->bo, 8);
-		device->ws->cs_add_buffer(cmd_buffer->cs, dest_buffer->bo->bo, 8);
-
-		src_va = device->ws->buffer_get_va(src_buffer->bo->bo) + src_offset;
-		dest_va = device->ws->buffer_get_va(dest_buffer->bo->bo) + dest_offset;
-
-		si_cp_dma_buffer_copy(cmd_buffer, src_va, dest_va, copy_size);
-	}
-}
-
-void radv_CmdUpdateBuffer(
-	VkCommandBuffer                             commandBuffer,
-	VkBuffer                                    dstBuffer,
-	VkDeviceSize                                dstOffset,
-	VkDeviceSize                                dataSize,
-	const uint32_t*                             pData)
-{
-	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
-	uint64_t words = dataSize / 4;
-	uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
-	va += dstOffset += dst_buffer->offset;
-
-	assert(!(dataSize & 3));
-	assert(!(va & 3));
-
-	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
-
-	while (words) {
-		uint64_t count = MIN2(words, 0x3FF0);
-
-		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, count + 4);
-
-		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + count, 0));
-		radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEMORY_SYNC) |
-		                            S_370_WR_CONFIRM(!!(count == words)) |
-		                            S_370_ENGINE_SEL(V_370_ME));
-		radeon_emit(cmd_buffer->cs, va);
-		radeon_emit(cmd_buffer->cs, va >> 32);
-		radeon_emit_array(cmd_buffer->cs, pData, count);
-
-		words -= count;
-		pData += count;
-		va += count * 4;
-	}
 }

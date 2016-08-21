@@ -1117,23 +1117,3 @@ void radv_CmdClearAttachments(
 
    meta_clear_end(&saved_state, cmd_buffer);
 }
-
-void radv_CmdFillBuffer(
-    VkCommandBuffer                             commandBuffer,
-    VkBuffer                                    dstBuffer,
-    VkDeviceSize                                dstOffset,
-    VkDeviceSize                                fillSize,
-    uint32_t                                    data)
-{
-   RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-   RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
-   uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
-   va += dst_buffer->offset + dstOffset;
-
-   cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
-
-   if (fillSize == VK_WHOLE_SIZE)
-      fillSize = dst_buffer->size - dstOffset;
-
-   si_cp_dma_clear_buffer(cmd_buffer, va, fillSize, data);
-}

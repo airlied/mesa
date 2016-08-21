@@ -1810,17 +1810,17 @@ void radv_CmdEndRenderPass(
 static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 				  struct radv_image *image)
 {
-	uint64_t gpu_address = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-	gpu_address += image->offset + image->htile.offset;
 
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
 	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
-	si_emit_cache_flush(cmd_buffer);
 
-	si_cp_dma_clear_buffer(cmd_buffer, gpu_address, image->htile.size, 0xf);
+	radv_fill_buffer(cmd_buffer, image->bo->bo, image->offset + image->htile.offset,
+			 image->htile.size, 0xf);
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META |
+	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	                                RADV_CMD_FLAG_INV_VMEM_L1 |
+	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
 }
 
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,

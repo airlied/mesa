@@ -130,6 +130,12 @@ round_up_u32(uint32_t v, uint32_t a)
 	return (v + a - 1) / a;
 }
 
+static inline uint64_t
+round_up_u64(uint64_t v, uint64_t a)
+{
+	return (v + a - 1) / a;
+}
+
 static inline uint32_t
 radv_minify(uint32_t n, uint32_t levels)
 {
@@ -442,6 +448,15 @@ struct radv_meta_state {
 		VkPipeline                                pipeline;
 		VkRenderPass                              pass;
 	} depth_decomp;
+
+	struct {
+		VkPipelineLayout fill_p_layout;
+		VkPipelineLayout copy_p_layout;
+		VkDescriptorSetLayout fill_ds_layout;
+		VkDescriptorSetLayout copy_ds_layout;
+		VkPipeline fill_pipeline;
+		VkPipeline copy_pipeline;
+	} buffer;
 };
 
 struct radv_queue {
@@ -725,6 +740,11 @@ void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_sampl
 unsigned radv_cayman_get_maxdist(int log_samples);
 void radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 				VkClearDepthStencilValue ds_clear_value);
+
+void radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
+		      struct radeon_winsys_bo *bo,
+		      uint64_t offset, uint64_t size, uint32_t value);
+
 /*
  * Takes x,y,z as exact numbers of invocations, instead of blocks.
  *
