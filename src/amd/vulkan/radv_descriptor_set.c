@@ -349,7 +349,7 @@ radv_descriptor_set_destroy(struct radv_device *device,
 			    struct radv_descriptor_set *set,
 			    bool free_bo)
 {
-	if (free_bo) {
+	if (free_bo && set->layout->size) {
 		assert(pool->full_list >= 0);
 		int next = pool->free_nodes[pool->full_list].next;
 		pool->free_nodes[pool->full_list].next = pool->free_list;
@@ -397,8 +397,9 @@ VkResult radv_CreateDescriptorPool(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	struct radv_descriptor_pool *pool;
+	unsigned max_sets = pCreateInfo->maxSets * 2;
 	int size = sizeof(struct radv_descriptor_pool) +
-	           pCreateInfo->maxSets * sizeof(struct radv_descriptor_pool_free_node);
+	           max_sets * sizeof(struct radv_descriptor_pool_free_node);
 	uint64_t bo_size = 0;
 	pool = radv_alloc2(&device->alloc, pAllocator, size, 8,
 			   VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -409,10 +410,10 @@ VkResult radv_CreateDescriptorPool(
 
 	pool->free_list = -1;
 	pool->full_list = 0;
-	pool->free_nodes[pCreateInfo->maxSets - 1].next = -1;
-	pool->max_sets = pCreateInfo->maxSets;
+	pool->free_nodes[max_sets - 1].next = -1;
+	pool->max_sets = max_sets;
 
-	for (int i = 0; i  + 1 < pCreateInfo->maxSets; ++i)
+	for (int i = 0; i  + 1 < max_sets; ++i)
 		pool->free_nodes[i].next = i + 1;
 
 	/* we align sets on 64 bytes, an count multiples of 32 bytes for descriptors,
