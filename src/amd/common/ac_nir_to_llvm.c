@@ -1949,6 +1949,7 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 		radv_get_deref_offset(ctx, &instr->variables[0]->deref, false,
 				      &const_index, &indir_index);
 		for (unsigned chan = 0; chan < 4; chan++) {
+			int stride = 4;
 			if (!(writemask & (1 << chan)))
 				continue;
 			if (get_llvm_num_components(src) == 1)
@@ -1959,19 +1960,21 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 									     chan, false),
 								"");
 
+			if (instr->variables[0]->var->data.location == VARYING_SLOT_CLIP_DIST0)
+				stride = 1;
 			if (indir_index) {
 				unsigned count = glsl_count_attribute_slots(
 						instr->variables[0]->var->type, false);
 				LLVMValueRef tmp_vec = build_gather_values_extended(
 						ctx, ctx->outputs + idx + chan, count,
-						4, true);
+						stride, true);
 
 				tmp_vec = LLVMBuildInsertElement(ctx->builder, tmp_vec,
 								 value, indir_index, "");
 				build_store_values_extended(ctx, ctx->outputs + idx + chan,
-							    count, 4, tmp_vec);
+							    count, stride, tmp_vec);
 			} else {
-				temp_ptr = ctx->outputs[idx + chan + const_index * 4];
+				temp_ptr = ctx->outputs[idx + chan + const_index * stride];
 
 				LLVMBuildStore(ctx->builder, value, temp_ptr);
 			}
@@ -3222,7 +3225,12 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 	variable->data.driver_location = idx * 4;
 
 	if (idx == VARYING_SLOT_CLIP_DIST0) {
-		ctx->shader_info->vs.clip_dist_mask = (1 << glsl_get_length(variable->type)) - 1;
+		int length = glsl_get_length(variable->type);
+		ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
+		if (length > 3)
+			attrib_count = 2;
+		else
+			attrib_count = 1;
 	}
 	for (unsigned i = 0; i < attrib_count; ++i) {
 		for (unsigned chan = 0; chan < 4; chan++) {
