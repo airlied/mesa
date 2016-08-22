@@ -365,6 +365,7 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 					 VkImageSubresourceRange *subresourceRange)
 {
 	struct radv_meta_saved_state saved_state;
+	struct radv_meta_saved_pass_state saved_pass_state;
 	VkDevice device_h = radv_device_to_handle(cmd_buffer->device);
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 	uint32_t width = radv_minify(image->extent.width,
@@ -374,6 +375,7 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 	if (!image->htile.size)
 		return;
+	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
 	meta_depth_decomp_save(&saved_state, cmd_buffer);
 
 	for (uint32_t layer = 0; layer < subresourceRange->layerCount; layer++) {
@@ -437,4 +439,5 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 					&cmd_buffer->pool->alloc);
 	}
 	meta_depth_decomp_restore(&saved_state, cmd_buffer);
+	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
 }
