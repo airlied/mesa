@@ -291,7 +291,8 @@ struct radeon_winsys {
 	void (*cs_grow)(struct radeon_winsys_cs * cs, size_t min_size);
 
 	int (*cs_submit)(struct radeon_winsys_ctx *ctx,
-			 struct radeon_winsys_cs *cs,
+			 struct radeon_winsys_cs **cs_array,
+			 unsigned cs_count,
 			 struct radeon_winsys_fence *fence);
 
 	void (*cs_add_buffer)(struct radeon_winsys_cs *cs,

@@ -1804,6 +1804,8 @@ void radv_CmdEndRenderPass(
 
 	cmd_buffer->state.pass = NULL;
 	cmd_buffer->state.subpass = NULL;
+	cmd_buffer->state.attachments = NULL;
+
 }
 
 

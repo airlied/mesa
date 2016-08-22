@@ -720,18 +720,31 @@ VkResult radv_QueueSubmit(
 	int ret;
 
 	for (uint32_t i = 0; i < submitCount; i++) {
+		struct radeon_winsys_cs **cs_array;
+
+		if (!pSubmits[i].commandBufferCount)
+			continue;
+
+		cs_array = malloc(sizeof(struct radeon_winsys_cs *) *
+					        pSubmits[i].commandBufferCount);
+
 		for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; j++) {
 			RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer,
 					 pSubmits[i].pCommandBuffers[j]);
 			assert(cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-			ret = queue->device->ws->cs_submit(ctx, cmd_buffer->cs, base_fence);
+			cs_array[j] = cmd_buffer->cs;
 		}
+		ret = queue->device->ws->cs_submit(ctx, cs_array,
+						   pSubmits[i].commandBufferCount,
+						   base_fence);
+		free(cs_array);
 	}
 
 	if (fence) {
 		if (!submitCount)
-			ret = queue->device->ws->cs_submit(ctx, queue->device->empty_cs, base_fence);
+			ret = queue->device->ws->cs_submit(ctx, &queue->device->empty_cs,
+							   1, base_fence);
 
 		fence->submitted = true;
 	}
