@@ -177,6 +177,8 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 	cs->ib.ib_mc_address = radv_amdgpu_winsys_bo(cs->ib_buffer)->va;
 	cs->base.buf = (uint32_t *)cs->ib_mapped;
 	cs->base.max_dw = ib_size / 4 - 4;
+	cs->ib_size_ptr = &cs->ib.size;
+	cs->ib.size = 0;
 
 	ws->cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 	return &cs->base;
@@ -198,10 +200,7 @@ static void radv_amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 	while (!cs->base.cdw || (cs->base.cdw & 7) != 4)
 		cs->base.buf[cs->base.cdw++] = 0xffff1000;
 
-	if (cs->ib_size_ptr)
-		*cs->ib_size_ptr |= cs->base.cdw + 4;
-	else
-		cs->ib.size = cs->base.cdw + 4;
+	*cs->ib_size_ptr |= cs->base.cdw + 4;
 
 	if (cs->num_old_ib_buffers == cs->max_num_old_ib_buffers) {
 		cs->max_num_old_ib_buffers = MAX2(1, cs->max_num_old_ib_buffers * 2);
@@ -250,10 +249,7 @@ static bool radv_amdgpu_cs_finalize(struct radeon_winsys_cs *_cs)
 	while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
 		cs->base.buf[cs->base.cdw++] = 0xffff1000;
 
-	if (cs->ib_size_ptr)
-		*cs->ib_size_ptr |= cs->base.cdw;
-	else
-		cs->ib.size = cs->base.cdw;
+	*cs->ib_size_ptr |= cs->base.cdw;
 
 	return !cs->failed;
 }
@@ -263,8 +259,9 @@ static void radv_amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
 	cs->base.cdw = 0;
 	cs->num_buffers = 0;
-	cs->ib_size_ptr = NULL;
 	cs->failed = false;
+	cs->ib_size_ptr = &cs->ib.size;
+	cs->ib.size = 0;
 
 	for (int i = 0; i < ARRAY_SIZE(cs->buffer_hash_table); ++i) {
 		cs->buffer_hash_table[i] = -1;
