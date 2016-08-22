@@ -293,6 +293,7 @@ struct radeon_winsys {
 	int (*cs_submit)(struct radeon_winsys_ctx *ctx,
 			 struct radeon_winsys_cs **cs_array,
 			 unsigned cs_count,
+			 bool can_patch,
 			 struct radeon_winsys_fence *fence);
 
 	void (*cs_add_buffer)(struct radeon_winsys_cs *cs,
