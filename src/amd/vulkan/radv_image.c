@@ -213,10 +213,10 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 }
 
 static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
-			     unsigned nr_layers, unsigned nr_samples, bool is_single_layer)
+			     unsigned nr_layers, unsigned nr_samples, bool is_storage_image)
 {
 	if (view_type == VK_IMAGE_VIEW_TYPE_CUBE || view_type == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY)
-		return V_008F1C_SQ_RSRC_IMG_CUBE;
+		return is_storage_image ? V_008F1C_SQ_RSRC_IMG_2D_ARRAY : V_008F1C_SQ_RSRC_IMG_CUBE;
 	switch (image_type) {
 	case VK_IMAGE_TYPE_1D:
 		return nr_layers > 1 ? V_008F1C_SQ_RSRC_IMG_1D_ARRAY : V_008F1C_SQ_RSRC_IMG_1D;
@@ -286,24 +286,8 @@ si_make_texture_descriptor(struct radv_device *device,
 		data_format = 0;
 	}
 
-#if 0
-	if (!sampler &&
-	    (res->target == PIPE_TEXTURE_CUBE ||
-	     res->target == PIPE_TEXTURE_CUBE_ARRAY ||
-	     res->target == PIPE_TEXTURE_3D)) {
-		/* For the purpose of shader images, treat cube maps and 3D
-		 * textures as 2D arrays. For 3D textures, the address
-		 * calculations for mipmaps are different, so we rely on the
-		 * caller to effectively disable mipmaps.
-		 */
-		type = V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
-
-		assert(res->target != PIPE_TEXTURE_3D || (first_level == 0 && last_level == 0));
-	} else {
-		type = radv_tex_dim(res->target, target, res->nr_samples);
-	}
-#endif
-	type = radv_tex_dim(image->type, view_type, image->array_size, image->samples, last_layer == first_layer);
+	type = radv_tex_dim(image->type, view_type, image->array_size, image->samples,
+			    (image->usage & VK_IMAGE_USAGE_STORAGE_BIT));
 	if (type == V_008F1C_SQ_RSRC_IMG_1D_ARRAY) {
 	        height = 1;
 		depth = image->array_size;
@@ -706,7 +690,7 @@ radv_image_create(VkDevice _device,
 	image->array_size = pCreateInfo->arrayLayers;
 	image->samples = pCreateInfo->samples;
 	image->tiling = pCreateInfo->tiling;
-
+	image->usage = pCreateInfo->usage;
 	radv_init_surface(device, &image->surface, create_info);
 
 	device->ws->surface_init(device->ws, &image->surface);
