@@ -10,3 +10,4 @@ Compute & DMA queues
 pipeline statistics queries
 secondary command buffers
 compute shared memory
+shader scratch/spill space
