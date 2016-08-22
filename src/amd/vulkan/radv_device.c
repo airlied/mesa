@@ -721,6 +721,7 @@ VkResult radv_QueueSubmit(
 
 	for (uint32_t i = 0; i < submitCount; i++) {
 		struct radeon_winsys_cs **cs_array;
+		bool can_patch = true;
 
 		if (!pSubmits[i].commandBufferCount)
 			continue;
@@ -734,17 +735,19 @@ VkResult radv_QueueSubmit(
 			assert(cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
 			cs_array[j] = cmd_buffer->cs;
+			if ((cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT))
+				can_patch = false;
 		}
 		ret = queue->device->ws->cs_submit(ctx, cs_array,
 						   pSubmits[i].commandBufferCount,
-						   base_fence);
+						   can_patch, base_fence);
 		free(cs_array);
 	}
 
 	if (fence) {
 		if (!submitCount)
 			ret = queue->device->ws->cs_submit(ctx, &queue->device->empty_cs,
-							   1, base_fence);
+							   1, false, base_fence);
 
 		fence->submitted = true;
 	}
