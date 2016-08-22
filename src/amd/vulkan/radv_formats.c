@@ -828,6 +828,9 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 		unreachable("bad VkImageTiling");
 	}
 
+	if (format_feature_flags == 0)
+		goto unsupported;
+
 	switch (type) {
 	default:
 		unreachable("bad vkimage type\n");
@@ -883,6 +886,12 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 
 	if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
 		if (!(format_feature_flags & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+			goto unsupported;
+		}
+	}
+
+	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
+		if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
 			goto unsupported;
 		}
 	}
