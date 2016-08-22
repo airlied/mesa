@@ -379,7 +379,7 @@ VkResult radv_GetPipelineCacheData(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_pipeline_cache, cache, _cache);
 	struct cache_header *header;
-
+	VkResult result = VK_SUCCESS;
 	const size_t size = sizeof(*header) + cache->total_size;
 	if (pData == NULL) {
 		*pDataSize = size;
@@ -404,15 +404,17 @@ VkResult radv_GetPipelineCacheData(
 			continue;
 		entry = cache->hash_table[i];
 		const uint32_t size = entry_size(entry);
-		if (end < p + size)
+		if (end < p + size) {
+			result = VK_INCOMPLETE;
 			break;
+		}
 
 		memcpy(p, entry, size);
 		p += size;
 	}
 	*pDataSize = p - pData;
       
-	return VK_SUCCESS;
+	return result;
 }
 
 static void
@@ -425,7 +427,8 @@ radv_pipeline_cache_merge(struct radv_pipeline_cache *dst,
 			continue;
 
 		radv_pipeline_cache_add_entry(dst, entry);
-      
+
+		src->hash_table[i] = NULL;
 	}
 }
 
