@@ -2544,15 +2544,33 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 static LLVMValueRef build_cube_intrinsic(struct nir_to_llvm_context *ctx,
 					 LLVMValueRef *in)
 {
-	LLVMValueRef c[4];
+
 	LLVMValueRef v, cube_vec;
-	c[0] = in[0];
-	c[1] = in[1];
-	c[2] = in[2];
-	c[3] = LLVMGetUndef(LLVMTypeOf(in[0]));
-	cube_vec = build_gather_values(ctx, c, 4);
-	v = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.cube", LLVMTypeOf(cube_vec),
-				&cube_vec, 1, LLVMReadNoneAttribute);
+
+	if (1) {
+		LLVMTypeRef f32 = LLVMTypeOf(in[0]);
+		LLVMValueRef out[4];
+
+		out[0] = emit_llvm_intrinsic(ctx, "llvm.amdgcn.cubetc",
+					     f32, in, 3, LLVMReadNoneAttribute);
+		out[1] = emit_llvm_intrinsic(ctx, "llvm.amdgcn.cubesc",
+					     f32, in, 3, LLVMReadNoneAttribute);
+		out[2] = emit_llvm_intrinsic(ctx, "llvm.amdgcn.cubema",
+					     f32, in, 3, LLVMReadNoneAttribute);
+		out[3] = emit_llvm_intrinsic(ctx, "llvm.amdgcn.cubeid",
+					     f32, in, 3, LLVMReadNoneAttribute);
+
+		return build_gather_values(ctx, out, 4);
+	} else {
+		LLVMValueRef c[4];
+		c[0] = in[0];
+		c[1] = in[1];
+		c[2] = in[2];
+		c[3] = LLVMGetUndef(LLVMTypeOf(in[0]));
+		cube_vec = build_gather_values(ctx, c, 4);
+		v = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.cube", LLVMTypeOf(cube_vec),
+					&cube_vec, 1, LLVMReadNoneAttribute);
+	}
 	return v;
 }
 
