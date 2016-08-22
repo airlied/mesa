@@ -83,8 +83,8 @@ radv_meta_restore_compute(const struct radv_meta_saved_compute_state *state,
                           struct radv_cmd_buffer *cmd_buffer,
                           unsigned push_constant_size)
 {
-   radv_CmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                        state->old_pipeline);
+   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE,
+                        radv_pipeline_to_handle(state->old_pipeline));
    radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
 
    if (push_constant_size) {
