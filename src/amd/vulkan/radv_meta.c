@@ -67,6 +67,28 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
 }
 
 void
+radv_meta_save_pass(struct radv_meta_saved_pass_state *state,
+                    const struct radv_cmd_buffer *cmd_buffer)
+{
+   state->pass = cmd_buffer->state.pass;
+   state->subpass = cmd_buffer->state.subpass;
+   state->framebuffer = cmd_buffer->state.framebuffer;
+   state->attachments = cmd_buffer->state.attachments;
+}
+
+void
+radv_meta_restore_pass(const struct radv_meta_saved_pass_state *state,
+                       struct radv_cmd_buffer *cmd_buffer)
+{
+   cmd_buffer->state.pass = state->pass;
+   cmd_buffer->state.subpass = state->subpass;
+   cmd_buffer->state.framebuffer = state->framebuffer;
+   cmd_buffer->state.attachments = state->attachments;
+   if (state->pass)
+      radv_emit_framebuffer_state(cmd_buffer);
+}
+
+void
 radv_meta_save_compute(struct radv_meta_saved_compute_state *state,
                        const struct radv_cmd_buffer *cmd_buffer,
                        unsigned push_constant_size)

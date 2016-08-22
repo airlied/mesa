@@ -46,6 +46,13 @@ struct radv_meta_saved_state {
    char push_constants[128];
 };
 
+struct radv_meta_saved_pass_state {
+   struct radv_render_pass *pass;
+   struct radv_subpass *subpass;
+   struct radv_attachment_state *attachments;
+   struct radv_framebuffer *framebuffer;
+};
+
 struct radv_meta_saved_compute_state {
    struct radv_descriptor_set *old_descriptor_set0;
    struct radv_pipeline *old_pipeline;
@@ -79,6 +86,14 @@ radv_meta_save(struct radv_meta_saved_state *state,
 void
 radv_meta_restore(const struct radv_meta_saved_state *state,
                  struct radv_cmd_buffer *cmd_buffer);
+
+void
+radv_meta_save_pass(struct radv_meta_saved_pass_state *state,
+                    const struct radv_cmd_buffer *cmd_buffer);
+
+void
+radv_meta_restore_pass(const struct radv_meta_saved_pass_state *state,
+                       struct radv_cmd_buffer *cmd_buffer);
 
 void
 radv_meta_save_compute(struct radv_meta_saved_compute_state *state,

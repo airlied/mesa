@@ -572,7 +572,7 @@ radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, fui(ds_clear_value.depth)); /* R_02802C_DB_DEPTH_CLEAR */
 }
 
-static void
+void
 radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 {
 	int i;
