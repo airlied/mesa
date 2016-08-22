@@ -621,19 +621,16 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 	meta_resolve_save(&saved_state, cmd_buffer);
 
 	for (uint32_t i = 0; i < subpass->color_count; ++i) {
-		uint32_t src_att = subpass->color_attachments[i].attachment;
-		uint32_t dest_att = subpass->resolve_attachments[i].attachment;
+		VkAttachmentReference src_att = subpass->color_attachments[i];
+		VkAttachmentReference dest_att = subpass->resolve_attachments[i];
 
-		if (dest_att == VK_ATTACHMENT_UNUSED)
+		if (dest_att.attachment == VK_ATTACHMENT_UNUSED)
 			continue;
-
-		struct radv_image_view *src_iview = fb->attachments[src_att].attachment;
-		struct radv_image_view *dest_iview = fb->attachments[dest_att].attachment;
 
 		struct radv_subpass resolve_subpass = {
 			.color_count = 2,
-			.color_attachments = (uint32_t[]) { src_att, dest_att },
-			.depth_stencil_attachment = VK_ATTACHMENT_UNUSED,
+			.color_attachments = (VkAttachmentReference[]) { src_att, dest_att },
+			.depth_stencil_attachment = { .attachment = VK_ATTACHMENT_UNUSED },
 		};
 
 		radv_cmd_buffer_set_subpass(cmd_buffer, &resolve_subpass);
