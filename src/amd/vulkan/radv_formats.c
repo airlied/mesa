@@ -547,7 +547,6 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
 
    if (radv_is_buffer_format_supported(format)) {
       buffer |= VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT |
-                VK_FORMAT_FEATURE_BLIT_SRC_BIT |
                 VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT |
                 VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT;
    }
