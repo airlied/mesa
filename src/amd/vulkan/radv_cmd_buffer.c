@@ -886,8 +886,6 @@ radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_cmd_state *state = &cmd_buffer->state;
 
-	radv_free(&cmd_buffer->pool->alloc, state->attachments);
-
 	if (pass->attachment_count == 0) {
 		state->attachments = NULL;
 		return;
@@ -1802,10 +1800,12 @@ void radv_CmdEndRenderPass(
 		                      (VkAttachmentReference){i, layout});
 	}
 
+	radv_free(&cmd_buffer->pool->alloc, cmd_buffer->state.attachments);
+
 	cmd_buffer->state.pass = NULL;
 	cmd_buffer->state.subpass = NULL;
 	cmd_buffer->state.attachments = NULL;
-
+	cmd_buffer->state.framebuffer = NULL;
 }
 
 
