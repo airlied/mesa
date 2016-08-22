@@ -2541,18 +2541,31 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, DESC_FMASK);
 }
 
+static LLVMValueRef build_cube_intrinsic(struct nir_to_llvm_context *ctx,
+					 LLVMValueRef *in)
+{
+	LLVMValueRef c[4];
+	LLVMValueRef v, cube_vec;
+	c[0] = in[0];
+	c[1] = in[1];
+	c[2] = in[2];
+	c[3] = LLVMGetUndef(LLVMTypeOf(in[0]));
+	cube_vec = build_gather_values(ctx, c, 4);
+	v = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.cube", LLVMTypeOf(cube_vec),
+				&cube_vec, 1, LLVMReadNoneAttribute);
+	return v;
+}
+
 static void cube_to_2d_coords(struct nir_to_llvm_context *ctx,
 			      LLVMValueRef *in, LLVMValueRef *out)
 {
 	LLVMValueRef coords[4];
 	LLVMValueRef mad_args[3];
-	LLVMValueRef v, cube_vec;
+	LLVMValueRef v;
 	LLVMValueRef tmp;
 	int i;
 
-	cube_vec = build_gather_values(ctx, in, 4);
-	v = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.cube", ctx->v4f32,
-				&cube_vec, 1, LLVMReadNoneAttribute);
+	v = build_cube_intrinsic(ctx, in);
 	for (i = 0; i < 4; i++)
 		coords[i] = LLVMBuildExtractElement(ctx->builder, v,
 						    LLVMConstInt(ctx->i32, i, false), "");
