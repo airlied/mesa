@@ -3227,7 +3227,7 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 	if (idx == VARYING_SLOT_CLIP_DIST0) {
 		int length = glsl_get_length(variable->type);
 		ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
-		if (length > 3)
+		if (length > 4)
 			attrib_count = 2;
 		else
 			attrib_count = 1;
