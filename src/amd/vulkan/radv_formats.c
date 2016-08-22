@@ -63,7 +63,6 @@ uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *de
 	    return V_008F0C_BUF_DATA_FORMAT_8;
 	case 2:
 	    return V_008F0C_BUF_DATA_FORMAT_8_8;
-	case 3:
 	case 4:
 	    return V_008F0C_BUF_DATA_FORMAT_8_8_8_8;
 	}
@@ -74,7 +73,6 @@ uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *de
 	    return V_008F0C_BUF_DATA_FORMAT_16;
 	case 2:
 	    return V_008F0C_BUF_DATA_FORMAT_16_16;
-	case 3:
 	case 4:
 	    return V_008F0C_BUF_DATA_FORMAT_16_16_16_16;
 	}
