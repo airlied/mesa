@@ -84,7 +84,7 @@ radv_meta_restore_pass(const struct radv_meta_saved_pass_state *state,
    cmd_buffer->state.subpass = state->subpass;
    cmd_buffer->state.framebuffer = state->framebuffer;
    cmd_buffer->state.attachments = state->attachments;
-   if (state->pass)
+   if (state->subpass)
       radv_emit_framebuffer_state(cmd_buffer);
 }
 
