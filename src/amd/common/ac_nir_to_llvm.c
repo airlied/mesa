@@ -2857,6 +2857,15 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	if (instr->op == nir_texop_query_levels)
 		result = LLVMBuildExtractElement(ctx->builder, result, LLVMConstInt(ctx->i32, 3, false), "");
+	else if (instr->op == nir_texop_txs &&
+		 instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE &&
+		 instr->is_array) {
+		LLVMValueRef two = LLVMConstInt(ctx->i32, 2, false);
+		LLVMValueRef six = LLVMConstInt(ctx->i32, 6, false);
+		LLVMValueRef z = LLVMBuildExtractElement(ctx->builder, result, two, "");
+		z = LLVMBuildSDiv(ctx->builder, z, six, "");
+		result = LLVMBuildInsertElement(ctx->builder, result, z, two, "");
+	}
 
 write_result:
 	if (result) {
