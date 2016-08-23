@@ -2077,6 +2077,7 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	LLVMValueRef res;
 	char intrinsic_name[32];
 	char coords_type[8];
+	const nir_variable *var = instr->variables[0]->var;
 	const struct glsl_type *type = instr->variables[0]->var->type;
 	if(instr->variables[0]->deref.child)
 		type = instr->variables[0]->deref.child->type;
@@ -2094,11 +2095,14 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 		res = trim_vector(ctx, res, instr->dest.ssa.num_components);
 		res = to_integer(ctx, res);
 	} else {
+		bool da = glsl_sampler_type_is_array(var->type) ||
+		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
+
 		params[0] = get_image_coords(ctx, instr);
 		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[2] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[3] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
-		params[4] = glsl_sampler_type_is_array(type) ? ctx->i32one : ctx->i32zero; /* da */
+		params[4] = da ? ctx->i32one : ctx->i32zero; /* da */
 		params[5] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
 		params[6] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
@@ -2134,13 +2138,15 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 		emit_llvm_intrinsic(ctx, "llvm.amdgcn.buffer.store.format.v4f32", ctx->voidt,
 				    params, 6, 0);
 	} else {
+		bool da = glsl_sampler_type_is_array(var->type) ||
+		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
 
 		params[0] = get_src(ctx, instr->src[2]); /* coords */
 		params[1] = get_image_coords(ctx, instr);
 		params[2] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[4] = i1false;  /* r128 */
-		params[5] = glsl_sampler_type_is_array(var->type) ? i1true : i1false; /* da */
+		params[5] = da ? i1true : i1false; /* da */
 		params[6] = i1false;  /* glc */
 		params[7] = i1false;  /* slc */
 
@@ -2180,10 +2186,13 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 		params[param_count++] = i1false;  /* glc */
 		params[param_count++] = i1false;  /* slc */
 	} else {
+		bool da = glsl_sampler_type_is_array(var->type) ||
+		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
+
 		coords = params[param_count++] = get_image_coords(ctx, instr);
 		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[param_count++] = i1false; /* r128 */
-		params[param_count++] = glsl_sampler_type_is_array(var->type) ? i1true : i1false;      /* da */
+		params[param_count++] = da ? i1true : i1false;      /* da */
 		params[param_count++] = i1false;  /* slc */
 	}
 
@@ -2230,6 +2239,8 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 	LLVMValueRef params[10];
 	const nir_variable *var = instr->variables[0]->var;
 	const struct glsl_type *type = instr->variables[0]->var->type;
+	bool da = glsl_sampler_type_is_array(var->type) ||
+	          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
 	if(instr->variables[0]->deref.child)
 		type = instr->variables[0]->deref.child->type;
 
@@ -2240,7 +2251,7 @@ static LLVMValueRef visit_image_size(struct nir_to_llvm_context *ctx,
 	params[2] = LLVMConstInt(ctx->i32, 15, false);
 	params[3] = ctx->i32zero;
 	params[4] = ctx->i32zero;
-	params[5] = glsl_sampler_type_is_array(type) ? ctx->i32one : ctx->i32zero;
+	params[5] = da ? ctx->i32one : ctx->i32zero;
 	params[6] = ctx->i32zero;
 	params[7] = ctx->i32zero;
 	params[8] = ctx->i32zero;
@@ -2478,7 +2489,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 {
 	int num_args;
 	unsigned is_rect = 0;
-
+	bool da = instr->is_array || instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE;
 
 	/* Pad to power of two vector */
 	while (count < util_next_power_of_two(count))
@@ -2513,7 +2524,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, dmask, 0);
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, is_rect, 0); /* unorm */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* r128 */
-	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, instr->is_array, 0);
+	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, da ? 1 : 0, 0);
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* glc */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* slc */
 	tinfo->args[num_args++] = LLVMConstInt(ctx->i32, 0, 0); /* tfe */
