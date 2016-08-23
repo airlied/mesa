@@ -577,7 +577,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 {
 	int i;
 	struct radv_framebuffer *framebuffer = cmd_buffer->state.framebuffer;
-	struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
 	int dst_resolve_micro_tile_mode = -1;
 
 	if (subpass->has_resolve) {
@@ -858,7 +858,7 @@ static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buf
 
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
-                            struct radv_subpass *subpass)
+                            const struct radv_subpass *subpass)
 {
 	for (unsigned i = 0; i < subpass->color_count; ++i) {
 		radv_handle_subpass_image_transition(cmd_buffer,
