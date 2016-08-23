@@ -611,6 +611,10 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 
 		radv_emit_fb_ds_state(cmd_buffer, &att->ds);
 
+		if (att->ds.offset_scale != cmd_buffer->state.offset_scale) {
+			cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS;
+			cmd_buffer->state.offset_scale = att->ds.offset_scale;
+		}
 		radv_emit_depth_clear_regs(cmd_buffer, image->ds_clear_value);
 	} else {
 		radeon_set_context_reg_seq(cmd_buffer->cs, R_028040_DB_Z_INFO, 2);
@@ -678,8 +682,9 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_PIPELINE |
 				       RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS)) {
 		struct radv_raster_state *raster = &cmd_buffer->state.pipeline->graphics.raster;
+		struct radv_depth_stencil_state *ds = &cmd_buffer->state.pipeline->graphics.ds;
 		unsigned slope = fui(d->depth_bias.slope * 16.0f);
-		unsigned bias = fui(d->depth_bias.bias);
+		unsigned bias = fui(d->depth_bias.bias * cmd_buffer->state.offset_scale);
 
 		if (bias || slope) {
 			radeon_set_context_reg_seq(cmd_buffer->cs, R_028B7C_PA_SU_POLY_OFFSET_CLAMP, 5);
