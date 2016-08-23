@@ -2082,6 +2082,7 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	if(instr->variables[0]->deref.child)
 		type = instr->variables[0]->deref.child->type;
 
+	type = glsl_without_array(type);
 	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
 		params[1] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
@@ -2095,8 +2096,8 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 		res = trim_vector(ctx, res, instr->dest.ssa.num_components);
 		res = to_integer(ctx, res);
 	} else {
-		bool da = glsl_sampler_type_is_array(var->type) ||
-		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
+		bool da = glsl_sampler_type_is_array(type) ||
+		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
 
 		params[0] = get_image_coords(ctx, instr);
 		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
@@ -2126,8 +2127,9 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	const nir_variable *var = instr->variables[0]->var;
 	LLVMValueRef i1false = LLVMConstInt(ctx->i1, 0, 0);
 	LLVMValueRef i1true = LLVMConstInt(ctx->i1, 1, 0);
+	const struct glsl_type *type = glsl_without_array(instr->variables[0]->var->type);
 
-	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
+	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
 		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
 		params[2] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
@@ -2138,8 +2140,8 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 		emit_llvm_intrinsic(ctx, "llvm.amdgcn.buffer.store.format.v4f32", ctx->voidt,
 				    params, 6, 0);
 	} else {
-		bool da = glsl_sampler_type_is_array(var->type) ||
-		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
+		bool da = glsl_sampler_type_is_array(type) ||
+		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
 
 		params[0] = get_src(ctx, instr->src[2]); /* coords */
 		params[1] = get_image_coords(ctx, instr);
