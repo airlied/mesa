@@ -656,7 +656,7 @@ struct radv_cmd_state {
 	struct radv_pipeline *                        compute_pipeline;
 	struct radv_framebuffer *                     framebuffer;
 	struct radv_render_pass *                     pass;
-	struct radv_subpass *                         subpass;
+	const struct radv_subpass *                         subpass;
 	struct radv_dynamic_state                     dynamic;
 	struct radv_vertex_binding                    vertex_bindings[MAX_VBS];
 	struct radv_descriptor_set *                  descriptors[MAX_SETS];
@@ -729,7 +729,7 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     void **ptr);
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
-                            struct radv_subpass *subpass);
+                            const struct radv_subpass *subpass);
 bool
 radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned size, unsigned alignmnet,
