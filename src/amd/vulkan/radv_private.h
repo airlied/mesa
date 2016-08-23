@@ -668,6 +668,7 @@ struct radv_cmd_state {
 	uint32_t                                     index_offset;
 	enum radv_cmd_flush_bits                     flush_bits;
 	unsigned                                     active_occlusion_queries;
+	float					     offset_scale;
 };
 struct radv_cmd_pool {
 	VkAllocationCallbacks                        alloc;
@@ -1129,6 +1130,7 @@ struct radv_ds_buffer_info {
 	uint32_t db_htile_surface;
 	uint32_t db_htile_data_base;
 	uint32_t pa_su_poly_offset_db_fmt_cntl;
+	float offset_scale;
 };
 
 struct radv_attachment_info {
