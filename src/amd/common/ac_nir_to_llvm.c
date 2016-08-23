@@ -2175,12 +2175,13 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 	const char *atomic_name;
 	LLVMValueRef coords;
 	char intrinsic_name[32], coords_type[8];
+	const struct glsl_type *type = glsl_without_array(var->type);
 
 	params[param_count++] = get_src(ctx, instr->src[2]);
 	if (instr->intrinsic == nir_intrinsic_image_atomic_comp_swap)
 		params[param_count++] = get_src(ctx, instr->src[3]);
 
-	if (glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_BUF) {
+	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
 		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
 		coords = params[param_count++] = LLVMBuildExtractElement(ctx->builder, get_src(ctx, instr->src[0]),
 									LLVMConstInt(ctx->i32, 0, false), ""); /* vindex */
@@ -2188,8 +2189,8 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 		params[param_count++] = i1false;  /* glc */
 		params[param_count++] = i1false;  /* slc */
 	} else {
-		bool da = glsl_sampler_type_is_array(var->type) ||
-		          glsl_get_sampler_dim(var->type) == GLSL_SAMPLER_DIM_CUBE;
+		bool da = glsl_sampler_type_is_array(type) ||
+		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
 
 		coords = params[param_count++] = get_image_coords(ctx, instr);
 		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
