@@ -454,7 +454,18 @@ static uint32_t si_translate_blend_factor(VkBlendFactor factor)
 	}
 }
 
-
+static bool is_dual_src(VkBlendFactor factor)
+{
+	switch (factor) {
+	case VK_BLEND_FACTOR_SRC1_COLOR:
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR:
+	case VK_BLEND_FACTOR_SRC1_ALPHA:
+	case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
+		return true;
+	default:
+		return false;
+	}
+}
 
 static unsigned si_choose_spi_color_format(VkFormat vk_format,
 					    bool blend_enable,
@@ -729,6 +740,8 @@ radv_pipeline_init_blend_state(struct radv_pipeline *pipeline,
 			continue;
 		}
 
+		if (is_dual_src(srcRGB) || is_dual_src(dstRGB) || is_dual_src(srcA) || is_dual_src(dstA))
+			radv_finishme("dual source blending");
 		if (eqRGB == VK_BLEND_OP_MIN || eqRGB == VK_BLEND_OP_MAX) {
 			srcRGB = VK_BLEND_FACTOR_ONE;
 			dstRGB = VK_BLEND_FACTOR_ONE;
