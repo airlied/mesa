@@ -139,7 +139,7 @@ radv_device_init_meta_itob_state(struct radv_device *device)
 		.setLayoutCount = 1,
 		.pSetLayouts = &device->meta_state.itob.img_ds_layout,
 		.pushConstantRangeCount = 1,
-		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_FRAGMENT_BIT, 0, 12},
+		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_COMPUTE_BIT, 0, 12},
 	};
 
 	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
@@ -417,7 +417,7 @@ radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 		};
 		radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
 				      device->meta_state.itob.img_p_layout,
-				      VK_SHADER_STAGE_FRAGMENT_BIT, 0, 12,
+				      VK_SHADER_STAGE_COMPUTE_BIT, 0, 12,
 				      push_constants);
 
 		radv_unaligned_dispatch(cmd_buffer, rects[r].width, rects[r].height, 1);
