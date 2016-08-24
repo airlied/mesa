@@ -83,14 +83,14 @@ static void
 create_iview(struct radv_cmd_buffer *cmd_buffer,
              struct radv_meta_blit2d_surf *surf,
              VkImageUsageFlags usage,
-             struct radv_image_view *iview)
+             struct radv_image_view *iview, VkFormat depth_format)
 {
 	VkFormat format;
 
-	if (usage == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+	if (!depth_format)
 		format = vk_format_for_size(surf->bs);
 	else
-		format = surf->image->vk_format;
+		format = depth_format;
 
 	radv_image_view_init(iview, cmd_buffer->device,
 			     &(VkImageViewCreateInfo) {
@@ -175,8 +175,8 @@ blit2d_bind_src(struct radv_cmd_buffer *cmd_buffer,
 				      VK_SHADER_STAGE_FRAGMENT_BIT, 0, 4,
 				      &src_buf->pitch);
 	} else {
-		create_iview(cmd_buffer, src_img, VK_IMAGE_USAGE_SAMPLED_BIT, &tmp->iview);
-
+		create_iview(cmd_buffer, src_img, VK_IMAGE_USAGE_SAMPLED_BIT, &tmp->iview,
+			     depth_format);
 
 		radv_temp_descriptor_set_create(cmd_buffer->device, cmd_buffer,
 					        device->meta_state.blit2d.ds_layouts[src_type],
@@ -233,13 +233,16 @@ blit2d_bind_dst(struct radv_cmd_buffer *cmd_buffer,
                 struct blit2d_dst_temps *tmp)
 {
 	VkImageUsageFlagBits bits;
+	VkFormat depth_format = 0;
 
 	if (dst->aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT)
 		bits = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	else
+	else {
+		depth_format = dst->image->vk_format;
 		bits = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	}
 	create_iview(cmd_buffer, dst, bits,
-		     &tmp->iview);
+		     &tmp->iview, depth_format);
 
 	radv_CreateFramebuffer(radv_device_to_handle(cmd_buffer->device),
 			       &(VkFramebufferCreateInfo) {
