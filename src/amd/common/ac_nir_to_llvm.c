@@ -2812,8 +2812,15 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		address[count++] = coords[0];
 		if (instr->coord_components > 1)
 			address[count++] = coords[1];
-		if (instr->coord_components > 2)
+		if (instr->coord_components > 2) {
+			/* This seems like a bit of a hack - but it passes Vulkan CTS with it */
+			if (instr->sampler_dim != GLSL_SAMPLER_DIM_3D && instr->op != nir_texop_txf) {
+				coords[2] = LLVMBuildFAdd(ctx->builder, to_float(ctx, coords[2]),
+							  LLVMConstReal(ctx->f32, 0.5), "");
+				coords[2] = to_integer(ctx, coords[2]);
+			}
 			address[count++] = coords[2];
+		}
 	}
 
 	/* Pack LOD */
