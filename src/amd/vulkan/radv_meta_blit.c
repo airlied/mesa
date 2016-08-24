@@ -416,30 +416,40 @@ void radv_CmdBlitImage(
 void
 radv_device_finish_meta_blit_state(struct radv_device *device)
 {
-	radv_DestroyRenderPass(radv_device_to_handle(device),
-			       device->meta_state.blit.render_pass,
-			       &device->meta_state.alloc);
-	radv_DestroyPipeline(radv_device_to_handle(device),
-			     device->meta_state.blit.pipeline_1d_src,
-			     &device->meta_state.alloc);
-	radv_DestroyPipeline(radv_device_to_handle(device),
-			     device->meta_state.blit.pipeline_2d_src,
-			     &device->meta_state.alloc);
-	radv_DestroyPipeline(radv_device_to_handle(device),
-			     device->meta_state.blit.pipeline_3d_src,
-			     &device->meta_state.alloc);
-	radv_DestroyPipelineLayout(radv_device_to_handle(device),
-				   device->meta_state.blit.pipeline_layout,
-				   &device->meta_state.alloc);
-	radv_DestroyDescriptorSetLayout(radv_device_to_handle(device),
-					device->meta_state.blit.ds_layout,
-					&device->meta_state.alloc);
+	if (device->meta_state.blit.render_pass)
+		radv_DestroyRenderPass(radv_device_to_handle(device),
+				       device->meta_state.blit.render_pass,
+				       &device->meta_state.alloc);
+	if (device->meta_state.blit.pipeline_1d_src)
+		radv_DestroyPipeline(radv_device_to_handle(device),
+				     device->meta_state.blit.pipeline_1d_src,
+				     &device->meta_state.alloc);
+	if (device->meta_state.blit.pipeline_2d_src)
+		radv_DestroyPipeline(radv_device_to_handle(device),
+				     device->meta_state.blit.pipeline_2d_src,
+				     &device->meta_state.alloc);
+	if (device->meta_state.blit.pipeline_3d_src)
+		radv_DestroyPipeline(radv_device_to_handle(device),
+				     device->meta_state.blit.pipeline_3d_src,
+				     &device->meta_state.alloc);
+	if (device->meta_state.blit.pipeline_layout)
+		radv_DestroyPipelineLayout(radv_device_to_handle(device),
+					   device->meta_state.blit.pipeline_layout,
+					   &device->meta_state.alloc);
+	if (device->meta_state.blit.ds_layout)
+		radv_DestroyDescriptorSetLayout(radv_device_to_handle(device),
+						device->meta_state.blit.ds_layout,
+						&device->meta_state.alloc);
 }
 
 VkResult
 radv_device_init_meta_blit_state(struct radv_device *device)
 {
 	VkResult result;
+	struct radv_shader_module vs = {0};
+	struct radv_shader_module fs_1d = {0}, fs_2d = {0}, fs_3d = {0};
+
+	zero(device->meta_state.blit);
 
 	result = radv_CreateRenderPass(radv_device_to_handle(device),
 				       &(VkRenderPassCreateInfo) {
@@ -474,21 +484,10 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 	if (result != VK_SUCCESS)
 		goto fail;
 
-	struct radv_shader_module vs = {
-		.nir = build_nir_vertex_shader(),
-	};
-
-	struct radv_shader_module fs_1d = {
-		.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_1D),
-	};
-
-	struct radv_shader_module fs_2d = {
-		.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_2D),
-	};
-
-	struct radv_shader_module fs_3d = {
-		.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_3D),
-	};
+	vs.nir = build_nir_vertex_shader();
+	fs_1d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_1D);
+	fs_2d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_2D);
+	fs_3d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_3D);
 
 	VkPipelineVertexInputStateCreateInfo vi_create_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -537,7 +536,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 						&device->meta_state.alloc,
 						&device->meta_state.blit.ds_layout);
 	if (result != VK_SUCCESS)
-		goto fail_render_pass;
+		goto fail;
 
 	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
 					   &(VkPipelineLayoutCreateInfo) {
@@ -547,7 +546,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 							   },
 					   &device->meta_state.alloc, &device->meta_state.blit.pipeline_layout);
 	if (result != VK_SUCCESS)
-		goto fail_descriptor_set_layout;
+		goto fail;
 
 	VkPipelineShaderStageCreateInfo pipeline_shader_stages[] = {
 		{
@@ -633,7 +632,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc, &device->meta_state.blit.pipeline_1d_src);
 	if (result != VK_SUCCESS)
-		goto fail_pipeline_layout;
+		goto fail;
 
 	pipeline_shader_stages[1].module = radv_shader_module_to_handle(&fs_2d);
 	result = radv_graphics_pipeline_create(radv_device_to_handle(device),
@@ -641,7 +640,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc, &device->meta_state.blit.pipeline_2d_src);
 	if (result != VK_SUCCESS)
-		goto fail_pipeline_1d;
+		goto fail;
 
 	pipeline_shader_stages[1].module = radv_shader_module_to_handle(&fs_3d);
 	result = radv_graphics_pipeline_create(radv_device_to_handle(device),
@@ -649,7 +648,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc, &device->meta_state.blit.pipeline_3d_src);
 	if (result != VK_SUCCESS)
-		goto fail_pipeline_2d;
+		goto fail;
 
 	ralloc_free(vs.nir);
 	ralloc_free(fs_1d.nir);
@@ -658,33 +657,11 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 
 	return VK_SUCCESS;
 
-fail_pipeline_2d:
-	radv_DestroyPipeline(radv_device_to_handle(device),
-			     device->meta_state.blit.pipeline_2d_src,
-			     &device->meta_state.alloc);
-
-fail_pipeline_1d:
-	radv_DestroyPipeline(radv_device_to_handle(device),
-			     device->meta_state.blit.pipeline_1d_src,
-			     &device->meta_state.alloc);
-
-fail_pipeline_layout:
-	radv_DestroyPipelineLayout(radv_device_to_handle(device),
-				   device->meta_state.blit.pipeline_layout,
-				   &device->meta_state.alloc);
-fail_descriptor_set_layout:
-	radv_DestroyDescriptorSetLayout(radv_device_to_handle(device),
-					device->meta_state.blit.ds_layout,
-					&device->meta_state.alloc);
-fail_render_pass:
-	radv_DestroyRenderPass(radv_device_to_handle(device),
-			       device->meta_state.blit.render_pass,
-			       &device->meta_state.alloc);
-
+fail:
 	ralloc_free(vs.nir);
 	ralloc_free(fs_1d.nir);
 	ralloc_free(fs_2d.nir);
 	ralloc_free(fs_3d.nir);
-fail:
+	radv_device_finish_meta_blit_state(device);
 	return result;
 }
