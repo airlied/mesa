@@ -87,10 +87,10 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 {
 	VkFormat format;
 
-	if (!depth_format)
-		format = vk_format_for_size(surf->bs);
-	else
+	if (depth_format)
 		format = depth_format;
+	else
+		format = vk_format_for_size(surf->bs);
 
 	radv_image_view_init(iview, cmd_buffer->device,
 			     &(VkImageViewCreateInfo) {
@@ -230,17 +230,16 @@ blit2d_bind_dst(struct radv_cmd_buffer *cmd_buffer,
                 uint64_t offset,
                 uint32_t width,
                 uint32_t height,
+		VkFormat depth_format,
                 struct blit2d_dst_temps *tmp)
 {
 	VkImageUsageFlagBits bits;
-	VkFormat depth_format = 0;
 
 	if (dst->aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT)
 		bits = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	else {
-		depth_format = dst->image->vk_format;
+	else
 		bits = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	}
+
 	create_iview(cmd_buffer, dst, bits,
 		     &tmp->iview, depth_format);
 
@@ -327,7 +326,7 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
 		uint32_t offset = 0;
 		struct blit2d_dst_temps dst_temps;
 		blit2d_bind_dst(cmd_buffer, dst, offset, rects[r].dst_x + rects[r].width,
-				rects[r].dst_y + rects[r].height, &dst_temps);
+				rects[r].dst_y + rects[r].height, depth_format, &dst_temps);
 
 		struct blit_vb_data {
 			float pos[2];
