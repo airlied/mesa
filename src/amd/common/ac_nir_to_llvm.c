@@ -3617,10 +3617,49 @@ si_export_mrt_color(struct nir_to_llvm_context *ctx,
 }
 
 static void
+si_export_mrt_z(struct nir_to_llvm_context *ctx,
+		LLVMValueRef depth, LLVMValueRef stencil,
+		LLVMValueRef samplemask)
+{
+	LLVMValueRef args[9];
+	unsigned mask = 0;
+	args[1] = ctx->i32one; /* whether the EXEC mask is valid */
+	args[2] = ctx->i32one; /* DONE bit */
+	/* Specify the target we are exporting */
+	args[3] = LLVMConstInt(ctx->i32, V_008DFC_SQ_EXP_MRTZ, false);
+
+	args[4] = ctx->i32zero; /* COMP flag */
+	args[5] = LLVMGetUndef(ctx->f32); /* R, depth */
+	args[6] = LLVMGetUndef(ctx->f32); /* G, stencil test val[0:7], stencil op val[8:15] */
+	args[7] = LLVMGetUndef(ctx->f32); /* B, sample mask */
+	args[8] = LLVMGetUndef(ctx->f32); /* A, alpha to mask */
+
+	if (depth) {
+		args[5] = depth;
+		mask |= 0x1;
+	}
+
+	if (stencil) {
+		args[6] = stencil;
+		mask |= 0x2;
+	}
+
+	if (samplemask) {
+		args[7] = samplemask;
+		mask |= 0x04;
+	}
+
+	args[0] = LLVMConstInt(ctx->i32, mask, false);
+	emit_llvm_intrinsic(ctx, "llvm.SI.export",
+			    ctx->voidt, args, 9, 0);
+}
+
+static void
 handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 		       struct nir_shader *nir)
 {
 	unsigned index = 0;
+	LLVMValueRef depth = NULL, stencil = NULL, samplemask = NULL;
 
 	for (unsigned i = 0; i < RADEON_LLVM_MAX_OUTPUTS; ++i) {
 		LLVMValueRef values[4];
@@ -3630,15 +3669,27 @@ handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 
 		last = ctx->output_mask <= ((1ull << (i + 1)) - 1);
 
-		for (unsigned j = 0; j < 4; j++)
-			values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
-					      ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
+		if (i == FRAG_RESULT_DEPTH) {
+			ctx->shader_info->fs.writes_z = true;
+			depth = to_float(ctx, LLVMBuildLoad(ctx->builder,
+							    ctx->outputs[radeon_llvm_reg_index_soa(i, 0)], ""));
+		} else if (i == FRAG_RESULT_STENCIL) {
+			ctx->shader_info->fs.writes_stencil = true;
+			stencil = to_float(ctx, LLVMBuildLoad(ctx->builder,
+							      ctx->outputs[radeon_llvm_reg_index_soa(i, 0)], ""));
+		} else {
+			for (unsigned j = 0; j < 4; j++)
+				values[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
+									ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
 
-		si_export_mrt_color(ctx, values, V_008DFC_SQ_EXP_MRT + index, last);
-		index++;
+			si_export_mrt_color(ctx, values, V_008DFC_SQ_EXP_MRT + index, last);
+			index++;
+		}
 	}
 
-	if (!index)
+	if (depth || stencil)
+		si_export_mrt_z(ctx, depth, stencil, NULL);
+	else if (!index)
 		si_export_mrt_color(ctx, NULL, V_008DFC_SQ_EXP_NULL, true);
 
 	ctx->shader_info->fs.output_mask = index ? ((1ull << index) - 1) : 0;

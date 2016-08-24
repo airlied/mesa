@@ -72,6 +72,8 @@ struct ac_shader_variant_info {
 			uint32_t flat_shaded_mask;
 			bool has_pcoord;
 			bool can_discard;
+			bool writes_z;
+			bool writes_stencil;
 		} fs;
 		struct {
 			unsigned block_size[3];
