@@ -626,7 +626,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 
 	pipeline_shader_stages[1].module = radv_shader_module_to_handle(&fs_1d);
 	result = radv_graphics_pipeline_create(radv_device_to_handle(device),
-					       VK_NULL_HANDLE,
+					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc, &device->meta_state.blit.pipeline_1d_src);
 	if (result != VK_SUCCESS)
@@ -634,7 +634,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 
 	pipeline_shader_stages[1].module = radv_shader_module_to_handle(&fs_2d);
 	result = radv_graphics_pipeline_create(radv_device_to_handle(device),
-					       VK_NULL_HANDLE,
+					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
 					       &vk_pipeline_info, &radv_pipeline_info,
 					       &device->meta_state.alloc, &device->meta_state.blit.pipeline_2d_src);
 	if (result != VK_SUCCESS)
