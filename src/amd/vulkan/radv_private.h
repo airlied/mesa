@@ -425,6 +425,9 @@ struct radv_meta_state {
 		VkPipelineLayout p_layouts[2];
 		VkDescriptorSetLayout ds_layouts[2];
 		VkPipeline pipelines[2][NUM_META_FS_KEYS];
+
+		VkRenderPass depth_only_rp;
+		VkPipeline depth_only_pipeline[2];
 	} blit2d;
 
 	struct {
