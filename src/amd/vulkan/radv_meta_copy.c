@@ -77,6 +77,7 @@ blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFla
 		.level = level,
 		.layer = layer,
 		.image = image,
+		.aspect_mask = aspectMask,
 	};
 }
 
@@ -128,7 +129,6 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 		};
 
 		/* Create blit surfaces */
-		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		struct radv_meta_blit2d_surf img_bsurf =
 			blit_surf_for_image_level_layer(image,
 							pRegions[r].imageSubresource.aspectMask,
@@ -231,7 +231,6 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 		};
 
 		/* Create blit surfaces */
-		VkImageAspectFlags aspect = pRegions[r].imageSubresource.aspectMask;
 		struct radv_meta_blit2d_surf img_info =
 			blit_surf_for_image_level_layer(image,
 							pRegions[r].imageSubresource.aspectMask,
@@ -312,8 +311,6 @@ void radv_CmdCopyImage(
 	for (unsigned r = 0; r < regionCount; r++) {
 		assert(pRegions[r].srcSubresource.aspectMask ==
 		       pRegions[r].dstSubresource.aspectMask);
-
-		VkImageAspectFlags aspect = pRegions[r].srcSubresource.aspectMask;
 
 		/* Create blit surfaces */
 		struct radv_meta_blit2d_surf b_src =
