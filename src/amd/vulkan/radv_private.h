@@ -404,16 +404,16 @@ struct radv_meta_state {
 	} clear[1 + MAX_SAMPLES_LOG2];
 
 	struct {
-		VkRenderPass render_pass;
+		VkRenderPass render_pass[NUM_META_FS_KEYS];
 
 		/** Pipeline that blits from a 1D image. */
-		VkPipeline pipeline_1d_src;
+		VkPipeline pipeline_1d_src[NUM_META_FS_KEYS];
 
 		/** Pipeline that blits from a 2D image. */
-		VkPipeline pipeline_2d_src;
+		VkPipeline pipeline_2d_src[NUM_META_FS_KEYS];
 
 		/** Pipeline that blits from a 3D image. */
-		VkPipeline pipeline_3d_src;
+		VkPipeline pipeline_3d_src[NUM_META_FS_KEYS];
 
 		VkPipelineLayout                          pipeline_layout;
 		VkDescriptorSetLayout                     ds_layout;
