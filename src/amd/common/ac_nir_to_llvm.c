@@ -1513,6 +1513,62 @@ static void build_int_type_name(
 		strcpy(buf, "i32");
 }
 
+static LLVMValueRef radv_lower_gather4_integer(struct nir_to_llvm_context *ctx,
+					       struct ac_tex_info *tinfo,
+					       nir_tex_instr *instr,
+					       const char *intr_name,
+					       unsigned coord_vgpr_index)
+{
+	LLVMValueRef coord = tinfo->args[0];
+	LLVMValueRef half_texel[2];
+	int c;
+
+	//TODO Rect
+	{
+		LLVMValueRef txq_args[10];
+		int txq_arg_count = 0;
+		LLVMValueRef size;
+		bool da = instr->is_array || instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE;
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, false);
+		txq_args[txq_arg_count++] = tinfo->args[1];
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0xf, 0); /* dmask */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* unorm */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* r128 */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, da ? 1 : 0, 0);
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* glc */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* slc */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* tfe */
+		txq_args[txq_arg_count++] = LLVMConstInt(ctx->i32, 0, 0); /* lwe */
+		size = emit_llvm_intrinsic(ctx, "llvm.SI.getresinfo.i32", ctx->v4i32,
+					   txq_args, txq_arg_count,
+					   LLVMReadNoneAttribute);
+
+		for (c = 0; c < 2; c++) {
+			half_texel[c] = LLVMBuildExtractElement(ctx->builder, size,
+								ctx->i32zero, "");
+			half_texel[c] = LLVMBuildUIToFP(ctx->builder, half_texel[c], ctx->f32, "");
+			half_texel[c] = emit_fdiv(ctx, ctx->f32one, half_texel[c]);
+			half_texel[c] = LLVMBuildFMul(ctx->builder, half_texel[c],
+						      LLVMConstReal(ctx->f32, -0.5), "");
+		}
+	}
+
+	for (c = 0; c < 2; c++) {
+		LLVMValueRef tmp;
+		LLVMValueRef index = LLVMConstInt(ctx->i32, coord_vgpr_index + c, 0);
+		tmp = LLVMBuildExtractElement(ctx->builder, coord, index, "");
+		tmp = LLVMBuildBitCast(ctx->builder, tmp, ctx->f32, "");
+		tmp = LLVMBuildFAdd(ctx->builder, tmp, half_texel[c], "");
+		tmp = LLVMBuildBitCast(ctx->builder, tmp, ctx->i32, "");
+		coord = LLVMBuildInsertElement(ctx->builder, coord, tmp, index, "");
+	}
+
+	tinfo->args[0] = coord;
+	return emit_llvm_intrinsic(ctx, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
+				   LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
+
+}
+
 static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 					nir_tex_instr *instr,
 					struct ac_tex_info *tinfo)
@@ -1567,6 +1623,13 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	sprintf(intr_name, "%s%s%s%s.%s", name, is_shadow ? ".c" : "", infix,
 		has_offset ? ".o" : "", type);
 
+	if (instr->op == nir_texop_tg4) {
+		enum glsl_base_type stype = glsl_get_sampler_result_type(instr->texture->var->type);
+		if (stype == GLSL_TYPE_UINT || stype == GLSL_TYPE_INT) {
+			return radv_lower_gather4_integer(ctx, tinfo, instr, intr_name,
+							  (int)has_offset + (int)is_shadow);
+		}
+	}
 	return emit_llvm_intrinsic(ctx, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
 				   LLVMReadNoneAttribute | LLVMNoUnwindAttribute);
 
