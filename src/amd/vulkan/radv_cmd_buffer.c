@@ -1733,7 +1733,7 @@ void radv_CmdDispatchIndirect(
 					    COPY_DATA_DST_SEL(COPY_DATA_REG));
 		radeon_emit(cmd_buffer->cs, (va +  4 * i));
 		radeon_emit(cmd_buffer->cs, (va + 4 * i) >> 32);
-		radeon_emit(cmd_buffer->cs, (R_00B900_COMPUTE_USER_DATA_0 >> 2) + i);
+		radeon_emit(cmd_buffer->cs, (R_00B928_COMPUTE_USER_DATA_10 >> 2) + i);
 		radeon_emit(cmd_buffer->cs, 0);
 	}
 
