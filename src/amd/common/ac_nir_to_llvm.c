@@ -1695,6 +1695,9 @@ static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
 	LLVMValueRef base_data, base_offset;
 	LLVMValueRef params[6];
 
+	if (ctx->stage == MESA_SHADER_FRAGMENT)
+		ctx->shader_info->fs.early_fragment_test = false;
+
 	params[1] = get_src(ctx, instr->src[1]);
 	params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
 	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* glc */
@@ -1765,6 +1768,9 @@ static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
 {
 	const char *name;
 	LLVMValueRef params[5];
+
+	if (ctx->stage == MESA_SHADER_FRAGMENT)
+		ctx->shader_info->fs.early_fragment_test = false;
 
 	params[0] = get_src(ctx, instr->src[2]);
 	params[1] = get_src(ctx, instr->src[0]);
@@ -2164,6 +2170,9 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	LLVMValueRef i1true = LLVMConstInt(ctx->i1, 1, 0);
 	const struct glsl_type *type = glsl_without_array(instr->variables[0]->var->type);
 
+	if (ctx->stage == MESA_SHADER_FRAGMENT)
+		ctx->shader_info->fs.early_fragment_test = false;
+
 	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
 		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_BUFFER);
@@ -2211,6 +2220,9 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 	LLVMValueRef coords;
 	char intrinsic_name[32], coords_type[8];
 	const struct glsl_type *type = glsl_without_array(var->type);
+
+	if (ctx->stage == MESA_SHADER_FRAGMENT)
+		ctx->shader_info->fs.early_fragment_test = false;
 
 	params[param_count++] = get_src(ctx, instr->src[2]);
 	if (instr->intrinsic == nir_intrinsic_image_atomic_comp_swap)
@@ -3794,6 +3806,8 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.module = LLVMModuleCreateWithNameInContext("shader", ctx.context);
 
 	memset(shader_info, 0, sizeof(*shader_info));
+	if (nir->stage == MESA_SHADER_FRAGMENT)
+		shader_info->fs.early_fragment_test = true;
 
 	LLVMSetTarget(ctx.module, "amdgcn--");
 	setup_types(&ctx);
@@ -3903,6 +3917,7 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
                            const struct ac_nir_compiler_options *options,
 			   bool dump_shader)
 {
+
 	LLVMModuleRef llvm_module = ac_translate_nir_to_llvm(tm, nir, shader_info,
 	                                                     options);
 	if (dump_shader)
@@ -3967,4 +3982,7 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 		for (int i = 0; i < 3; ++i)
 			shader_info->cs.block_size[i] = nir->info.cs.local_size[i];
 	}
+
+	if (nir->stage == MESA_SHADER_FRAGMENT && nir->info.fs.early_fragment_tests)
+		shader_info->fs.early_fragment_test = true;
 }
