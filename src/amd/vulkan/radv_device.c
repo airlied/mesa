@@ -426,8 +426,8 @@ void radv_GetPhysicalDeviceProperties(
 		.viewportSubPixelBits                     = 13, /* We take a float? */
 		.minMemoryMapAlignment                    = 4096, /* A page */
 		.minTexelBufferOffsetAlignment            = 1,
-		.minUniformBufferOffsetAlignment          = 1,
-		.minStorageBufferOffsetAlignment          = 1,
+		.minUniformBufferOffsetAlignment          = 4,
+		.minStorageBufferOffsetAlignment          = 4,
 		.minTexelOffset                           = -8,
 		.maxTexelOffset                           = 7,
 		.minTexelGatherOffset                     = -8,
