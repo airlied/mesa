@@ -428,6 +428,9 @@ struct radv_meta_state {
 
 		VkRenderPass depth_only_rp;
 		VkPipeline depth_only_pipeline[2];
+
+		VkRenderPass stencil_only_rp;
+		VkPipeline stencil_only_pipeline[2];
 	} blit2d;
 
 	struct {
