@@ -1165,7 +1165,7 @@ void radv_CmdBindDescriptorSets(
 			uint32_t *dst = cmd_buffer->dynamic_buffers + idx * 4;
 			assert(dyn_idx < dynamicOffsetCount);
 
-			struct radv_descriptor_range *range = set->dynamic_descriptors + idx;
+			struct radv_descriptor_range *range = set->dynamic_descriptors + j;
 			uint64_t va = range->va + pDynamicOffsets[dyn_idx];
 			dst[0] = va;
 			dst[1] = S_008F04_BASE_ADDRESS_HI(va >> 32);
