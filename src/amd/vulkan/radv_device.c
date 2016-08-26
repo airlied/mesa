@@ -59,7 +59,7 @@ radv_physical_device_init(struct radv_physical_device *device,
    
 	fd = open(path, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
-		return vk_errorf(VK_ERROR_INITIALIZATION_FAILED,
+		return vk_errorf(VK_ERROR_INCOMPATIBLE_DRIVER,
 				 "failed to open %s: %m", path);
 
 	device->_loader_data.loaderMagic = ICD_LOADER_MAGIC;
@@ -241,7 +241,7 @@ VkResult radv_EnumeratePhysicalDevices(
 			snprintf(path, sizeof(path), "/dev/dri/renderD%d", 128 + i);
 			result = radv_physical_device_init(&instance->physicalDevice,
 							   instance, path);
-			if (result == VK_SUCCESS)
+			if (result != VK_ERROR_INCOMPATIBLE_DRIVER)
 				break;
 		}
 
