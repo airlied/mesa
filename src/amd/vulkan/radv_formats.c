@@ -189,6 +189,11 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
 
    if (desc->layout == VK_FORMAT_LAYOUT_S3TC) {
        switch(format) {
+       case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+       case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+       case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+       case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+	   return V_008F14_IMG_DATA_FORMAT_BC1;
        case VK_FORMAT_BC2_UNORM_BLOCK:
        case VK_FORMAT_BC2_SRGB_BLOCK:
 	   return V_008F14_IMG_DATA_FORMAT_BC2;
