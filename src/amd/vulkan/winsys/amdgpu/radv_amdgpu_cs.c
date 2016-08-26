@@ -36,7 +36,6 @@ struct radv_amdgpu_cs {
 	struct radeon_winsys_cs base;
 	struct radv_amdgpu_winsys *ws;
 
-	struct amdgpu_cs_request    request;
 	struct amdgpu_cs_ib_info    ib;
 
 	struct radeon_winsys_bo     *ib_buffer;
@@ -118,31 +117,6 @@ static void radv_amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
 static boolean radv_amdgpu_init_cs(struct radv_amdgpu_cs *cs,
 				   enum ring_type ring_type)
 {
-	switch (ring_type) {
-	case RING_DMA:
-		cs->request.ip_type = AMDGPU_HW_IP_DMA;
-		break;
-
-	case RING_UVD:
-		cs->request.ip_type = AMDGPU_HW_IP_UVD;
-		break;
-
-	case RING_VCE:
-		cs->request.ip_type = AMDGPU_HW_IP_VCE;
-		break;
-
-	case RING_COMPUTE:
-		cs->request.ip_type = AMDGPU_HW_IP_COMPUTE;
-		break;
-
-	default:
-	case RING_GFX:
-		cs->request.ip_type = AMDGPU_HW_IP_GFX;
-		break;
-	}
-	cs->request.number_of_ibs = 1;
-	cs->request.ibs = &cs->ib;
-
 	for (int i = 0; i < ARRAY_SIZE(cs->buffer_hash_table); ++i) {
 		cs->buffer_hash_table[i] = -1;
 	}
@@ -444,7 +418,7 @@ static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
 	struct amdgpu_cs_fence *fence = (struct amdgpu_cs_fence *)_fence;
 	struct radv_amdgpu_cs *cs0 = radv_amdgpu_cs(cs_array[0]);
 	amdgpu_bo_list_handle bo_list;
-	struct amdgpu_cs_request request;
+	struct amdgpu_cs_request request = {0};
 
 	for (unsigned i = cs_count; i--;) {
 		struct radv_amdgpu_cs *cs = radv_amdgpu_cs(cs_array[i]);
@@ -474,7 +448,9 @@ static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
 		return r;
 	}
 
-	request = cs0->request;
+	request.ip_type = AMDGPU_HW_IP_GFX;
+	request.number_of_ibs = 1;
+	request.ibs = &cs0->ib;
 	request.resources = bo_list;
 
 	r = amdgpu_cs_submit(ctx->ctx, 0, &request, 1);
@@ -519,7 +495,7 @@ static int radv_amdgpu_winsys_cs_submit_fallback(struct radeon_winsys_ctx *_ctx,
 		struct amdgpu_cs_ib_info ibs[AMDGPU_CS_MAX_IBS_PER_SUBMIT];
 		unsigned cnt = MIN2(AMDGPU_CS_MAX_IBS_PER_SUBMIT, cs_count - i);
 
-		request = cs0->request;
+		memset(&request, 0, sizeof(request));
 
 		r = radv_amdgpu_create_bo_list(cs0->ws, &cs_array[i], cnt, &bo_list);
 		if (r) {
@@ -527,7 +503,7 @@ static int radv_amdgpu_winsys_cs_submit_fallback(struct radeon_winsys_ctx *_ctx,
 			return r;
 		}
 
-
+		request.ip_type = AMDGPU_HW_IP_GFX;
 		request.resources = bo_list;
 		request.number_of_ibs = cnt;
 		request.ibs = ibs;
