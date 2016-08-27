@@ -376,12 +376,14 @@ radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
 					       struct radv_pipeline_cache *cache,
 					       const unsigned char *sha1);
 
-void
+struct radv_shader_variant *
 radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 				  const unsigned char *sha1,
 				  struct radv_shader_variant *variant,
 				  const void *code, unsigned code_size);
 
+void radv_shader_variant_destroy(struct radv_device *device,
+				 struct radv_shader_variant *variant);
 
 struct radv_meta_state {
 	VkAllocationCallbacks alloc;
@@ -811,6 +813,8 @@ mesa_to_vk_shader_stage(gl_shader_stage mesa_stage)
 	     __tmp &= ~(1 << (stage)))
 
 struct radv_shader_variant {
+	uint32_t ref_count;
+
 	struct radeon_winsys_bo *bo;
 	struct ac_shader_config config;
 	struct ac_shader_variant_info info;

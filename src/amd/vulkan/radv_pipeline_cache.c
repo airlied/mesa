@@ -27,6 +27,16 @@
 
 #include "ac_nir_to_llvm.h"
 
+struct cache_entry {
+	unsigned char sha1[20];
+	uint32_t code_size;
+	struct ac_shader_variant_info variant_info;
+	struct ac_shader_config config;
+	uint32_t rsrc1, rsrc2;
+	struct radv_shader_variant *variant;
+	uint32_t code[0];
+};
+
 void
 radv_pipeline_cache_init(struct radv_pipeline_cache *cache,
 			 struct radv_device *device)
@@ -54,21 +64,15 @@ void
 radv_pipeline_cache_finish(struct radv_pipeline_cache *cache)
 {
 	for (unsigned i = 0; i < cache->table_size; ++i)
-		if (cache->hash_table[i])
+		if (cache->hash_table[i]) {
+			if (cache->hash_table[i]->variant)
+				radv_shader_variant_destroy(cache->device,
+							    cache->hash_table[i]->variant);
 			radv_free(&cache->alloc, cache->hash_table[i]);
+		}
 	pthread_mutex_destroy(&cache->mutex);
 	free(cache->hash_table);
 }
-
-
-struct cache_entry {
-	unsigned char sha1[20];
-	uint32_t code_size;
-	struct ac_shader_variant_info variant_info;
-	struct ac_shader_config config;
-	uint32_t rsrc1, rsrc2;
-	uint32_t code[0];
-};
 
 static uint32_t
 entry_size(struct cache_entry *entry)
@@ -144,28 +148,35 @@ radv_create_shader_variant_from_pipeline_cache(struct radv_device *device,
 					       const unsigned char *sha1)
 {
 	struct cache_entry *entry = radv_pipeline_cache_search(cache, sha1);
-	struct radv_shader_variant *variant;
 
 	if (!entry)
 		return NULL;
 
-	variant = calloc(1, sizeof(struct radv_shader_variant));
-	if (!variant)
-		return NULL;
+	if (!entry->variant) {
+		struct radv_shader_variant *variant;
 
-	variant->config = entry->config;
-	variant->info = entry->variant_info;
-	variant->rsrc1 = entry->rsrc1;
-	variant->rsrc2 = entry->rsrc2;
+		variant = calloc(1, sizeof(struct radv_shader_variant));
+		if (!variant)
+			return NULL;
 
-	variant->bo = device->ws->buffer_create(device->ws, entry->code_size, 256,
+		variant->config = entry->config;
+		variant->info = entry->variant_info;
+		variant->rsrc1 = entry->rsrc1;
+		variant->rsrc2 = entry->rsrc2;
+		variant->ref_count = 1;
+
+		variant->bo = device->ws->buffer_create(device->ws, entry->code_size, 256,
 						RADEON_DOMAIN_GTT, RADEON_FLAG_CPU_ACCESS);
 
-	void *ptr = device->ws->buffer_map(variant->bo);
-	memcpy(ptr, entry->code, entry->code_size);
-	device->ws->buffer_unmap(variant->bo);
+		void *ptr = device->ws->buffer_map(variant->bo);
+		memcpy(ptr, entry->code, entry->code_size);
+		device->ws->buffer_unmap(variant->bo);
 
-	return variant;
+		entry->variant = variant;
+	}
+
+	__sync_fetch_and_add(&entry->variant->ref_count, 1);
+	return entry->variant;
 }
 
 
@@ -238,7 +249,7 @@ radv_pipeline_cache_add_entry(struct radv_pipeline_cache *cache,
 		radv_pipeline_cache_set_entry(cache, entry);
 }
 
-void
+struct radv_shader_variant *
 radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 				  const unsigned char *sha1,
 				  struct radv_shader_variant *variant,
@@ -247,15 +258,22 @@ radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 	pthread_mutex_lock(&cache->mutex);
 	struct cache_entry *entry = radv_pipeline_cache_search_unlocked(cache, sha1);
 	if (entry) {
+		if (entry->variant) {
+			radv_shader_variant_destroy(cache->device, variant);
+			variant = entry->variant;
+		} else {
+			entry->variant = variant;
+		}
+		__sync_fetch_and_add(&variant->ref_count, 1);
 		pthread_mutex_unlock(&cache->mutex);
-		return;
+		return variant;
 	}
 
 	entry = radv_alloc(&cache->alloc, sizeof(*entry) + code_size, 8,
 			   VK_SYSTEM_ALLOCATION_SCOPE_CACHE);
 	if (!entry) {
 		pthread_mutex_unlock(&cache->mutex);
-		return;
+		return variant;
 	}
 
 	memcpy(entry->sha1, sha1, 20);
@@ -265,11 +283,14 @@ radv_pipeline_cache_insert_shader(struct radv_pipeline_cache *cache,
 	entry->rsrc1 = variant->rsrc1;
 	entry->rsrc2 = variant->rsrc2;
 	entry->code_size = code_size;
+	entry->variant = variant;
+	__sync_fetch_and_add(&variant->ref_count, 1);
 
 	radv_pipeline_cache_add_entry(cache, entry);
 
 	cache->modified = true;
 	pthread_mutex_unlock(&cache->mutex);
+	return variant;
 }
 
 struct cache_header {
@@ -315,6 +336,7 @@ radv_pipeline_cache_load(struct radv_pipeline_cache *cache,
 					8, VK_SYSTEM_ALLOCATION_SCOPE_CACHE);
 		if (dest_entry) {
 			memcpy(dest_entry, entry, sizeof(*entry) + entry->code_size);
+			dest_entry->variant = NULL;
 			radv_pipeline_cache_add_entry(cache, dest_entry);
 		}
 		p += sizeof (*entry) + entry->code_size;
@@ -410,6 +432,7 @@ VkResult radv_GetPipelineCacheData(
 		}
 
 		memcpy(p, entry, size);
+		((struct cache_entry*)p)->variant = NULL;
 		p += size;
 	}
 	*pDataSize = p - pData;

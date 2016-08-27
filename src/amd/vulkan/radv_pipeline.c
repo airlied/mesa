@@ -41,8 +41,8 @@
 #include "ac_nir_to_llvm.h"
 #include "vk_format.h"
 
-static void radv_shader_variant_destroy(struct radv_device *device,
-                                        struct radv_shader_variant *variant);
+void radv_shader_variant_destroy(struct radv_device *device,
+                                 struct radv_shader_variant *variant);
 
 static const struct nir_shader_compiler_options nir_options = {
 	.vertex_id_zero_based = true,
@@ -253,9 +253,12 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	return nir;
 }
 
-static void radv_shader_variant_destroy(struct radv_device *device,
-                                        struct radv_shader_variant *variant)
+void radv_shader_variant_destroy(struct radv_device *device,
+                                 struct radv_shader_variant *variant)
 {
+	if (__sync_fetch_and_sub(&variant->ref_count, 1) != 1)
+		return;
+
 	device->ws->buffer_destroy(variant->bo);
 	free(variant);
 }
@@ -334,6 +337,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	free(binary.rodata);
 	free(binary.global_symbol_offsets);
 	free(binary.relocs);
+	variant->ref_count = 1;
 	return variant;
 }
 
@@ -382,8 +386,8 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 			ralloc_free(nir);
 
 	if (variant && cache)
-		radv_pipeline_cache_insert_shader(cache, sha1, variant, code,
-						  code_size);
+		variant = radv_pipeline_cache_insert_shader(cache, sha1, variant,
+							    code, code_size);
 
 	if (code)
 		free(code);
