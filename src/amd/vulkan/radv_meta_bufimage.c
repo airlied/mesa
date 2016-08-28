@@ -172,8 +172,11 @@ radv_device_init_meta_itob_state(struct radv_device *device)
 					     &device->meta_state.itob.pipeline);
 	if (result != VK_SUCCESS)
 		goto fail;
+
+	ralloc_free(cs.nir);
 	return VK_SUCCESS;
 fail:
+	ralloc_free(cs.nir);
 	return result;
 }
 
