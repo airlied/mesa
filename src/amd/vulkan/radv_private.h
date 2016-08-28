@@ -668,7 +668,6 @@ struct radv_cmd_state {
 	struct radv_dynamic_state                     dynamic;
 	struct radv_vertex_binding                    vertex_bindings[MAX_VBS];
 	struct radv_descriptor_set *                  descriptors[MAX_SETS];
-	VkShaderStageFlags                           descriptors_dirty;
 	struct radv_attachment_state *                attachments;
 	VkRect2D                                     render_area;
 	struct radv_buffer *                         index_buffer;

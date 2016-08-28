@@ -1266,14 +1266,12 @@ void radv_CmdBindPipeline(
 	switch (pipelineBindPoint) {
 	case VK_PIPELINE_BIND_POINT_COMPUTE:
 		cmd_buffer->state.compute_pipeline = pipeline;
-		cmd_buffer->state.descriptors_dirty |= VK_SHADER_STAGE_COMPUTE_BIT;
 		cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
 		break;
 	case VK_PIPELINE_BIND_POINT_GRAPHICS:
 		cmd_buffer->state.pipeline = pipeline;
 		cmd_buffer->state.vertex_descriptors_dirty = true;
 		cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
-		cmd_buffer->state.descriptors_dirty |= pipeline->active_stages;
 		cmd_buffer->push_constant_stages |= pipeline->active_stages;
 
 		/* Apply the dynamic state from the pipeline */
