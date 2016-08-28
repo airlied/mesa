@@ -416,9 +416,6 @@ VkResult radv_CreateDescriptorPool(
 	for (int i = 0; i  + 1 < max_sets; ++i)
 		pool->free_nodes[i].next = i + 1;
 
-	/* we align sets on 64 bytes, an count multiples of 32 bytes for descriptors,
-	 * so we may need to align up to 32 bytes per descriptor set. */
-	bo_size += pCreateInfo->maxSets * 32;
 	for (unsigned i = 0; i < pCreateInfo->poolSizeCount; ++i) {
 		switch(pCreateInfo->pPoolSizes[i].type) {
 		case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
