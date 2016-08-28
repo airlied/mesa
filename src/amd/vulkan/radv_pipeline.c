@@ -337,6 +337,7 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	free(binary.rodata);
 	free(binary.global_symbol_offsets);
 	free(binary.relocs);
+	free(binary.disasm_string);
 	variant->ref_count = 1;
 	return variant;
 }
