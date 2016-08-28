@@ -1212,15 +1212,17 @@ VkResult radv_EndCommandBuffer(
 }
 
 static void
-radv_bind_compute_pipeline(struct radv_cmd_buffer *cmd_buffer,
-                           struct radv_pipeline *pipeline)
+radv_emit_compute_pipeline(struct radv_cmd_buffer *cmd_buffer)
 {
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
 	struct radv_shader_variant *compute_shader;
+	struct radv_pipeline *pipeline = cmd_buffer->state.compute_pipeline;
 	uint64_t va;
 
-	if (!pipeline)
+	if (!pipeline || pipeline == cmd_buffer->state.emitted_compute_pipeline)
 		return;
+
+	cmd_buffer->state.emitted_compute_pipeline = pipeline;
 
 	compute_shader = pipeline->shaders[MESA_SHADER_COMPUTE];
 	va = ws->buffer_get_va(compute_shader->bo);
@@ -1264,10 +1266,8 @@ void radv_CmdBindPipeline(
 	switch (pipelineBindPoint) {
 	case VK_PIPELINE_BIND_POINT_COMPUTE:
 		cmd_buffer->state.compute_pipeline = pipeline;
-		cmd_buffer->state.compute_dirty |= RADV_CMD_DIRTY_PIPELINE;
 		cmd_buffer->state.descriptors_dirty |= VK_SHADER_STAGE_COMPUTE_BIT;
 		cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
-		radv_bind_compute_pipeline(cmd_buffer, pipeline); // TODO remove
 		break;
 	case VK_PIPELINE_BIND_POINT_GRAPHICS:
 		cmd_buffer->state.pipeline = pipeline;
@@ -1692,6 +1692,7 @@ void radv_CmdDispatch(
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
+	radv_emit_compute_pipeline(cmd_buffer);
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
 	si_emit_cache_flush(cmd_buffer);
@@ -1724,6 +1725,7 @@ void radv_CmdDispatchIndirect(
 
 	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, buffer->bo->bo, 8);
 
+	radv_emit_compute_pipeline(cmd_buffer);
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
 	si_emit_cache_flush(cmd_buffer);
@@ -1773,6 +1775,7 @@ void radv_unaligned_dispatch(
 	remainder[1] = y + compute_shader->info.cs.block_size[1] - align_u32_npot(y, compute_shader->info.cs.block_size[1]);
 	remainder[2] = z + compute_shader->info.cs.block_size[2] - align_u32_npot(z, compute_shader->info.cs.block_size[2]);
 
+	radv_emit_compute_pipeline(cmd_buffer);
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline->layout,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
 	si_emit_cache_flush(cmd_buffer);

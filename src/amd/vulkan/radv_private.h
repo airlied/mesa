@@ -658,10 +658,10 @@ struct radv_cmd_state {
 	uint32_t                                      vb_dirty;
 	bool                                          vertex_descriptors_dirty;
 	radv_cmd_dirty_mask_t                         dirty;
-	radv_cmd_dirty_mask_t                         compute_dirty;
 
 	struct radv_pipeline *                        pipeline;
 	struct radv_pipeline *                        compute_pipeline;
+	struct radv_pipeline *                        emitted_compute_pipeline;
 	struct radv_framebuffer *                     framebuffer;
 	struct radv_render_pass *                     pass;
 	const struct radv_subpass *                         subpass;
