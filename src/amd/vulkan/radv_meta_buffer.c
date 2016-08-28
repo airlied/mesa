@@ -247,8 +247,13 @@ VkResult radv_device_init_meta_buffer_state(struct radv_device *device)
 	if (result != VK_SUCCESS)
 		goto fail;
 
+	ralloc_free(fill_cs.nir);
+	ralloc_free(copy_cs.nir);
 	return VK_SUCCESS;
 fail:
+	radv_device_finish_meta_buffer_state(device);
+	ralloc_free(fill_cs.nir);
+	ralloc_free(copy_cs.nir);
 	return result;
 }
 
