@@ -3341,18 +3341,22 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 	variable->data.driver_location = idx * 4;
 
 	if (ctx->stage == MESA_SHADER_VERTEX) {
-		int length = glsl_get_length(variable->type);
-		if (idx == VARYING_SLOT_CLIP_DIST0) {
-			ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
-			ctx->num_clips = glsl_get_length(variable->type);
-		} else if (idx == VARYING_SLOT_CULL_DIST0) {
-		        ctx->shader_info->vs.cull_dist_mask = (1 << length) - 1;
-			ctx->num_culls = glsl_get_length(variable->type);
+
+		if (idx == VARYING_SLOT_CLIP_DIST0 ||
+		    idx == VARYING_SLOT_CULL_DIST0) {
+			int length = glsl_get_length(variable->type);
+			if (idx == VARYING_SLOT_CLIP_DIST0) {
+				ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
+				ctx->num_clips = length;
+			} else if (idx == VARYING_SLOT_CULL_DIST0) {
+				ctx->shader_info->vs.cull_dist_mask = (1 << length) - 1;
+				ctx->num_culls = length;
+			}
+			if (length > 4)
+				attrib_count = 2;
+			else
+				attrib_count = 1;
 		}
-		if (length > 4)
-			attrib_count = 2;
-		else
-			attrib_count = 1;
 	}
 
 	for (unsigned i = 0; i < attrib_count; ++i) {
