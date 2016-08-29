@@ -122,6 +122,8 @@ struct nir_to_llvm_context {
 	int num_locals;
 	LLVMValueRef *locals;
 	bool has_ddxy;
+	unsigned num_clips;
+	unsigned num_culls;
 };
 
 struct ac_tex_info {
@@ -2001,7 +2003,8 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 									     chan, false),
 								"");
 
-			if (instr->variables[0]->var->data.location == VARYING_SLOT_CLIP_DIST0)
+			if (instr->variables[0]->var->data.location == VARYING_SLOT_CLIP_DIST0 ||
+			    instr->variables[0]->var->data.location == VARYING_SLOT_CULL_DIST0)
 				stride = 1;
 			if (indir_index) {
 				unsigned count = glsl_count_attribute_slots(
@@ -3333,14 +3336,21 @@ handle_shader_output_decl(struct nir_to_llvm_context *ctx,
 
 	variable->data.driver_location = idx * 4;
 
-	if (ctx->stage == MESA_SHADER_VERTEX && idx == VARYING_SLOT_CLIP_DIST0) {
+	if (ctx->stage == MESA_SHADER_VERTEX) {
 		int length = glsl_get_length(variable->type);
-		ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
+		if (idx == VARYING_SLOT_CLIP_DIST0) {
+			ctx->shader_info->vs.clip_dist_mask = (1 << length) - 1;
+			ctx->num_clips = glsl_get_length(variable->type);
+		} else if (idx == VARYING_SLOT_CULL_DIST0) {
+		        ctx->shader_info->vs.cull_dist_mask = (1 << length) - 1;
+			ctx->num_culls = glsl_get_length(variable->type);
+		}
 		if (length > 4)
 			attrib_count = 2;
 		else
 			attrib_count = 1;
 	}
+
 	for (unsigned i = 0; i < attrib_count; ++i) {
 		for (unsigned chan = 0; chan < 4; chan++) {
 			ctx->outputs[radeon_llvm_reg_index_soa(idx + i, chan)] =
@@ -3561,6 +3571,41 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 	LLVMValueRef pos_args[4][9] = { { 0 } };
 	LLVMValueRef psize_value = 0;
 	int i;
+	const uint64_t clip_mask = ((1ull << VARYING_SLOT_CLIP_DIST0) |
+				    (1ull << VARYING_SLOT_CLIP_DIST1) |
+				    (1ull << VARYING_SLOT_CULL_DIST0) |
+				    (1ull << VARYING_SLOT_CULL_DIST1));
+
+	if (ctx->output_mask & clip_mask) {
+		unsigned long long mask = ctx->output_mask & clip_mask;
+		LLVMValueRef slots[8];
+		unsigned j;
+
+		if (ctx->shader_info->vs.cull_dist_mask)
+			ctx->shader_info->vs.cull_dist_mask <<= ctx->num_clips;
+
+		i = VARYING_SLOT_CLIP_DIST0;
+		for (j = 0; j < ctx->num_clips; j++)
+			slots[j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
+							       ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
+		i = VARYING_SLOT_CULL_DIST0;
+		for (j = 0; j < ctx->num_culls; j++)
+			slots[ctx->num_clips + j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
+									   ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
+
+		if (ctx->num_clips + ctx->num_culls > 4) {
+			target = V_008DFC_SQ_EXP_POS + 3;
+			si_llvm_init_export_args(ctx, &slots[4], target, args);
+			memcpy(pos_args[target - V_008DFC_SQ_EXP_POS],
+			       args, sizeof(args));
+		}
+
+		target = V_008DFC_SQ_EXP_POS + 2;
+		si_llvm_init_export_args(ctx, &slots[0], target, args);
+		memcpy(pos_args[target - V_008DFC_SQ_EXP_POS],
+		       args, sizeof(args));
+
+	}
 
 	for (unsigned i = 0; i < RADEON_LLVM_MAX_OUTPUTS; ++i) {
 		LLVMValueRef values[4];
@@ -3573,10 +3618,11 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 
 		if (i == VARYING_SLOT_POS) {
 			target = V_008DFC_SQ_EXP_POS;
-		} else if (i == VARYING_SLOT_CLIP_DIST0) {
-			target = V_008DFC_SQ_EXP_POS + 2;
-		} else if (i == VARYING_SLOT_CLIP_DIST1) {
-			target = V_008DFC_SQ_EXP_POS + 3;
+		} else if (i == VARYING_SLOT_CLIP_DIST0 ||
+			   i == VARYING_SLOT_CLIP_DIST1 ||
+			   i == VARYING_SLOT_CULL_DIST0 ||
+			   i == VARYING_SLOT_CULL_DIST1) {
+			continue;
 		} else if (i == VARYING_SLOT_PSIZ) {
 			ctx->shader_info->vs.writes_pointsize = true;
 			psize_value = values[0];
