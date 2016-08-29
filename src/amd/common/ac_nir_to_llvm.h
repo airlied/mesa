@@ -64,6 +64,7 @@ struct ac_shader_variant_info {
 			uint32_t export_mask;
 			bool writes_pointsize;
 			uint8_t clip_dist_mask;
+			uint8_t cull_dist_mask;
 		} vs;
 		struct {
 			unsigned num_interp;

@@ -327,7 +327,7 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_shader_variant *vs;
 	uint64_t va;
 	unsigned export_count;
-	unsigned clip_dist_mask;
+	unsigned clip_dist_mask, cull_dist_mask, total_mask;
 
 	assert (pipeline->shaders[MESA_SHADER_VERTEX]);
 
@@ -336,6 +336,8 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	ws->cs_add_buffer(cmd_buffer->cs, vs->bo, 8);
 
 	clip_dist_mask = vs->info.vs.clip_dist_mask;
+	cull_dist_mask = vs->info.vs.cull_dist_mask;
+	total_mask = clip_dist_mask | cull_dist_mask;
 	radeon_set_context_reg(cmd_buffer->cs, R_028A40_VGT_GS_MODE, 0);
 	radeon_set_context_reg(cmd_buffer->cs, R_028A84_VGT_PRIMITIVEID_EN, 0);
 
@@ -369,9 +371,10 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_02881C_PA_CL_VS_OUT_CNTL,
 			       S_02881C_USE_VTX_POINT_SIZE(vs->info.vs.writes_pointsize) |
 			       S_02881C_VS_OUT_MISC_VEC_ENA(vs->info.vs.writes_pointsize) |
-			       S_02881C_VS_OUT_CCDIST0_VEC_ENA((clip_dist_mask & 0x0f) != 0) |
-			       S_02881C_VS_OUT_CCDIST1_VEC_ENA((clip_dist_mask & 0xf0) != 0) |
+			       S_02881C_VS_OUT_CCDIST0_VEC_ENA((total_mask & 0x0f) != 0) |
+			       S_02881C_VS_OUT_CCDIST1_VEC_ENA((total_mask & 0xf0) != 0) |
 			       pipeline->graphics.raster.pa_cl_vs_out_cntl |
+			       cull_dist_mask << 8 |
 			       clip_dist_mask);
 
 }
