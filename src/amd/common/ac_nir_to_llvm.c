@@ -2013,10 +2013,14 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 						ctx, ctx->outputs + idx + chan, count,
 						stride, true);
 
-				tmp_vec = LLVMBuildInsertElement(ctx->builder, tmp_vec,
-								 value, indir_index, "");
+				if (get_llvm_num_components(tmp_vec) > 1) {
+					tmp_vec = LLVMBuildInsertElement(ctx->builder, tmp_vec,
+									 value, indir_index, "");
+				} else
+					tmp_vec = value;
 				build_store_values_extended(ctx, ctx->outputs + idx + chan,
 							    count, stride, tmp_vec);
+
 			} else {
 				temp_ptr = ctx->outputs[idx + chan + const_index * stride];
 
