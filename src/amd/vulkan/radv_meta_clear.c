@@ -25,6 +25,7 @@
 #include "radv_private.h"
 #include "nir/nir_builder.h"
 
+#include "util/format_rgb9e5.h"
 /** Vertex attributes for color clears.  */
 struct color_clear_vattrs {
    float position[2];
@@ -921,6 +922,15 @@ radv_cmd_clear_image(struct radv_cmd_buffer *cmd_buffer,
                     const VkImageSubresourceRange *ranges)
 {
    VkDevice device_h = radv_device_to_handle(cmd_buffer->device);
+   VkFormat format = image->vk_format;
+   VkClearValue internal_clear_value = *clear_value;
+
+   if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
+	   uint32_t value;
+	   format = VK_FORMAT_R32_UINT;
+	   value = float3_to_rgb9e5(clear_value->color.float32);
+	   internal_clear_value.color.uint32[0] = value;
+   }
 
    for (uint32_t r = 0; r < range_count; r++) {
       const VkImageSubresourceRange *range = &ranges[r];
@@ -935,7 +945,7 @@ radv_cmd_clear_image(struct radv_cmd_buffer *cmd_buffer,
                   .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                   .image = radv_image_to_handle(image),
                   .viewType = radv_meta_get_view_type(image),
-                  .format = image->vk_format,
+                  .format = format,
                   .subresourceRange = {
                      .aspectMask = range->aspectMask,
                      .baseMipLevel = range->baseMipLevel + l,
@@ -1026,7 +1036,7 @@ radv_cmd_clear_image(struct radv_cmd_buffer *cmd_buffer,
             VkClearAttachment clear_att = {
                .aspectMask = range->aspectMask,
                .colorAttachment = 0,
-               .clearValue = *clear_value,
+               .clearValue = internal_clear_value,
             };
 
             VkClearRect clear_rect = {
