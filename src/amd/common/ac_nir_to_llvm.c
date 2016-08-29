@@ -3571,13 +3571,12 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 	LLVMValueRef pos_args[4][9] = { { 0 } };
 	LLVMValueRef psize_value = 0;
 	int i;
-	const uint64_t clip_mask = ((1ull << VARYING_SLOT_CLIP_DIST0) |
-				    (1ull << VARYING_SLOT_CLIP_DIST1) |
-				    (1ull << VARYING_SLOT_CULL_DIST0) |
-				    (1ull << VARYING_SLOT_CULL_DIST1));
+	const uint64_t clip_mask = ctx->output_mask & ((1ull << VARYING_SLOT_CLIP_DIST0) |
+						       (1ull << VARYING_SLOT_CLIP_DIST1) |
+						       (1ull << VARYING_SLOT_CULL_DIST0) |
+						       (1ull << VARYING_SLOT_CULL_DIST1));
 
-	if (ctx->output_mask & clip_mask) {
-		unsigned long long mask = ctx->output_mask & clip_mask;
+	if (clip_mask) {
 		LLVMValueRef slots[8];
 		unsigned j;
 
@@ -3592,6 +3591,9 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 		for (j = 0; j < ctx->num_culls; j++)
 			slots[ctx->num_clips + j] = to_float(ctx, LLVMBuildLoad(ctx->builder,
 									   ctx->outputs[radeon_llvm_reg_index_soa(i, j)], ""));
+
+		for (i = ctx->num_clips + ctx->num_culls; i < 8; i++)
+			slots[i] = LLVMGetUndef(ctx->f32);
 
 		if (ctx->num_clips + ctx->num_culls > 4) {
 			target = V_008DFC_SQ_EXP_POS + 3;
