@@ -557,6 +557,7 @@ x11_queue_present(struct radv_swapchain *radv_chain,
 
    xshmfence_reset(image->shm_fence);
 
+   ++chain->send_sbc;
    xcb_void_cookie_t cookie =
       xcb_present_pixmap(chain->conn,
                          chain->window,
@@ -782,6 +783,7 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    chain->extent = pCreateInfo->imageExtent;
    chain->image_count = num_images;
 
+   chain->send_sbc = 0;
    chain->event_id = xcb_generate_id(chain->conn);
    xcb_present_select_input(chain->conn, chain->event_id, chain->window,
                             XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY |
