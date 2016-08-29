@@ -100,10 +100,11 @@ radv_init_surface(struct radv_device *device,
 
 	if (is_depth) {
 		surface->flags |= RADEON_SURF_ZBUFFER;
-		if (is_stencil)
-			surface->flags |= RADEON_SURF_SBUFFER |
-				RADEON_SURF_HAS_SBUFFER_MIPTREE;
 	}
+
+	if (is_stencil)
+		surface->flags |= RADEON_SURF_SBUFFER |
+			RADEON_SURF_HAS_SBUFFER_MIPTREE;
 
 	surface->flags |= RADEON_SURF_HAS_TILE_MODE_INDEX;
 
@@ -728,6 +729,7 @@ radv_image_view_init(struct radv_image_view *iview,
 {
 	RADV_FROM_HANDLE(radv_image, image, pCreateInfo->image);
 	const VkImageSubresourceRange *range = &pCreateInfo->subresourceRange;
+	bool is_stencil = false;
 	switch (image->type) {
 	default:
 		unreachable("bad VkImageType");
@@ -747,6 +749,8 @@ radv_image_view_init(struct radv_image_view *iview,
 	iview->vk_format = pCreateInfo->format;
 	iview->aspect_mask = pCreateInfo->subresourceRange.aspectMask;
 
+	if (iview->aspect_mask == VK_IMAGE_ASPECT_STENCIL_BIT)
+		is_stencil = true;
 	iview->extent = (VkExtent3D) {
 		.width  = radv_minify(image->extent.width , range->baseMipLevel),
 		.height = radv_minify(image->extent.height, range->baseMipLevel),
@@ -773,9 +777,10 @@ radv_image_view_init(struct radv_image_view *iview,
 				   iview->extent.depth,
 				   iview->descriptor,
 				   iview->fmask_descriptor);
-	si_set_mutable_tex_desc_fields(device, image, &image->surface.level[range->baseMipLevel], range->baseMipLevel,
+	si_set_mutable_tex_desc_fields(device, image,
+				       is_stencil ? &image->surface.stencil_level[range->baseMipLevel] : &image->surface.level[range->baseMipLevel], range->baseMipLevel,
 				       range->baseMipLevel,
-				       image->surface.blk_w, false, iview->descriptor);
+				       image->surface.blk_w, is_stencil, iview->descriptor);
 }
 
 void radv_image_set_optimal_micro_tile_mode(struct radv_device *device,
