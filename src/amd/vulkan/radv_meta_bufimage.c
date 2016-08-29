@@ -261,17 +261,23 @@ static void
 create_iview(struct radv_cmd_buffer *cmd_buffer,
              struct radv_meta_blit2d_surf *surf,
              VkImageUsageFlags usage,
+	     VkFormat depth_format,
              struct radv_image_view *iview)
 {
+	VkFormat format;
 
+	if (depth_format)
+		format = depth_format;
+	else
+		format = vk_format_for_size(surf->bs);
 	radv_image_view_init(iview, cmd_buffer->device,
 			     &(VkImageViewCreateInfo) {
 				     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					     .image = radv_image_to_handle(surf->image),
 					     .viewType = VK_IMAGE_VIEW_TYPE_2D,
-					     .format = vk_format_for_size(surf->bs),
+					     .format = format,
 					     .subresourceRange = {
-					     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					     .aspectMask = surf->aspect_mask,
 					     .baseMipLevel = surf->level,
 					     .levelCount = 1,
 					     .baseArrayLayer = surf->layer,
@@ -285,14 +291,21 @@ create_bview(struct radv_cmd_buffer *cmd_buffer,
 	     struct radv_buffer *buffer,
 	     unsigned offset,
 	     unsigned bs,
+	     VkFormat depth_format,
 	     struct radv_buffer_view *bview)
 {
+	VkFormat format;
+
+	if (depth_format)
+		format = depth_format;
+	else
+		format = vk_format_for_size(bs);
 	radv_buffer_view_init(bview, cmd_buffer->device,
 			      &(VkBufferViewCreateInfo) {
 				      .sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
 				      .flags = 0,
 				      .buffer = radv_buffer_to_handle(buffer),
-				      .format = vk_format_for_size(bs),
+				      .format = format,
 				      .offset = offset,
 				      .range = VK_WHOLE_SIZE,
 			      }, cmd_buffer);
@@ -310,12 +323,13 @@ static void
 itob_bind_src_image(struct radv_cmd_buffer *cmd_buffer,
 		   struct radv_meta_blit2d_surf *src,
 		   struct radv_meta_blit2d_rect *rect,
+		    VkFormat depth_format,
 		   struct itob_temps *tmp)
 {
 	struct radv_device *device = cmd_buffer->device;
 	uint32_t offset = 0;
 
-	create_iview(cmd_buffer, src, VK_IMAGE_USAGE_SAMPLED_BIT, &tmp->src_iview);
+	create_iview(cmd_buffer, src, VK_IMAGE_USAGE_SAMPLED_BIT, depth_format, &tmp->src_iview);
 
 }
 
@@ -323,9 +337,10 @@ static void
 itob_bind_dst_buffer(struct radv_cmd_buffer *cmd_buffer,
 		     struct radv_meta_blit2d_buffer *dst,
 		     struct radv_meta_blit2d_rect *rect,
+		     VkFormat depth_format,
 		     struct itob_temps *tmp)
 {
-	create_bview(cmd_buffer, dst->buffer, dst->offset, dst->bs, &tmp->dst_bview);
+	create_bview(cmd_buffer, dst->buffer, dst->offset, dst->bs, depth_format, &tmp->dst_bview);
 }
 
 static void
@@ -401,11 +416,15 @@ radv_meta_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_device *device = cmd_buffer->device;
 
+	VkFormat depth_format = 0;
+	if (src->aspect_mask != VK_IMAGE_ASPECT_COLOR_BIT)
+		depth_format = src->image->vk_format;
+
 	for (unsigned r = 0; r < num_rects; ++r) {
 		struct itob_temps temps;
 
-		itob_bind_src_image(cmd_buffer, src, &rects[r], &temps);
-		itob_bind_dst_buffer(cmd_buffer, dst, &rects[r], &temps);
+		itob_bind_src_image(cmd_buffer, src, &rects[r], depth_format, &temps);
+		itob_bind_dst_buffer(cmd_buffer, dst, &rects[r], depth_format, &temps);
 		itob_bind_descriptors(cmd_buffer, &temps);
 
 		bind_pipeline(cmd_buffer);
