@@ -443,9 +443,11 @@ VkResult radv_CreateDescriptorPool(
 		}
 	}
 
-	pool->bo.bo = device->ws->buffer_create(device->ws, bo_size,
-					        32, RADEON_DOMAIN_VRAM, 0);
-	pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo.bo);
+	if (bo_size) {
+		pool->bo.bo = device->ws->buffer_create(device->ws, bo_size,
+							32, RADEON_DOMAIN_VRAM, 0);
+		pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo.bo);
+	}
 	pool->size = bo_size;
 
 	list_inithead(&pool->descriptor_sets);
@@ -463,7 +465,7 @@ void radv_DestroyDescriptorPool(
 
 	list_for_each_entry_safe(struct radv_descriptor_set, set,
 				 &pool->descriptor_sets, descriptor_pool) {
-		radv_descriptor_set_destroy(device, pool, set, !pool->bo.bo);
+		radv_descriptor_set_destroy(device, pool, set, false);
 	}
 
 	if (pool->bo.bo)
@@ -481,7 +483,7 @@ VkResult radv_ResetDescriptorPool(
 
 	list_for_each_entry_safe(struct radv_descriptor_set, set,
 				 &pool->descriptor_sets, descriptor_pool) {
-		radv_descriptor_set_destroy(device, pool, set, !pool->bo.bo);
+		radv_descriptor_set_destroy(device, pool, set, false);
 	}
 
 	pool->current_offset = 0;
