@@ -263,6 +263,10 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
 	     desc->channel[1].size == 10 &&
 	     desc->channel[2].size == 10 &&
 	     desc->channel[3].size == 2) {
+	    /* Closed VK driver does this also no 2/10/10/10 snorm */
+	    if (desc->channel[0].type == VK_FORMAT_TYPE_SIGNED &&
+		desc->channel[0].normalized)
+	       goto out_unknown;
 	    return V_008F14_IMG_DATA_FORMAT_2_10_10_10;
 	 }
 	 goto out_unknown;
