@@ -1062,7 +1062,6 @@ void radv_image_set_optimal_micro_tile_mode(struct radv_device *device,
 struct radv_buffer_view {
 	struct radv_bo *bo;
 	VkFormat vk_format;
-	uint32_t offset; /**< Offset into bo. */
 	uint64_t range; /**< VkBufferViewCreateInfo::range */
 	uint32_t state[4];
 };
