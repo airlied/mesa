@@ -300,8 +300,8 @@ radv_descriptor_set_create(struct radv_device *device,
 				pool->full_list = entry;
 
 				set->bo = pool->bo;
-				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + pool->current_offset);
-				set->va = device->ws->buffer_get_va(set->bo.bo) + pool->current_offset;
+				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + offset);
+				set->va = device->ws->buffer_get_va(set->bo.bo) + offset;
 			}
 		} else {
 			unsigned bo_offset;
