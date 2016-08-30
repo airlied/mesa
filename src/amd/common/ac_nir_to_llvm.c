@@ -2467,7 +2467,6 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	}
 	if (result) {
-		assert(info->has_dest && instr->dest.is_ssa);
 		_mesa_hash_table_insert(ctx->defs, &instr->dest.ssa, result);
 	}
 }
