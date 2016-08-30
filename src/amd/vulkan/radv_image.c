@@ -926,7 +926,6 @@ void radv_buffer_view_init(struct radv_buffer_view *view,
 	RADV_FROM_HANDLE(radv_buffer, buffer, pCreateInfo->buffer);
 
 	view->bo = buffer->bo;
-	view->offset = buffer->offset + pCreateInfo->offset;
 	view->range = pCreateInfo->range == VK_WHOLE_SIZE ?
 		buffer->size - pCreateInfo->offset : pCreateInfo->range;
 	view->vk_format = pCreateInfo->format;
