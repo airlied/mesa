@@ -272,7 +272,7 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 					     .viewType = VK_IMAGE_VIEW_TYPE_2D,
 					     .format = vk_format_for_size(surf->bs),
 					     .subresourceRange = {
-					     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					     .aspectMask = surf->aspect_mask,
 					     .baseMipLevel = surf->level,
 					     .levelCount = 1,
 					     .baseArrayLayer = surf->layer,
