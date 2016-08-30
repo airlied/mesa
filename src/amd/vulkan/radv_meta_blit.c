@@ -458,46 +458,13 @@ static VkFormat pipeline_formats[] = {
    VK_FORMAT_R32G32B32A32_SFLOAT
 };
 
-VkResult
-radv_device_init_meta_blit_state(struct radv_device *device)
+static VkResult
+radv_device_init_meta_blit_color(struct radv_device *device,
+				 struct radv_shader_module *vs)
 {
-	VkResult result;
-	struct radv_shader_module vs = {0};
 	struct radv_shader_module fs_1d = {0}, fs_2d = {0}, fs_3d = {0};
+	VkResult result;
 
-	zero(device->meta_state.blit);
-
-	VkDescriptorSetLayoutCreateInfo ds_layout_info = {
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 1,
-		.pBindings = (VkDescriptorSetLayoutBinding[]) {
-			{
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.pImmutableSamplers = NULL
-			},
-		}
-	};
-	result = radv_CreateDescriptorSetLayout(radv_device_to_handle(device),
-						&ds_layout_info,
-						&device->meta_state.alloc,
-						&device->meta_state.blit.ds_layout);
-	if (result != VK_SUCCESS)
-		goto fail;
-
-	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
-					   &(VkPipelineLayoutCreateInfo) {
-						   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-							   .setLayoutCount = 1,
-							   .pSetLayouts = &device->meta_state.blit.ds_layout,
-							   },
-					   &device->meta_state.alloc, &device->meta_state.blit.pipeline_layout);
-	if (result != VK_SUCCESS)
-		goto fail;
-
-	vs.nir = build_nir_vertex_shader();
 	fs_1d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_1D);
 	fs_2d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_2D);
 	fs_3d.nir = build_nir_copy_fragment_shader(GLSL_SAMPLER_DIM_3D);
@@ -570,7 +537,7 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 			{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 				.stage = VK_SHADER_STAGE_VERTEX_BIT,
-				.module = radv_shader_module_to_handle(&vs),
+				.module = radv_shader_module_to_handle(vs),
 				.pName = "main",
 				.pSpecializationInfo = NULL
 			}, {
@@ -670,18 +637,60 @@ radv_device_init_meta_blit_state(struct radv_device *device)
 
 	}
 
-	ralloc_free(vs.nir);
+	result = VK_SUCCESS;
+fail:
 	ralloc_free(fs_1d.nir);
 	ralloc_free(fs_2d.nir);
 	ralloc_free(fs_3d.nir);
+	return result;
+}
 
+VkResult
+radv_device_init_meta_blit_state(struct radv_device *device)
+{
+	VkResult result;
+	struct radv_shader_module vs = {0};
+	zero(device->meta_state.blit);
+
+	VkDescriptorSetLayoutCreateInfo ds_layout_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = 1,
+		.pBindings = (VkDescriptorSetLayoutBinding[]) {
+			{
+				.binding = 0,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+				.pImmutableSamplers = NULL
+			},
+		}
+	};
+	result = radv_CreateDescriptorSetLayout(radv_device_to_handle(device),
+						&ds_layout_info,
+						&device->meta_state.alloc,
+						&device->meta_state.blit.ds_layout);
+	if (result != VK_SUCCESS)
+		goto fail;
+
+	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
+					   &(VkPipelineLayoutCreateInfo) {
+						   .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+							   .setLayoutCount = 1,
+							   .pSetLayouts = &device->meta_state.blit.ds_layout,
+							   },
+					   &device->meta_state.alloc, &device->meta_state.blit.pipeline_layout);
+	if (result != VK_SUCCESS)
+		goto fail;
+
+	vs.nir = build_nir_vertex_shader();
+
+	result = radv_device_init_meta_blit_color(device, &vs);
+	if (result != VK_SUCCESS)
+		goto fail;
 	return VK_SUCCESS;
 
 fail:
 	ralloc_free(vs.nir);
-	ralloc_free(fs_1d.nir);
-	ralloc_free(fs_2d.nir);
-	ralloc_free(fs_3d.nir);
 	radv_device_finish_meta_blit_state(device);
 	return result;
 }
