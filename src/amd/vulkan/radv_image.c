@@ -342,7 +342,7 @@ si_make_texture_descriptor(struct radv_device *device,
 		uint64_t gpu_address = device->ws->buffer_get_va(image->bo->bo);
 		uint64_t va;
 
-		va = gpu_address + image->fmask.offset;
+		va = gpu_address + image->offset + image->fmask.offset;
 
 		switch (image->samples) {
 		case 2:
@@ -744,7 +744,6 @@ radv_image_view_init(struct radv_image_view *iview,
 	}
 	iview->image = image;
 	iview->bo = image->bo;
-	iview->offset = image->offset;
 	iview->type = pCreateInfo->viewType;
 	iview->vk_format = pCreateInfo->format;
 	iview->aspect_mask = pCreateInfo->subresourceRange.aspectMask;

@@ -1029,7 +1029,6 @@ radv_init_metadata(struct radv_device *device,
 struct radv_image_view {
 	struct radv_image *image; /**< VkImageViewCreateInfo::image */
 	struct radv_bo *bo;
-	uint32_t offset; /**< Offset into bo. */
 
 	VkImageViewType type;
 	VkImageAspectFlags aspect_mask;
