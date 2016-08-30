@@ -5,7 +5,6 @@ static nir_shader *
 build_nir_itob_compute_shader(struct radv_device *dev)
 {
 	nir_builder b;
-	const struct glsl_type *vec4 = glsl_vec4_type();
 	const struct glsl_type *sampler_type = glsl_sampler_type(GLSL_SAMPLER_DIM_2D,
 								 false,
 								 false,
@@ -31,7 +30,6 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 
 	nir_ssa_def *invoc_id = nir_load_system_value(&b, nir_intrinsic_load_local_invocation_id, 0);
 	nir_ssa_def *wg_id = nir_load_system_value(&b, nir_intrinsic_load_work_group_id, 0);
-	nir_ssa_def *wg_size = nir_load_system_value(&b, nir_intrinsic_load_num_work_groups, 0);
 	nir_ssa_def *block_size = nir_imm_ivec4(&b,
 						b.shader->info.cs.local_size[0],
 						b.shader->info.cs.local_size[1],
@@ -315,11 +313,7 @@ itob_bind_src_image(struct radv_cmd_buffer *cmd_buffer,
 		   struct radv_meta_blit2d_rect *rect,
 		   struct itob_temps *tmp)
 {
-	struct radv_device *device = cmd_buffer->device;
-	uint32_t offset = 0;
-
 	create_iview(cmd_buffer, src, VK_IMAGE_USAGE_SAMPLED_BIT, &tmp->src_iview);
-
 }
 
 static void
