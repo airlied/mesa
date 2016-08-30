@@ -2548,6 +2548,8 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	unsigned is_rect = 0;
 	bool da = instr->is_array || instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE;
 
+	if (instr->op == nir_texop_lod)
+		da = false;
 	/* Pad to power of two vector */
 	while (count < util_next_power_of_two(count))
 		param[count++] = LLVMGetUndef(ctx->i32);
