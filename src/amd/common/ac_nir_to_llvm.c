@@ -1815,7 +1815,6 @@ static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
 static LLVMValueRef visit_load_buffer(struct nir_to_llvm_context *ctx,
                                       nir_intrinsic_instr *instr)
 {
-	const nir_intrinsic_info *info = &nir_intrinsic_infos[instr->intrinsic];
 	const char *load_name;
 	LLVMTypeRef data_type = ctx->f32;
 	if (instr->num_components == 3)
@@ -2077,6 +2076,8 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 		return 3;
 	case GLSL_SAMPLER_DIM_RECT:
 		return 2;
+	default:
+		break;
 	}
 	return 0;
 }
@@ -2126,7 +2127,7 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	char intrinsic_name[32];
 	char coords_type[8];
 	const nir_variable *var = instr->variables[0]->var;
-	const struct glsl_type *type = instr->variables[0]->var->type;
+	const struct glsl_type *type = var->type;
 	if(instr->variables[0]->deref.child)
 		type = instr->variables[0]->deref.child->type;
 
@@ -2175,7 +2176,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	const nir_variable *var = instr->variables[0]->var;
 	LLVMValueRef i1false = LLVMConstInt(ctx->i1, 0, 0);
 	LLVMValueRef i1true = LLVMConstInt(ctx->i1, 1, 0);
-	const struct glsl_type *type = glsl_without_array(instr->variables[0]->var->type);
+	const struct glsl_type *type = glsl_without_array(var->type);
 
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
 		ctx->shader_info->fs.early_fragment_test = false;
@@ -2358,7 +2359,6 @@ visit_load_local_invocation_index(struct nir_to_llvm_context *ctx)
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
 {
-	const nir_intrinsic_info *info = &nir_intrinsic_infos[instr->intrinsic];
 	LLVMValueRef result = NULL;
 
 	switch (instr->intrinsic) {
@@ -2738,18 +2738,15 @@ static void emit_prepare_cube_coords(struct nir_to_llvm_context *ctx,
 static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 {
 	LLVMValueRef result = NULL;
-	LLVMTypeRef dst_type;
 	struct ac_tex_info tinfo = { 0 };
 	unsigned dmask = 0xf;
 	LLVMValueRef address[16];
 	LLVMValueRef coords[5];
 	LLVMValueRef coord = NULL, lod = NULL, comparitor = NULL, bias, offsets = NULL;
-	LLVMTypeRef data_type = ctx->i32;
 	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL;
 	LLVMValueRef ddx = NULL, ddy = NULL;
 	LLVMValueRef derivs[6];
 	unsigned chan, count = 0;
-	unsigned lod_src;
 	unsigned const_src = 0, num_deriv_comp = 0;
 
 	tex_fetch_ptrs(ctx, instr, &res_ptr, &samp_ptr, &fmask_ptr);
@@ -2787,6 +2784,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		case nir_tex_src_texture_offset:
 		case nir_tex_src_sampler_offset:
 		case nir_tex_src_plane:
+		default:
 			break;
 		}
 	}
@@ -2956,7 +2954,6 @@ static void visit_post_phi(struct nir_to_llvm_context *ctx,
                            nir_phi_instr *instr,
                            LLVMValueRef llvm_phi)
 {
-	nir_phi_src *src;
 	nir_foreach_phi_src(src, instr) {
 		LLVMBasicBlockRef block = get_block(ctx, src->pred);
 		LLVMValueRef llvm_src = get_src(ctx, src->src);
@@ -3421,8 +3418,6 @@ si_llvm_init_export_args(struct nir_to_llvm_context *ctx,
 			 unsigned target,
 			 LLVMValueRef *args)
 {
-	LLVMValueRef val[4];
-
 	/* Default is 0xf. Adjusted below depending on the format. */
 	args[0] = LLVMConstInt(ctx->i32, target != V_008DFC_SQ_EXP_NULL ? 0xf : 0, false);
 	/* Specify whether the EXEC mask represents the valid mask */
@@ -3573,10 +3568,8 @@ handle_vs_outputs_post(struct nir_to_llvm_context *ctx,
 		      struct nir_shader *nir)
 {
 	uint32_t param_count = 0;
-	struct si_shader_output_values *outputs;
 	unsigned target;
 	unsigned pos_idx, num_pos_exports = 0;
-	int index;
 	LLVMValueRef args[9];
 	LLVMValueRef pos_args[4][9] = { { 0 } };
 	LLVMValueRef psize_value = 0;
@@ -3801,7 +3794,7 @@ handle_fs_outputs_post(struct nir_to_llvm_context *ctx,
 	}
 
 	if (depth || stencil)
-		si_export_mrt_z(ctx, depth, stencil, NULL);
+		si_export_mrt_z(ctx, depth, stencil, samplemask);
 	else if (!index)
 		si_export_mrt_color(ctx, NULL, V_008DFC_SQ_EXP_NULL, true);
 
@@ -3869,8 +3862,6 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 
 	LLVMSetTarget(ctx.module, "amdgcn--");
 	setup_types(&ctx);
-
-	const char *triple = LLVMGetTarget(ctx.module);
 
 	ctx.builder = LLVMCreateBuilderInContext(ctx.context);
 	ctx.stage = nir->stage;
