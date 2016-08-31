@@ -109,8 +109,8 @@ struct nir_to_llvm_context {
 	unsigned range_md_kind;
 	unsigned uniform_md_kind;
 	unsigned fpmath_md_kind;
+	unsigned invariant_load_md_kind;
 	LLVMValueRef empty_md;
-	LLVMValueRef const_md;
 	LLVMValueRef fpmath_md_2p5_ulp;
 	gl_shader_stage stage;
 
@@ -300,7 +300,7 @@ static LLVMValueRef build_indexed_load_const(struct nir_to_llvm_context *ctx,
 					     LLVMValueRef base_ptr, LLVMValueRef index)
 {
 	LLVMValueRef result = build_indexed_load(ctx, base_ptr, index, true);
-	LLVMSetMetadata(result, 1, ctx->const_md);
+	LLVMSetMetadata(result, ctx->invariant_load_md_kind, ctx->empty_md);
 	return result;
 }
 
@@ -461,13 +461,11 @@ static void setup_types(struct nir_to_llvm_context *ctx)
 	args[2] = ctx->f32zero;
 	args[3] = ctx->f32one;
 	ctx->v4f32empty = LLVMConstVector(args, 4);
-	args[0] = LLVMMDStringInContext(ctx->context, "const", 5);
-	args[1] = 0;
-	args[2] = LLVMConstInt(ctx->i32, 1, 0);
-	ctx->const_md = LLVMMDNodeInContext(ctx->context, args, 3);
 
 	ctx->range_md_kind = LLVMGetMDKindIDInContext(ctx->context,
 						      "range", 5);
+	ctx->invariant_load_md_kind = LLVMGetMDKindIDInContext(ctx->context,
+							       "invariant.load", 14);
 	ctx->uniform_md_kind =
 	    LLVMGetMDKindIDInContext(ctx->context, "amdgpu.uniform", 14);
 	ctx->empty_md = LLVMMDNodeInContext(ctx->context, NULL, 0);
