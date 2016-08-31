@@ -40,7 +40,7 @@
 #include "ac_llvm_util.h"
 #include "ac_nir_to_llvm.h"
 #include "vk_format.h"
-
+#include "util/debug.h"
 void radv_shader_variant_destroy(struct radv_device *device,
                                  struct radv_shader_variant *variant);
 
