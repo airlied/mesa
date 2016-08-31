@@ -453,6 +453,11 @@ si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,
 		radeon_emit(cs, fui(0.0));
 		radeon_emit(cs, fui(1.0));
 		radeon_emit(cs, fui(0.0));
+
+		radeon_set_context_reg_seq(cs, R_0282D0_PA_SC_VPORT_ZMIN_0, 2);
+		radeon_emit(cs, fui(0.0));
+		radeon_emit(cs, fui(1.0));
+
 		return;
 	}
 	radeon_set_context_reg_seq(cs, R_02843C_PA_CL_VPORT_XSCALE +
@@ -469,6 +474,15 @@ si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,
 		radeon_emit(cs, fui(translate[1]));
 		radeon_emit(cs, fui(scale[2]));
 		radeon_emit(cs, fui(translate[2]));
+	}
+
+	for (i = 0; i < count; i++) {
+		float zmin = MIN2(viewports[i].minDepth, viewports[i].maxDepth);
+		float zmax = MAX2(viewports[i].minDepth, viewports[i].maxDepth);
+		radeon_set_context_reg_seq(cs, R_0282D0_PA_SC_VPORT_ZMIN_0 +
+					   first_vp * 4 * 2, count * 2);
+		radeon_emit(cs, fui(zmin));
+		radeon_emit(cs, fui(zmax));
 	}
 }
 
