@@ -90,3 +90,8 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
                            struct nir_shader *nir,
                            const struct ac_nir_compiler_options *options,
 			   bool dump_shader);
+
+#ifdef __cplusplus
+extern "C"
+#endif
+void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes);

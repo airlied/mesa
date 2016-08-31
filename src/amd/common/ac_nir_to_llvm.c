@@ -221,8 +221,10 @@ create_llvm_function(LLVMContextRef ctx, LLVMModuleRef module,
 	for (unsigned i = 0; i < sgpr_params; ++i) {
 		LLVMValueRef P = LLVMGetParam(main_function, i);
 
-		if (i < array_params)
+		if (i < array_params) {
 			LLVMAddAttribute(P, LLVMByValAttribute);
+			ac_add_attr_dereferenceable(P, UINT64_MAX);
+		}
 		else
 			LLVMAddAttribute(P, LLVMInRegAttribute);
 	}
