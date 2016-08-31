@@ -496,6 +496,8 @@ struct radv_device {
 	struct radv_meta_state                       meta_state;
 	struct radv_queue                            queue;
 	struct radeon_winsys_cs *empty_cs;
+
+	bool allow_fast_clears;
 };
 
 void radv_device_get_cache_uuid(void *uuid);
@@ -759,7 +761,9 @@ void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_sampl
 unsigned radv_cayman_get_maxdist(int log_samples);
 void radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 				VkClearDepthStencilValue ds_clear_value);
-
+void radv_emit_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+				uint32_t idx,
+				uint32_t clear_vals[2]);
 void radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 		      struct radeon_winsys_bo *bo,
 		      uint64_t offset, uint64_t size, uint32_t value);
@@ -945,7 +949,9 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
 uint32_t radv_translate_tex_numformat(VkFormat format,
 				      const struct vk_format_description *desc,
 				      int first_non_void);
-
+bool radv_format_pack_clear_color(VkFormat format,
+				  uint32_t clear_vals[2],
+				  VkClearColorValue *value);
 struct radv_fmask_info {
 	uint64_t offset;
 	uint64_t size;

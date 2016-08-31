@@ -575,8 +575,6 @@ radv_image_alloc_cmask(struct radv_device *device,
 
 	image->cmask.offset = align64(image->size, image->cmask.alignment);
 	image->size = image->cmask.offset + image->cmask.size;
-
-	//rtex->cb_color_info |= SI_S_028C70_FAST_CLEAR(1); TODO
 }
 
 
@@ -699,9 +697,10 @@ radv_image_create(VkDevice _device,
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 
+	if (pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		radv_image_alloc_cmask(device, image);
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
-		radv_image_alloc_cmask(device, image);
 	} else if (vk_format_is_depth(pCreateInfo->format)) {
 
 		image->can_sample_z = true;
