@@ -197,7 +197,7 @@ create_llvm_function(LLVMContextRef ctx, LLVMModuleRef module,
                      LLVMBuilderRef builder, LLVMTypeRef *return_types,
                      unsigned num_return_elems, LLVMTypeRef *param_types,
                      unsigned param_count, unsigned array_params,
-                     unsigned sgpr_params)
+                     unsigned sgpr_params, bool unsafe_math)
 {
 	LLVMTypeRef main_function_type, ret_type;
 	LLVMBasicBlockRef main_function_body;
@@ -227,6 +227,22 @@ create_llvm_function(LLVMContextRef ctx, LLVMModuleRef module,
 		}
 		else
 			LLVMAddAttribute(P, LLVMInRegAttribute);
+	}
+
+	if (unsafe_math) {
+		/* These were copied from some LLVM test. */
+		LLVMAddTargetDependentFunctionAttr(main_function,
+						   "less-precise-fpmad",
+						   "true");
+		LLVMAddTargetDependentFunctionAttr(main_function,
+						   "no-infs-fp-math",
+						   "true");
+		LLVMAddTargetDependentFunctionAttr(main_function,
+						   "no-nans-fp-math",
+						   "true");
+		LLVMAddTargetDependentFunctionAttr(main_function,
+						   "unsafe-fp-math",
+						   "true");
 	}
 	return main_function;
 }
@@ -349,7 +365,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 
 	ctx->main_function = create_llvm_function(
 	    ctx->context, ctx->module, ctx->builder, NULL, 0, arg_types,
-	    arg_idx, array_count, sgpr_count);
+	    arg_idx, array_count, sgpr_count, ctx->options->unsafe_math);
 	set_llvm_calling_convention(ctx->main_function, nir->stage);
 
 
