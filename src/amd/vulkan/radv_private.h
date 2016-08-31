@@ -467,6 +467,11 @@ struct radv_meta_state {
 	} depth_decomp;
 
 	struct {
+		VkPipeline                                pipeline;
+		VkRenderPass                              pass;
+	} fast_clear_flush;
+
+	struct {
 		VkPipelineLayout fill_p_layout;
 		VkPipelineLayout copy_p_layout;
 		VkDescriptorSetLayout fill_ds_layout;
