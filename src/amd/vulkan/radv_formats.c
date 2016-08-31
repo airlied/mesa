@@ -810,6 +810,16 @@ bool radv_format_pack_clear_color(VkFormat format,
 		a = float_to_ubyte(value->float32[3]);
 	}
 	switch (format) {
+	case VK_FORMAT_R8_UNORM:
+	case VK_FORMAT_R8_SRGB:
+		clear_vals[0] = r;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R8G8_UNORM:
+	case VK_FORMAT_R8G8_SRGB:
+		clear_vals[0] = r | g << 8;
+		clear_vals[1] = 0;
+		break;
 	case VK_FORMAT_R8G8B8A8_SRGB:
 	case VK_FORMAT_R8G8B8A8_UNORM:
 		clear_vals[0] = r | g << 8 | b << 16 | a << 24;
@@ -820,19 +830,97 @@ bool radv_format_pack_clear_color(VkFormat format,
 		clear_vals[0] = b | g << 8 | r << 16 | a << 24;
 		clear_vals[1] = 0;
 		break;
+	case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+	case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+		clear_vals[0] = r | g << 8 | b << 16 | a << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R8_UINT:
+		clear_vals[0] = value->uint32[0] & 0xff;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16_UINT:
+		clear_vals[0] = value->uint32[0] & 0xffff;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R8G8_UINT:
+		clear_vals[0] = value->uint32[0] & 0xff;
+		clear_vals[0] |= (value->uint32[1] & 0xff) << 8;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R8G8B8A8_UINT:
+		clear_vals[0] = value->uint32[0] & 0xff;
+		clear_vals[0] |= (value->uint32[1] & 0xff) << 8;
+		clear_vals[0] |= (value->uint32[2] & 0xff) << 16;
+		clear_vals[0] |= (value->uint32[3] & 0xff) << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+		clear_vals[0] = value->uint32[0] & 0xff;
+		clear_vals[0] |= (value->uint32[1] & 0xff) << 8;
+		clear_vals[0] |= (value->uint32[2] & 0xff) << 16;
+		clear_vals[0] |= (value->uint32[3] & 0xff) << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16G16_UINT:
+		clear_vals[0] = value->uint32[0] & 0xffff;
+		clear_vals[0] |= (value->uint32[1] & 0xffff) << 16;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16G16B16A16_UINT:
+		clear_vals[0] = value->uint32[0] & 0xffff;
+		clear_vals[0] |= (value->uint32[1] & 0xffff) << 16;
+		clear_vals[1] = value->uint32[2] & 0xffff;
+		clear_vals[1] |= (value->uint32[3] & 0xffff) << 16;
+		break;
+	case VK_FORMAT_R32_UINT:
+		clear_vals[0] = value->uint32[0];
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R32G32_UINT:
+		clear_vals[0] = value->uint32[0];
+		clear_vals[1] = value->uint32[1];
+		break;
+	case VK_FORMAT_R32_SINT:
+		clear_vals[0] = value->int32[0];
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16_SFLOAT:
+		clear_vals[0] = util_float_to_half(value->float32[0]);
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16G16_SFLOAT:
+		clear_vals[0] = util_float_to_half(value->float32[0]);
+		clear_vals[0] |= (uint32_t)util_float_to_half(value->float32[1]) << 16;
+		clear_vals[1] = 0;
+		break;
 	case VK_FORMAT_R16G16B16A16_SFLOAT:
 		clear_vals[0] = util_float_to_half(value->float32[0]);
 		clear_vals[0] |= (uint32_t)util_float_to_half(value->float32[1]) << 16;
 		clear_vals[1] = util_float_to_half(value->float32[2]);
 		clear_vals[1] |= (uint32_t)util_float_to_half(value->float32[3]) << 16;
 		break;
+	case VK_FORMAT_R16_UNORM:
+		clear_vals[0] = ((uint16_t)util_iround(CLAMP(value->float32[0], 0.0f, 1.0f) * 0xffff)) & 0xffff;
+		clear_vals[1] = 0;
+		break;
 	case VK_FORMAT_R16G16_UNORM:
 		clear_vals[0] = ((uint16_t)util_iround(CLAMP(value->float32[0], 0.0f, 1.0f) * 0xffff)) & 0xffff;
-		clear_vals[0]	|= ((uint16_t)util_iround(CLAMP(value->float32[1], 0.0f, 1.0f) * 0xffff)) << 16;
+		clear_vals[0] |= ((uint16_t)util_iround(CLAMP(value->float32[1], 0.0f, 1.0f) * 0xffff)) << 16;
 		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16G16B16A16_UNORM:
+		clear_vals[0] = ((uint16_t)util_iround(CLAMP(value->float32[0], 0.0f, 1.0f) * 0xffff)) & 0xffff;
+		clear_vals[0] |= ((uint16_t)util_iround(CLAMP(value->float32[1], 0.0f, 1.0f) * 0xffff)) << 16;
+		clear_vals[1] = ((uint16_t)util_iround(CLAMP(value->float32[2], 0.0f, 1.0f) * 0xffff)) & 0xffff;
+		clear_vals[1] |= ((uint16_t)util_iround(CLAMP(value->float32[3], 0.0f, 1.0f) * 0xffff)) << 16;
 		break;
 	case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
 		/* TODO */
+		break;
+	case VK_FORMAT_R32G32_SFLOAT:
+		clear_vals[0] = value->float32[0];
+		clear_vals[1] = value->float32[1];
 		break;
 	case VK_FORMAT_R32_SFLOAT:
 		clear_vals[1] = 0;
