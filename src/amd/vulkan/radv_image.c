@@ -653,7 +653,9 @@ radv_image_alloc_htile(struct radv_device *device,
 		return;
 
 	image->htile.offset = align64(image->size, 32768);
-	image->size = image->htile.offset + image->htile.size;
+
+	/* + 8 for storing the clear values */
+	image->size = image->htile.offset + image->htile.size + 8;
 	image->alignment = align64(image->alignment, 32768);
 }
 
