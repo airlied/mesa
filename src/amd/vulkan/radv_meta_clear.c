@@ -28,14 +28,14 @@
 #include "util/format_rgb9e5.h"
 /** Vertex attributes for color clears.  */
 struct color_clear_vattrs {
-   float position[2];
-   VkClearColorValue color;
+	float position[2];
+	VkClearColorValue color;
 };
 
 /** Vertex attributes for depthstencil clears.  */
 struct depthstencil_clear_vattrs {
-   float position[2];
-   float depth_clear;
+	float position[2];
+	float depth_clear;
 };
 
 enum {
@@ -48,22 +48,22 @@ static void
 meta_clear_begin(struct radv_meta_saved_state *saved_state,
                  struct radv_cmd_buffer *cmd_buffer)
 {
-   radv_meta_save(saved_state, cmd_buffer,
-                 (1 << VK_DYNAMIC_STATE_VIEWPORT) |
-                 (1 << VK_DYNAMIC_STATE_SCISSOR) |
-                 (1 << VK_DYNAMIC_STATE_STENCIL_REFERENCE) |
-                 (1 << VK_DYNAMIC_STATE_STENCIL_WRITE_MASK));
+	radv_meta_save(saved_state, cmd_buffer,
+		       (1 << VK_DYNAMIC_STATE_VIEWPORT) |
+		       (1 << VK_DYNAMIC_STATE_SCISSOR) |
+		       (1 << VK_DYNAMIC_STATE_STENCIL_REFERENCE) |
+		       (1 << VK_DYNAMIC_STATE_STENCIL_WRITE_MASK));
 
-   /* Avoid uploading more viewport states than necessary */
-   cmd_buffer->state.dynamic.viewport.count = 0;
-   cmd_buffer->state.dynamic.scissor.count = 0;
+	/* Avoid uploading more viewport states than necessary */
+	cmd_buffer->state.dynamic.viewport.count = 0;
+	cmd_buffer->state.dynamic.scissor.count = 0;
 }
 
 static void
 meta_clear_end(struct radv_meta_saved_state *saved_state,
                struct radv_cmd_buffer *cmd_buffer)
 {
-   radv_meta_restore(saved_state, cmd_buffer);
+	radv_meta_restore(saved_state, cmd_buffer);
 }
 
 static void
@@ -71,56 +71,56 @@ build_color_shaders(struct nir_shader **out_vs,
                     struct nir_shader **out_fs,
                     uint32_t frag_output)
 {
-   nir_builder vs_b;
-   nir_builder fs_b;
+	nir_builder vs_b;
+	nir_builder fs_b;
 
-   nir_builder_init_simple_shader(&vs_b, NULL, MESA_SHADER_VERTEX, NULL);
-   nir_builder_init_simple_shader(&fs_b, NULL, MESA_SHADER_FRAGMENT, NULL);
+	nir_builder_init_simple_shader(&vs_b, NULL, MESA_SHADER_VERTEX, NULL);
+	nir_builder_init_simple_shader(&fs_b, NULL, MESA_SHADER_FRAGMENT, NULL);
 
-   vs_b.shader->info.name = ralloc_strdup(vs_b.shader, "meta_clear_color_vs");
-   fs_b.shader->info.name = ralloc_strdup(fs_b.shader, "meta_clear_color_fs");
+	vs_b.shader->info.name = ralloc_strdup(vs_b.shader, "meta_clear_color_vs");
+	fs_b.shader->info.name = ralloc_strdup(fs_b.shader, "meta_clear_color_fs");
 
-   const struct glsl_type *position_type = glsl_vec4_type();
-   const struct glsl_type *color_type = glsl_vec4_type();
+	const struct glsl_type *position_type = glsl_vec4_type();
+	const struct glsl_type *color_type = glsl_vec4_type();
 
-   nir_variable *vs_in_pos =
-      nir_variable_create(vs_b.shader, nir_var_shader_in, position_type,
-                          "a_position");
-   vs_in_pos->data.location = VERT_ATTRIB_GENERIC0;
+	nir_variable *vs_in_pos =
+		nir_variable_create(vs_b.shader, nir_var_shader_in, position_type,
+				    "a_position");
+	vs_in_pos->data.location = VERT_ATTRIB_GENERIC0;
 
-   nir_variable *vs_out_pos =
-      nir_variable_create(vs_b.shader, nir_var_shader_out, position_type,
-                          "gl_Position");
-   vs_out_pos->data.location = VARYING_SLOT_POS;
+	nir_variable *vs_out_pos =
+		nir_variable_create(vs_b.shader, nir_var_shader_out, position_type,
+				    "gl_Position");
+	vs_out_pos->data.location = VARYING_SLOT_POS;
 
-   nir_variable *vs_in_color =
-      nir_variable_create(vs_b.shader, nir_var_shader_in, color_type,
-                          "a_color");
-   vs_in_color->data.location = VERT_ATTRIB_GENERIC1;
+	nir_variable *vs_in_color =
+		nir_variable_create(vs_b.shader, nir_var_shader_in, color_type,
+				    "a_color");
+	vs_in_color->data.location = VERT_ATTRIB_GENERIC1;
 
-   nir_variable *vs_out_color =
-      nir_variable_create(vs_b.shader, nir_var_shader_out, color_type,
-                          "v_color");
-   vs_out_color->data.location = VARYING_SLOT_VAR0;
-   vs_out_color->data.interpolation = INTERP_MODE_FLAT;
+	nir_variable *vs_out_color =
+		nir_variable_create(vs_b.shader, nir_var_shader_out, color_type,
+				    "v_color");
+	vs_out_color->data.location = VARYING_SLOT_VAR0;
+	vs_out_color->data.interpolation = INTERP_MODE_FLAT;
 
-   nir_variable *fs_in_color =
-      nir_variable_create(fs_b.shader, nir_var_shader_in, color_type,
-                          "v_color");
-   fs_in_color->data.location = vs_out_color->data.location;
-   fs_in_color->data.interpolation = vs_out_color->data.interpolation;
+	nir_variable *fs_in_color =
+		nir_variable_create(fs_b.shader, nir_var_shader_in, color_type,
+				    "v_color");
+	fs_in_color->data.location = vs_out_color->data.location;
+	fs_in_color->data.interpolation = vs_out_color->data.interpolation;
 
-   nir_variable *fs_out_color =
-      nir_variable_create(fs_b.shader, nir_var_shader_out, color_type,
-                          "f_color");
-   fs_out_color->data.location = FRAG_RESULT_DATA0 + frag_output;
+	nir_variable *fs_out_color =
+		nir_variable_create(fs_b.shader, nir_var_shader_out, color_type,
+				    "f_color");
+	fs_out_color->data.location = FRAG_RESULT_DATA0 + frag_output;
 
-   nir_copy_var(&vs_b, vs_out_pos, vs_in_pos);
-   nir_copy_var(&vs_b, vs_out_color, vs_in_color);
-   nir_copy_var(&fs_b, fs_out_color, fs_in_color);
+	nir_copy_var(&vs_b, vs_out_pos, vs_in_pos);
+	nir_copy_var(&vs_b, vs_out_color, vs_in_color);
+	nir_copy_var(&fs_b, fs_out_color, fs_in_color);
 
-   *out_vs = vs_b.shader;
-   *out_fs = fs_b.shader;
+	*out_vs = vs_b.shader;
+	*out_fs = fs_b.shader;
 }
 
 static VkResult
@@ -136,93 +136,93 @@ create_pipeline(struct radv_device *device,
                 const VkAllocationCallbacks *alloc,
                 struct radv_pipeline **pipeline)
 {
-   VkDevice device_h = radv_device_to_handle(device);
-   VkResult result;
+	VkDevice device_h = radv_device_to_handle(device);
+	VkResult result;
 
-   struct radv_shader_module vs_m = { .nir = vs_nir };
-   struct radv_shader_module fs_m = { .nir = fs_nir };
+	struct radv_shader_module vs_m = { .nir = vs_nir };
+	struct radv_shader_module fs_m = { .nir = fs_nir };
 
-   VkPipeline pipeline_h = VK_NULL_HANDLE;
-   result = radv_graphics_pipeline_create(device_h,
-      radv_pipeline_cache_to_handle(&device->meta_state.cache),
-      &(VkGraphicsPipelineCreateInfo) {
-         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-         .stageCount = fs_nir ? 2 : 1,
-         .pStages = (VkPipelineShaderStageCreateInfo[]) {
-            {
-               .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-               .stage = VK_SHADER_STAGE_VERTEX_BIT,
-               .module = radv_shader_module_to_handle(&vs_m),
-               .pName = "main",
-            },
-            {
-               .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-               .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-               .module = radv_shader_module_to_handle(&fs_m),
-               .pName = "main",
-            },
-         },
-         .pVertexInputState = vi_state,
-         .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-            .primitiveRestartEnable = false,
-         },
-         .pViewportState = &(VkPipelineViewportStateCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 0,
-            .scissorCount = 0,
-         },
-         .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .rasterizerDiscardEnable = false,
-            .polygonMode = VK_POLYGON_MODE_FILL,
-            .cullMode = VK_CULL_MODE_NONE,
-            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-            .depthBiasEnable = false,
-         },
-         .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = samples,
-            .sampleShadingEnable = false,
-            .pSampleMask = NULL,
-            .alphaToCoverageEnable = false,
-            .alphaToOneEnable = false,
-         },
-         .pDepthStencilState = ds_state,
-         .pColorBlendState = cb_state,
-         .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
-            /* The meta clear pipeline declares all state as dynamic.
-             * As a consequence, vkCmdBindPipeline writes no dynamic state
-             * to the cmd buffer. Therefore, at the end of the meta clear,
-             * we need only restore dynamic state was vkCmdSet.
-             */
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 6,
-            .pDynamicStates = (VkDynamicState[]) {
-               /* Everything except stencil write mask */
-               VK_DYNAMIC_STATE_LINE_WIDTH,
-               VK_DYNAMIC_STATE_DEPTH_BIAS,
-               VK_DYNAMIC_STATE_BLEND_CONSTANTS,
-               VK_DYNAMIC_STATE_DEPTH_BOUNDS,
-               VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
-               VK_DYNAMIC_STATE_STENCIL_REFERENCE,
-            },
-         },
-         .flags = 0,
-         .renderPass = radv_render_pass_to_handle(render_pass),
-         .subpass = 0,
-      },
-      extra,
-      alloc,
-      &pipeline_h);
+	VkPipeline pipeline_h = VK_NULL_HANDLE;
+	result = radv_graphics_pipeline_create(device_h,
+					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
+					       &(VkGraphicsPipelineCreateInfo) {
+						       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+							       .stageCount = fs_nir ? 2 : 1,
+							       .pStages = (VkPipelineShaderStageCreateInfo[]) {
+							       {
+								       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+								       .stage = VK_SHADER_STAGE_VERTEX_BIT,
+								       .module = radv_shader_module_to_handle(&vs_m),
+								       .pName = "main",
+							       },
+							       {
+								       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+								       .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+								       .module = radv_shader_module_to_handle(&fs_m),
+								       .pName = "main",
+							       },
+						       },
+							       .pVertexInputState = vi_state,
+									.pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
+							       .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+							       .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+							       .primitiveRestartEnable = false,
+						       },
+									.pViewportState = &(VkPipelineViewportStateCreateInfo) {
+							       .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+							       .viewportCount = 0,
+							       .scissorCount = 0,
+						       },
+										 .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
+							       .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+							       .rasterizerDiscardEnable = false,
+							       .polygonMode = VK_POLYGON_MODE_FILL,
+							       .cullMode = VK_CULL_MODE_NONE,
+							       .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+							       .depthBiasEnable = false,
+						       },
+											  .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
+							       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+							       .rasterizationSamples = samples,
+							       .sampleShadingEnable = false,
+							       .pSampleMask = NULL,
+							       .alphaToCoverageEnable = false,
+							       .alphaToOneEnable = false,
+						       },
+												   .pDepthStencilState = ds_state,
+													    .pColorBlendState = cb_state,
+													    .pDynamicState = &(VkPipelineDynamicStateCreateInfo) {
+							       /* The meta clear pipeline declares all state as dynamic.
+								* As a consequence, vkCmdBindPipeline writes no dynamic state
+								* to the cmd buffer. Therefore, at the end of the meta clear,
+								* we need only restore dynamic state was vkCmdSet.
+								*/
+							       .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+							       .dynamicStateCount = 6,
+							       .pDynamicStates = (VkDynamicState[]) {
+								       /* Everything except stencil write mask */
+								       VK_DYNAMIC_STATE_LINE_WIDTH,
+								       VK_DYNAMIC_STATE_DEPTH_BIAS,
+								       VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+								       VK_DYNAMIC_STATE_DEPTH_BOUNDS,
+								       VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
+								       VK_DYNAMIC_STATE_STENCIL_REFERENCE,
+							       },
+						       },
+													    .flags = 0,
+														     .renderPass = radv_render_pass_to_handle(render_pass),
+														     .subpass = 0,
+														     },
+					       extra,
+					       alloc,
+					       &pipeline_h);
 
-   ralloc_free(vs_nir);
-   ralloc_free(fs_nir);
+	ralloc_free(vs_nir);
+	ralloc_free(fs_nir);
 
-   *pipeline = radv_pipeline_from_handle(pipeline_h);
+	*pipeline = radv_pipeline_from_handle(pipeline_h);
 
-   return result;
+	return result;
 }
 
 static VkResult
@@ -233,117 +233,117 @@ create_color_pipeline(struct radv_device *device,
                       struct radv_pipeline **pipeline,
 		      VkRenderPass *pass)
 {
-   struct nir_shader *vs_nir;
-   struct nir_shader *fs_nir;
-   VkResult result;
-   build_color_shaders(&vs_nir, &fs_nir, frag_output);
+	struct nir_shader *vs_nir;
+	struct nir_shader *fs_nir;
+	VkResult result;
+	build_color_shaders(&vs_nir, &fs_nir, frag_output);
 
-   const VkPipelineVertexInputStateCreateInfo vi_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-      .vertexBindingDescriptionCount = 1,
-      .pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
-         {
-            .binding = 0,
-            .stride = sizeof(struct color_clear_vattrs),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-         },
-      },
-      .vertexAttributeDescriptionCount = 2,
-      .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
-         {
-            /* Position */
-            .location = 0,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = offsetof(struct color_clear_vattrs, position),
-         },
-         {
-            /* Color */
-            .location = 1,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-            .offset = offsetof(struct color_clear_vattrs, color),
-         },
-      },
-   };
+	const VkPipelineVertexInputStateCreateInfo vi_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
+			{
+				.binding = 0,
+				.stride = sizeof(struct color_clear_vattrs),
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			},
+		},
+		.vertexAttributeDescriptionCount = 2,
+		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
+			{
+				/* Position */
+				.location = 0,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32_SFLOAT,
+				.offset = offsetof(struct color_clear_vattrs, position),
+			},
+			{
+				/* Color */
+				.location = 1,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32B32A32_SFLOAT,
+				.offset = offsetof(struct color_clear_vattrs, color),
+			},
+		},
+	};
 
-   const VkPipelineDepthStencilStateCreateInfo ds_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-      .depthTestEnable = false,
-      .depthWriteEnable = false,
-      .depthBoundsTestEnable = false,
-      .stencilTestEnable = false,
-   };
+	const VkPipelineDepthStencilStateCreateInfo ds_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.depthTestEnable = false,
+		.depthWriteEnable = false,
+		.depthBoundsTestEnable = false,
+		.stencilTestEnable = false,
+	};
 
-   VkPipelineColorBlendAttachmentState blend_attachment_state[MAX_RTS] = { 0 };
-   blend_attachment_state[frag_output] = (VkPipelineColorBlendAttachmentState) {
-      .blendEnable = false,
-      .colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
-                        VK_COLOR_COMPONENT_R_BIT |
-                        VK_COLOR_COMPONENT_G_BIT |
-                        VK_COLOR_COMPONENT_B_BIT,
-   };
+	VkPipelineColorBlendAttachmentState blend_attachment_state[MAX_RTS] = { 0 };
+	blend_attachment_state[frag_output] = (VkPipelineColorBlendAttachmentState) {
+		.blendEnable = false,
+		.colorWriteMask = VK_COLOR_COMPONENT_A_BIT |
+		VK_COLOR_COMPONENT_R_BIT |
+		VK_COLOR_COMPONENT_G_BIT |
+		VK_COLOR_COMPONENT_B_BIT,
+	};
 
-   const VkPipelineColorBlendStateCreateInfo cb_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-      .logicOpEnable = false,
-      .attachmentCount = MAX_RTS,
-      .pAttachments = blend_attachment_state
-   };
+	const VkPipelineColorBlendStateCreateInfo cb_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.logicOpEnable = false,
+		.attachmentCount = MAX_RTS,
+		.pAttachments = blend_attachment_state
+	};
 
-   result = radv_CreateRenderPass(radv_device_to_handle(device),
-                                  &(VkRenderPassCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                                     .attachmentCount = 1,
-                                     .pAttachments = &(VkAttachmentDescription) {
-                                         .format = vk_format,
-                                         .samples = samples,
-                                         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                                         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                                         .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                     },
-                                     .subpassCount = 1,
-                                     .pSubpasses = &(VkSubpassDescription) {
-                                         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                         .inputAttachmentCount = 0,
-                                         .colorAttachmentCount = 1,
-                                         .pColorAttachments = &(VkAttachmentReference) {
-                                            .attachment = 0,
-                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
-                                         },
-                                         .pResolveAttachments = NULL,
-                                         .pDepthStencilAttachment = &(VkAttachmentReference) {
-                                            .attachment = VK_ATTACHMENT_UNUSED,
-                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
-                                         },
-                                         .preserveAttachmentCount = 1,
-                                         .pPreserveAttachments = (uint32_t[]) { 0 },
-                                     },
-                                     .dependencyCount = 0,
-                                  }, &device->meta_state.alloc, pass);
+	result = radv_CreateRenderPass(radv_device_to_handle(device),
+				       &(VkRenderPassCreateInfo) {
+					       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+						       .attachmentCount = 1,
+						       .pAttachments = &(VkAttachmentDescription) {
+						       .format = vk_format,
+						       .samples = samples,
+						       .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+						       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+						       .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+						       .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+					       },
+						       .subpassCount = 1,
+								.pSubpasses = &(VkSubpassDescription) {
+						       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+						       .inputAttachmentCount = 0,
+						       .colorAttachmentCount = 1,
+						       .pColorAttachments = &(VkAttachmentReference) {
+							       .attachment = 0,
+							       .layout = VK_IMAGE_LAYOUT_GENERAL,
+						       },
+						       .pResolveAttachments = NULL,
+						       .pDepthStencilAttachment = &(VkAttachmentReference) {
+							       .attachment = VK_ATTACHMENT_UNUSED,
+							       .layout = VK_IMAGE_LAYOUT_GENERAL,
+						       },
+						       .preserveAttachmentCount = 1,
+						       .pPreserveAttachments = (uint32_t[]) { 0 },
+					       },
+								.dependencyCount = 0,
+									 }, &device->meta_state.alloc, pass);
 
-   if (result != VK_SUCCESS)
-	   return result;
-   struct radv_graphics_pipeline_create_info extra = {
-	   .use_rectlist = true,
-   };
-   result = create_pipeline(device, radv_render_pass_from_handle(*pass),
-			    samples, vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
-			    &extra, &device->meta_state.alloc, pipeline);
+	if (result != VK_SUCCESS)
+		return result;
+	struct radv_graphics_pipeline_create_info extra = {
+		.use_rectlist = true,
+	};
+	result = create_pipeline(device, radv_render_pass_from_handle(*pass),
+				 samples, vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
+				 &extra, &device->meta_state.alloc, pipeline);
 
-   return result;
+	return result;
 }
 
 static void
 destroy_pipeline(struct radv_device *device, struct radv_pipeline *pipeline)
 {
-   if (!pipeline)
-      return;
+	if (!pipeline)
+		return;
 
-   RADV_CALL(DestroyPipeline)(radv_device_to_handle(device),
-                             radv_pipeline_to_handle(pipeline),
-                             &device->meta_state.alloc);
+	RADV_CALL(DestroyPipeline)(radv_device_to_handle(device),
+				   radv_pipeline_to_handle(pipeline),
+				   &device->meta_state.alloc);
 
 }
 
@@ -357,23 +357,23 @@ destroy_render_pass(struct radv_device *device, VkRenderPass renderpass)
 void
 radv_device_finish_meta_clear_state(struct radv_device *device)
 {
-   struct radv_meta_state *state = &device->meta_state;
+	struct radv_meta_state *state = &device->meta_state;
 
-   for (uint32_t i = 0; i < ARRAY_SIZE(state->clear); ++i) {
-	   for (uint32_t j = 0; j < ARRAY_SIZE(state->clear[i].color_pipelines); ++j) {
-		   destroy_pipeline(device, state->clear[i].color_pipelines[j]);
-		   destroy_render_pass(device, state->clear[i].render_pass[j]);
-	   }
+	for (uint32_t i = 0; i < ARRAY_SIZE(state->clear); ++i) {
+		for (uint32_t j = 0; j < ARRAY_SIZE(state->clear[i].color_pipelines); ++j) {
+			destroy_pipeline(device, state->clear[i].color_pipelines[j]);
+			destroy_render_pass(device, state->clear[i].render_pass[j]);
+		}
 
-	   for (uint32_t j = 0; j < NUM_DEPTH_CLEAR_PIPELINES; j++) {
-		   destroy_pipeline(device, state->clear[i].depth_only_pipeline[j]);
-		   destroy_render_pass(device, state->clear[i].depth_only_rp[j]);
-		   destroy_pipeline(device, state->clear[i].stencil_only_pipeline[j]);
-		   destroy_render_pass(device, state->clear[i].stencil_only_rp[j]);
-		   destroy_pipeline(device, state->clear[i].depthstencil_pipeline[j]);
-		   destroy_render_pass(device, state->clear[i].depthstencil_rp[j]);
-	   }
-   }
+		for (uint32_t j = 0; j < NUM_DEPTH_CLEAR_PIPELINES; j++) {
+			destroy_pipeline(device, state->clear[i].depth_only_pipeline[j]);
+			destroy_render_pass(device, state->clear[i].depth_only_rp[j]);
+			destroy_pipeline(device, state->clear[i].stencil_only_pipeline[j]);
+			destroy_render_pass(device, state->clear[i].stencil_only_rp[j]);
+			destroy_pipeline(device, state->clear[i].depthstencil_pipeline[j]);
+			destroy_render_pass(device, state->clear[i].depthstencil_rp[j]);
+		}
+	}
 
 }
 
@@ -382,121 +382,121 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
                  const VkClearAttachment *clear_att,
                  const VkClearRect *clear_rect)
 {
-   struct radv_device *device = cmd_buffer->device;
-   const struct radv_subpass *subpass = cmd_buffer->state.subpass;
-   const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
-   const uint32_t subpass_att = clear_att->colorAttachment;
-   const uint32_t pass_att = subpass->color_attachments[subpass_att].attachment;
-   const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
-   const uint32_t samples = iview->image->samples;
-   const uint32_t samples_log2 = ffs(samples) - 1;
-   unsigned fs_key = radv_format_meta_fs_key(iview->vk_format);
-   struct radv_pipeline *pipeline;
-   VkClearColorValue clear_value = clear_att->clearValue.color;
-   VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
-   VkPipeline pipeline_h;
-   uint32_t offset;
+	struct radv_device *device = cmd_buffer->device;
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
+	const uint32_t subpass_att = clear_att->colorAttachment;
+	const uint32_t pass_att = subpass->color_attachments[subpass_att].attachment;
+	const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
+	const uint32_t samples = iview->image->samples;
+	const uint32_t samples_log2 = ffs(samples) - 1;
+	unsigned fs_key = radv_format_meta_fs_key(iview->vk_format);
+	struct radv_pipeline *pipeline;
+	VkClearColorValue clear_value = clear_att->clearValue.color;
+	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
+	VkPipeline pipeline_h;
+	uint32_t offset;
 
-   if (fs_key == -1) {
-	   radv_finishme("color clears incomplete");
-	   return;
-   }
-   pipeline = device->meta_state.clear[samples_log2].color_pipelines[fs_key];
-   pipeline_h = radv_pipeline_to_handle(pipeline);
+	if (fs_key == -1) {
+		radv_finishme("color clears incomplete");
+		return;
+	}
+	pipeline = device->meta_state.clear[samples_log2].color_pipelines[fs_key];
+	pipeline_h = radv_pipeline_to_handle(pipeline);
 
-   if (!pipeline) {
-	   radv_finishme("color clears incomplete");
-	   return;
-   }
-   assert(samples_log2 < ARRAY_SIZE(device->meta_state.clear));
-   assert(pipeline);
-   assert(clear_att->aspectMask == VK_IMAGE_ASPECT_COLOR_BIT);
-   assert(clear_att->colorAttachment < subpass->color_count);
+	if (!pipeline) {
+		radv_finishme("color clears incomplete");
+		return;
+	}
+	assert(samples_log2 < ARRAY_SIZE(device->meta_state.clear));
+	assert(pipeline);
+	assert(clear_att->aspectMask == VK_IMAGE_ASPECT_COLOR_BIT);
+	assert(clear_att->colorAttachment < subpass->color_count);
 
-   const struct color_clear_vattrs vertex_data[3] = {
-      {
-         .position = {
-            clear_rect->rect.offset.x,
-            clear_rect->rect.offset.y,
-         },
-         .color = clear_value,
-      },
-      {
-         .position = {
-  	    clear_rect->rect.offset.x,
-	    clear_rect->rect.offset.y + clear_rect->rect.extent.height,
-         },
-         .color = clear_value,
-      },
-      {
-         .position = {
-            clear_rect->rect.offset.x + clear_rect->rect.extent.width,
-            clear_rect->rect.offset.y,
-         },
-         .color = clear_value,
-      },
-   };
+	const struct color_clear_vattrs vertex_data[3] = {
+		{
+			.position = {
+				clear_rect->rect.offset.x,
+				clear_rect->rect.offset.y,
+			},
+			.color = clear_value,
+		},
+		{
+			.position = {
+				clear_rect->rect.offset.x,
+				clear_rect->rect.offset.y + clear_rect->rect.extent.height,
+			},
+			.color = clear_value,
+		},
+		{
+			.position = {
+				clear_rect->rect.offset.x + clear_rect->rect.extent.width,
+				clear_rect->rect.offset.y,
+			},
+			.color = clear_value,
+		},
+	};
 
-   struct radv_subpass clear_subpass = {
-      .color_count = 1,
-      .color_attachments = (VkAttachmentReference[]) {
-         subpass->color_attachments[clear_att->colorAttachment]
-      },
-      .depth_stencil_attachment = (VkAttachmentReference) { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }
-   };
+	struct radv_subpass clear_subpass = {
+		.color_count = 1,
+		.color_attachments = (VkAttachmentReference[]) {
+			subpass->color_attachments[clear_att->colorAttachment]
+		},
+		.depth_stencil_attachment = (VkAttachmentReference) { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }
+	};
 
-   radv_cmd_buffer_set_subpass(cmd_buffer, &clear_subpass);
+	radv_cmd_buffer_set_subpass(cmd_buffer, &clear_subpass);
 
-   radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
-   struct radv_buffer vertex_buffer = {
-     .device = device,
-     .size = sizeof(vertex_data),
-     .bo = &cmd_buffer->upload.upload_bo,
-     .offset = offset,
-   };
+	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
+	struct radv_buffer vertex_buffer = {
+		.device = device,
+		.size = sizeof(vertex_data),
+		.bo = &cmd_buffer->upload.upload_bo,
+		.offset = offset,
+	};
 
 
-   RADV_CALL(CmdBindVertexBuffers)(cmd_buffer_h, 0, 1,
-      (VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
-      (VkDeviceSize[]) { 0 });
+	RADV_CALL(CmdBindVertexBuffers)(cmd_buffer_h, 0, 1,
+					(VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
+					(VkDeviceSize[]) { 0 });
 
-   if (cmd_buffer->state.pipeline != pipeline) {
-      RADV_CALL(CmdBindPipeline)(cmd_buffer_h, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline_h);
-   }
+	if (cmd_buffer->state.pipeline != pipeline) {
+		RADV_CALL(CmdBindPipeline)(cmd_buffer_h, VK_PIPELINE_BIND_POINT_GRAPHICS,
+					   pipeline_h);
+	}
 
-   RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
+	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
 
-   radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
+	radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
 }
 
 
 static void
 build_depthstencil_shader(struct nir_shader **out_vs, struct nir_shader **out_fs)
 {
-   nir_builder vs_b, fs_b;
+	nir_builder vs_b, fs_b;
 
-   nir_builder_init_simple_shader(&vs_b, NULL, MESA_SHADER_VERTEX, NULL);
-   nir_builder_init_simple_shader(&fs_b, NULL, MESA_SHADER_FRAGMENT, NULL);
+	nir_builder_init_simple_shader(&vs_b, NULL, MESA_SHADER_VERTEX, NULL);
+	nir_builder_init_simple_shader(&fs_b, NULL, MESA_SHADER_FRAGMENT, NULL);
 
-   vs_b.shader->info.name = ralloc_strdup(vs_b.shader, "meta_clear_depthstencil_vs");
-   fs_b.shader->info.name = ralloc_strdup(fs_b.shader, "meta_clear_depthstencil_fs");
-   const struct glsl_type *position_type = glsl_vec4_type();
+	vs_b.shader->info.name = ralloc_strdup(vs_b.shader, "meta_clear_depthstencil_vs");
+	fs_b.shader->info.name = ralloc_strdup(fs_b.shader, "meta_clear_depthstencil_fs");
+	const struct glsl_type *position_type = glsl_vec4_type();
 
-   nir_variable *vs_in_pos =
-      nir_variable_create(vs_b.shader, nir_var_shader_in, position_type,
-                          "a_position");
-   vs_in_pos->data.location = VERT_ATTRIB_GENERIC0;
+	nir_variable *vs_in_pos =
+		nir_variable_create(vs_b.shader, nir_var_shader_in, position_type,
+				    "a_position");
+	vs_in_pos->data.location = VERT_ATTRIB_GENERIC0;
 
-   nir_variable *vs_out_pos =
-      nir_variable_create(vs_b.shader, nir_var_shader_out, position_type,
-                          "gl_Position");
-   vs_out_pos->data.location = VARYING_SLOT_POS;
+	nir_variable *vs_out_pos =
+		nir_variable_create(vs_b.shader, nir_var_shader_out, position_type,
+				    "gl_Position");
+	vs_out_pos->data.location = VARYING_SLOT_POS;
 
-   nir_copy_var(&vs_b, vs_out_pos, vs_in_pos);
+	nir_copy_var(&vs_b, vs_out_pos, vs_in_pos);
 
-   *out_vs = vs_b.shader;
-   *out_fs = fs_b.shader;
+	*out_vs = vs_b.shader;
+	*out_fs = fs_b.shader;
 }
 
 static VkResult
@@ -507,101 +507,101 @@ create_depthstencil_pipeline(struct radv_device *device,
                              struct radv_pipeline **pipeline,
 			     VkRenderPass *render_pass)
 {
-   struct nir_shader *vs_nir, *fs_nir;
-   VkResult result;
-   build_depthstencil_shader(&vs_nir, &fs_nir);
+	struct nir_shader *vs_nir, *fs_nir;
+	VkResult result;
+	build_depthstencil_shader(&vs_nir, &fs_nir);
 
-   const VkPipelineVertexInputStateCreateInfo vi_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-      .vertexBindingDescriptionCount = 1,
-      .pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
-         {
-            .binding = 0,
-            .stride = sizeof(struct depthstencil_clear_vattrs),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-         },
-      },
-      .vertexAttributeDescriptionCount = 1,
-      .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
-         {
-            /* Position */
-            .location = 0,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(struct depthstencil_clear_vattrs, position),
-         },
-      },
-   };
+	const VkPipelineVertexInputStateCreateInfo vi_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
+			{
+				.binding = 0,
+				.stride = sizeof(struct depthstencil_clear_vattrs),
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			},
+		},
+		.vertexAttributeDescriptionCount = 1,
+		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
+			{
+				/* Position */
+				.location = 0,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32B32_SFLOAT,
+				.offset = offsetof(struct depthstencil_clear_vattrs, position),
+			},
+		},
+	};
 
-   const VkPipelineDepthStencilStateCreateInfo ds_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-      .depthTestEnable = (aspects & VK_IMAGE_ASPECT_DEPTH_BIT),
-      .depthCompareOp = VK_COMPARE_OP_ALWAYS,
-      .depthWriteEnable = (aspects & VK_IMAGE_ASPECT_DEPTH_BIT),
-      .depthBoundsTestEnable = false,
-      .stencilTestEnable = (aspects & VK_IMAGE_ASPECT_STENCIL_BIT),
-      .front = {
-         .passOp = VK_STENCIL_OP_REPLACE,
-         .compareOp = VK_COMPARE_OP_ALWAYS,
-         .writeMask = UINT32_MAX,
-         .reference = 0, /* dynamic */
-      },
-      .back = { 0 /* dont care */ },
-   };
+	const VkPipelineDepthStencilStateCreateInfo ds_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.depthTestEnable = (aspects & VK_IMAGE_ASPECT_DEPTH_BIT),
+		.depthCompareOp = VK_COMPARE_OP_ALWAYS,
+		.depthWriteEnable = (aspects & VK_IMAGE_ASPECT_DEPTH_BIT),
+		.depthBoundsTestEnable = false,
+		.stencilTestEnable = (aspects & VK_IMAGE_ASPECT_STENCIL_BIT),
+		.front = {
+			.passOp = VK_STENCIL_OP_REPLACE,
+			.compareOp = VK_COMPARE_OP_ALWAYS,
+			.writeMask = UINT32_MAX,
+			.reference = 0, /* dynamic */
+		},
+		.back = { 0 /* dont care */ },
+	};
 
-   const VkPipelineColorBlendStateCreateInfo cb_state = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-      .logicOpEnable = false,
-      .attachmentCount = 0,
-      .pAttachments = NULL,
-   };
+	const VkPipelineColorBlendStateCreateInfo cb_state = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		.logicOpEnable = false,
+		.attachmentCount = 0,
+		.pAttachments = NULL,
+	};
 
-   result = radv_CreateRenderPass(radv_device_to_handle(device),
-                                  &(VkRenderPassCreateInfo) {
-                                     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                                     .attachmentCount = 1,
-                                     .pAttachments = &(VkAttachmentDescription) {
-                                         .format = VK_FORMAT_UNDEFINED,
-                                         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                                         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                                         .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                     },
-                                     .subpassCount = 1,
-                                     .pSubpasses = &(VkSubpassDescription) {
-                                         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                         .inputAttachmentCount = 0,
-                                         .colorAttachmentCount = 0,
-                                         .pColorAttachments = NULL,
-                                         .pResolveAttachments = NULL,
-                                         .pDepthStencilAttachment = &(VkAttachmentReference) {
-                                            .attachment = 0,
-                                            .layout = VK_IMAGE_LAYOUT_GENERAL,
-                                         },
-                                         .preserveAttachmentCount = 1,
-                                         .pPreserveAttachments = (uint32_t[]) { 0 },
-                                     },
-                                     .dependencyCount = 0,
-					}, &device->meta_state.alloc, render_pass);
-   if (result != VK_SUCCESS)
-      return result;
+	result = radv_CreateRenderPass(radv_device_to_handle(device),
+				       &(VkRenderPassCreateInfo) {
+					       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+						       .attachmentCount = 1,
+						       .pAttachments = &(VkAttachmentDescription) {
+						       .format = VK_FORMAT_UNDEFINED,
+						       .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+						       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+						       .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+						       .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+					       },
+						       .subpassCount = 1,
+								.pSubpasses = &(VkSubpassDescription) {
+						       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+						       .inputAttachmentCount = 0,
+						       .colorAttachmentCount = 0,
+						       .pColorAttachments = NULL,
+						       .pResolveAttachments = NULL,
+						       .pDepthStencilAttachment = &(VkAttachmentReference) {
+							       .attachment = 0,
+							       .layout = VK_IMAGE_LAYOUT_GENERAL,
+						       },
+						       .preserveAttachmentCount = 1,
+						       .pPreserveAttachments = (uint32_t[]) { 0 },
+					       },
+								.dependencyCount = 0,
+									 }, &device->meta_state.alloc, render_pass);
+	if (result != VK_SUCCESS)
+		return result;
 
-   struct radv_graphics_pipeline_create_info extra = {
-	   .use_rectlist = true,
-   };
+	struct radv_graphics_pipeline_create_info extra = {
+		.use_rectlist = true,
+	};
 
-   if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
-	   extra.db_depth_clear = index == DEPTH_CLEAR_SLOW ? false : true;
-	   extra.db_depth_disable_expclear = index == DEPTH_CLEAR_FAST_NO_EXPCLEAR ? true : false;
-   }
-   if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
-	   extra.db_stencil_clear = index == DEPTH_CLEAR_SLOW ? false : true;
-	   extra.db_stencil_disable_expclear = index == DEPTH_CLEAR_FAST_NO_EXPCLEAR ? true : false;
-   }
-   result = create_pipeline(device, radv_render_pass_from_handle(*render_pass),
-			    samples, vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
-			    &extra, &device->meta_state.alloc, pipeline);
-   return result;
+	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
+		extra.db_depth_clear = index == DEPTH_CLEAR_SLOW ? false : true;
+		extra.db_depth_disable_expclear = index == DEPTH_CLEAR_FAST_NO_EXPCLEAR ? true : false;
+	}
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
+		extra.db_stencil_clear = index == DEPTH_CLEAR_SLOW ? false : true;
+		extra.db_stencil_disable_expclear = index == DEPTH_CLEAR_FAST_NO_EXPCLEAR ? true : false;
+	}
+	result = create_pipeline(device, radv_render_pass_from_handle(*render_pass),
+				 samples, vs_nir, fs_nir, &vi_state, &ds_state, &cb_state,
+				 &extra, &device->meta_state.alloc, pipeline);
+	return result;
 }
 
 static bool depth_view_can_fast_clear(const struct radv_image_view *iview)
@@ -655,158 +655,158 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
                         const VkClearAttachment *clear_att,
                         const VkClearRect *clear_rect)
 {
-   struct radv_device *device = cmd_buffer->device;
-   struct radv_meta_state *meta_state = &device->meta_state;
-   const struct radv_subpass *subpass = cmd_buffer->state.subpass;
-   const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
-   const uint32_t pass_att = subpass->depth_stencil_attachment.attachment;
-   VkClearDepthStencilValue clear_value = clear_att->clearValue.depthStencil;
-   VkImageAspectFlags aspects = clear_att->aspectMask;
-   const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
-   const uint32_t samples = iview->image->samples;
-   const uint32_t samples_log2 = ffs(samples) - 1;
-   struct radv_image *image = iview->image;
-   VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
-   uint32_t offset;
-   assert(aspects == VK_IMAGE_ASPECT_DEPTH_BIT ||
-          aspects == VK_IMAGE_ASPECT_STENCIL_BIT ||
-          aspects == (VK_IMAGE_ASPECT_DEPTH_BIT |
-                      VK_IMAGE_ASPECT_STENCIL_BIT));
-   assert(pass_att != VK_ATTACHMENT_UNUSED);
+	struct radv_device *device = cmd_buffer->device;
+	struct radv_meta_state *meta_state = &device->meta_state;
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
+	const uint32_t pass_att = subpass->depth_stencil_attachment.attachment;
+	VkClearDepthStencilValue clear_value = clear_att->clearValue.depthStencil;
+	VkImageAspectFlags aspects = clear_att->aspectMask;
+	const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
+	const uint32_t samples = iview->image->samples;
+	const uint32_t samples_log2 = ffs(samples) - 1;
+	struct radv_image *image = iview->image;
+	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
+	uint32_t offset;
+	assert(aspects == VK_IMAGE_ASPECT_DEPTH_BIT ||
+	       aspects == VK_IMAGE_ASPECT_STENCIL_BIT ||
+	       aspects == (VK_IMAGE_ASPECT_DEPTH_BIT |
+			   VK_IMAGE_ASPECT_STENCIL_BIT));
+	assert(pass_att != VK_ATTACHMENT_UNUSED);
 
-   const struct depthstencil_clear_vattrs vertex_data[3] = {
-      {
-         .position = {
-            clear_rect->rect.offset.x,
-            clear_rect->rect.offset.y,
-         },
-	 .depth_clear = clear_value.depth,
-      },
-      {
-         .position = {
-	    clear_rect->rect.offset.x,
-	    clear_rect->rect.offset.y + clear_rect->rect.extent.height,
-         },
-	 .depth_clear = clear_value.depth,
-      },
-      {
-         .position = {
-            clear_rect->rect.offset.x + clear_rect->rect.extent.width,
-            clear_rect->rect.offset.y,
-         },
-	 .depth_clear = clear_value.depth,
-      },
-   };
+	const struct depthstencil_clear_vattrs vertex_data[3] = {
+		{
+			.position = {
+				clear_rect->rect.offset.x,
+				clear_rect->rect.offset.y,
+			},
+			.depth_clear = clear_value.depth,
+		},
+		{
+			.position = {
+				clear_rect->rect.offset.x,
+				clear_rect->rect.offset.y + clear_rect->rect.extent.height,
+			},
+			.depth_clear = clear_value.depth,
+		},
+		{
+			.position = {
+				clear_rect->rect.offset.x + clear_rect->rect.extent.width,
+				clear_rect->rect.offset.y,
+			},
+			.depth_clear = clear_value.depth,
+		},
+	};
 
-   radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
-   struct radv_buffer vertex_buffer = {
-      .device = device,
-      .size = sizeof(vertex_data),
-      .bo = &cmd_buffer->upload.upload_bo,
-      .offset = offset,
-   };
+	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
+	struct radv_buffer vertex_buffer = {
+		.device = device,
+		.size = sizeof(vertex_data),
+		.bo = &cmd_buffer->upload.upload_bo,
+		.offset = offset,
+	};
 
-   if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
-      RADV_CALL(CmdSetStencilReference)(cmd_buffer_h, VK_STENCIL_FACE_FRONT_BIT,
-                                       clear_value.stencil);
-   }
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
+		RADV_CALL(CmdSetStencilReference)(cmd_buffer_h, VK_STENCIL_FACE_FRONT_BIT,
+						  clear_value.stencil);
+	}
 
-   RADV_CALL(CmdBindVertexBuffers)(cmd_buffer_h, 0, 1,
-      (VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
-      (VkDeviceSize[]) { 0 });
+	RADV_CALL(CmdBindVertexBuffers)(cmd_buffer_h, 0, 1,
+					(VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
+					(VkDeviceSize[]) { 0 });
 
-   struct radv_pipeline *pipeline = pick_depthstencil_pipeline(meta_state,
-							       iview,
-							       samples_log2,
-							       aspects,
-							       clear_value);
-   if (cmd_buffer->state.pipeline != pipeline) {
-      RADV_CALL(CmdBindPipeline)(cmd_buffer_h, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                radv_pipeline_to_handle(pipeline));
-   }
+	struct radv_pipeline *pipeline = pick_depthstencil_pipeline(meta_state,
+								    iview,
+								    samples_log2,
+								    aspects,
+								    clear_value);
+	if (cmd_buffer->state.pipeline != pipeline) {
+		RADV_CALL(CmdBindPipeline)(cmd_buffer_h, VK_PIPELINE_BIND_POINT_GRAPHICS,
+					   radv_pipeline_to_handle(pipeline));
+	}
 
-   radv_emit_depth_clear_regs(cmd_buffer, iview->image->ds_clear_value);
+	radv_emit_depth_clear_regs(cmd_buffer, iview->image->ds_clear_value);
 
-   RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
+	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
 
-   if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
-	   image->depth_cleared = true;
-   }
-   if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
-	   image->stencil_cleared = true;
-   }
+	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
+		image->depth_cleared = true;
+	}
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
+		image->stencil_cleared = true;
+	}
 }
 
 
 static VkFormat pipeline_formats[] = {
-   VK_FORMAT_R8G8B8A8_UNORM,
-   VK_FORMAT_R8G8B8A8_UINT,
-   VK_FORMAT_R8G8B8A8_SINT,
-   VK_FORMAT_R16G16B16A16_UNORM,
-   VK_FORMAT_R16G16B16A16_SNORM,
-   VK_FORMAT_R16G16B16A16_UINT,
-   VK_FORMAT_R16G16B16A16_SINT,
-   VK_FORMAT_R32_SFLOAT,
-   VK_FORMAT_R32G32_SFLOAT,
-   VK_FORMAT_R32G32B32A32_SFLOAT
+	VK_FORMAT_R8G8B8A8_UNORM,
+	VK_FORMAT_R8G8B8A8_UINT,
+	VK_FORMAT_R8G8B8A8_SINT,
+	VK_FORMAT_R16G16B16A16_UNORM,
+	VK_FORMAT_R16G16B16A16_SNORM,
+	VK_FORMAT_R16G16B16A16_UINT,
+	VK_FORMAT_R16G16B16A16_SINT,
+	VK_FORMAT_R32_SFLOAT,
+	VK_FORMAT_R32G32_SFLOAT,
+	VK_FORMAT_R32G32B32A32_SFLOAT
 };
 
 VkResult
 radv_device_init_meta_clear_state(struct radv_device *device)
 {
-   VkResult res;
-   struct radv_meta_state *state = &device->meta_state;
+	VkResult res;
+	struct radv_meta_state *state = &device->meta_state;
 
-   memset(&device->meta_state.clear, 0, sizeof(device->meta_state.clear));
+	memset(&device->meta_state.clear, 0, sizeof(device->meta_state.clear));
 
-   for (uint32_t i = 0; i < ARRAY_SIZE(state->clear); ++i) {
-	   uint32_t samples = 1 << i;
-	   for (uint32_t j = 0; j < ARRAY_SIZE(pipeline_formats); ++j) {
-		   VkFormat format = pipeline_formats[j];
-		   unsigned fs_key = radv_format_meta_fs_key(format);
-		   assert(!state->clear[i].color_pipelines[fs_key]);
-		   res = create_color_pipeline(device, format, samples, 0, &state->clear[i].color_pipelines[fs_key],
-					       &state->clear[i].render_pass[fs_key]);
-		   if (res != VK_SUCCESS)
-			   goto fail;
+	for (uint32_t i = 0; i < ARRAY_SIZE(state->clear); ++i) {
+		uint32_t samples = 1 << i;
+		for (uint32_t j = 0; j < ARRAY_SIZE(pipeline_formats); ++j) {
+			VkFormat format = pipeline_formats[j];
+			unsigned fs_key = radv_format_meta_fs_key(format);
+			assert(!state->clear[i].color_pipelines[fs_key]);
+			res = create_color_pipeline(device, format, samples, 0, &state->clear[i].color_pipelines[fs_key],
+						    &state->clear[i].render_pass[fs_key]);
+			if (res != VK_SUCCESS)
+				goto fail;
 
-	   }
+		}
 
-	   for (uint32_t j = 0; j < NUM_DEPTH_CLEAR_PIPELINES; j++) {
-		   res = create_depthstencil_pipeline(device,
-						      VK_IMAGE_ASPECT_DEPTH_BIT,
-						      samples,
-						      j,
-						      &state->clear[i].depth_only_pipeline[j],
-						      &state->clear[i].depth_only_rp[j]);
-		   if (res != VK_SUCCESS)
-			   goto fail;
+		for (uint32_t j = 0; j < NUM_DEPTH_CLEAR_PIPELINES; j++) {
+			res = create_depthstencil_pipeline(device,
+							   VK_IMAGE_ASPECT_DEPTH_BIT,
+							   samples,
+							   j,
+							   &state->clear[i].depth_only_pipeline[j],
+							   &state->clear[i].depth_only_rp[j]);
+			if (res != VK_SUCCESS)
+				goto fail;
 
-		   res = create_depthstencil_pipeline(device,
-						      VK_IMAGE_ASPECT_STENCIL_BIT,
-						      samples,
-						      j,
-						      &state->clear[i].stencil_only_pipeline[j],
-						      &state->clear[i].stencil_only_rp[j]);
-		   if (res != VK_SUCCESS)
-			   goto fail;
+			res = create_depthstencil_pipeline(device,
+							   VK_IMAGE_ASPECT_STENCIL_BIT,
+							   samples,
+							   j,
+							   &state->clear[i].stencil_only_pipeline[j],
+							   &state->clear[i].stencil_only_rp[j]);
+			if (res != VK_SUCCESS)
+				goto fail;
 
-		   res = create_depthstencil_pipeline(device,
-						      VK_IMAGE_ASPECT_DEPTH_BIT |
-						      VK_IMAGE_ASPECT_STENCIL_BIT,
-						      samples,
-						      j,
-						      &state->clear[i].depthstencil_pipeline[j],
-						      &state->clear[i].depthstencil_rp[j]);
-		   if (res != VK_SUCCESS)
-			   goto fail;
-	   }
-   }
-   return VK_SUCCESS;
+			res = create_depthstencil_pipeline(device,
+							   VK_IMAGE_ASPECT_DEPTH_BIT |
+							   VK_IMAGE_ASPECT_STENCIL_BIT,
+							   samples,
+							   j,
+							   &state->clear[i].depthstencil_pipeline[j],
+							   &state->clear[i].depthstencil_rp[j]);
+			if (res != VK_SUCCESS)
+				goto fail;
+		}
+	}
+	return VK_SUCCESS;
 
 fail:
-   radv_device_finish_meta_clear_state(device);
-   return res;
+	radv_device_finish_meta_clear_state(device);
+	return res;
 }
 
 /**
@@ -817,37 +817,37 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer,
            const VkClearAttachment *clear_att,
            const VkClearRect *clear_rect)
 {
-   if (clear_att->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
-      emit_color_clear(cmd_buffer, clear_att, clear_rect);
-   } else {
-      assert(clear_att->aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT |
-                                      VK_IMAGE_ASPECT_STENCIL_BIT));
-            emit_depthstencil_clear(cmd_buffer, clear_att, clear_rect);
-   }
+	if (clear_att->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
+		emit_color_clear(cmd_buffer, clear_att, clear_rect);
+	} else {
+		assert(clear_att->aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT |
+						VK_IMAGE_ASPECT_STENCIL_BIT));
+		emit_depthstencil_clear(cmd_buffer, clear_att, clear_rect);
+	}
 }
 
 static bool
 subpass_needs_clear(const struct radv_cmd_buffer *cmd_buffer)
 {
-   const struct radv_cmd_state *cmd_state = &cmd_buffer->state;
-   uint32_t ds;
+	const struct radv_cmd_state *cmd_state = &cmd_buffer->state;
+	uint32_t ds;
 
-   if (!cmd_state->subpass)
-	   return false;
-   ds = cmd_state->subpass->depth_stencil_attachment.attachment;
-   for (uint32_t i = 0; i < cmd_state->subpass->color_count; ++i) {
-      uint32_t a = cmd_state->subpass->color_attachments[i].attachment;
-      if (cmd_state->attachments[a].pending_clear_aspects) {
-         return true;
-      }
-   }
+	if (!cmd_state->subpass)
+		return false;
+	ds = cmd_state->subpass->depth_stencil_attachment.attachment;
+	for (uint32_t i = 0; i < cmd_state->subpass->color_count; ++i) {
+		uint32_t a = cmd_state->subpass->color_attachments[i].attachment;
+		if (cmd_state->attachments[a].pending_clear_aspects) {
+			return true;
+		}
+	}
 
-   if (ds != VK_ATTACHMENT_UNUSED &&
-       cmd_state->attachments[ds].pending_clear_aspects) {
-      return true;
-   }
+	if (ds != VK_ATTACHMENT_UNUSED &&
+	    cmd_state->attachments[ds].pending_clear_aspects) {
+		return true;
+	}
 
-   return false;
+	return false;
 }
 
 /**
@@ -858,272 +858,272 @@ subpass_needs_clear(const struct radv_cmd_buffer *cmd_buffer)
 void
 radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer)
 {
-   struct radv_cmd_state *cmd_state = &cmd_buffer->state;
-   struct radv_meta_saved_state saved_state;
+	struct radv_cmd_state *cmd_state = &cmd_buffer->state;
+	struct radv_meta_saved_state saved_state;
 
-   if (!subpass_needs_clear(cmd_buffer))
-      return;
+	if (!subpass_needs_clear(cmd_buffer))
+		return;
 
-   meta_clear_begin(&saved_state, cmd_buffer);
+	meta_clear_begin(&saved_state, cmd_buffer);
 
-   if (cmd_state->framebuffer->layers > 1)
-      radv_finishme("clearing multi-layer framebuffer");
+	if (cmd_state->framebuffer->layers > 1)
+		radv_finishme("clearing multi-layer framebuffer");
 
-   VkClearRect clear_rect = {
-      .rect = cmd_state->render_area,
-      .baseArrayLayer = 0,
-      .layerCount = 1, /* FINISHME: clear multi-layer framebuffer */
-   };
+	VkClearRect clear_rect = {
+		.rect = cmd_state->render_area,
+		.baseArrayLayer = 0,
+		.layerCount = 1, /* FINISHME: clear multi-layer framebuffer */
+	};
 
-   for (uint32_t i = 0; i < cmd_state->subpass->color_count; ++i) {
-      uint32_t a = cmd_state->subpass->color_attachments[i].attachment;
+	for (uint32_t i = 0; i < cmd_state->subpass->color_count; ++i) {
+		uint32_t a = cmd_state->subpass->color_attachments[i].attachment;
 
-      if (!cmd_state->attachments[a].pending_clear_aspects)
-         continue;
+		if (!cmd_state->attachments[a].pending_clear_aspects)
+			continue;
 
-      assert(cmd_state->attachments[a].pending_clear_aspects ==
-             VK_IMAGE_ASPECT_COLOR_BIT);
+		assert(cmd_state->attachments[a].pending_clear_aspects ==
+		       VK_IMAGE_ASPECT_COLOR_BIT);
 
-      VkClearAttachment clear_att = {
-         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-         .colorAttachment = i, /* Use attachment index relative to subpass */
-         .clearValue = cmd_state->attachments[a].clear_value,
-      };
+		VkClearAttachment clear_att = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.colorAttachment = i, /* Use attachment index relative to subpass */
+			.clearValue = cmd_state->attachments[a].clear_value,
+		};
 
-      emit_clear(cmd_buffer, &clear_att, &clear_rect);
-      cmd_state->attachments[a].pending_clear_aspects = 0;
-   }
+		emit_clear(cmd_buffer, &clear_att, &clear_rect);
+		cmd_state->attachments[a].pending_clear_aspects = 0;
+	}
 
-   uint32_t ds = cmd_state->subpass->depth_stencil_attachment.attachment;
+	uint32_t ds = cmd_state->subpass->depth_stencil_attachment.attachment;
 
-   if (ds != VK_ATTACHMENT_UNUSED) {
+	if (ds != VK_ATTACHMENT_UNUSED) {
 
-      if (cmd_state->attachments[ds].pending_clear_aspects) {
+		if (cmd_state->attachments[ds].pending_clear_aspects) {
 
-	 VkClearAttachment clear_att = {
-	    .aspectMask = cmd_state->attachments[ds].pending_clear_aspects,
-	    .clearValue = cmd_state->attachments[ds].clear_value,
-	 };
+			VkClearAttachment clear_att = {
+				.aspectMask = cmd_state->attachments[ds].pending_clear_aspects,
+				.clearValue = cmd_state->attachments[ds].clear_value,
+			};
 
-	 emit_clear(cmd_buffer, &clear_att, &clear_rect);
-	 cmd_state->attachments[ds].pending_clear_aspects = 0;
-      }
-   }
+			emit_clear(cmd_buffer, &clear_att, &clear_rect);
+			cmd_state->attachments[ds].pending_clear_aspects = 0;
+		}
+	}
 
-   meta_clear_end(&saved_state, cmd_buffer);
+	meta_clear_end(&saved_state, cmd_buffer);
 }
 
 static void
 radv_cmd_clear_image(struct radv_cmd_buffer *cmd_buffer,
-                    struct radv_image *image,
-                    VkImageLayout image_layout,
-                    const VkClearValue *clear_value,
-                    uint32_t range_count,
-                    const VkImageSubresourceRange *ranges)
+		     struct radv_image *image,
+		     VkImageLayout image_layout,
+		     const VkClearValue *clear_value,
+		     uint32_t range_count,
+		     const VkImageSubresourceRange *ranges)
 {
-   VkDevice device_h = radv_device_to_handle(cmd_buffer->device);
-   VkFormat format = image->vk_format;
-   VkClearValue internal_clear_value = *clear_value;
+	VkDevice device_h = radv_device_to_handle(cmd_buffer->device);
+	VkFormat format = image->vk_format;
+	VkClearValue internal_clear_value = *clear_value;
 
-   if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
-	   uint32_t value;
-	   format = VK_FORMAT_R32_UINT;
-	   value = float3_to_rgb9e5(clear_value->color.float32);
-	   internal_clear_value.color.uint32[0] = value;
-   }
+	if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
+		uint32_t value;
+		format = VK_FORMAT_R32_UINT;
+		value = float3_to_rgb9e5(clear_value->color.float32);
+		internal_clear_value.color.uint32[0] = value;
+	}
 
-   for (uint32_t r = 0; r < range_count; r++) {
-      const VkImageSubresourceRange *range = &ranges[r];
-      for (uint32_t l = 0; l < radv_get_levelCount(image, range); ++l) {
-         const uint32_t layer_count = image->type == VK_IMAGE_TYPE_3D ?
-                                      radv_minify(image->extent.depth, l) :
-                                      radv_get_layerCount(image, range);
-         for (uint32_t s = 0; s < layer_count; ++s) {
-            struct radv_image_view iview;
-            radv_image_view_init(&iview, cmd_buffer->device,
-               &(VkImageViewCreateInfo) {
-                  .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                  .image = radv_image_to_handle(image),
-                  .viewType = radv_meta_get_view_type(image),
-                  .format = format,
-                  .subresourceRange = {
-                     .aspectMask = range->aspectMask,
-                     .baseMipLevel = range->baseMipLevel + l,
-                     .levelCount = 1,
-                     .baseArrayLayer = range->baseArrayLayer + s,
-                     .layerCount = 1
-                  },
-               },
-               cmd_buffer, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+	for (uint32_t r = 0; r < range_count; r++) {
+		const VkImageSubresourceRange *range = &ranges[r];
+		for (uint32_t l = 0; l < radv_get_levelCount(image, range); ++l) {
+			const uint32_t layer_count = image->type == VK_IMAGE_TYPE_3D ?
+				radv_minify(image->extent.depth, l) :
+				radv_get_layerCount(image, range);
+			for (uint32_t s = 0; s < layer_count; ++s) {
+				struct radv_image_view iview;
+				radv_image_view_init(&iview, cmd_buffer->device,
+						     &(VkImageViewCreateInfo) {
+							     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+								     .image = radv_image_to_handle(image),
+								     .viewType = radv_meta_get_view_type(image),
+								     .format = format,
+								     .subresourceRange = {
+								     .aspectMask = range->aspectMask,
+								     .baseMipLevel = range->baseMipLevel + l,
+								     .levelCount = 1,
+								     .baseArrayLayer = range->baseArrayLayer + s,
+								     .layerCount = 1
+							     },
+								     },
+						     cmd_buffer, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-            VkFramebuffer fb;
-            radv_CreateFramebuffer(device_h,
-               &(VkFramebufferCreateInfo) {
-                  .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                  .attachmentCount = 1,
-                  .pAttachments = (VkImageView[]) {
-                     radv_image_view_to_handle(&iview),
-                  },
-                  .width = iview.extent.width,
-                  .height = iview.extent.height,
-                  .layers = 1
-               },
-               &cmd_buffer->pool->alloc,
-               &fb);
+				VkFramebuffer fb;
+				radv_CreateFramebuffer(device_h,
+						       &(VkFramebufferCreateInfo) {
+							       .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+								       .attachmentCount = 1,
+								       .pAttachments = (VkImageView[]) {
+								       radv_image_view_to_handle(&iview),
+							       },
+								       .width = iview.extent.width,
+										.height = iview.extent.height,
+										.layers = 1
+										},
+						       &cmd_buffer->pool->alloc,
+						       &fb);
 
-            VkAttachmentDescription att_desc = {
-               .format = iview.vk_format,
-               .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-               .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-               .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-               .stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE,
-               .initialLayout = image_layout,
-               .finalLayout = image_layout,
-            };
+				VkAttachmentDescription att_desc = {
+					.format = iview.vk_format,
+					.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+					.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+					.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+					.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE,
+					.initialLayout = image_layout,
+					.finalLayout = image_layout,
+				};
 
-            VkSubpassDescription subpass_desc = {
-               .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-               .inputAttachmentCount = 0,
-               .colorAttachmentCount = 0,
-               .pColorAttachments = NULL,
-               .pResolveAttachments = NULL,
-               .pDepthStencilAttachment = NULL,
-               .preserveAttachmentCount = 0,
-               .pPreserveAttachments = NULL,
-            };
+				VkSubpassDescription subpass_desc = {
+					.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+					.inputAttachmentCount = 0,
+					.colorAttachmentCount = 0,
+					.pColorAttachments = NULL,
+					.pResolveAttachments = NULL,
+					.pDepthStencilAttachment = NULL,
+					.preserveAttachmentCount = 0,
+					.pPreserveAttachments = NULL,
+				};
 
-            const VkAttachmentReference att_ref = {
-               .attachment = 0,
-               .layout = image_layout,
-            };
+				const VkAttachmentReference att_ref = {
+					.attachment = 0,
+					.layout = image_layout,
+				};
 
-            if (range->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
-               subpass_desc.colorAttachmentCount = 1;
-               subpass_desc.pColorAttachments = &att_ref;
-            } else {
-               subpass_desc.pDepthStencilAttachment = &att_ref;
-            }
+				if (range->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
+					subpass_desc.colorAttachmentCount = 1;
+					subpass_desc.pColorAttachments = &att_ref;
+				} else {
+					subpass_desc.pDepthStencilAttachment = &att_ref;
+				}
 
-            VkRenderPass pass;
-            radv_CreateRenderPass(device_h,
-               &(VkRenderPassCreateInfo) {
-                  .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                  .attachmentCount = 1,
-                  .pAttachments = &att_desc,
-                  .subpassCount = 1,
-                  .pSubpasses = &subpass_desc,
-               },
-               &cmd_buffer->pool->alloc,
-               &pass);
+				VkRenderPass pass;
+				radv_CreateRenderPass(device_h,
+						      &(VkRenderPassCreateInfo) {
+							      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+								      .attachmentCount = 1,
+								      .pAttachments = &att_desc,
+								      .subpassCount = 1,
+								      .pSubpasses = &subpass_desc,
+								      },
+						      &cmd_buffer->pool->alloc,
+						      &pass);
 
-            RADV_CALL(CmdBeginRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer),
-               &(VkRenderPassBeginInfo) {
-                  .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                  .renderArea = {
-                     .offset = { 0, 0, },
-                     .extent = {
-                        .width = iview.extent.width,
-                        .height = iview.extent.height,
-                     },
-                  },
-                  .renderPass = pass,
-                  .framebuffer = fb,
-                  .clearValueCount = 0,
-                  .pClearValues = NULL,
-               },
-               VK_SUBPASS_CONTENTS_INLINE);
+				RADV_CALL(CmdBeginRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer),
+							      &(VkRenderPassBeginInfo) {
+								      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+									      .renderArea = {
+									      .offset = { 0, 0, },
+									      .extent = {
+										      .width = iview.extent.width,
+										      .height = iview.extent.height,
+									      },
+								      },
+									      .renderPass = pass,
+										       .framebuffer = fb,
+										       .clearValueCount = 0,
+										       .pClearValues = NULL,
+										       },
+							      VK_SUBPASS_CONTENTS_INLINE);
 
-            VkClearAttachment clear_att = {
-               .aspectMask = range->aspectMask,
-               .colorAttachment = 0,
-               .clearValue = internal_clear_value,
-            };
+				VkClearAttachment clear_att = {
+					.aspectMask = range->aspectMask,
+					.colorAttachment = 0,
+					.clearValue = internal_clear_value,
+				};
 
-            VkClearRect clear_rect = {
-               .rect = {
-                  .offset = { 0, 0 },
-                  .extent = { iview.extent.width, iview.extent.height },
-               },
-               .baseArrayLayer = range->baseArrayLayer,
-               .layerCount = 1, /* FINISHME: clear multi-layer framebuffer */
-            };
+				VkClearRect clear_rect = {
+					.rect = {
+						.offset = { 0, 0 },
+						.extent = { iview.extent.width, iview.extent.height },
+					},
+					.baseArrayLayer = range->baseArrayLayer,
+					.layerCount = 1, /* FINISHME: clear multi-layer framebuffer */
+				};
 
-            emit_clear(cmd_buffer, &clear_att, &clear_rect);
+				emit_clear(cmd_buffer, &clear_att, &clear_rect);
 
-            RADV_CALL(CmdEndRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer));
-            RADV_CALL(DestroyRenderPass)(device_h, pass,
-                                        &cmd_buffer->pool->alloc);
-            RADV_CALL(DestroyFramebuffer)(device_h, fb,
-                                         &cmd_buffer->pool->alloc);
-         }
-      }
-   }
+				RADV_CALL(CmdEndRenderPass)(radv_cmd_buffer_to_handle(cmd_buffer));
+				RADV_CALL(DestroyRenderPass)(device_h, pass,
+							     &cmd_buffer->pool->alloc);
+				RADV_CALL(DestroyFramebuffer)(device_h, fb,
+							      &cmd_buffer->pool->alloc);
+			}
+		}
+	}
 }
 
 void radv_CmdClearColorImage(
-    VkCommandBuffer                             commandBuffer,
-    VkImage                                     image_h,
-    VkImageLayout                               imageLayout,
-    const VkClearColorValue*                    pColor,
-    uint32_t                                    rangeCount,
-    const VkImageSubresourceRange*              pRanges)
+	VkCommandBuffer                             commandBuffer,
+	VkImage                                     image_h,
+	VkImageLayout                               imageLayout,
+	const VkClearColorValue*                    pColor,
+	uint32_t                                    rangeCount,
+	const VkImageSubresourceRange*              pRanges)
 {
-   RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-   RADV_FROM_HANDLE(radv_image, image, image_h);
-   struct radv_meta_saved_state saved_state;
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_image, image, image_h);
+	struct radv_meta_saved_state saved_state;
 
-   meta_clear_begin(&saved_state, cmd_buffer);
+	meta_clear_begin(&saved_state, cmd_buffer);
 
-   radv_cmd_clear_image(cmd_buffer, image, imageLayout,
-                       (const VkClearValue *) pColor,
-                       rangeCount, pRanges);
+	radv_cmd_clear_image(cmd_buffer, image, imageLayout,
+			     (const VkClearValue *) pColor,
+			     rangeCount, pRanges);
 
-   meta_clear_end(&saved_state, cmd_buffer);
+	meta_clear_end(&saved_state, cmd_buffer);
 }
 
 void radv_CmdClearDepthStencilImage(
-    VkCommandBuffer                             commandBuffer,
-    VkImage                                     image_h,
-    VkImageLayout                               imageLayout,
-    const VkClearDepthStencilValue*             pDepthStencil,
-    uint32_t                                    rangeCount,
-    const VkImageSubresourceRange*              pRanges)
+	VkCommandBuffer                             commandBuffer,
+	VkImage                                     image_h,
+	VkImageLayout                               imageLayout,
+	const VkClearDepthStencilValue*             pDepthStencil,
+	uint32_t                                    rangeCount,
+	const VkImageSubresourceRange*              pRanges)
 {
-   RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-   RADV_FROM_HANDLE(radv_image, image, image_h);
-   struct radv_meta_saved_state saved_state;
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_image, image, image_h);
+	struct radv_meta_saved_state saved_state;
 
-   meta_clear_begin(&saved_state, cmd_buffer);
+	meta_clear_begin(&saved_state, cmd_buffer);
 
-   radv_cmd_clear_image(cmd_buffer, image, imageLayout,
-                       (const VkClearValue *) pDepthStencil,
-                       rangeCount, pRanges);
+	radv_cmd_clear_image(cmd_buffer, image, imageLayout,
+			     (const VkClearValue *) pDepthStencil,
+			     rangeCount, pRanges);
 
-   meta_clear_end(&saved_state, cmd_buffer);
+	meta_clear_end(&saved_state, cmd_buffer);
 }
 
 void radv_CmdClearAttachments(
-    VkCommandBuffer                             commandBuffer,
-    uint32_t                                    attachmentCount,
-    const VkClearAttachment*                    pAttachments,
-    uint32_t                                    rectCount,
-    const VkClearRect*                          pRects)
+	VkCommandBuffer                             commandBuffer,
+	uint32_t                                    attachmentCount,
+	const VkClearAttachment*                    pAttachments,
+	uint32_t                                    rectCount,
+	const VkClearRect*                          pRects)
 {
-   RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-   struct radv_meta_saved_state saved_state;
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	struct radv_meta_saved_state saved_state;
 
-   if (!cmd_buffer->state.subpass)
-	   return;
-   meta_clear_begin(&saved_state, cmd_buffer);
+	if (!cmd_buffer->state.subpass)
+		return;
+	meta_clear_begin(&saved_state, cmd_buffer);
 
-   /* FINISHME: We can do better than this dumb loop. It thrashes too much
-    * state.
-    */
-   for (uint32_t a = 0; a < attachmentCount; ++a) {
-      for (uint32_t r = 0; r < rectCount; ++r) {
-         emit_clear(cmd_buffer, &pAttachments[a], &pRects[r]);
-      }
-   }
+	/* FINISHME: We can do better than this dumb loop. It thrashes too much
+	 * state.
+	 */
+	for (uint32_t a = 0; a < attachmentCount; ++a) {
+		for (uint32_t r = 0; r < rectCount; ++r) {
+			emit_clear(cmd_buffer, &pAttachments[a], &pRects[r]);
+		}
+	}
 
-   meta_clear_end(&saved_state, cmd_buffer);
+	meta_clear_end(&saved_state, cmd_buffer);
 }
