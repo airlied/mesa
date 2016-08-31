@@ -728,6 +728,8 @@ struct radv_cmd_buffer {
 	bool record_fail;
 };
 
+struct radv_image;
+
 void si_init_config(struct radv_physical_device *physical_device,
 		    struct radv_cmd_buffer *cmd_buffer);
 void si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,
@@ -764,8 +766,11 @@ void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_samples);
 unsigned radv_cayman_get_maxdist(int log_samples);
-void radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
-				VkClearDepthStencilValue ds_clear_value);
+void radv_set_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+			       struct radv_image *image,
+			       VkClearDepthStencilValue ds_clear_value,
+			       VkImageAspectFlags aspects);
+
 void radv_emit_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 				uint32_t idx,
 				uint32_t clear_vals[2]);
@@ -1020,8 +1025,6 @@ struct radv_image {
 	bool stencil_cleared; /* if it was cleared at least once */
 	bool can_sample_z;
 	bool can_sample_s;
-
-	VkClearDepthStencilValue ds_clear_value;
 };
 
 static inline uint32_t

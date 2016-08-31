@@ -623,21 +623,11 @@ pick_depthstencil_pipeline(struct radv_meta_state *meta_state,
 {
 	bool fast = depth_view_can_fast_clear(iview);
 	int index = DEPTH_CLEAR_SLOW;
-	struct radv_image *image = iview->image;
 
 	if (fast) {
-		index = DEPTH_CLEAR_FAST_EXPCLEAR;
-		if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
-			if (!image->depth_cleared || clear_value.depth != image->ds_clear_value.depth)
-				index = DEPTH_CLEAR_FAST_NO_EXPCLEAR;
-
-			image->ds_clear_value.depth = clear_value.depth;
-		}
-		if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
-			if (!image->stencil_cleared || clear_value.stencil != image->ds_clear_value.stencil)
-				index = DEPTH_CLEAR_FAST_NO_EXPCLEAR;
-			image->ds_clear_value.stencil = clear_value.stencil;
-		}
+		/* we don't know the previous clear values, so we always have
+		 * the NO_EXPCLEAR path */
+		index = DEPTH_CLEAR_FAST_NO_EXPCLEAR;
 	}
 
 	switch (aspects) {
@@ -726,7 +716,8 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 					   radv_pipeline_to_handle(pipeline));
 	}
 
-	radv_emit_depth_clear_regs(cmd_buffer, iview->image->ds_clear_value);
+	if (depth_view_can_fast_clear(iview))
+		radv_set_depth_clear_regs(cmd_buffer, iview->image, clear_value, aspects);
 
 	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
 

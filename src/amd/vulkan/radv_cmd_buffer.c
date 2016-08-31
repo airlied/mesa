@@ -577,12 +577,70 @@ static void radv_set_optimal_micro_tile_mode(struct radv_device *device,
 }
 
 void
-radv_emit_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
-			   VkClearDepthStencilValue ds_clear_value)
+radv_set_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+			  struct radv_image *image,
+			  VkClearDepthStencilValue ds_clear_value,
+			  VkImageAspectFlags aspects)
 {
-	radeon_set_context_reg_seq(cmd_buffer->cs, R_028028_DB_STENCIL_CLEAR, 2);
-	radeon_emit(cmd_buffer->cs, ds_clear_value.stencil); /* R_028028_DB_STENCIL_CLEAR */
-	radeon_emit(cmd_buffer->cs, fui(ds_clear_value.depth)); /* R_02802C_DB_DEPTH_CLEAR */
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
+	va += image->offset + image->htile.offset + image->htile.size;
+	unsigned reg_offset = 0, reg_count = 0;
+
+	if (!image->htile.size || !aspects)
+		return;
+
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
+		++reg_count;
+	} else {
+		++reg_offset;
+		va += 4;
+	}
+	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+		++reg_count;
+
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, image->bo->bo, 8);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + reg_count, 0));
+	radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEM_ASYNC) |
+				    S_370_WR_CONFIRM(1) |
+				    S_370_ENGINE_SEL(V_370_PFP));
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, va >> 32);
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+		radeon_emit(cmd_buffer->cs, ds_clear_value.stencil);
+	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+		radeon_emit(cmd_buffer->cs, fui(ds_clear_value.depth));
+
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028028_DB_STENCIL_CLEAR + 4 * reg_offset, reg_count);
+	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+		radeon_emit(cmd_buffer->cs, ds_clear_value.stencil); /* R_028028_DB_STENCIL_CLEAR */
+	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+		radeon_emit(cmd_buffer->cs, fui(ds_clear_value.depth)); /* R_02802C_DB_DEPTH_CLEAR */
+}
+
+static void
+radv_load_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+			   struct radv_image *image)
+{
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
+	va += image->offset + image->htile.offset + image->htile.size;
+
+	if (!image->htile.size)
+		return;
+
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, image->bo->bo, 8);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_COPY_DATA, 4, 0));
+	radeon_emit(cmd_buffer->cs, COPY_DATA_SRC_SEL(COPY_DATA_MEM) |
+				    COPY_DATA_DST_SEL(COPY_DATA_REG) |
+				    COPY_DATA_COUNT_SEL);
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, va >> 32);
+	radeon_emit(cmd_buffer->cs, R_028028_DB_STENCIL_CLEAR >> 2);
+	radeon_emit(cmd_buffer->cs, 0);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+	radeon_emit(cmd_buffer->cs, 0);
 }
 
 void
@@ -638,7 +696,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 			cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS;
 			cmd_buffer->state.offset_scale = att->ds.offset_scale;
 		}
-		radv_emit_depth_clear_regs(cmd_buffer, image->ds_clear_value);
+		radv_load_depth_clear_regs(cmd_buffer, image);
 	} else {
 		radeon_set_context_reg_seq(cmd_buffer->cs, R_028040_DB_Z_INFO, 2);
 		radeon_emit(cmd_buffer->cs, S_028040_FORMAT(V_028040_Z_INVALID)); /* R_028040_DB_Z_INFO */
