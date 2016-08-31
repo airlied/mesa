@@ -42,6 +42,11 @@ AM_CFLAGS = -Wno-override-init -msse2 \
 	$(LLVM_CFLAGS) \
 	$(LIBELF_CFLAGS)
 
+AM_CXXFLAGS = \
+	$(VISIBILITY_CXXFLAGS) \
+	$(MSVC2013_COMPAT_CXXFLAGS) \
+	$(LLVM_CXXFLAGS)
+
 noinst_LTLIBRARIES = libamd_common.la
 
 libamd_common_la_SOURCES = $(AMD_COMPILER_SOURCES)
