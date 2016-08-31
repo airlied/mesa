@@ -712,7 +712,7 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 		radeon_set_context_reg(cmd_buffer->cs, R_028814_PA_SU_SC_MODE_CNTL,
 				       raster->pa_su_sc_mode_cntl |
 				       S_028814_POLY_OFFSET_FRONT_ENABLE(bias ? 1 : 0) |
-				       S_028814_POLY_OFFSET_FRONT_ENABLE(bias ? 1 : 0) |
+				       S_028814_POLY_OFFSET_BACK_ENABLE(bias ? 1 : 0) |
 				       S_028814_POLY_OFFSET_PARA_ENABLE(slope ? 1 : 0));
 	}
 
