@@ -28,6 +28,7 @@
 #include "sid.h"
 #include "r600d_common.h"
 
+#include "util/u_half.h"
 uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *desc,
 					  int first_non_void)
 {
@@ -817,6 +818,17 @@ bool radv_format_pack_clear_color(VkFormat format,
 	case VK_FORMAT_B8G8R8A8_SRGB:
 	case VK_FORMAT_B8G8R8A8_UNORM:
 		clear_vals[0] = b | g << 8 | r << 16 | a << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_R16G16B16A16_SFLOAT:
+		clear_vals[0] = util_float_to_half(value->float32[0]);
+		clear_vals[0] |= (uint32_t)util_float_to_half(value->float32[1]) << 16;
+		clear_vals[1] = util_float_to_half(value->float32[2]);
+		clear_vals[1] |= (uint32_t)util_float_to_half(value->float32[3]) << 16;
+		break;
+	case VK_FORMAT_R16G16_UNORM:
+		clear_vals[0] = ((uint16_t)util_iround(CLAMP(value->float32[0], 0.0f, 1.0f) * 0xffff)) & 0xffff;
+		clear_vals[0]	|= ((uint16_t)util_iround(CLAMP(value->float32[1], 0.0f, 1.0f) * 0xffff)) << 16;
 		clear_vals[1] = 0;
 		break;
 	case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
