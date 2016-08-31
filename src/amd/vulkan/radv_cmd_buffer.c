@@ -524,15 +524,24 @@ radv_emit_fb_color_state(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 radv_emit_fb_ds_state(struct radv_cmd_buffer *cmd_buffer,
-		      struct radv_ds_buffer_info *ds)
+		      struct radv_ds_buffer_info *ds,
+		      struct radv_image *image,
+		      VkImageLayout layout)
 {
+	uint32_t db_z_info = ds->db_z_info;
+
+	if (!radv_layout_has_htile(image, layout))
+		db_z_info &= C_028040_TILE_SURFACE_ENABLE;
+
+	if (!radv_layout_can_expclear(image, layout))
+		db_z_info &= C_028040_ALLOW_EXPCLEAR & C_028044_ALLOW_EXPCLEAR;
+
 	radeon_set_context_reg(cmd_buffer->cs, R_028008_DB_DEPTH_VIEW, ds->db_depth_view);
 	radeon_set_context_reg(cmd_buffer->cs, R_028014_DB_HTILE_DATA_BASE, ds->db_htile_data_base);
 
 	radeon_set_context_reg_seq(cmd_buffer->cs, R_02803C_DB_DEPTH_INFO, 9);
 	radeon_emit(cmd_buffer->cs, ds->db_depth_info);	/* R_02803C_DB_DEPTH_INFO */
-	radeon_emit(cmd_buffer->cs, ds->db_z_info |		/* R_028040_DB_Z_INFO */
-		    S_028040_ZRANGE_PRECISION(1));
+	radeon_emit(cmd_buffer->cs, db_z_info);			/* R_028040_DB_Z_INFO */
 	radeon_emit(cmd_buffer->cs, ds->db_stencil_info);	/* R_028044_DB_STENCIL_INFO */
 	radeon_emit(cmd_buffer->cs, ds->db_z_read_base);	/* R_028048_DB_Z_READ_BASE */
 	radeon_emit(cmd_buffer->cs, ds->db_stencil_read_base);	/* R_02804C_DB_STENCIL_READ_BASE */
@@ -686,11 +695,12 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 
 	if(subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
 		int idx = subpass->depth_stencil_attachment.attachment;
+		VkImageLayout layout = subpass->depth_stencil_attachment.layout;
 		struct radv_attachment_info *att = &framebuffer->attachments[idx];
 		struct radv_image *image = att->attachment->image;
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo->bo, 8);
 
-		radv_emit_fb_ds_state(cmd_buffer, &att->ds);
+		radv_emit_fb_ds_state(cmd_buffer, &att->ds, image, layout);
 
 		if (att->ds.offset_scale != cmd_buffer->state.offset_scale) {
 			cmd_buffer->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS;
@@ -1916,22 +1926,28 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 					       struct radv_image *image,
 					       VkImageLayout src_layout,
 					       VkImageLayout dst_layout,
-					       VkImageSubresourceRange range)
+					       VkImageSubresourceRange range,
+					       VkImageAspectFlags pending_clears)
 {
-	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
-	    (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ||
-	     dst_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)) {
+	if (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	    (pending_clears & vk_format_aspects(image->vk_format))) {
+		/* The clear will initialize htile. */
+		return;
+	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
+	           radv_layout_has_htile(image, dst_layout)) {
 		/* TODO: merge with the clear if applicable */
 		radv_initialize_htile(cmd_buffer, image);
-	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-		radv_finishme("create valid htile %d\n", src_layout);
+	} else if (!radv_layout_has_htile(image, src_layout) &&
+	           radv_layout_has_htile(image, dst_layout)) {
+		radv_finishme("create valid htile\n");
 		/*
 		 * might not be that bad, due to a folowing clear, but blit's are
 		 * going to be a problem.
 		 */
-	} else if (src_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+	} else if ((radv_layout_has_htile(image, src_layout) &&
+	            !radv_layout_has_htile(image, dst_layout)) ||
+	           (radv_layout_is_htile_compressed(image, src_layout) &&
+	            !radv_layout_is_htile_compressed(image, dst_layout))) {
 
 		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		range.baseMipLevel = 0;
@@ -1948,18 +1964,9 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 VkImageSubresourceRange range,
 					 VkImageAspectFlags pending_clears)
 {
-	/*TODO fill out more things in here */
-	if (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	    (pending_clears & vk_format_aspects(image->vk_format))) {
-		/* The clear will initialize htile. */
-		return;
-	}
-
-	if (image->htile.size) {
+	if (image->htile.size)
 		radv_handle_depth_image_transition(cmd_buffer, image, src_layout,
-						   dst_layout, range);
-	}
-
+						   dst_layout, range, pending_clears);
 }
 
 void radv_CmdPipelineBarrier(

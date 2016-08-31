@@ -1463,7 +1463,7 @@ radv_initialise_ds_surface(struct radv_device *device,
 	ds->db_depth_view = S_028008_SLICE_START(iview->base_layer) |
 		S_028008_SLICE_MAX(iview->base_layer + iview->extent.depth - 1);
 	ds->db_depth_info = S_02803C_ADDR5_SWIZZLE_MASK(1);
-	ds->db_z_info = S_028040_FORMAT(format);
+	ds->db_z_info = S_028040_FORMAT(format) | S_028040_ZRANGE_PRECISION(1);
 
 	if (iview->image->samples > 1)
 		ds->db_z_info |= S_028040_NUM_SAMPLES(util_logbase2(iview->image->samples));
