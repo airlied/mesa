@@ -50,6 +50,7 @@ union ac_shader_variant_key {
 struct ac_nir_compiler_options {
 	struct radv_pipeline_layout *layout;
 	union ac_shader_variant_key key;
+	bool unsafe_math;
 };
 
 struct ac_shader_variant_info {
