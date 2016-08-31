@@ -1222,16 +1222,16 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		result = emit_int_cmp(ctx, LLVMIntUGE, src[0], src[1]);
 		break;
 	case nir_op_feq:
-		result = emit_float_cmp(ctx, LLVMRealOEQ, src[0], src[1]);
+		result = emit_float_cmp(ctx, LLVMRealUEQ, src[0], src[1]);
 		break;
 	case nir_op_fne:
-		result = emit_float_cmp(ctx, LLVMRealONE, src[0], src[1]);
+		result = emit_float_cmp(ctx, LLVMRealUNE, src[0], src[1]);
 		break;
 	case nir_op_flt:
-		result = emit_float_cmp(ctx, LLVMRealOLT, src[0], src[1]);
+		result = emit_float_cmp(ctx, LLVMRealULT, src[0], src[1]);
 		break;
 	case nir_op_fge:
-		result = emit_float_cmp(ctx, LLVMRealOGE, src[0], src[1]);
+		result = emit_float_cmp(ctx, LLVMRealUGE, src[0], src[1]);
 		break;
 	case nir_op_fabs:
 		result = emit_intrin_1f_param(ctx, "llvm.fabs.f32", src[0]);
