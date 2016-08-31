@@ -609,7 +609,8 @@ static bool depth_view_can_fast_clear(const struct radv_image_view *iview)
 {
 	if (iview->image->htile.size &&
 	    iview->base_mip == 0 &&
-	    iview->base_layer == 0)
+	    iview->base_layer == 0 &&
+	    memcmp(&iview->extent, &iview->image->extent, sizeof(iview->extent)) == 0)
 		return true;
 	return false;
 }
