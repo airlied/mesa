@@ -1939,11 +1939,7 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 		radv_initialize_htile(cmd_buffer, image);
 	} else if (!radv_layout_has_htile(image, src_layout) &&
 	           radv_layout_has_htile(image, dst_layout)) {
-		radv_finishme("create valid htile\n");
-		/*
-		 * might not be that bad, due to a folowing clear, but blit's are
-		 * going to be a problem.
-		 */
+		radv_initialize_htile(cmd_buffer, image);
 	} else if ((radv_layout_has_htile(image, src_layout) &&
 	            !radv_layout_has_htile(image, dst_layout)) ||
 	           (radv_layout_is_htile_compressed(image, src_layout) &&
