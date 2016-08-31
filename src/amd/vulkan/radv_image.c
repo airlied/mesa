@@ -705,8 +705,6 @@ radv_image_create(VkDevice _device,
 		radv_image_alloc_fmask(device, image);
 	} else if (vk_format_is_depth(pCreateInfo->format)) {
 
-		image->can_sample_z = true;
-		image->can_sample_s = !image->surface.stencil_adjusted;
 		radv_image_alloc_htile(device, image);
 	}
 

@@ -1021,10 +1021,6 @@ struct radv_image {
 
 	/* Depth buffer compression and fast clear. */
 	struct r600_htile_info htile;
-	bool depth_cleared; /* if it was cleared at least once */
-	bool stencil_cleared; /* if it was cleared at least once */
-	bool can_sample_z;
-	bool can_sample_s;
 };
 
 static inline uint32_t
