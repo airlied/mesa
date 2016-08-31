@@ -720,13 +720,6 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 		radv_set_depth_clear_regs(cmd_buffer, iview->image, clear_value, aspects);
 
 	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
-
-	if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
-		image->depth_cleared = true;
-	}
-	if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
-		image->stencil_cleared = true;
-	}
 }
 
 
