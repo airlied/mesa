@@ -797,6 +797,42 @@ unsigned radv_translate_colorswap(VkFormat format, bool do_endian_swap)
 	return ~0U;
 }
 
+bool radv_format_pack_clear_color(VkFormat format,
+				  uint32_t clear_vals[2],
+				  VkClearColorValue *value)
+{
+	uint8_t r, g, b, a;
+	if (vk_format_get_component_bits(format, VK_FORMAT_COLORSPACE_RGB, 0) <= 8) {
+		r = float_to_ubyte(value->float32[0]);
+		g = float_to_ubyte(value->float32[1]);
+		b = float_to_ubyte(value->float32[2]);
+		a = float_to_ubyte(value->float32[3]);
+	}
+	switch (format) {
+	case VK_FORMAT_R8G8B8A8_SRGB:
+	case VK_FORMAT_R8G8B8A8_UNORM:
+		clear_vals[0] = r | g << 8 | b << 16 | a << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_B8G8R8A8_SRGB:
+	case VK_FORMAT_B8G8R8A8_UNORM:
+		clear_vals[0] = b | g << 8 | r << 16 | a << 24;
+		clear_vals[1] = 0;
+		break;
+	case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+		/* TODO */
+		break;
+	case VK_FORMAT_R32_SFLOAT:
+		clear_vals[1] = 0;
+		clear_vals[0] = value->float32[0];
+		break;
+	default:
+		fprintf(stderr, "failed to fast clear %d\n", format);
+		return false;
+	}
+	return false;
+}
+
 void radv_GetPhysicalDeviceFormatProperties(
     VkPhysicalDevice                            physicalDevice,
     VkFormat                                    format,

@@ -393,6 +393,49 @@ vk_format_stencil_only(VkFormat format)
 {
 	return VK_FORMAT_S8_UINT;
 }
+
+static inline uint
+vk_format_get_component_bits(VkFormat format,
+			     enum vk_format_colorspace colorspace,
+			     uint component)
+{
+   const struct vk_format_description *desc = vk_format_description(format);
+   enum vk_format_colorspace desc_colorspace;
+
+   assert(format);
+   if (!format) {
+      return 0;
+   }
+
+   assert(component < 4);
+
+   /* Treat RGB and SRGB as equivalent. */
+   if (colorspace == VK_FORMAT_COLORSPACE_SRGB) {
+      colorspace = VK_FORMAT_COLORSPACE_RGB;
+   }
+   if (desc->colorspace == VK_FORMAT_COLORSPACE_SRGB) {
+      desc_colorspace = VK_FORMAT_COLORSPACE_RGB;
+   } else {
+      desc_colorspace = desc->colorspace;
+   }
+
+   if (desc_colorspace != colorspace) {
+      return 0;
+   }
+
+   switch (desc->swizzle[component]) {
+   case VK_SWIZZLE_X:
+      return desc->channel[0].size;
+   case VK_SWIZZLE_Y:
+      return desc->channel[1].size;
+   case VK_SWIZZLE_Z:
+      return desc->channel[2].size;
+   case VK_SWIZZLE_W:
+      return desc->channel[3].size;
+   default:
+      return 0;
+   }
+}
 #ifdef __cplusplus
 } // extern "C" {
 #endif

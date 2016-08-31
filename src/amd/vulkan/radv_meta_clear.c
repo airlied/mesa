@@ -26,6 +26,7 @@
 #include "nir/nir_builder.h"
 
 #include "util/format_rgb9e5.h"
+#include "vk_format.h"
 /** Vertex attributes for color clears.  */
 struct color_clear_vattrs {
 	float position[2];
@@ -809,6 +810,53 @@ fail:
 	return res;
 }
 
+static bool
+emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
+		      const VkClearAttachment *clear_att,
+		      const VkClearRect *clear_rect)
+{
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	const uint32_t subpass_att = clear_att->colorAttachment;
+	const uint32_t pass_att = subpass->color_attachments[subpass_att].attachment;
+	const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
+	const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
+	VkClearColorValue clear_value = clear_att->clearValue.color;
+	uint32_t clear_color[2];
+	bool ret;
+
+	if (!iview->image->cmask.size)
+		return false;
+
+	if (!cmd_buffer->device->allow_fast_clears)
+		return false;
+
+	if (vk_format_get_blocksizebits(iview->image->vk_format) > 64)
+		return false;
+
+	/* all layers are bound */
+
+	if (iview->image->levels > 1)
+		return false;
+
+	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
+		return false;
+
+	/* DCC */
+	ret = radv_format_pack_clear_color(iview->image->vk_format,
+					   clear_color, &clear_value);
+	if (ret == false)
+		return false;
+
+	/* clear cmask buffer */
+	radv_fill_buffer(cmd_buffer, iview->image->bo->bo,
+			 iview->image->offset + iview->image->cmask.offset,
+			 iview->image->cmask.size, 0);
+
+	/* set clear color */
+	radv_emit_color_clear_regs(cmd_buffer, subpass_att, clear_color);
+	return true;
+}
+
 /**
  * The parameters mean that same as those in vkCmdClearAttachments.
  */
@@ -818,7 +866,9 @@ emit_clear(struct radv_cmd_buffer *cmd_buffer,
            const VkClearRect *clear_rect)
 {
 	if (clear_att->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
-		emit_color_clear(cmd_buffer, clear_att, clear_rect);
+
+		if (!emit_fast_color_clear(cmd_buffer, clear_att, clear_rect))
+			emit_color_clear(cmd_buffer, clear_att, clear_rect);
 	} else {
 		assert(clear_att->aspectMask & (VK_IMAGE_ASPECT_DEPTH_BIT |
 						VK_IMAGE_ASPECT_STENCIL_BIT));

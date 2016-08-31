@@ -40,7 +40,7 @@
 #include "vk_format.h"
 #include "sid.h"
 #include "radv_timestamp.h"
-
+#include "util/debug.h"
 struct radv_dispatch_table dtable;
 
 struct radv_fence {
@@ -603,6 +603,7 @@ VkResult radv_CreateDevice(
 		device->ws->ctx_destroy(device->hw_ctx);
 		goto fail_free;
 	}
+	device->allow_fast_clears = env_var_as_boolean("RADV_FAST_CLEARS", false);
 
 	device->empty_cs = device->ws->cs_create(device->ws, RING_GFX);
 	radeon_emit(device->empty_cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
@@ -1392,6 +1393,10 @@ radv_initialise_color_surface(struct radv_device *device,
 	if (iview->image->samples > 1)
 		if (iview->image->fmask.size)
 			cb->cb_color_info |= S_028C70_COMPRESSION(1);
+
+	if (iview->image->cmask.size && device->allow_fast_clears)
+		cb->cb_color_info |= S_028C70_FAST_CLEAR(1);
+
 	if (device->instance->physicalDevice.rad_info.chip_class >= VI) {
 		unsigned max_uncompressed_block_size = 2;
 		if (iview->image->samples > 1) {
