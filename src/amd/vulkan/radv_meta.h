@@ -48,7 +48,7 @@ struct radv_meta_saved_state {
 
 struct radv_meta_saved_pass_state {
    struct radv_render_pass *pass;
-   struct radv_subpass *subpass;
+   const struct radv_subpass *subpass;
    struct radv_attachment_state *attachments;
    struct radv_framebuffer *framebuffer;
    VkRect2D render_area;
