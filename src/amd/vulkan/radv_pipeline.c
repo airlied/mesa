@@ -314,6 +314,9 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 			S_00B84C_TG_SIZE_EN(1) |
 			S_00B84C_LDS_SIZE(variant->config.lds_size);
 		break;
+	default:
+		unreachable("unsupported shader type");
+		break;
 	}
 
 	variant->rsrc1 =  S_00B848_VGPRS((variant->config.num_vgprs - 1) / 4) |
