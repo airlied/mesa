@@ -321,8 +321,14 @@ radv_device_init_meta(struct radv_device *device)
 	result = radv_device_init_meta_buffer_state(device);
 	if (result != VK_SUCCESS)
 		goto fail_buffer;
+
+	result = radv_device_init_meta_fast_clear_flush_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_fast_clear;
 	return VK_SUCCESS;
 
+fail_fast_clear:
+	radv_device_finish_meta_fast_clear_flush_state(device);
 fail_buffer:
 	radv_device_finish_meta_depth_decomp_state(device);
 fail_depth_decomp:
@@ -349,6 +355,7 @@ radv_device_finish_meta(struct radv_device *device)
 	radv_device_finish_meta_bufimage_state(device);
 	radv_device_finish_meta_depth_decomp_state(device);
 	radv_device_finish_meta_buffer_state(device);
+	radv_device_finish_meta_fast_clear_flush_state(device);
 
 	radv_store_meta_pipeline(device);
 	radv_pipeline_cache_finish(&device->meta_state.cache);
