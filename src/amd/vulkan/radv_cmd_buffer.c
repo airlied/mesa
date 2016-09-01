@@ -820,7 +820,6 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_PIPELINE |
 				       RADV_CMD_DIRTY_DYNAMIC_DEPTH_BIAS)) {
 		struct radv_raster_state *raster = &cmd_buffer->state.pipeline->graphics.raster;
-		struct radv_depth_stencil_state *ds = &cmd_buffer->state.pipeline->graphics.ds;
 		unsigned slope = fui(d->depth_bias.slope * 16.0f);
 		unsigned bias = fui(d->depth_bias.bias * cmd_buffer->state.offset_scale);
 
