@@ -281,69 +281,75 @@ fail:
 VkResult
 radv_device_init_meta(struct radv_device *device)
 {
-   VkResult result;
+	VkResult result;
 
-   device->meta_state.alloc = (VkAllocationCallbacks) {
-      .pUserData = device,
-      .pfnAllocation = meta_alloc,
-      .pfnReallocation = meta_realloc,
-      .pfnFree = meta_free,
-   };
+	device->meta_state.alloc = (VkAllocationCallbacks) {
+		.pUserData = device,
+		.pfnAllocation = meta_alloc,
+		.pfnReallocation = meta_realloc,
+		.pfnFree = meta_free,
+	};
 
-   device->meta_state.cache.alloc = device->meta_state.alloc;
-   radv_pipeline_cache_init(&device->meta_state.cache, device);
-   radv_load_meta_pipeline(device);
+	device->meta_state.cache.alloc = device->meta_state.alloc;
+	radv_pipeline_cache_init(&device->meta_state.cache, device);
+	radv_load_meta_pipeline(device);
 
-   result = radv_device_init_meta_clear_state(device);
-   if (result != VK_SUCCESS)
-      goto fail_clear;
+	result = radv_device_init_meta_clear_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_clear;
 
-   result = radv_device_init_meta_resolve_state(device);
-   if (result != VK_SUCCESS)
-      goto fail_resolve;
-   result = radv_device_init_meta_blit_state(device);
-   if (result != VK_SUCCESS)
-      goto fail_blit;
-   result = radv_device_init_meta_blit2d_state(device);
-   if (result != VK_SUCCESS)
-      goto fail_blit2d;
+	result = radv_device_init_meta_resolve_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_resolve;
 
-   result = radv_device_init_meta_bufimage_state(device);
-   if (result != VK_SUCCESS)
-     goto fail_blit2d;
+	result = radv_device_init_meta_blit_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_blit;
 
-   result = radv_device_init_meta_depth_decomp_state(device);
-   if (result != VK_SUCCESS)
-     goto fail_blit2d;
+	result = radv_device_init_meta_blit2d_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_blit2d;
 
-   result = radv_device_init_meta_buffer_state(device);
-   if (result != VK_SUCCESS)
-     goto fail_buffer;
-   return VK_SUCCESS;
+	result = radv_device_init_meta_bufimage_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_bufimage;
+
+	result = radv_device_init_meta_depth_decomp_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_depth_decomp;
+
+	result = radv_device_init_meta_buffer_state(device);
+	if (result != VK_SUCCESS)
+		goto fail_buffer;
+	return VK_SUCCESS;
 
 fail_buffer:
-   radv_device_finish_meta_blit2d_state(device);
+	radv_device_finish_meta_depth_decomp_state(device);
+fail_depth_decomp:
+	radv_device_finish_meta_bufimage_state(device);
+fail_bufimage:
+	radv_device_finish_meta_blit2d_state(device);
 fail_blit2d:
-   radv_device_finish_meta_blit_state(device);
+	radv_device_finish_meta_blit_state(device);
 fail_blit:
-   radv_device_finish_meta_resolve_state(device);
+	radv_device_finish_meta_resolve_state(device);
 fail_resolve:
-   radv_device_finish_meta_clear_state(device);
+	radv_device_finish_meta_clear_state(device);
 fail_clear:
-   return result;
+	return result;
 }
 
 void
 radv_device_finish_meta(struct radv_device *device)
 {
-   radv_device_finish_meta_buffer_state(device);
-   radv_device_finish_meta_resolve_state(device);
-   radv_device_finish_meta_clear_state(device);
-   radv_device_finish_meta_blit_state(device);
-   radv_device_finish_meta_blit2d_state(device);
+	radv_device_finish_meta_clear_state(device);
+	radv_device_finish_meta_resolve_state(device);
+	radv_device_finish_meta_blit_state(device);
+	radv_device_finish_meta_blit2d_state(device);
+	radv_device_finish_meta_bufimage_state(device);
+	radv_device_finish_meta_depth_decomp_state(device);
+	radv_device_finish_meta_buffer_state(device);
 
-   radv_device_finish_meta_bufimage_state(device);
-   radv_device_finish_meta_depth_decomp_state(device);
-   radv_store_meta_pipeline(device);
-   radv_pipeline_cache_finish(&device->meta_state.cache);
+	radv_store_meta_pipeline(device);
+	radv_pipeline_cache_finish(&device->meta_state.cache);
 }
