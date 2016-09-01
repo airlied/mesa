@@ -420,6 +420,9 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 	if (!image->cmask.size)
 		return;
 
+	if (!cmd_buffer->device->allow_fast_clears)
+		return;
+
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
 	meta_fast_clear_flush_save(&saved_state, cmd_buffer);
 
