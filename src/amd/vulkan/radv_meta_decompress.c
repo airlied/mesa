@@ -95,7 +95,6 @@ create_pass(struct radv_device *device)
 	VkDevice device_h = radv_device_to_handle(device);
 	const VkAllocationCallbacks *alloc = &device->meta_state.alloc;
 	VkAttachmentDescription attachment;
-	int i;
 
 	attachment.format = VK_FORMAT_UNDEFINED;
 	attachment.samples = 1;
@@ -270,8 +269,6 @@ VkResult
 radv_device_init_meta_depth_decomp_state(struct radv_device *device)
 {
 	VkResult res = VK_SUCCESS;
-	VkDevice device_h = radv_device_to_handle(device);
-	const VkAllocationCallbacks *alloc = &device->meta_state.alloc;
 
 	zero(device->meta_state.depth_decomp);
 
@@ -308,7 +305,6 @@ emit_depth_decomp(struct radv_cmd_buffer *cmd_buffer,
 		  const VkExtent2D *depth_decomp_extent)
 {
 	struct radv_device *device = cmd_buffer->device;
-	VkDevice device_h = radv_device_to_handle(device);
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 	uint32_t offset;
 	const struct vertex_attrs vertex_data[3] = {

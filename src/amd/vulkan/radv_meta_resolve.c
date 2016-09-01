@@ -315,8 +315,6 @@ VkResult
 radv_device_init_meta_resolve_state(struct radv_device *device)
 {
 	VkResult res = VK_SUCCESS;
-	VkDevice device_h = radv_device_to_handle(device);
-	const VkAllocationCallbacks *alloc = &device->meta_state.alloc;
 
 	zero(device->meta_state.resolve);
 
@@ -354,7 +352,6 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
              const VkExtent2D *resolve_extent)
 {
 	struct radv_device *device = cmd_buffer->device;
-	VkDevice device_h = radv_device_to_handle(device);
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 	uint32_t offset;
 	const struct vertex_attrs vertex_data[3] = {
@@ -603,7 +600,7 @@ void
 radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 {
 	struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
-	struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
 	struct radv_meta_saved_state saved_state;
 
 	/* FINISHME(perf): Skip clears for resolve attachments.
