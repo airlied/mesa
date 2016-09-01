@@ -179,8 +179,7 @@ radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 				    VkImageSubresourceRange *subresourceRange);
 void
 radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
-				    struct radv_image *image,
-				    VkImageSubresourceRange *subresourceRange);
+				    struct radv_image *image);
 
 #ifdef __cplusplus
 }

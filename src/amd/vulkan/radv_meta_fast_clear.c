@@ -134,7 +134,7 @@ create_pass(struct radv_device *device)
 						       .attachmentCount = 1,
 						       .pAttachments = &attachment,
 						       .subpassCount = 1,
-								.pSubpasses = &(VkSubpassDescription) {
+						       .pSubpasses = &(VkSubpassDescription) {
 						       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 						       .inputAttachmentCount = 0,
 						       .colorAttachmentCount = 1,
@@ -152,7 +152,7 @@ create_pass(struct radv_device *device)
 						       .pPreserveAttachments = NULL,
 					       },
 								.dependencyCount = 0,
-									 },
+				       },
 				       alloc,
 				       &device->meta_state.fast_clear_flush.pass);
 
@@ -262,14 +262,14 @@ create_pipeline(struct radv_device *device,
 							       },
 						       },
 						},
-						  .pDynamicState = NULL,
-																       .renderPass = device->meta_state.fast_clear_flush.pass,
-																       .subpass = 0,
-																       },
+						.pDynamicState = NULL,
+						.renderPass = device->meta_state.fast_clear_flush.pass,
+						.subpass = 0,
+					       },
 					       &(struct radv_graphics_pipeline_create_info) {
 						       .use_rectlist = true,
 						       .custom_blend_mode = V_028808_CB_ELIMINATE_FAST_CLEAR,
-							       },
+					       },
 					       &device->meta_state.alloc,
 					       &device->meta_state.fast_clear_flush.pipeline);
 	if (result != VK_SUCCESS)
@@ -374,7 +374,8 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 		},
 	};
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+	cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+					 RADV_CMD_FLAG_FLUSH_AND_INV_CB_META);
 	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
 	struct radv_buffer vertex_buffer = {
 		.device = device,
@@ -391,7 +392,7 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 				  (VkBuffer[]) { vertex_buffer_h },
 				  (VkDeviceSize[]) { 0 });
 
-	VkPipeline pipeline_h = device->meta_state.resolve.pipeline;
+	VkPipeline pipeline_h = device->meta_state.fast_clear_flush.pipeline;
 	RADV_FROM_HANDLE(radv_pipeline, pipeline, pipeline_h);
 
 	if (cmd_buffer->state.pipeline != pipeline) {
@@ -400,7 +401,8 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 	}
 
 	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+	cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+					 RADV_CMD_FLAG_FLUSH_AND_INV_CB_META);
 	si_emit_cache_flush(cmd_buffer);
 }
 
@@ -408,13 +410,12 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
  */
 void
 radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
-				    struct radv_image *image,
-				    VkImageSubresourceRange *subresourceRange)
+				    struct radv_image *image)
 {
-	struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
-	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
 	struct radv_meta_saved_state saved_state;
 	struct radv_meta_saved_pass_state saved_pass_state;
+	VkDevice device_h = radv_device_to_handle(cmd_buffer->device);
+	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 
 	if (!image->cmask.size)
 		return;
@@ -422,28 +423,64 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
 	meta_fast_clear_flush_save(&saved_state, cmd_buffer);
 
-	for (uint32_t i = 0; i < subpass->color_count; ++i) {
-		VkAttachmentReference src_att = subpass->color_attachments[i];
+	struct radv_image_view iview;
+	radv_image_view_init(&iview, cmd_buffer->device,
+			     &(VkImageViewCreateInfo) {
+				     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+					     .image = radv_image_to_handle(image),
+					     .format = image->vk_format,
+					     .subresourceRange = {
+						     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						     .baseMipLevel = 0,
+						     .levelCount = 1,
+						     .baseArrayLayer = 0,
+						     .layerCount = 1,
+					     },
+				     },
+				     cmd_buffer, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-		struct radv_subpass fast_clear_flush_subpass = {
-			.color_count = 1,
-			.color_attachments = (VkAttachmentReference[]) { src_att },
-			.depth_stencil_attachment = { .attachment = VK_ATTACHMENT_UNUSED },
-		};
+	VkFramebuffer fb_h;
+	radv_CreateFramebuffer(device_h,
+			       &(VkFramebufferCreateInfo) {
+				       .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				       .attachmentCount = 1,
+				       .pAttachments = (VkImageView[]) {
+					       radv_image_view_to_handle(&iview)
+				       },
+				       .width = image->extent.width,
+				       .height = image->extent.height,
+				       .layers = 1
+			      },
+			      &cmd_buffer->pool->alloc,
+			      &fb_h);
 
-		radv_cmd_buffer_set_subpass(cmd_buffer, &fast_clear_flush_subpass);
+	RADV_CALL(CmdBeginRenderPass)(cmd_buffer_h,
+				      &(VkRenderPassBeginInfo) {
+					      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+						      .renderPass = cmd_buffer->device->meta_state.fast_clear_flush.pass,
+						      .framebuffer = fb_h,
+						      .renderArea = {
+						      .offset = {
+							      0,
+							      0,
+						      },
+						      .extent = {
+							      image->extent.width,
+							      image->extent.height,
+						      }
+					      },
+					      .clearValueCount = 0,
+					      .pClearValues = NULL,
+				     },
+				     VK_SUBPASS_CONTENTS_INLINE);
 
-		/* Subpass resolves must respect the render area. We can ignore the
-		 * render area here because vkCmdBeginRenderPass set the render area
-		 * with 3DSTATE_DRAWING_RECTANGLE.
-		 *
-		 * XXX(chadv): Does the hardware really respect
-		 * 3DSTATE_DRAWING_RECTANGLE when draing a 3DPRIM_RECTLIST?
-		 */
-		emit_fast_clear_flush(cmd_buffer,
-				      &(VkExtent2D) { fb->width, fb->height });
-	}
+	emit_fast_clear_flush(cmd_buffer,
+			      &(VkExtent2D) { image->extent.width, image->extent.height });
+	RADV_CALL(CmdEndRenderPass)(cmd_buffer_h);
 
-	cmd_buffer->state.subpass = subpass;
+	radv_DestroyFramebuffer(device_h, fb_h,
+				&cmd_buffer->pool->alloc);
+
 	meta_fast_clear_flush_restore(&saved_state, cmd_buffer);
+	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
 }
