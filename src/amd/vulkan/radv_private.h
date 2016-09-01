@@ -770,10 +770,10 @@ void radv_set_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			       struct radv_image *image,
 			       VkClearDepthStencilValue ds_clear_value,
 			       VkImageAspectFlags aspects);
-
-void radv_emit_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
-				uint32_t idx,
-				uint32_t clear_vals[2]);
+void radv_set_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
+			       struct radv_image *image,
+			       int idx,
+			       uint32_t color_values[2]);
 void radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 		      struct radeon_winsys_bo *bo,
 		      uint64_t offset, uint64_t size, uint32_t value);
