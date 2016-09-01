@@ -73,6 +73,7 @@ radv_meta_save_pass(struct radv_meta_saved_pass_state *state,
    state->subpass = cmd_buffer->state.subpass;
    state->framebuffer = cmd_buffer->state.framebuffer;
    state->attachments = cmd_buffer->state.attachments;
+   state->render_area = cmd_buffer->state.render_area;
 }
 
 void
@@ -83,6 +84,7 @@ radv_meta_restore_pass(const struct radv_meta_saved_pass_state *state,
    cmd_buffer->state.subpass = state->subpass;
    cmd_buffer->state.framebuffer = state->framebuffer;
    cmd_buffer->state.attachments = state->attachments;
+   cmd_buffer->state.render_area = state->render_area;
    if (state->subpass)
       radv_emit_framebuffer_state(cmd_buffer);
 }
