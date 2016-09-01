@@ -614,7 +614,6 @@ VkResult radv_CreateDevice(
 	return VK_SUCCESS;
 fail_free:
 	radv_free(&device->alloc, device);
-fail:
 	return result;
 }
 
@@ -742,6 +741,8 @@ VkResult radv_QueueSubmit(
 		ret = queue->device->ws->cs_submit(ctx, cs_array,
 						   pSubmits[i].commandBufferCount,
 						   can_patch, base_fence);
+		if (ret)
+			radv_loge("failed to submit CS %d\n", i);
 		free(cs_array);
 	}
 
