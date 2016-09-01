@@ -2000,6 +2000,19 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 	}
 }
 
+static void radv_handle_color_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					       struct radv_image *image,
+					       VkImageLayout src_layout,
+					       VkImageLayout dst_layout,
+					       VkImageSubresourceRange range,
+					       VkImageAspectFlags pending_clears)
+{
+	if (src_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+	    dst_layout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
+	}
+}
+
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkImageLayout src_layout,
@@ -2009,6 +2022,10 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 {
 	if (image->htile.size)
 		radv_handle_depth_image_transition(cmd_buffer, image, src_layout,
+						   dst_layout, range, pending_clears);
+
+	if (image->cmask.size)
+		radv_handle_color_image_transition(cmd_buffer, image, src_layout,
 						   dst_layout, range, pending_clears);
 }
 
