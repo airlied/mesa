@@ -1912,6 +1912,34 @@ static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
 }
 
+static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					       struct radv_image *image,
+					       VkImageLayout src_layout,
+					       VkImageLayout dst_layout,
+					       VkImageSubresourceRange range)
+{
+	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
+	    dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		/* TODO: merge with the clear if applicable */
+		radv_initialize_htile(cmd_buffer, image);
+	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+		radv_finishme("create valid htile %d\n", src_layout);
+		/*
+		 * might not be that bad, due to a folowing clear, but blit's are
+		 * going to be a problem.
+		 */
+	} else if (src_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+
+		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+
+		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
+	}
+}
+
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkImageLayout src_layout,
@@ -1924,29 +1952,13 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 	    (pending_clears & vk_format_aspects(image->vk_format))) {
 		/* The clear will initialize htile. */
 		return;
-	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED &&
-	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           image->htile.size) {
-		/* TODO: merge with the clear if applicable */
-		radv_initialize_htile(cmd_buffer, image);
-	} else if (src_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           image->htile.size) {
-		radv_finishme("create valid htile\n");
-		/*
-		 * might not be that bad, due to a folowing clear, but blit's are
-		 * going to be a problem.
-		 */
-	} else if (src_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           dst_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	           image->htile.size) {
-
-		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		range.baseMipLevel = 0;
-		range.levelCount = 1;
-
-		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
 	}
+
+	if (image->htile.size) {
+		radv_handle_depth_image_transition(cmd_buffer, image, src_layout,
+						   dst_layout, range);
+	}
+
 }
 
 void radv_CmdPipelineBarrier(
