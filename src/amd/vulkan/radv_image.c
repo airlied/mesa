@@ -700,7 +700,8 @@ radv_image_create(VkDevice _device,
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 
-	if (pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+	if ((pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
+	    pCreateInfo->levels == 1)
 		radv_image_alloc_cmask(device, image);
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
