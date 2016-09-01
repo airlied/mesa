@@ -660,9 +660,9 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 	const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
 	const uint32_t samples = iview->image->samples;
 	const uint32_t samples_log2 = ffs(samples) - 1;
-	struct radv_image *image = iview->image;
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 	uint32_t offset;
+
 	assert(aspects == VK_IMAGE_ASPECT_DEPTH_BIT ||
 	       aspects == VK_IMAGE_ASPECT_STENCIL_BIT ||
 	       aspects == (VK_IMAGE_ASPECT_DEPTH_BIT |
