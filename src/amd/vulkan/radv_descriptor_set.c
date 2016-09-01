@@ -698,7 +698,6 @@ void radv_UpdateDescriptorSets(
 		}
 
 	}
-	for (i = 0; i < descriptorCopyCount; i++) {
-		const VkCopyDescriptorSet *copyset = &pDescriptorCopies[i];
-	}
+	if (descriptorCopyCount)
+		radv_finishme("copy descriptors");
 }
