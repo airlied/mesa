@@ -2140,6 +2140,17 @@ void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
 		assert(cmd_buffer->cs->cdw <= cdw_max);
 	}
 
+
+	for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
+		RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
+
+		radv_handle_image_transition(cmd_buffer, image,
+					     pImageMemoryBarriers[i].oldLayout,
+					     pImageMemoryBarriers[i].newLayout,
+					     pImageMemoryBarriers[i].subresourceRange,
+					     0);
+	}
+
 	/* TODO: figure out how to do memory barriers without waiting */
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
 					RADV_CMD_FLAG_INV_GLOBAL_L2 |
