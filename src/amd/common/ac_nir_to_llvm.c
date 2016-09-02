@@ -1495,7 +1495,7 @@ get_buffer_size(struct nir_to_llvm_context *ctx, LLVMValueRef descriptor, bool i
 					LLVMConstInt(ctx->i32, 2, false), "");
 
 	/* VI only */
-	if (in_elements) {
+	if (ctx->options->chip_class >= VI && in_elements) {
 		/* On VI, the descriptor contains the size in bytes,
 		 * but TXQ must return the size in elements.
 		 * The stride is always non-zero for resources using TXQ.
