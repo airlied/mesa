@@ -108,7 +108,14 @@ radv_init_surface(struct radv_device *device,
 
 	surface->flags |= RADEON_SURF_HAS_TILE_MODE_INDEX;
 
-	surface->flags |= RADEON_SURF_DISABLE_DCC;
+	if ((pCreateInfo->usage & (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+	                           VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+	                           VK_IMAGE_USAGE_STORAGE_BIT)) ||
+	    (pCreateInfo->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) ||
+            (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR) ||
+            device->instance->physicalDevice.rad_info.chip_class < VI ||
+            create_info->scanout || device->allow_fast_clears)
+		surface->flags |= RADEON_SURF_DISABLE_DCC;
 	if (create_info->scanout)
 		surface->flags |= RADEON_SURF_SCANOUT;
 	return 0;
@@ -188,8 +195,8 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 			       unsigned block_width, bool is_stencil,
 			       uint32_t *state)
 {
-	uint64_t gpu_address = device->ws->buffer_get_va(image->bo->bo);
-	uint64_t va = gpu_address + base_level_info->offset + image->offset;
+	uint64_t gpu_address = device->ws->buffer_get_va(image->bo->bo) + image->offset;
+	uint64_t va = gpu_address + base_level_info->offset;
 	unsigned pitch = base_level_info->nblk_x * block_width;
 
 	state[1] &= C_008F14_BASE_ADDRESS_HI;
@@ -205,9 +212,9 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 							     is_stencil));
 	state[4] |= S_008F20_PITCH(pitch - 1);
 
-	if (image->dcc_offset && image->surface.level[first_level].dcc_enabled) {
+	if (image->surface.dcc_size && image->surface.level[first_level].dcc_enabled) {
 		state[6] |= S_008F28_COMPRESSION_EN(1);
-		state[7] = (gpu_address + 
+		state[7] = (gpu_address +
 			    image->dcc_offset +
 			    base_level_info->dcc_offset) >> 8;
 	}
@@ -578,6 +585,14 @@ radv_image_alloc_cmask(struct radv_device *device,
 	image->size = image->cmask.offset + image->cmask.size + 8;
 }
 
+static void
+radv_image_alloc_dcc(struct radv_device *device,
+		       struct radv_image *image)
+{
+	image->dcc_offset = align64(image->size, image->surface.dcc_alignment);
+	/* + 8 for storing the clear values */
+	image->size = image->dcc_offset + image->surface.dcc_size + 8;
+}
 
 static unsigned
 radv_image_get_htile_size(struct radv_device *device,
@@ -701,7 +716,14 @@ radv_image_create(VkDevice _device,
 	image->alignment = image->surface.bo_alignment;
 
 	if ((pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
-	    pCreateInfo->mipLevels == 1)
+	    image->surface.dcc_size)
+		radv_image_alloc_dcc(device, image);
+	else
+		image->surface.dcc_size = 0;
+
+	if ((pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
+	    pCreateInfo->mipLevels == 1 &&
+	    !image->surface.dcc_size)
 		radv_image_alloc_cmask(device, image);
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);

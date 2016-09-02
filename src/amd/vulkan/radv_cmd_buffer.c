@@ -521,7 +521,7 @@ radv_emit_fb_color_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, cb->cb_color_fmask_slice);
 
 	if (is_vi) { /* DCC BASE */
-		radeon_set_context_reg(cmd_buffer->cs, R_028C94_CB_COLOR0_DCC_BASE + index * 0x3c, 0);
+		radeon_set_context_reg(cmd_buffer->cs, R_028C94_CB_COLOR0_DCC_BASE + index * 0x3c, cb->cb_dcc_base);
 	}
 }
 
@@ -664,7 +664,7 @@ radv_set_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
 	va += image->offset + image->cmask.offset + image->cmask.size;
 
-	if (!image->cmask.size)
+	if (!image->cmask.size && !image->surface.dcc_size)
 		return;
 
 	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, image->bo->bo, 8);
@@ -1998,7 +1998,7 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 	}
 }
 
-static void radv_handle_color_image_transition(struct radv_cmd_buffer *cmd_buffer,
+static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					       struct radv_image *image,
 					       VkImageLayout src_layout,
 					       VkImageLayout dst_layout,
@@ -2008,6 +2008,37 @@ static void radv_handle_color_image_transition(struct radv_cmd_buffer *cmd_buffe
 	if (src_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
 	    dst_layout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
 		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
+	}
+}
+
+static void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
+				  struct radv_image *image, uint32_t value)
+{
+
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+
+	radv_fill_buffer(cmd_buffer, image->bo->bo, image->offset + image->dcc_offset,
+			 image->surface.dcc_size, value);
+
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
+	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	                                RADV_CMD_FLAG_INV_VMEM_L1 |
+	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+}
+
+static void radv_handle_dcc_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					     struct radv_image *image,
+					     VkImageLayout src_layout,
+					     VkImageLayout dst_layout,
+					     VkImageSubresourceRange range,
+					     VkImageAspectFlags pending_clears)
+{
+	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+		radv_initialize_dcc(cmd_buffer, image, 0x20202020u);
+	} else if (src_layout == VK_IMAGE_LAYOUT_PREINITIALIZED) {
+		radv_initialize_dcc(cmd_buffer, image, 0xffffffffu);
 	}
 }
 
@@ -2023,8 +2054,12 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 						   dst_layout, range, pending_clears);
 
 	if (image->cmask.size)
-		radv_handle_color_image_transition(cmd_buffer, image, src_layout,
+		radv_handle_cmask_image_transition(cmd_buffer, image, src_layout,
 						   dst_layout, range, pending_clears);
+
+	if (image->surface.dcc_size)
+		radv_handle_dcc_image_transition(cmd_buffer, image, src_layout,
+						 dst_layout, range, pending_clears);
 }
 
 void radv_CmdPipelineBarrier(
