@@ -1317,6 +1317,10 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->cb_color_cmask = va >> 8;
 	cb->cb_color_cmask_slice = iview->image->cmask.slice_tile_max;
 
+	va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset;
+	va += iview->image->dcc_offset;
+	cb->cb_dcc_base = va >> 8;
+
 	cb->cb_color_view = S_028C6C_SLICE_START(iview->base_layer) |
 		S_028C6C_SLICE_MAX(iview->base_layer + iview->extent.depth - 1);
 
@@ -1397,6 +1401,9 @@ radv_initialise_color_surface(struct radv_device *device,
 
 	if (iview->image->cmask.size && device->allow_fast_clears)
 		cb->cb_color_info |= S_028C70_FAST_CLEAR(1);
+
+	if (iview->image->surface.dcc_size && level_info->dcc_enabled)
+		cb->cb_color_info |= S_028C70_DCC_ENABLE(1);
 
 	if (device->instance->physicalDevice.rad_info.chip_class >= VI) {
 		unsigned max_uncompressed_block_size = 2;

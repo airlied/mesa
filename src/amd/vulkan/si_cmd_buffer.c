@@ -620,7 +620,16 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 			S_0085F0_CB6_DEST_BASE_ENA(1) |
 			S_0085F0_CB7_DEST_BASE_ENA(1);
 
-		/* EOP CB_DATA_TS for DCC - TODO*/
+		/* Necessary for DCC */
+		if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= VI) {
+			radeon_emit(cmd_buffer->cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, 0));
+			radeon_emit(cmd_buffer->cs, EVENT_TYPE(V_028A90_FLUSH_AND_INV_CB_DATA_TS) |
+			                            EVENT_INDEX(5));
+			radeon_emit(cmd_buffer->cs, 0);
+			radeon_emit(cmd_buffer->cs, 0);
+			radeon_emit(cmd_buffer->cs, 0);
+			radeon_emit(cmd_buffer->cs, 0);
+		}
 	}
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_DB) {
