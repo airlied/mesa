@@ -236,14 +236,17 @@ static void radv_amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 {
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
 	cs->base.cdw = 0;
-	cs->num_buffers = 0;
 	cs->failed = false;
 	cs->ib_size_ptr = &cs->ib.size;
 	cs->ib.size = 0;
 
-	for (int i = 0; i < ARRAY_SIZE(cs->buffer_hash_table); ++i) {
-		cs->buffer_hash_table[i] = -1;
+	for (unsigned i = 0; i < cs->num_buffers; ++i) {
+		unsigned hash = ((uintptr_t)cs->handles[i] >> 6) &
+		                 (ARRAY_SIZE(cs->buffer_hash_table) - 1);
+		cs->buffer_hash_table[hash] = -1;
 	}
+
+	cs->num_buffers = 0;
 
 	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 
