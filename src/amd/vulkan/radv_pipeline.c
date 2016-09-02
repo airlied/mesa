@@ -909,7 +909,11 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 		S_028814_CULL_BACK(!!(vkraster->cullMode & VK_CULL_MODE_BACK_BIT)) |
 		S_028814_POLY_MODE(vkraster->polygonMode != VK_POLYGON_MODE_FILL) |
 		S_028814_POLYMODE_FRONT_PTYPE(si_translate_fill(vkraster->polygonMode)) |
-		S_028814_POLYMODE_BACK_PTYPE(si_translate_fill(vkraster->polygonMode));
+		S_028814_POLYMODE_BACK_PTYPE(si_translate_fill(vkraster->polygonMode)) |
+		S_028814_POLY_OFFSET_FRONT_ENABLE(vkraster->depthBiasEnable ? 1 : 0) |
+		S_028814_POLY_OFFSET_BACK_ENABLE(vkraster->depthBiasEnable ? 1 : 0) |
+		S_028814_POLY_OFFSET_PARA_ENABLE(vkraster->depthBiasEnable ? 1 : 0);
+
 }
 
 static void
