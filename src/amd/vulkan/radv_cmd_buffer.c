@@ -923,8 +923,10 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 			va += offset + buffer->offset;
 			desc[0] = va;
 			desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
-			desc[2] = buffer->size - offset;
-			//TODO CIK
+			if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class <= CIK && stride)
+				desc[2] = (buffer->size - offset - cmd_buffer->state.pipeline->va_format_size[i]) / stride + 1;
+			else
+				desc[2] = buffer->size - offset;
 			desc[3] = cmd_buffer->state.pipeline->va_rsrc_word3[i];
 		}
 

@@ -1240,7 +1240,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 			S_008F0C_DST_SEL_W(si_map_swizzle(format_desc->swizzle[3])) |
 			S_008F0C_NUM_FORMAT(num_format) |
 			S_008F0C_DATA_FORMAT(data_format);
-
+		pipeline->va_format_size[loc] = desc->block.bits / 8;
 		pipeline->va_offset[loc] = desc->offset;
 		pipeline->va_binding[loc] = desc->binding;
 		pipeline->num_vertex_attribs = MAX2(pipeline->num_vertex_attribs, loc + 1);
