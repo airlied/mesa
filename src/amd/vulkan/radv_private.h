@@ -898,6 +898,7 @@ struct radv_pipeline {
 	VkShaderStageFlags                           active_stages;
 
 	uint32_t va_rsrc_word3[MAX_VERTEX_ATTRIBS];
+	uint32_t va_format_size[MAX_VERTEX_ATTRIBS];
 	uint32_t va_binding[MAX_VERTEX_ATTRIBS];
 	uint32_t va_offset[MAX_VERTEX_ATTRIBS];
 	uint32_t num_vertex_attribs;
