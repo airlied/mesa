@@ -348,10 +348,10 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 					       .pAttachments = (VkImageView[]) {
 					       radv_image_view_to_handle(dest_iview),
 				       },
-					       .width = dest_iview->extent.width,
-							.height = dest_iview->extent.height,
-							.layers = 1
-							}, &cmd_buffer->pool->alloc, &fb);
+				       .width = dest_iview->extent.width,
+				       .height = dest_iview->extent.height,
+				       .layers = 1,
+				}, &cmd_buffer->pool->alloc, &fb);
 	VkPipeline pipeline;
 	switch (src_iview->aspect_mask) {
 	case VK_IMAGE_ASPECT_COLOR_BIT: {
@@ -520,12 +520,6 @@ void radv_CmdBlitImage(
 						     },
 				     cmd_buffer, VK_IMAGE_USAGE_SAMPLED_BIT);
 
-		const VkOffset3D dest_offset = {
-			.x = pRegions[r].dstOffsets[0].x,
-			.y = pRegions[r].dstOffsets[0].y,
-			.z = 0,
-		};
-
 		if (pRegions[r].dstOffsets[1].x < pRegions[r].dstOffsets[0].x ||
 		    pRegions[r].dstOffsets[1].y < pRegions[r].dstOffsets[0].y ||
 		    pRegions[r].srcOffsets[1].x < pRegions[r].srcOffsets[0].x ||
@@ -535,23 +529,18 @@ void radv_CmdBlitImage(
 		const VkExtent3D dest_extent = {
 			.width = pRegions[r].dstOffsets[1].x - pRegions[r].dstOffsets[0].x,
 			.height = pRegions[r].dstOffsets[1].y - pRegions[r].dstOffsets[0].y,
+			.depth = 1,
 		};
 
 		const VkExtent3D src_extent = {
 			.width = pRegions[r].srcOffsets[1].x - pRegions[r].srcOffsets[0].x,
 			.height = pRegions[r].srcOffsets[1].y - pRegions[r].srcOffsets[0].y,
+			.depth = pRegions[r].srcOffsets[1].z - pRegions[r].srcOffsets[0].z,
 		};
 
-		const uint32_t dest_array_slice =
-			radv_meta_get_iview_layer(dest_image, &pRegions[r].dstSubresource,
-						  &pRegions[r].dstOffsets[0]);
 
 		if (pRegions[r].srcSubresource.layerCount > 1)
 			radv_finishme("FINISHME: copy multiple array layers");
-
-		if (pRegions[r].srcOffsets[0].z + 1 != pRegions[r].srcOffsets[1].z ||
-		    pRegions[r].dstOffsets[0].z + 1 != pRegions[r].dstOffsets[1].z)
-			radv_finishme("FINISHME: copy multiple depth layers");
 
 		struct radv_image_view dest_iview;
 		unsigned usage;
@@ -560,28 +549,44 @@ void radv_CmdBlitImage(
 		else
 			usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-		radv_image_view_init(&dest_iview, cmd_buffer->device,
-				     &(VkImageViewCreateInfo) {
-					     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-						     .image = destImage,
-						     .viewType = radv_meta_get_view_type(dest_image),
-						     .format = dest_image->vk_format,
-						     .subresourceRange = {
-						     .aspectMask = pRegions[r].dstSubresource.aspectMask,
-						     .baseMipLevel = pRegions[r].dstSubresource.mipLevel,
-						     .levelCount = 1,
-						     .baseArrayLayer = dest_array_slice,
-						     .layerCount = 1
-					     },
-						     },
-				     cmd_buffer, usage);
+		for (unsigned i = pRegions[r].dstOffsets[0].z; i < pRegions[r].dstOffsets[1].z; i++) {
 
-		meta_emit_blit(cmd_buffer,
-			       src_image, &src_iview,
-			       pRegions[r].srcOffsets[0], src_extent,
-			       dest_image, &dest_iview,
-			       dest_offset, dest_extent,
-			       filter);
+			const VkOffset3D dest_offset = {
+				.x = pRegions[r].dstOffsets[0].x,
+				.y = pRegions[r].dstOffsets[0].y,
+				.z = i,
+			};
+			VkOffset3D src_offset = {
+				.x = pRegions[r].srcOffsets[0].x,
+				.y = pRegions[r].srcOffsets[0].y,
+				.z = i,
+			};
+			const uint32_t dest_array_slice =
+				radv_meta_get_iview_layer(dest_image, &pRegions[r].dstSubresource,
+							  &dest_offset);
+
+			radv_image_view_init(&dest_iview, cmd_buffer->device,
+					     &(VkImageViewCreateInfo) {
+						     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+							     .image = destImage,
+							     .viewType = radv_meta_get_view_type(dest_image),
+							     .format = dest_image->vk_format,
+							     .subresourceRange = {
+							     .aspectMask = pRegions[r].dstSubresource.aspectMask,
+							     .baseMipLevel = pRegions[r].dstSubresource.mipLevel,
+							     .levelCount = 1,
+							     .baseArrayLayer = dest_array_slice,
+							     .layerCount = 1
+						     },
+					     },
+					     cmd_buffer, usage);
+			meta_emit_blit(cmd_buffer,
+				       src_image, &src_iview,
+				       src_offset, src_extent,
+				       dest_image, &dest_iview,
+				       dest_offset, dest_extent,
+				       filter);
+		}
 	}
 
 	meta_finish_blit(cmd_buffer, &saved_state);
