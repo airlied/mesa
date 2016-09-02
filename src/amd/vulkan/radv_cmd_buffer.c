@@ -826,7 +826,7 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer)
 		unsigned slope = fui(d->depth_bias.slope * 16.0f);
 		unsigned bias = fui(d->depth_bias.bias * cmd_buffer->state.offset_scale);
 
-		if (bias || slope) {
+		if (G_028814_POLY_OFFSET_FRONT_ENABLE(raster->pa_su_sc_mode_cntl)) {
 			radeon_set_context_reg_seq(cmd_buffer->cs, R_028B7C_PA_SU_POLY_OFFSET_CLAMP, 5);
 			radeon_emit(cmd_buffer->cs, fui(d->depth_bias.clamp)); /* CLAMP */
 			radeon_emit(cmd_buffer->cs, slope); /* FRONT SCALE */
