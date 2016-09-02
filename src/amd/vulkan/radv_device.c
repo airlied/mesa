@@ -64,7 +64,6 @@ radv_physical_device_init(struct radv_physical_device *device,
 
 	device->_loader_data.loaderMagic = ICD_LOADER_MAGIC;
 	device->instance = instance;
-	device->name = "VI";
 	assert(strlen(path) < ARRAY_SIZE(device->path));
 	strncpy(device->path, path, ARRAY_SIZE(device->path));
 
@@ -78,6 +77,7 @@ radv_physical_device_init(struct radv_physical_device *device,
 	if (result != VK_SUCCESS)
 		goto fail;
 
+	device->name = device->rad_info.name;
 	return VK_SUCCESS;
 
 fail:
