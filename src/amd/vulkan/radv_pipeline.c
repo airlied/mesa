@@ -286,6 +286,8 @@ struct radv_shader_variant *radv_shader_variant_create(struct radv_device *devic
 	struct ac_shader_binary binary;
 
 	options.unsafe_math = env_var_as_boolean("RADV_UNSAFE_MATH", false);
+	options.family = chip_family;
+	options.chip_class = device->instance->physicalDevice.rad_info.chip_class;
 	tm = ac_create_target_machine(chip_family);
 	ac_compile_nir_shader(tm, &binary, &variant->config,
 			      &variant->info, shader, &options, dump);

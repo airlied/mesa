@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include "llvm-c/Core.h"
 #include "llvm-c/TargetMachine.h"
+#include "ac_radeon_winsys.h"
 
 struct ac_shader_binary;
 struct ac_shader_config;
@@ -51,6 +52,8 @@ struct ac_nir_compiler_options {
 	struct radv_pipeline_layout *layout;
 	union ac_shader_variant_key key;
 	bool unsafe_math;
+	enum radeon_family family;
+	enum chip_class chip_class;
 };
 
 struct ac_shader_variant_info {
