@@ -138,8 +138,10 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 	cs->ib_buffer = ws->buffer_create(ws, ib_size, 0,
 					  RADEON_DOMAIN_GTT,
 					  RADEON_FLAG_CPU_ACCESS);
-	if (!cs->ib_buffer)
+	if (!cs->ib_buffer) {
+		free(cs);
 		return NULL;
+	}
 
 	radv_amdgpu_init_cs(cs, RING_GFX);
 	cs->ib_mapped = ws->buffer_map(cs->ib_buffer);
