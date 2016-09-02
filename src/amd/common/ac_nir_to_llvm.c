@@ -1065,8 +1065,7 @@ static LLVMValueRef emit_ddxy(struct nir_to_llvm_context *ctx,
 	load_ptr1 = LLVMBuildGEP(ctx->builder, ctx->lds,
 				 indices, 2, "");
 
-	/* TONGA compare here */
-	if (1) {
+	if (ctx->options->family >= CHIP_TONGA) {
 		args[0] = LLVMBuildMul(ctx->builder, tl_tid,
 				       LLVMConstInt(ctx->i32, 4, false), "");
 		args[1] = src0;
@@ -3769,6 +3768,12 @@ si_export_mrt_z(struct nir_to_llvm_context *ctx,
 		args[7] = samplemask;
 		mask |= 0x04;
 	}
+
+	/* SI (except OLAND) has a bug that it only looks
+	 * at the X writemask component. */
+	if (ctx->options->chip_class == SI &&
+	    ctx->options->family != CHIP_OLAND)
+		mask |= 0x01;
 
 	args[0] = LLVMConstInt(ctx->i32, mask, false);
 	emit_llvm_intrinsic(ctx, "llvm.SI.export",
