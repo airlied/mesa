@@ -1420,13 +1420,12 @@ radv_initialise_color_surface(struct radv_device *device,
 			S_028C78_INDEPENDENT_64B_BLOCKS(1);
 	}
 
-#if 0//TODO SI
 	/* This must be set for fast clear to work without FMASK. */
-	if (!rtex->fmask.size && sctx->b.chip_class == SI) {
-		unsigned bankh = util_logbase2(rtex->surface.bankh);
-		surf->cb_color_attrib |= S_028C74_FMASK_BANK_HEIGHT(bankh);
+	if (!iview->image->fmask.size &&
+	    device->instance->physicalDevice.rad_info.chip_class == SI) {
+		unsigned bankh = util_logbase2(iview->image->surface.bankh);
+		cb->cb_color_attrib |= S_028C74_FMASK_BANK_HEIGHT(bankh);
 	}
-#endif
 }
 
 static void
