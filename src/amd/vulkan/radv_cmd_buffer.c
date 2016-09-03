@@ -476,12 +476,17 @@ static void
 radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
                             struct radv_pipeline *pipeline)
 {
+	if (!pipeline || cmd_buffer->state.emitted_pipeline == pipeline)
+		return;
+
 	radv_emit_graphics_depth_stencil_state(cmd_buffer, pipeline);
 	radv_emit_graphics_blend_state(cmd_buffer, pipeline);
 	radv_emit_graphics_raster_state(cmd_buffer, pipeline);
 	radv_update_multisample_state(cmd_buffer, pipeline);
 	radv_emit_vertex_shader(cmd_buffer, pipeline);
 	radv_emit_fragment_shader(cmd_buffer, pipeline);
+
+	cmd_buffer->state.emitted_pipeline = pipeline;
 }
 
 static void

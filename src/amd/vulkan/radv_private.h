@@ -676,6 +676,7 @@ struct radv_cmd_state {
 	radv_cmd_dirty_mask_t                         dirty;
 
 	struct radv_pipeline *                        pipeline;
+	struct radv_pipeline *                        emitted_pipeline;
 	struct radv_pipeline *                        compute_pipeline;
 	struct radv_pipeline *                        emitted_compute_pipeline;
 	struct radv_framebuffer *                     framebuffer;
