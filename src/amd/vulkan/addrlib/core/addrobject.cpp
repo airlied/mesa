@@ -59,8 +59,9 @@ AddrObject::AddrObject()
 ***************************************************************************************************
 */
 AddrObject::AddrObject(const AddrClient* pClient)
+	:
+	m_client(*pClient)
 {
-    m_client = *pClient;
 }
 
 /**
