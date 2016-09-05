@@ -955,12 +955,16 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE) {
 		radeon_set_context_reg(cmd_buffer->cs, R_028B54_VGT_SHADER_STAGES_EN, 0);
 		ia_multi_vgt_param = si_get_ia_multi_vgt_param(cmd_buffer);
-		/* TODO CIK only */
-		radeon_emit(cmd_buffer->cs, PKT3(PKT3_DRAW_PREAMBLE, 2, 0));
-		radeon_emit(cmd_buffer->cs, cmd_buffer->state.pipeline->graphics.prim); /* VGT_PRIMITIVE_TYPE */
-		radeon_emit(cmd_buffer->cs, ia_multi_vgt_param); /* IA_MULTI_VGT_PARAM */
-		radeon_emit(cmd_buffer->cs, ls_hs_config); /* VGT_LS_HS_CONFIG */
 
+		if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= CIK) {
+			radeon_set_context_reg_idx(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, 1, ia_multi_vgt_param);
+			radeon_set_context_reg_idx(cmd_buffer->cs, R_028B58_VGT_LS_HS_CONFIG, 2, ls_hs_config);
+			radeon_set_uconfig_reg_idx(cmd_buffer->cs, R_030908_VGT_PRIMITIVE_TYPE, 1, cmd_buffer->state.pipeline->graphics.prim);
+		} else {
+			radeon_set_config_reg(cmd_buffer->cs, R_008958_VGT_PRIMITIVE_TYPE, cmd_buffer->state.pipeline->graphics.prim);
+			radeon_set_context_reg(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, ia_multi_vgt_param);
+			radeon_set_context_reg(cmd_buffer->cs, R_028B58_VGT_LS_HS_CONFIG, ls_hs_config);
+		}
 		radeon_set_context_reg(cmd_buffer->cs, R_028A6C_VGT_GS_OUT_PRIM_TYPE, 2);
 	}
 
