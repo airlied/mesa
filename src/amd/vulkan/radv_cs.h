@@ -71,7 +71,7 @@ static inline void radeon_set_context_reg_idx(struct radeon_winsys_cs *cs,
 					      unsigned value)
 {
 	assert(reg >= R600_CONTEXT_REG_OFFSET);
-	assert(cs->current.cdw + 3 <= cs->current.max_dw);
+	assert(cs->cdw + 3 <= cs->max_dw);
 	radeon_emit(cs, PKT3(PKT3_SET_CONTEXT_REG, 1, 0));
 	radeon_emit(cs, (reg - R600_CONTEXT_REG_OFFSET) >> 2 | (idx << 28));
 	radeon_emit(cs, value);
