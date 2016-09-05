@@ -110,7 +110,7 @@ static inline void radeon_set_uconfig_reg_idx(struct radeon_winsys_cs *cs,
 					      unsigned value)
 {
 	assert(reg >= CIK_UCONFIG_REG_OFFSET && reg < CIK_UCONFIG_REG_END);
-	assert(cs->current.cdw + 3 <= cs->current.max_dw);
+	assert(cs->cdw + 3 <= cs->max_dw);
 	radeon_emit(cs, PKT3(PKT3_SET_UCONFIG_REG, 1, 0));
 	radeon_emit(cs, (reg - CIK_UCONFIG_REG_OFFSET) >> 2 | (idx << 28));
 	radeon_emit(cs, value);
