@@ -911,6 +911,7 @@ struct radv_pipeline {
 			struct radv_raster_state raster;
 			struct radv_multisample_state ms;
 			unsigned prim;
+			unsigned gs_out;
 			bool prim_restart_enable;
 		} graphics;
 	};

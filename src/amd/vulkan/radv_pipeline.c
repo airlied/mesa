@@ -1003,6 +1003,30 @@ si_translate_prim(enum VkPrimitiveTopology topology)
 	}
 }
 
+static uint32_t
+si_conv_prim_to_gs_out(enum VkPrimitiveTopology topology)
+{
+	switch (topology) {
+	case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+	case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
+		return V_028A6C_OUTPRIM_TYPE_POINTLIST;
+	case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+	case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+	case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
+	case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
+		return V_028A6C_OUTPRIM_TYPE_LINESTRIP;
+	case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+	case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+	case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+	case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
+	case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
+		return V_028A6C_OUTPRIM_TYPE_TRISTRIP;
+	default:
+		assert(0);
+		return 0;
+	}
+}
+
 static unsigned si_map_swizzle(unsigned swizzle)
 {
 	switch (swizzle) {
@@ -1215,8 +1239,11 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	radv_pipeline_init_raster_state(pipeline, pCreateInfo);
 	radv_pipeline_init_multisample_state(pipeline, pCreateInfo);
 	pipeline->graphics.prim = si_translate_prim(pCreateInfo->pInputAssemblyState->topology);
-	if (extra && extra->use_rectlist)
+	pipeline->graphics.gs_out = si_conv_prim_to_gs_out(pCreateInfo->pInputAssemblyState->topology);
+	if (extra && extra->use_rectlist) {
 		pipeline->graphics.prim = V_008958_DI_PT_RECTLIST;
+		pipeline->graphics.gs_out = V_028A6C_OUTPRIM_TYPE_TRISTRIP;
+	}
 	pipeline->graphics.prim_restart_enable = pCreateInfo->pInputAssemblyState->primitiveRestartEnable;
 
 	const VkPipelineVertexInputStateCreateInfo *vi_info =
