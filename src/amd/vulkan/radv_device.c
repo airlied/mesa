@@ -785,10 +785,12 @@ PFN_vkVoidFunction radv_GetInstanceProcAddr(
 /* The loader wants us to expose a second GetInstanceProcAddr function
  * to work around certain LD_PRELOAD issues seen in apps.
  */
+PUBLIC
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(
 	VkInstance                                  instance,
 	const char*                                 pName);
 
+PUBLIC
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(
 	VkInstance                                  instance,
 	const char*                                 pName)
@@ -1592,26 +1594,6 @@ void radv_DestroyFramebuffer(
 	RADV_FROM_HANDLE(radv_framebuffer, fb, _fb);
 
 	radv_free2(&device->alloc, pAllocator, fb);
-}
-
-void vkCmdDbgMarkerBegin(
-	VkCommandBuffer                              commandBuffer,
-	const char*                                 pMarker)
-	__attribute__ ((visibility ("default")));
-
-void vkCmdDbgMarkerEnd(
-	VkCommandBuffer                              commandBuffer)
-	__attribute__ ((visibility ("default")));
-
-void vkCmdDbgMarkerBegin(
-	VkCommandBuffer                              commandBuffer,
-	const char*                                 pMarker)
-{
-}
-
-void vkCmdDbgMarkerEnd(
-	VkCommandBuffer                              commandBuffer)
-{
 }
 
 static unsigned radv_tex_wrap(VkSamplerAddressMode address_mode)
