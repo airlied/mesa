@@ -299,7 +299,7 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 
 	ws->info.gart_page_size = alignment_info.size_remote;
 
-	ws->use_ib_bos = ws->family <= FAMILY_SI;
+	ws->use_ib_bos = ws->family >= FAMILY_CI;
 	return true;
 fail:
 	return false;
