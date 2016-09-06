@@ -78,6 +78,9 @@
 #define R_0286E8_SPI_TMPRING_SIZE                           0x0286E8
 #define   G_0286E8_WAVESIZE(x)                            (((x) >> 12) & 0x1FFF)
 
+#define SPILLED_SGPRS                                     0x4
+#define SPILLED_VGPRS                                     0x8
+
 static void parse_symbol_table(Elf_Data *symbol_table_data,
 				const GElf_Shdr *symbol_table_header,
 				struct ac_shader_binary *binary)
@@ -301,6 +304,12 @@ void ac_shader_binary_read_config(struct ac_shader_binary *binary,
 			if (really_needs_scratch)
 				conf->scratch_bytes_per_wave =
 					G_00B860_WAVESIZE(value) * 256 * 4;
+			break;
+		case SPILLED_SGPRS:
+			conf->spilled_sgprs = value;
+			break;
+		case SPILLED_VGPRS:
+			conf->spilled_vgprs = value;
 			break;
 		default:
 			{
