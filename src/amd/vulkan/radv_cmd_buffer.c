@@ -772,13 +772,22 @@ void radv_set_db_count_control(struct radv_cmd_buffer *cmd_buffer)
 	uint32_t db_count_control;
 
 	if(!cmd_buffer->state.active_occlusion_queries) {
-		db_count_control = 0;
+		if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= CIK) {
+			db_count_control = 0;
+		} else {
+			db_count_control = S_028004_ZPASS_INCREMENT_DISABLE(1);
+		}
 	} else {
-		db_count_control = S_028004_PERFECT_ZPASS_COUNTS(1) |
-				   S_028004_SAMPLE_RATE(0) | /* TODO: set this to the number of samples of the current framebuffer */
-				   S_028004_ZPASS_ENABLE(1) |
-				   S_028004_SLICE_EVEN_ENABLE(1) |
-				   S_028004_SLICE_ODD_ENABLE(1);
+		if (cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= CIK) {
+			db_count_control = S_028004_PERFECT_ZPASS_COUNTS(1) |
+				S_028004_SAMPLE_RATE(0) | /* TODO: set this to the number of samples of the current framebuffer */
+				S_028004_ZPASS_ENABLE(1) |
+				S_028004_SLICE_EVEN_ENABLE(1) |
+				S_028004_SLICE_ODD_ENABLE(1);
+		} else {
+			db_count_control = S_028004_PERFECT_ZPASS_COUNTS(1) |
+				S_028004_SAMPLE_RATE(0); /* TODO: set this to the number of samples of the current framebuffer */
+		}
 	}
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028004_DB_COUNT_CONTROL, db_count_control);
