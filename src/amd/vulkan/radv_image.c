@@ -413,7 +413,7 @@ radv_query_opaque_metadata(struct radv_device *device,
 	si_make_texture_descriptor(device, image, true,
 				   (VkImageViewType)image->type, image->vk_format,
 				   &fixedmapping, 0, image->levels - 1, 0,
-				   0, //is_array ? image->array_size - 1 : 0,
+				   image->array_size,
 				   image->extent.width, image->extent.height,
 				   image->extent.depth,
 				   desc, NULL);
