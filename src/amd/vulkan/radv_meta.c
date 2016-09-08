@@ -62,7 +62,7 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
    cmd_buffer->state.dirty |= state->dynamic_mask;
 
    memcpy(cmd_buffer->push_constants, state->push_constants, 128);
-   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS;
+   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT;
 }
 
 void
