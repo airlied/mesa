@@ -1063,6 +1063,7 @@ struct radv_image_view {
 	VkImageAspectFlags aspect_mask;
 	VkFormat vk_format;
 	uint32_t base_layer;
+	uint32_t layer_count;
 	uint32_t base_mip;
 	VkExtent3D extent; /**< Extent of VkImageViewCreateInfo::baseMipLevel. */
 
