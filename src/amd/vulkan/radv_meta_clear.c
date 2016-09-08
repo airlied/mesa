@@ -830,6 +830,10 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		return false;
 
 	/* all layers are bound */
+	if (iview->base_layer > 0)
+		return false;
+	if (iview->image->array_size != iview->layer_count)
+		return false;
 
 	if (iview->image->levels > 1)
 		return false;

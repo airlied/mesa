@@ -785,6 +785,7 @@ radv_image_view_init(struct radv_image_view *iview,
 					    vk_format_get_blockheight(image->vk_format));
 
 	iview->base_layer = range->baseArrayLayer;
+	iview->layer_count = radv_get_layerCount(image, range);
 	iview->base_mip = range->baseMipLevel;
 
 	si_make_texture_descriptor(device, image, false,
