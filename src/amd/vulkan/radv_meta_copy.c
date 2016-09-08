@@ -196,7 +196,7 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
                           uint32_t regionCount,
                           const VkBufferImageCopy* pRegions)
 {
-	struct radv_meta_saved_state saved_state;
+	struct radv_meta_saved_compute_state saved_state;
 
 	radv_meta_begin_bufimage(cmd_buffer, &saved_state);
 	for (unsigned r = 0; r < regionCount; r++) {
