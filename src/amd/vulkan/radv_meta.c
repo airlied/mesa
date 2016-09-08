@@ -42,7 +42,7 @@ radv_meta_save(struct radv_meta_saved_state *state,
    radv_dynamic_state_copy(&state->dynamic, &cmd_buffer->state.dynamic,
                           dynamic_mask);
 
-   memcpy(state->push_constants, cmd_buffer->push_constants, 128);
+   memcpy(state->push_constants, cmd_buffer->push_constants, MAX_PUSH_CONSTANTS_SIZE);
 }
 
 void
@@ -61,7 +61,7 @@ radv_meta_restore(const struct radv_meta_saved_state *state,
                           state->dynamic_mask);
    cmd_buffer->state.dirty |= state->dynamic_mask;
 
-   memcpy(cmd_buffer->push_constants, state->push_constants, 128);
+   memcpy(cmd_buffer->push_constants, state->push_constants, MAX_PUSH_CONSTANTS_SIZE);
    cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT;
 }
 
