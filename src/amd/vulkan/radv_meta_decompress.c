@@ -39,7 +39,7 @@ static void
 meta_depth_decomp_save(struct radv_meta_saved_state *saved_state,
                   struct radv_cmd_buffer *cmd_buffer)
 {
-	radv_meta_save(saved_state, cmd_buffer, 0);
+	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
 }
 
 static void
