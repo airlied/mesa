@@ -694,12 +694,11 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 					(VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
 					(VkDeviceSize[]) { 0 });
 
-	VkImageLayout layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	struct radv_pipeline *pipeline = pick_depthstencil_pipeline(meta_state,
 								    iview,
 								    samples_log2,
 								    aspects,
-								    layout,
+								    subpass->depth_stencil_attachment.layout,
 								    clear_rect,
 								    clear_value);
 	if (cmd_buffer->state.pipeline != pipeline) {
@@ -707,7 +706,7 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 					   radv_pipeline_to_handle(pipeline));
 	}
 
-	if (depth_view_can_fast_clear(iview, layout, clear_rect))
+	if (depth_view_can_fast_clear(iview, subpass->depth_stencil_attachment.layout, clear_rect))
 		radv_set_depth_clear_regs(cmd_buffer, iview->image, clear_value, aspects);
 
 	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
