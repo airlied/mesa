@@ -872,7 +872,8 @@ void radv_image_set_optimal_micro_tile_mode(struct radv_device *device,
 bool radv_layout_has_htile(const struct radv_image *image,
                            VkImageLayout layout)
 {
-	return layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	return (layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ||
+		layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 }
 
 bool radv_layout_is_htile_compressed(const struct radv_image *image,
@@ -884,7 +885,8 @@ bool radv_layout_is_htile_compressed(const struct radv_image *image,
 bool radv_layout_can_expclear(const struct radv_image *image,
                               VkImageLayout layout)
 {
-	return layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	return (layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ||
+		layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 }
 
 VkResult
