@@ -467,7 +467,8 @@ struct radv_meta_state {
 	} depth_decomp;
 
 	struct {
-		VkPipeline                                pipeline;
+		VkPipeline                                cmask_eliminate_pipeline;
+		VkPipeline                                fmask_decompress_pipeline;
 		VkRenderPass                              pass;
 	} fast_clear_flush;
 
