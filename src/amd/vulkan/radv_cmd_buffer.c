@@ -1571,7 +1571,15 @@ void radv_CmdExecuteCommands(
 
 		primary->device->ws->cs_execute_secondary(primary->cs, secondary->cs);
 	}
+
+	/* if we execute secondary we need to re-emit out pipelines */
+	if (commandBufferCount) {
+		primary->state.emitted_pipeline = NULL;
+		primary->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
+		primary->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_ALL;
+	}
 }
+
 VkResult radv_CreateCommandPool(
 	VkDevice                                    _device,
 	const VkCommandPoolCreateInfo*              pCreateInfo,
