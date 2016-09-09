@@ -805,34 +805,34 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		return false;
 
 	if (vk_format_get_blocksizebits(iview->image->vk_format) > 64)
-		return false;
+		goto fail;
 
 	/* all layers are bound */
 	if (iview->base_layer > 0)
-		return false;
+		goto fail;
 	if (iview->image->array_size != iview->layer_count)
-		return false;
+		goto fail;
 
 	if (iview->image->levels > 1)
-		return false;
+		goto fail;
 
 	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
-		return false;
+		goto fail;
 
 	if (clear_rect->rect.extent.width != iview->image->extent.width ||
 	    clear_rect->rect.extent.height != iview->image->extent.height)
-		return false;
+		goto fail;
 
 	if (clear_rect->baseArrayLayer != 0)
-		return false;
+		goto fail;
 	if (clear_rect->layerCount != iview->image->array_size)
-		return false;
+		goto fail;
 
 	/* DCC */
 	ret = radv_format_pack_clear_color(iview->image->vk_format,
 					   clear_color, &clear_value);
 	if (ret == false)
-		return false;
+		goto fail;
 
 	/* clear cmask buffer */
 	radv_fill_buffer(cmd_buffer, iview->image->bo->bo,
@@ -842,6 +842,12 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
 
 	return true;
+fail:
+	clear_color[0] = 0;
+	clear_color[1] = 0;
+	radv_initialise_cmask(cmd_buffer, iview->image);
+	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
+	return false;
 }
 
 /**
