@@ -95,7 +95,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 	 */
 	assert(image->samples == 1);
 
-	radv_meta_begin_blit2d(cmd_buffer, &saved_state);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	for (unsigned r = 0; r < regionCount; r++) {
 
@@ -170,7 +170,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 				slice_array++;
 		}
 	}
-	radv_meta_end_blit2d(cmd_buffer, &saved_state);
+	radv_meta_restore(&saved_state, cmd_buffer);
 }
 
 void radv_CmdCopyBufferToImage(
@@ -306,7 +306,7 @@ void radv_CmdCopyImage(
 	 */
 	assert(src_image->samples == dest_image->samples);
 
-	radv_meta_begin_blit2d(cmd_buffer, &saved_state);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	for (unsigned r = 0; r < regionCount; r++) {
 		assert(pRegions[r].srcSubresource.aspectMask ==
@@ -371,5 +371,5 @@ void radv_CmdCopyImage(
 		}
 	}
 
-	radv_meta_end_blit2d(cmd_buffer, &saved_state);
+	radv_meta_restore(&saved_state, cmd_buffer);
 }

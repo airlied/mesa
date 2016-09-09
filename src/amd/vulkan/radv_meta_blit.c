@@ -223,14 +223,6 @@ build_nir_copy_fragment_shader_stencil(enum glsl_sampler_dim tex_dim)
 }
 
 static void
-meta_prepare_blit(struct radv_cmd_buffer *cmd_buffer,
-                  struct radv_meta_saved_state *saved_state)
-{
-	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
-	cmd_buffer->state.dynamic.viewport.count = 0;
-}
-
-static void
 meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
                struct radv_image *src_image,
                struct radv_image_view *src_iview,
@@ -469,13 +461,6 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 				&cmd_buffer->pool->alloc);
 }
 
-static void
-meta_finish_blit(struct radv_cmd_buffer *cmd_buffer,
-                 const struct radv_meta_saved_state *saved_state)
-{
-	radv_meta_restore(saved_state, cmd_buffer);
-}
-
 void radv_CmdBlitImage(
 	VkCommandBuffer                             commandBuffer,
 	VkImage                                     srcImage,
@@ -500,7 +485,7 @@ void radv_CmdBlitImage(
 	assert(src_image->samples == 1);
 	assert(dest_image->samples == 1);
 
-	meta_prepare_blit(cmd_buffer, &saved_state);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	for (unsigned r = 0; r < regionCount; r++) {
 		struct radv_image_view src_iview;
@@ -589,7 +574,7 @@ void radv_CmdBlitImage(
 		}
 	}
 
-	meta_finish_blit(cmd_buffer, &saved_state);
+	radv_meta_restore(&saved_state, cmd_buffer);
 }
 
 void

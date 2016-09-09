@@ -36,20 +36,6 @@ struct vertex_attrs {
 	float tex_position[2];
 };
 
-static void
-meta_fast_clear_flush_save(struct radv_meta_saved_state *saved_state,
-                  struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
-}
-
-static void
-meta_fast_clear_flush_restore(struct radv_meta_saved_state *saved_state,
-                     struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_restore(saved_state, cmd_buffer);
-}
-
 /* passthrough vertex shader */
 static nir_shader *
 build_nir_vs(void)
@@ -424,7 +410,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 		return;
 
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
-	meta_fast_clear_flush_save(&saved_state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	struct radv_image_view iview;
 	radv_image_view_init(&iview, cmd_buffer->device,
@@ -484,6 +470,6 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 	radv_DestroyFramebuffer(device_h, fb_h,
 				&cmd_buffer->pool->alloc);
 
-	meta_fast_clear_flush_restore(&saved_state, cmd_buffer);
+	radv_meta_restore(&saved_state, cmd_buffer);
 	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
 }

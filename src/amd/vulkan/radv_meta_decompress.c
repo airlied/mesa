@@ -35,20 +35,6 @@ struct vertex_attrs {
 	float position[2]; /**< 3DPRIM_RECTLIST */
 };
 
-static void
-meta_depth_decomp_save(struct radv_meta_saved_state *saved_state,
-                  struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
-}
-
-static void
-meta_depth_decomp_restore(struct radv_meta_saved_state *saved_state,
-                     struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_restore(saved_state, cmd_buffer);
-}
-
 /* passthrough vertex shader */
 static nir_shader *
 build_nir_vs(void)
@@ -372,7 +358,8 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 	if (!image->htile.size)
 		return;
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
-	meta_depth_decomp_save(&saved_state, cmd_buffer);
+
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	for (uint32_t layer = 0; layer < subresourceRange->layerCount; layer++) {
 		struct radv_image_view iview;
@@ -434,6 +421,6 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 		radv_DestroyFramebuffer(device_h, fb_h,
 					&cmd_buffer->pool->alloc);
 	}
-	meta_depth_decomp_restore(&saved_state, cmd_buffer);
+	radv_meta_restore(&saved_state, cmd_buffer);
 	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
 }
