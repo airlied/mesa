@@ -301,7 +301,8 @@ si_make_texture_descriptor(struct radv_device *device,
 		depth = image->array_size;
 	} else if (type == V_008F1C_SQ_RSRC_IMG_2D_ARRAY ||
 		   type == V_008F1C_SQ_RSRC_IMG_2D_MSAA_ARRAY) {
-		depth = image->array_size;
+		if (view_type != VK_IMAGE_VIEW_TYPE_3D)
+			depth = image->array_size;
 	} else if (type == V_008F1C_SQ_RSRC_IMG_CUBE)
 		depth = image->array_size / 6;
 
