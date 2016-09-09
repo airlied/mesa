@@ -264,22 +264,6 @@ blit2d_unbind_dst(struct radv_cmd_buffer *cmd_buffer,
 	radv_DestroyFramebuffer(vk_device, tmp->fb, &cmd_buffer->pool->alloc);
 }
 
-void
-radv_meta_end_blit2d(struct radv_cmd_buffer *cmd_buffer,
-		     struct radv_meta_saved_state *save)
-{
-	radv_meta_restore(save, cmd_buffer);
-}
-
-void
-radv_meta_begin_blit2d(struct radv_cmd_buffer *cmd_buffer,
-		       struct radv_meta_saved_state *save)
-{
-	radv_meta_save(save, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT) | (1 << VK_DYNAMIC_STATE_SCISSOR));
-	cmd_buffer->state.dynamic.viewport.count = 0;
-	cmd_buffer->state.dynamic.scissor.count = 0;
-}
-
 static void
 bind_pipeline(struct radv_cmd_buffer *cmd_buffer,
               enum blit2d_src_type src_type, unsigned fs_key)

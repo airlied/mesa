@@ -36,20 +36,6 @@ struct vertex_attrs {
 	float tex_position[2];
 };
 
-static void
-meta_resolve_save(struct radv_meta_saved_state *saved_state,
-                  struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_save(saved_state, cmd_buffer, (1 << VK_DYNAMIC_STATE_VIEWPORT));
-}
-
-static void
-meta_resolve_restore(struct radv_meta_saved_state *saved_state,
-                     struct radv_cmd_buffer *cmd_buffer)
-{
-	radv_meta_restore(saved_state, cmd_buffer);
-}
-
 /* passthrough vertex shader */
 static nir_shader *
 build_nir_vs(void)
@@ -430,10 +416,10 @@ void radv_CmdResolveImage(
 	RADV_FROM_HANDLE(radv_image, src_image, src_image_h);
 	RADV_FROM_HANDLE(radv_image, dest_image, dest_image_h);
 	struct radv_device *device = cmd_buffer->device;
-	struct radv_meta_saved_state state;
+	struct radv_meta_saved_state saved_state;
 	VkDevice device_h = radv_device_to_handle(device);
 
-	meta_resolve_save(&state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	assert(src_image->samples > 1);
 	assert(dest_image->samples == 1);
@@ -590,7 +576,7 @@ void radv_CmdResolveImage(
 		}
 	}
 
-	meta_resolve_restore(&state, cmd_buffer);
+	radv_meta_restore(&saved_state, cmd_buffer);
 }
 
 /**
@@ -615,7 +601,7 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 	if (!subpass->has_resolve)
 		return;
 
-	meta_resolve_save(&saved_state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
 	for (uint32_t i = 0; i < subpass->color_count; ++i) {
 		VkAttachmentReference src_att = subpass->color_attachments[i];
@@ -646,5 +632,5 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 	}
 
 	cmd_buffer->state.subpass = subpass;
-	meta_resolve_restore(&saved_state, cmd_buffer);
+	radv_meta_restore(&saved_state, cmd_buffer);
 }

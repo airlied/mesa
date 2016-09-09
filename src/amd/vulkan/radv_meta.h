@@ -84,12 +84,12 @@ void radv_device_finish_meta_buffer_state(struct radv_device *device);
 
 void
 radv_meta_save(struct radv_meta_saved_state *state,
-              const struct radv_cmd_buffer *cmd_buffer,
-              uint32_t dynamic_mask);
+	       const struct radv_cmd_buffer *cmd_buffer,
+	       uint32_t dynamic_mask);
 
 void
 radv_meta_restore(const struct radv_meta_saved_state *state,
-                 struct radv_cmd_buffer *cmd_buffer);
+		  struct radv_cmd_buffer *cmd_buffer);
 
 void
 radv_meta_save_pass(struct radv_meta_saved_pass_state *state,
@@ -180,6 +180,11 @@ radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 void
 radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 				    struct radv_image *image);
+
+void
+radv_meta_save_graphics_reset_vport_scissor(struct radv_meta_saved_state *saved_state,
+					    struct radv_cmd_buffer *cmd_buffer);
+
 
 #ifdef __cplusplus
 }

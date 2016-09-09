@@ -360,3 +360,19 @@ radv_device_finish_meta(struct radv_device *device)
 	radv_store_meta_pipeline(device);
 	radv_pipeline_cache_finish(&device->meta_state.cache);
 }
+
+/*
+ * The most common meta operations all want to have the viewport
+ * reset and any scissors disabled. The rest of the dynamic state
+ * should have no effect.
+ */
+void
+radv_meta_save_graphics_reset_vport_scissor(struct radv_meta_saved_state *saved_state,
+					    struct radv_cmd_buffer *cmd_buffer)
+{
+	uint32_t dirty_state = (1 << VK_DYNAMIC_STATE_VIEWPORT) | (1 << VK_DYNAMIC_STATE_SCISSOR);
+	radv_meta_save(saved_state, cmd_buffer, dirty_state);
+	cmd_buffer->state.dynamic.viewport.count = 0;
+	cmd_buffer->state.dynamic.scissor.count = 0;
+	cmd_buffer->state.dirty |= dirty_state;
+}
