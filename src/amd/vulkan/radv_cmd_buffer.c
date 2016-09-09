@@ -963,12 +963,10 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE)
 		radv_emit_graphics_pipeline(cmd_buffer, pipeline);
 
-	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_VIEWPORT |
-				       RADV_CMD_DIRTY_PIPELINE))
+	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_VIEWPORT))
 		radv_emit_viewport(cmd_buffer);
 
-	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_SCISSOR |
-				       RADV_CMD_DIRTY_PIPELINE))
+	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_SCISSOR))
 		radv_emit_scissor(cmd_buffer);
 
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE) {
