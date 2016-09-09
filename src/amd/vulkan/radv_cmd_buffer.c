@@ -1980,7 +1980,7 @@ static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
 
 	radv_fill_buffer(cmd_buffer, image->bo->bo, image->offset + image->htile.offset,
-			 image->htile.size, 0xf);
+			 image->htile.size, 0xffffffff);
 
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META |
 	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
