@@ -1033,7 +1033,8 @@ bool radv_layout_is_htile_compressed(const struct radv_image *image,
                                      VkImageLayout layout);
 bool radv_layout_can_expclear(const struct radv_image *image,
                               VkImageLayout layout);
-
+bool radv_layout_has_cmask(const struct radv_image *image,
+			   VkImageLayout layout);
 static inline uint32_t
 radv_get_layerCount(const struct radv_image *image,
 		    const VkImageSubresourceRange *range)
