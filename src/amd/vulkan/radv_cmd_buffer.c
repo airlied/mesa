@@ -2027,6 +2027,21 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 	}
 }
 
+static void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
+				  struct radv_image *image)
+{
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+
+	radv_fill_buffer(cmd_buffer, image->bo->bo, image->offset + image->cmask.offset,
+			 image->cmask.size, 0xcccccccc);
+
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
+	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	                                RADV_CMD_FLAG_INV_VMEM_L1 |
+	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+}
+ 
 static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					       struct radv_image *image,
 					       VkImageLayout src_layout,
@@ -2037,6 +2052,9 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 	if (radv_layout_has_cmask(image, src_layout) &&
 	    !radv_layout_has_cmask(image, dst_layout)) {
 		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
+	} else if (0 && !radv_layout_has_cmask(image, src_layout) &&
+		   radv_layout_has_cmask(image, dst_layout)) {
+		radv_initialise_cmask(cmd_buffer, image);
 	}
 }
 
