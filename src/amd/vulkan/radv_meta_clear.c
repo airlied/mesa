@@ -819,6 +819,15 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
 		return false;
 
+	if (clear_rect->rect.extent.width != iview->image->extent.width ||
+	    clear_rect->rect.extent.height != iview->image->extent.height)
+		return false;
+
+	if (clear_rect->baseArrayLayer != 0)
+		return false;
+	if (clear_rect->layerCount != iview->image->array_size)
+		return false;
+
 	/* DCC */
 	ret = radv_format_pack_clear_color(iview->image->vk_format,
 					   clear_color, &clear_value);
