@@ -608,7 +608,7 @@ radv_set_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			  VkImageAspectFlags aspects)
 {
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-	va += image->offset + image->htile.offset + image->htile.size;
+	va += image->offset + image->clear_value_offset;
 	unsigned reg_offset = 0, reg_count = 0;
 
 	if (!image->htile.size || !aspects)
@@ -648,7 +648,7 @@ radv_load_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			   struct radv_image *image)
 {
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-	va += image->offset + image->htile.offset + image->htile.size;
+	va += image->offset + image->clear_value_offset;
 
 	if (!image->htile.size)
 		return;
@@ -675,7 +675,7 @@ radv_set_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			  uint32_t color_values[2])
 {
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-	va += image->offset + image->cmask.offset + image->cmask.size;
+	va += image->offset + image->clear_value_offset;
 
 	if (!image->cmask.size && !image->surface.dcc_size)
 		return;
@@ -702,7 +702,7 @@ radv_load_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			   int idx)
 {
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
-	va += image->offset + image->cmask.offset + image->cmask.size;
+	va += image->offset + image->clear_value_offset;
 
 	if (!image->cmask.size)
 		return;

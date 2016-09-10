@@ -1024,6 +1024,7 @@ struct radv_image {
 
 	struct radv_fmask_info fmask;
 	struct radv_cmask_info cmask;
+	uint32_t clear_value_offset;
 
 	/* Depth buffer compression and fast clear. */
 	struct r600_htile_info htile;
