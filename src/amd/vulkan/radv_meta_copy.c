@@ -86,7 +86,8 @@ blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFla
 		format = vk_format_depth_only(format);
 	else if (aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT)
 		format = vk_format_stencil_only(format);
-	else if (!image->surface.dcc_size)
+
+	if (!image->surface.dcc_size)
 		format = vk_format_for_size(vk_format_get_blocksize(format));
 
 	return (struct radv_meta_blit2d_surf) {
