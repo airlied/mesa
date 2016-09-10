@@ -604,6 +604,10 @@ VkResult radv_CreateDevice(
 		goto fail_free;
 	}
 	device->allow_fast_clears = env_var_as_boolean("RADV_FAST_CLEARS", false);
+	device->allow_dcc = !env_var_as_boolean("RADV_DCC_DISABLE", false);
+
+	if (device->allow_fast_clears && device->allow_dcc)
+		radv_finishme("DCC fast clears have not been tested\n");
 
 	device->empty_cs = device->ws->cs_create(device->ws, RING_GFX);
 	radeon_emit(device->empty_cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));

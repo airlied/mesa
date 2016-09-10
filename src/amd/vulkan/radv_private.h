@@ -504,6 +504,7 @@ struct radv_device {
 	struct radeon_winsys_cs *empty_cs;
 
 	bool allow_fast_clears;
+	bool allow_dcc;
 };
 
 void radv_device_get_cache_uuid(void *uuid);
