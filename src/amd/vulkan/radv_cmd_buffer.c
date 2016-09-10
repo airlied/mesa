@@ -704,7 +704,7 @@ radv_load_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo->bo);
 	va += image->offset + image->clear_value_offset;
 
-	if (!image->cmask.size)
+	if (!image->cmask.size && !image->surface.dcc_size)
 		return;
 
 	uint32_t reg = R_028C8C_CB_COLOR0_CLEAR_WORD0 + idx * 0x3c;
