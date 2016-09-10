@@ -968,6 +968,8 @@ uint32_t radv_translate_tex_numformat(VkFormat format,
 bool radv_format_pack_clear_color(VkFormat format,
 				  uint32_t clear_vals[2],
 				  VkClearColorValue *value);
+bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable);
+
 struct radv_fmask_info {
 	uint64_t offset;
 	uint64_t size;
