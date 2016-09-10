@@ -462,7 +462,8 @@ struct radv_meta_state {
 	} resolve;
 
 	struct {
-		VkPipeline                                pipeline;
+		VkPipeline                                decompress_pipeline;
+		VkPipeline                                resummarize_pipeline;
 		VkRenderPass                              pass;
 	} depth_decomp;
 
@@ -930,6 +931,7 @@ struct radv_graphics_pipeline_create_info {
 	bool db_stencil_disable_expclear;
 	bool db_flush_depth_inplace;
 	bool db_flush_stencil_inplace;
+	bool db_resummarize;
 	uint32_t custom_blend_mode;
 };
 
