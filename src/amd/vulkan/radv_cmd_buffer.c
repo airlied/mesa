@@ -1023,21 +1023,23 @@ static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buf
 
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
-                            const struct radv_subpass *subpass)
+                            const struct radv_subpass *subpass, bool transitions)
 {
-	for (unsigned i = 0; i < subpass->color_count; ++i) {
-		radv_handle_subpass_image_transition(cmd_buffer,
-						     subpass->color_attachments[i]);
-	}
+	if (transitions) {
+		for (unsigned i = 0; i < subpass->color_count; ++i) {
+			radv_handle_subpass_image_transition(cmd_buffer,
+							subpass->color_attachments[i]);
+		}
 
-	for (unsigned i = 0; i < subpass->input_count; ++i) {
-		radv_handle_subpass_image_transition(cmd_buffer,
-						     subpass->input_attachments[i]);
-	}
+		for (unsigned i = 0; i < subpass->input_count; ++i) {
+			radv_handle_subpass_image_transition(cmd_buffer,
+							subpass->input_attachments[i]);
+		}
 
-	if (subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
-		radv_handle_subpass_image_transition(cmd_buffer,
-						     subpass->depth_stencil_attachment);
+		if (subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED) {
+			radv_handle_subpass_image_transition(cmd_buffer,
+							subpass->depth_stencil_attachment);
+		}
 	}
 
 	cmd_buffer->state.subpass = subpass;
@@ -1210,7 +1212,7 @@ VkResult radv_BeginCommandBuffer(
 			&cmd_buffer->state.pass->subpasses[pBeginInfo->pInheritanceInfo->subpass];
 
 		radv_cmd_state_setup_attachments(cmd_buffer, cmd_buffer->state.pass, NULL);
-		radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
+		radv_cmd_buffer_set_subpass(cmd_buffer, subpass, false);
 	}
 
 	return VK_SUCCESS;
@@ -1660,7 +1662,7 @@ void radv_CmdBeginRenderPass(
 
 	si_emit_cache_flush(cmd_buffer);
 
-	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses);
+	radv_cmd_buffer_set_subpass(cmd_buffer, pass->subpasses, true);
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 
 	radv_cmd_buffer_clear_subpass(cmd_buffer);

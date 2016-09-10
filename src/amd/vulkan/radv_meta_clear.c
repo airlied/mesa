@@ -424,7 +424,7 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		.depth_stencil_attachment = (VkAttachmentReference) { VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED }
 	};
 
-	radv_cmd_buffer_set_subpass(cmd_buffer, &clear_subpass);
+	radv_cmd_buffer_set_subpass(cmd_buffer, &clear_subpass, false);
 
 	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
 	struct radv_buffer vertex_buffer = {
@@ -446,7 +446,7 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
 
 	RADV_CALL(CmdDraw)(cmd_buffer_h, 3, 1, 0, 0);
 
-	radv_cmd_buffer_set_subpass(cmd_buffer, subpass);
+	radv_cmd_buffer_set_subpass(cmd_buffer, subpass, false);
 }
 
 
