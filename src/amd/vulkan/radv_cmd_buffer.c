@@ -1704,7 +1704,7 @@ void radv_CmdDraw(
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_DRAW_INDEX_AUTO, 1, 0));
 	radeon_emit(cmd_buffer->cs, vertexCount);
 	radeon_emit(cmd_buffer->cs, V_0287F0_DI_SRC_SEL_AUTO_INDEX |
-		    S_0287F0_USE_OPAQUE(0));//!!info->count_from_stream_output));
+		    S_0287F0_USE_OPAQUE(0));
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
