@@ -2103,6 +2103,9 @@ static void radv_handle_dcc_image_transition(struct radv_cmd_buffer *cmd_buffer,
 		radv_initialize_dcc(cmd_buffer, image, 0x20202020u);
 	} else if (src_layout == VK_IMAGE_LAYOUT_PREINITIALIZED) {
 		radv_initialize_dcc(cmd_buffer, image, 0xffffffffu);
+	} else if(src_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+		  dst_layout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
 	}
 }
 

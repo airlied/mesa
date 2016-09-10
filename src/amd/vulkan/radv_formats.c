@@ -917,7 +917,7 @@ bool radv_format_pack_clear_color(VkFormat format,
 		break;
 	case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
 		/* TODO */
-		break;
+		return false;
 	case VK_FORMAT_R32G32_SFLOAT:
 		clear_vals[0] = value->float32[0];
 		clear_vals[1] = value->float32[1];
@@ -930,7 +930,7 @@ bool radv_format_pack_clear_color(VkFormat format,
 		fprintf(stderr, "failed to fast clear %d\n", format);
 		return false;
 	}
-	return false;
+	return true;
 }
 
 void radv_GetPhysicalDeviceFormatProperties(
