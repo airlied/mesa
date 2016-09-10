@@ -583,6 +583,7 @@ radv_image_alloc_cmask(struct radv_device *device,
 
 	image->cmask.offset = align64(image->size, image->cmask.alignment);
 	/* + 8 for storing the clear values */
+	image->clear_value_offset = image->cmask.offset + image->cmask.size;
 	image->size = image->cmask.offset + image->cmask.size + 8;
 }
 
@@ -592,6 +593,7 @@ radv_image_alloc_dcc(struct radv_device *device,
 {
 	image->dcc_offset = align64(image->size, image->surface.dcc_alignment);
 	/* + 8 for storing the clear values */
+	image->clear_value_offset = image->dcc_offset + image->surface.dcc_size;
 	image->size = image->dcc_offset + image->surface.dcc_size + 8;
 }
 
@@ -672,6 +674,7 @@ radv_image_alloc_htile(struct radv_device *device,
 	image->htile.offset = align64(image->size, 32768);
 
 	/* + 8 for storing the clear values */
+	image->clear_value_offset = image->htile.offset + image->htile.size;
 	image->size = image->htile.offset + image->htile.size + 8;
 	image->alignment = align64(image->alignment, 32768);
 }
