@@ -616,7 +616,7 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 			.depth_stencil_attachment = { .attachment = VK_ATTACHMENT_UNUSED },
 		};
 
-		radv_cmd_buffer_set_subpass(cmd_buffer, &resolve_subpass);
+		radv_cmd_buffer_set_subpass(cmd_buffer, &resolve_subpass, false);
 
 		/* Subpass resolves must respect the render area. We can ignore the
 		 * render area here because vkCmdBeginRenderPass set the render area
