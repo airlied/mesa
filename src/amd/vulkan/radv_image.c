@@ -56,7 +56,7 @@ radv_init_surface(struct radv_device *device,
 	unsigned array_mode = radv_choose_tiling(device, create_info);
 	const struct vk_format_description *desc =
 		vk_format_description(pCreateInfo->format);
-	bool is_depth, is_stencil;
+	bool is_depth, is_stencil, blendable;
 
 	is_depth = vk_format_has_depth(desc);
 	is_stencil = vk_format_has_stencil(desc);
@@ -114,7 +114,8 @@ radv_init_surface(struct radv_device *device,
 	    (pCreateInfo->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) ||
             (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR) ||
             device->instance->physicalDevice.rad_info.chip_class < VI ||
-            create_info->scanout || !device->allow_dcc)
+            create_info->scanout || !device->allow_dcc ||
+            !radv_is_colorbuffer_format_supported(pCreateInfo->format, &blendable))
 		surface->flags |= RADEON_SURF_DISABLE_DCC;
 	if (create_info->scanout)
 		surface->flags |= RADEON_SURF_SCANOUT;

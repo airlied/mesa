@@ -510,7 +510,7 @@ static bool radv_is_buffer_format_supported(VkFormat format)
 	       num_format != ~0;
 }
 
-static bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable)
+bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable)
 {
 	const struct vk_format_description *desc = vk_format_description(format);
 	uint32_t color_format = radv_translate_colorformat(format);
