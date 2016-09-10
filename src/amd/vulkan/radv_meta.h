@@ -120,6 +120,7 @@ radv_meta_get_iview_layer(const struct radv_image *dest_image,
 struct radv_meta_blit2d_surf {
    /** The size of an element in bytes. */
    uint8_t bs;
+   VkFormat format;
 
    struct radv_image *image;
    unsigned level;
@@ -132,6 +133,7 @@ struct radv_meta_blit2d_buffer {
    uint32_t offset;
    uint32_t pitch;
    uint8_t bs;
+   VkFormat format;
 };
 
 struct radv_meta_blit2d_rect {

@@ -229,36 +229,6 @@ radv_meta_end_bufimage(struct radv_cmd_buffer *cmd_buffer,
 	radv_meta_restore_compute(save, cmd_buffer, 12);
 }
 
-static VkFormat
-vk_format_for_size(int bs)
-{
-	/* The choice of UNORM and UINT formats is very intentional here.  Most of
-	 * the time, we want to use a UINT format to avoid any rounding error in
-	 * the blit.  For stencil blits, R8_UINT is required by the hardware.
-	 * (It's the only format allowed in conjunction with W-tiling.)  Also we
-	 * intentionally use the 4-channel formats whenever we can.  This is so
-	 * that, when we do a RGB <-> RGBX copy, the two formats will line up even
-	 * though one of them is 3/4 the size of the other.  The choice of UNORM
-	 * vs. UINT is also very intentional because Haswell doesn't handle 8 or
-	 * 16-bit RGB UINT formats at all so we have to use UNORM there.
-	 * Fortunately, the only time we should ever use two different formats in
-	 * the table below is for RGB -> RGBA blits and so we will never have any
-	 * UNORM/UINT mismatch.
-	 */
-	switch (bs) {
-	case 1: return VK_FORMAT_R8_UINT;
-	case 2: return VK_FORMAT_R8G8_UINT;
-	case 3: return VK_FORMAT_R8G8B8_UNORM;
-	case 4: return VK_FORMAT_R8G8B8A8_UNORM;
-	case 6: return VK_FORMAT_R16G16B16_UNORM;
-	case 8: return VK_FORMAT_R16G16B16A16_UINT;
-	case 12: return VK_FORMAT_R32G32B32_UINT;
-	case 16: return VK_FORMAT_R32G32B32A32_UINT;
-	default:
-		unreachable("Invalid format block size");
-	}
-}
-
 static void
 create_iview(struct radv_cmd_buffer *cmd_buffer,
              struct radv_meta_blit2d_surf *surf,
@@ -271,7 +241,7 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 				     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 					     .image = radv_image_to_handle(surf->image),
 					     .viewType = VK_IMAGE_VIEW_TYPE_2D,
-					     .format = vk_format_for_size(surf->bs),
+					     .format = surf->format,
 					     .subresourceRange = {
 					     .aspectMask = surf->aspect_mask,
 					     .baseMipLevel = surf->level,
@@ -286,7 +256,7 @@ static void
 create_bview(struct radv_cmd_buffer *cmd_buffer,
 	     struct radv_buffer *buffer,
 	     unsigned offset,
-	     unsigned bs,
+	     VkFormat format,
 	     struct radv_buffer_view *bview)
 {
 	radv_buffer_view_init(bview, cmd_buffer->device,
@@ -294,7 +264,7 @@ create_bview(struct radv_cmd_buffer *cmd_buffer,
 				      .sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
 				      .flags = 0,
 				      .buffer = radv_buffer_to_handle(buffer),
-				      .format = vk_format_for_size(bs),
+				      .format = format,
 				      .offset = offset,
 				      .range = VK_WHOLE_SIZE,
 			      }, cmd_buffer);
@@ -323,7 +293,7 @@ itob_bind_dst_buffer(struct radv_cmd_buffer *cmd_buffer,
 		     struct radv_meta_blit2d_rect *rect,
 		     struct itob_temps *tmp)
 {
-	create_bview(cmd_buffer, dst->buffer, dst->offset, dst->bs, &tmp->dst_bview);
+	create_bview(cmd_buffer, dst->buffer, dst->offset, dst->format, &tmp->dst_bview);
 }
 
 static void

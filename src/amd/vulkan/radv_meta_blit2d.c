@@ -49,36 +49,6 @@ enum blit2d_src_type {
 	BLIT2D_NUM_SRC_TYPES,
 };
 
-static VkFormat
-vk_format_for_size(int bs)
-{
-	/* The choice of UNORM and UINT formats is very intentional here.  Most of
-	 * the time, we want to use a UINT format to avoid any rounding error in
-	 * the blit.  For stencil blits, R8_UINT is required by the hardware.
-	 * (It's the only format allowed in conjunction with W-tiling.)  Also we
-	 * intentionally use the 4-channel formats whenever we can.  This is so
-	 * that, when we do a RGB <-> RGBX copy, the two formats will line up even
-	 * though one of them is 3/4 the size of the other.  The choice of UNORM
-	 * vs. UINT is also very intentional because Haswell doesn't handle 8 or
-	 * 16-bit RGB UINT formats at all so we have to use UNORM there.
-	 * Fortunately, the only time we should ever use two different formats in
-	 * the table below is for RGB -> RGBA blits and so we will never have any
-	 * UNORM/UINT mismatch.
-	 */
-	switch (bs) {
-	case 1: return VK_FORMAT_R8_UINT;
-	case 2: return VK_FORMAT_R8G8_UINT;
-	case 3: return VK_FORMAT_R8G8B8_UNORM;
-	case 4: return VK_FORMAT_R8G8B8A8_UNORM;
-	case 6: return VK_FORMAT_R16G16B16_UNORM;
-	case 8: return VK_FORMAT_R16G16B16A16_UINT;
-	case 12: return VK_FORMAT_R32G32B32_UINT;
-	case 16: return VK_FORMAT_R32G32B32A32_UINT;
-	default:
-		unreachable("Invalid format block size");
-	}
-}
-
 static void
 create_iview(struct radv_cmd_buffer *cmd_buffer,
              struct radv_meta_blit2d_surf *surf,
@@ -90,7 +60,7 @@ create_iview(struct radv_cmd_buffer *cmd_buffer,
 	if (depth_format)
 		format = depth_format;
 	else
-		format = vk_format_for_size(surf->bs);
+		format = surf->format;
 
 	radv_image_view_init(iview, cmd_buffer->device,
 			     &(VkImageViewCreateInfo) {
@@ -118,7 +88,7 @@ create_bview(struct radv_cmd_buffer *cmd_buffer,
 	if (depth_format)
 		format = depth_format;
 	else
-		format = vk_format_for_size(src->bs);
+		format = src->format;
 	radv_buffer_view_init(bview, cmd_buffer->device,
 			      &(VkBufferViewCreateInfo) {
 				      .sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
@@ -456,16 +426,10 @@ radv_meta_blit2d(struct radv_cmd_buffer *cmd_buffer,
 		 unsigned num_rects,
 		 struct radv_meta_blit2d_rect *rects)
 {
-	if (dst->bs % 3 == 0) {
-		radv_finishme("Blitting to RGB destinations not yet supported");
-		return;
-	} else {
-		enum blit2d_src_type src_type = src_buf ? BLIT2D_SRC_TYPE_BUFFER :
-							  BLIT2D_SRC_TYPE_IMAGE;
-		assert(util_is_power_of_two(dst->bs));
-		radv_meta_blit2d_normal_dst(cmd_buffer, src_img, src_buf, dst,
-					    num_rects, rects, src_type);
-	}
+	enum blit2d_src_type src_type = src_buf ? BLIT2D_SRC_TYPE_BUFFER :
+						  BLIT2D_SRC_TYPE_IMAGE;
+	radv_meta_blit2d_normal_dst(cmd_buffer, src_img, src_buf, dst,
+				    num_rects, rects, src_type);
 }
 
 static nir_shader *
