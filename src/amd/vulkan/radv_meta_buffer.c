@@ -479,7 +479,7 @@ void radv_CmdFillBuffer(
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 
 	if (fillSize == VK_WHOLE_SIZE)
-		fillSize = dst_buffer->size - dstOffset;
+		fillSize = (dst_buffer->size - dstOffset) & ~3ull;
 
 	radv_fill_buffer(cmd_buffer, dst_buffer->bo->bo, dst_buffer->offset + dstOffset,
 			 fillSize, data);
