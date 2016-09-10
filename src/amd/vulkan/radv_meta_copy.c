@@ -63,6 +63,20 @@ meta_region_offset_el(const struct radv_image *image,
 				});
 }
 
+static VkFormat
+vk_format_for_size(int bs)
+{
+	switch (bs) {
+	case 1: return VK_FORMAT_R8_UINT;
+	case 2: return VK_FORMAT_R8G8_UINT;
+	case 4: return VK_FORMAT_R8G8B8A8_UINT;
+	case 8: return VK_FORMAT_R16G16B16A16_UINT;
+	case 16: return VK_FORMAT_R32G32B32A32_UINT;
+	default:
+		unreachable("Invalid format block size");
+	}
+}
+
 static struct radv_meta_blit2d_surf
 blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFlags aspectMask,
 				int level, int layer)
@@ -72,8 +86,11 @@ blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFla
 		format = vk_format_depth_only(format);
 	else if (aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT)
 		format = vk_format_stencil_only(format);
+	else if (!image->surface.dcc_size)
+		format = vk_format_for_size(vk_format_get_blocksize(format));
+
 	return (struct radv_meta_blit2d_surf) {
-		.bs = vk_format_get_blocksize(format),
+		.format = format,
 		.level = level,
 		.layer = layer,
 		.image = image,
@@ -136,7 +153,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 							pRegions[r].imageSubresource.baseArrayLayer);
 
 		struct radv_meta_blit2d_buffer buf_bsurf = {
-			.bs = img_bsurf.bs,
+			.format = img_bsurf.format,
 			.buffer = buffer,
 			.offset = pRegions[r].bufferOffset,
 			.pitch = buf_extent_el.width,
@@ -238,6 +255,7 @@ meta_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 							pRegions[r].imageSubresource.baseArrayLayer);
 		struct radv_meta_blit2d_buffer buf_info = {
 			.bs = img_info.bs,
+			.format = img_info.format,
 			.buffer = buffer,
 			.offset = pRegions[r].bufferOffset,
 			.pitch = buf_extent_el.width,
@@ -323,6 +341,9 @@ void radv_CmdCopyImage(
 							pRegions[r].dstSubresource.aspectMask,
 							pRegions[r].dstSubresource.mipLevel,
 							pRegions[r].dstSubresource.baseArrayLayer);
+
+		/* for DCC */
+		b_src.format = b_dst.format;
 
 		/**
 		 * From the Vulkan 1.0.6 spec: 18.4 Copying Data Between Buffers and Images
