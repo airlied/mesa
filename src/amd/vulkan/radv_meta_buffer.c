@@ -525,23 +525,22 @@ void radv_CmdUpdateBuffer(
 	assert(!(dataSize & 3));
 	assert(!(va & 3));
 
-	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
+	if (dataSize < 4096) {
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
 
-	while (words) {
-		uint64_t count = MIN2(words, 0x3FF0);
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, words + 4);
 
-		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, count + 4);
-
-		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + count, 0));
+		radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 2 + words, 0));
 		radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEMORY_SYNC) |
-		                            S_370_WR_CONFIRM(!!(count == words)) |
+		                            S_370_WR_CONFIRM(1) |
 		                            S_370_ENGINE_SEL(V_370_ME));
 		radeon_emit(cmd_buffer->cs, va);
 		radeon_emit(cmd_buffer->cs, va >> 32);
-		radeon_emit_array(cmd_buffer->cs, pData, count);
-
-		words -= count;
-		pData += count;
-		va += count * 4;
+		radeon_emit_array(cmd_buffer->cs, pData, words);
+	} else {
+		uint32_t buf_offset;
+		radv_cmd_buffer_upload_data(cmd_buffer, dataSize, 32, pData, &buf_offset);
+		radv_copy_buffer(cmd_buffer, cmd_buffer->upload.upload_bo.bo, dst_buffer->bo->bo,
+				 buf_offset, dstOffset + dst_buffer->offset, dataSize);
 	}
 }
