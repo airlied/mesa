@@ -520,7 +520,7 @@ void radv_CmdUpdateBuffer(
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 	uint64_t words = dataSize / 4;
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
-	va += dstOffset += dst_buffer->offset;
+	va += dstOffset + dst_buffer->offset;
 
 	assert(!(dataSize & 3));
 	assert(!(va & 3));
