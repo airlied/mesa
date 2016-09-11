@@ -663,7 +663,7 @@ static void
 radv_image_alloc_htile(struct radv_device *device,
 		       struct radv_image *image)
 {
-	if (env_var_as_boolean("RADV_HIZ_DISABLE", true))
+	if (env_var_as_boolean("RADV_HIZ_DISABLE", false))
 		return;
 
 	image->htile.size = radv_image_get_htile_size(device, image);
