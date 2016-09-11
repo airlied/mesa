@@ -80,6 +80,7 @@ struct ac_shader_variant_info {
 			bool writes_z;
 			bool writes_stencil;
 			bool early_fragment_test;
+			bool writes_memory;
 		} fs;
 		struct {
 			unsigned block_size[3];

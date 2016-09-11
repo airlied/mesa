@@ -1713,7 +1713,7 @@ static void visit_store_ssbo(struct nir_to_llvm_context *ctx,
 	LLVMValueRef params[6];
 
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
-		ctx->shader_info->fs.early_fragment_test = false;
+		ctx->shader_info->fs.writes_memory = true;
 
 	params[1] = get_src(ctx, instr->src[1]);
 	params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
@@ -1787,7 +1787,7 @@ static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
 	LLVMValueRef params[5];
 
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
-		ctx->shader_info->fs.early_fragment_test = false;
+		ctx->shader_info->fs.writes_memory = true;
 
 	params[0] = get_src(ctx, instr->src[2]);
 	params[1] = get_src(ctx, instr->src[0]);
@@ -2194,7 +2194,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 	const struct glsl_type *type = glsl_without_array(var->type);
 
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
-		ctx->shader_info->fs.early_fragment_test = false;
+		ctx->shader_info->fs.writes_memory = true;
 
 	if (glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_BUF) {
 		params[0] = to_float(ctx, get_src(ctx, instr->src[2])); /* data */
@@ -2245,7 +2245,7 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 	const struct glsl_type *type = glsl_without_array(var->type);
 
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
-		ctx->shader_info->fs.early_fragment_test = false;
+		ctx->shader_info->fs.writes_memory = true;
 
 	params[param_count++] = get_src(ctx, instr->src[2]);
 	if (instr->intrinsic == nir_intrinsic_image_atomic_comp_swap)
@@ -3877,8 +3877,6 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.module = LLVMModuleCreateWithNameInContext("shader", ctx.context);
 
 	memset(shader_info, 0, sizeof(*shader_info));
-	if (nir->stage == MESA_SHADER_FRAGMENT)
-		shader_info->fs.early_fragment_test = true;
 
 	LLVMSetTarget(ctx.module, "amdgcn--");
 	setup_types(&ctx);
@@ -4052,6 +4050,6 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 			shader_info->cs.block_size[i] = nir->info.cs.local_size[i];
 	}
 
-	if (nir->stage == MESA_SHADER_FRAGMENT && nir->info.fs.early_fragment_tests)
-		shader_info->fs.early_fragment_test = true;
+	if (nir->stage == MESA_SHADER_FRAGMENT)
+		shader_info->fs.early_fragment_test = nir->info.fs.early_fragment_tests;
 }
