@@ -1,13 +1,9 @@
 
-fill out NIR->LLVM
 Fast Clears
-MSAA
-HiZ
+MSAA non-hw resolve
 DCC
 Geometry shaders
 Tessellation Shaders
 Compute & DMA queues
 pipeline statistics queries
-secondary command buffers
-compute shared memory
 shader scratch/spill space
