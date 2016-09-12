@@ -819,6 +819,9 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
 		goto fail;
 
+	if (memcmp(&iview->extent, &iview->image->extent, sizeof(iview->extent)))
+		goto fail;
+
 	if (clear_rect->rect.offset.x || clear_rect->rect.offset.y ||
 	    clear_rect->rect.extent.width != iview->image->extent.width ||
 	    clear_rect->rect.extent.height != iview->image->extent.height)
@@ -856,10 +859,6 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 
 	return true;
 fail:
-	clear_color[0] = 0;
-	clear_color[1] = 0;
-	radv_initialise_cmask(cmd_buffer, iview->image, 0xffffffff);
-	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
 	return false;
 }
 
