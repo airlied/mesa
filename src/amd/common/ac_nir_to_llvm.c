@@ -1804,15 +1804,18 @@ static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
 {
 	const char *name;
 	LLVMValueRef params[5];
-
+	int arg_count = 0;
 	if (ctx->stage == MESA_SHADER_FRAGMENT)
 		ctx->shader_info->fs.writes_memory = true;
 
-	params[0] = get_src(ctx, instr->src[2]);
-	params[1] = get_src(ctx, instr->src[0]);
-	params[2] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
-	params[3] = get_src(ctx, instr->src[1]);      /* voffset */
-	params[4] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
+	if (instr->intrinsic == nir_intrinsic_ssbo_atomic_comp_swap) {
+		params[arg_count++] = get_src(ctx, instr->src[3]);
+	}
+	params[arg_count++] = get_src(ctx, instr->src[2]);
+	params[arg_count++] = get_src(ctx, instr->src[0]);
+	params[arg_count++] = LLVMConstInt(ctx->i32, 0, false); /* vindex */
+	params[arg_count++] = get_src(ctx, instr->src[1]);      /* voffset */
+	params[arg_count++] = LLVMConstInt(ctx->i1, 0, false);  /* slc */
 
 	switch (instr->intrinsic) {
 	case nir_intrinsic_ssbo_atomic_add:
@@ -1839,11 +1842,17 @@ static LLVMValueRef visit_atomic_ssbo(struct nir_to_llvm_context *ctx,
 	case nir_intrinsic_ssbo_atomic_xor:
 		name = "llvm.amdgcn.buffer.atomic.xor";
 		break;
+	case nir_intrinsic_ssbo_atomic_exchange:
+		name = "llvm.amdgcn.buffer.atomic.swap";
+		break;
+	case nir_intrinsic_ssbo_atomic_comp_swap:
+		name = "llvm.amdgcn.buffer.atomic.cmpswap";
+		break;
 	default:
 		abort();
 	}
 
-	return emit_llvm_intrinsic(ctx, name, ctx->i32, params, 5, 0);
+	return emit_llvm_intrinsic(ctx, name, ctx->i32, params, arg_count, 0);
 }
 
 static LLVMValueRef visit_load_buffer(struct nir_to_llvm_context *ctx,
@@ -2529,6 +2538,8 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_intrinsic_ssbo_atomic_and:
 	case nir_intrinsic_ssbo_atomic_or:
 	case nir_intrinsic_ssbo_atomic_xor:
+	case nir_intrinsic_ssbo_atomic_exchange:
+	case nir_intrinsic_ssbo_atomic_comp_swap:
 		result = visit_atomic_ssbo(ctx, instr);
 		break;
 	case nir_intrinsic_load_ubo:
