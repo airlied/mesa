@@ -2075,12 +2075,11 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 					       VkImageSubresourceRange range,
 					       VkImageAspectFlags pending_clears)
 {
-	if (radv_layout_has_cmask(image, src_layout) &&
-	    !radv_layout_has_cmask(image, dst_layout)) {
-		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
-	} else if (!radv_layout_has_cmask(image, src_layout) &&
-		   radv_layout_has_cmask(image, dst_layout)) {
+	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
 		radv_initialise_cmask(cmd_buffer, image);
+	} else if (radv_layout_has_cmask(image, src_layout) &&
+		   !radv_layout_has_cmask(image, dst_layout)) {
+		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
 	}
 }
 
