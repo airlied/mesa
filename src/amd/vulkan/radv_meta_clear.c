@@ -858,7 +858,7 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 fail:
 	clear_color[0] = 0;
 	clear_color[1] = 0;
-	radv_initialise_cmask(cmd_buffer, iview->image);
+	radv_initialise_cmask(cmd_buffer, iview->image, 0xffffffff);
 	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
 	return false;
 }

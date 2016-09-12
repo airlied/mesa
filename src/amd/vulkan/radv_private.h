@@ -1249,7 +1249,7 @@ void
 radv_temp_descriptor_set_destroy(struct radv_device *device,
 				 VkDescriptorSet _set);
 void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
-			   struct radv_image *image);
+			   struct radv_image *image, uint32_t value);
 #define RADV_DEFINE_HANDLE_CASTS(__radv_type, __VkType)		\
 								\
 	static inline struct __radv_type *			\
