@@ -571,7 +571,7 @@ radv_image_get_cmask_info(struct radv_device *device,
 		out->slice_tile_max -= 1;
 
 	out->alignment = MAX2(256, base_align);
-	out->size = image->array_size *
+	out->size = (image->type == VK_IMAGE_TYPE_3D ? image->extent.depth : image->array_size) *
 		    align(slice_bytes, base_align);
 }
 
