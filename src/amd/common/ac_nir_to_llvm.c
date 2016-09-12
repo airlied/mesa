@@ -117,6 +117,8 @@ struct nir_to_llvm_context {
 	LLVMValueRef lds;
 	LLVMValueRef inputs[RADEON_LLVM_MAX_INPUTS * 4];
 	LLVMValueRef outputs[RADEON_LLVM_MAX_OUTPUTS * 4];
+
+	LLVMValueRef shared_memory;
 	uint64_t input_mask;
 	uint64_t output_mask;
 	int num_locals;
@@ -251,6 +253,23 @@ static LLVMTypeRef const_array(LLVMTypeRef elem_type, int num_elements)
 {
 	return LLVMPointerType(LLVMArrayType(elem_type, num_elements),
 	                       CONST_ADDR_SPACE);
+}
+
+static LLVMValueRef get_shared_memory_ptr(struct nir_to_llvm_context *ctx,
+					  int idx,
+					  LLVMTypeRef type)
+{
+	LLVMValueRef offset;
+	LLVMValueRef ptr;
+	int addr_space;
+
+	offset = LLVMConstInt(ctx->i32, idx, false);
+
+	ptr = ctx->shared_memory;
+	ptr = LLVMBuildGEP(ctx->builder, ptr, &offset, 1, "");
+	addr_space = LLVMGetPointerAddressSpace(LLVMTypeOf(ptr));
+	ptr = LLVMBuildBitCast(ctx->builder, ptr, LLVMPointerType(type, addr_space), "");
+	return ptr;
 }
 
 static LLVMValueRef to_integer(struct nir_to_llvm_context *ctx, LLVMValueRef v)
@@ -1985,6 +2004,19 @@ static LLVMValueRef visit_load_var(struct nir_to_llvm_context *ctx,
 			}
 		}
 		return to_integer(ctx, build_gather_values(ctx, values, ve));
+	case nir_var_shared: {
+		radv_get_deref_offset(ctx, &instr->variables[0]->deref, false,
+				      &const_index, &indir_index);
+		LLVMValueRef ptr = get_shared_memory_ptr(ctx, idx, ctx->i32);
+		LLVMValueRef derived_ptr;
+		LLVMValueRef index = ctx->i32zero;
+		if (indir_index)
+			index = LLVMBuildAdd(ctx->builder, index, indir_index, "");
+		derived_ptr = LLVMBuildGEP(ctx->builder, ptr, &index, 1, "");
+
+		return to_integer(ctx, LLVMBuildLoad(ctx->builder, derived_ptr, ""));
+		break;
+	}
 	default:
 		break;
 	}
@@ -2072,6 +2104,22 @@ visit_store_var(struct nir_to_llvm_context *ctx,
 			}
 		}
 		break;
+	case nir_var_shared: {
+		LLVMValueRef ptr;
+		radv_get_deref_offset(ctx, &instr->variables[0]->deref, false,
+				      &const_index, &indir_index);
+
+		ptr = get_shared_memory_ptr(ctx, idx, ctx->i32);
+		LLVMValueRef index = ctx->i32zero;
+		LLVMValueRef derived_ptr;
+
+		if (indir_index)
+			index = LLVMBuildAdd(ctx->builder, index, indir_index, "");
+		derived_ptr = LLVMBuildGEP(ctx->builder, ptr, &index, 1, "");
+		LLVMBuildStore(ctx->builder,
+			       to_integer(ctx, src), derived_ptr);
+		break;
+	}
 	default:
 		break;
 	}
@@ -2371,6 +2419,57 @@ visit_load_local_invocation_index(struct nir_to_llvm_context *ctx)
 	return LLVMBuildAdd(ctx->builder, result, thread_id, "");
 }
 
+static LLVMValueRef visit_var_atomic(struct nir_to_llvm_context *ctx,
+				     nir_intrinsic_instr *instr)
+{
+	LLVMValueRef ptr, result;
+	int idx = instr->variables[0]->var->data.driver_location;
+	LLVMValueRef src = get_src(ctx, instr->src[0]);
+	ptr = get_shared_memory_ptr(ctx, idx, ctx->i32);
+
+	if (instr->intrinsic == nir_intrinsic_var_atomic_comp_swap) {
+
+	} else {
+		LLVMAtomicRMWBinOp op;
+		switch (instr->intrinsic) {
+		case nir_intrinsic_var_atomic_add:
+			op = LLVMAtomicRMWBinOpAdd;
+			break;
+		case nir_intrinsic_var_atomic_umin:
+			op = LLVMAtomicRMWBinOpUMin;
+			break;
+		case nir_intrinsic_var_atomic_umax:
+			op = LLVMAtomicRMWBinOpUMax;
+			break;
+		case nir_intrinsic_var_atomic_imin:
+			op = LLVMAtomicRMWBinOpMin;
+			break;
+		case nir_intrinsic_var_atomic_imax:
+			op = LLVMAtomicRMWBinOpMax;
+			break;
+		case nir_intrinsic_var_atomic_and:
+			op = LLVMAtomicRMWBinOpAnd;
+			break;
+		case nir_intrinsic_var_atomic_or:
+			op = LLVMAtomicRMWBinOpOr;
+			break;
+		case nir_intrinsic_var_atomic_xor:
+			op = LLVMAtomicRMWBinOpXor;
+			break;
+		case nir_intrinsic_var_atomic_exchange:
+			op = LLVMAtomicRMWBinOpXchg;
+			break;
+		default:
+			return NULL;
+		}
+
+		result = LLVMBuildAtomicRMW(ctx->builder, op, ptr, to_integer(ctx, src),
+					    LLVMAtomicOrderingSequentiallyConsistent,
+					    false);
+	}
+	return result;
+}
+
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
 {
@@ -2474,6 +2573,18 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_barrier:
 		emit_barrier(ctx);
+		break;
+	case nir_intrinsic_var_atomic_add:
+	case nir_intrinsic_var_atomic_imin:
+	case nir_intrinsic_var_atomic_umin:
+	case nir_intrinsic_var_atomic_imax:
+	case nir_intrinsic_var_atomic_umax:
+	case nir_intrinsic_var_atomic_and:
+	case nir_intrinsic_var_atomic_or:
+	case nir_intrinsic_var_atomic_xor:
+	case nir_intrinsic_var_atomic_exchange:
+	case nir_intrinsic_var_atomic_comp_swap:
+		result = visit_var_atomic(ctx, instr);
 		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
@@ -3837,6 +3948,15 @@ handle_shader_outputs_post(struct nir_to_llvm_context *ctx,
 	}
 }
 
+static void
+handle_shared_compute_var(struct nir_to_llvm_context *ctx,
+			  struct nir_variable *variable, uint32_t *offset, int idx)
+{
+	unsigned size = glsl_count_attribute_slots(variable->type, false);
+	variable->data.driver_location = *offset;
+	*offset += size;
+}
+
 static void ac_llvm_finalize_module(struct nir_to_llvm_context * ctx)
 {
 	LLVMPassManagerRef passmgr;
@@ -3885,6 +4005,30 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.stage = nir->stage;
 
 	create_function(&ctx, nir);
+
+	if (nir->stage == MESA_SHADER_COMPUTE) {
+		int num_shared = 0;
+		nir_foreach_variable(variable, &nir->shared)
+			num_shared++;
+		if (num_shared) {
+			int idx = 0;
+			uint32_t shared_size = 0;
+			LLVMValueRef var;
+			LLVMTypeRef i8p = LLVMPointerType(ctx.i8, LOCAL_ADDR_SPACE);
+			nir_foreach_variable(variable, &nir->shared) {
+				handle_shared_compute_var(&ctx, variable, &shared_size, idx);
+				idx++;
+			}
+
+			shared_size *= 4;
+			var = LLVMAddGlobalInAddressSpace(ctx.module,
+							  LLVMArrayType(ctx.i8, shared_size),
+							  "compute_lds",
+							  LOCAL_ADDR_SPACE);
+			LLVMSetAlignment(var, 4);
+			ctx.shared_memory = LLVMBuildBitCast(ctx.builder, var, i8p, "");
+		}
+	}
 
 	nir_foreach_variable(variable, &nir->inputs)
 		handle_shader_input_decl(&ctx, variable);
