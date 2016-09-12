@@ -2437,7 +2437,12 @@ static LLVMValueRef visit_var_atomic(struct nir_to_llvm_context *ctx,
 	ptr = get_shared_memory_ptr(ctx, idx, ctx->i32);
 
 	if (instr->intrinsic == nir_intrinsic_var_atomic_comp_swap) {
-
+		LLVMValueRef src1 = get_src(ctx, instr->src[1]);
+		result = LLVMBuildAtomicCmpXchg(ctx->builder,
+						ptr, src, src1,
+						LLVMAtomicOrderingSequentiallyConsistent,
+						LLVMAtomicOrderingSequentiallyConsistent,
+						false);
 	} else {
 		LLVMAtomicRMWBinOp op;
 		switch (instr->intrinsic) {
