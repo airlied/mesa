@@ -919,12 +919,12 @@ bool radv_format_pack_clear_color(VkFormat format,
 		/* TODO */
 		return false;
 	case VK_FORMAT_R32G32_SFLOAT:
-		clear_vals[0] = value->float32[0];
-		clear_vals[1] = value->float32[1];
+		clear_vals[0] = fui(value->float32[0]);
+		clear_vals[1] = fui(value->float32[1]);
 		break;
 	case VK_FORMAT_R32_SFLOAT:
 		clear_vals[1] = 0;
-		clear_vals[0] = value->float32[0];
+		clear_vals[0] = fui(value->float32[0]);
 		break;
 	default:
 		fprintf(stderr, "failed to fast clear %d\n", format);
