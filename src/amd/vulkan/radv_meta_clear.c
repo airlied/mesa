@@ -807,6 +807,10 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (vk_format_get_blocksizebits(iview->image->vk_format) > 64)
 		goto fail;
 
+	/* don't fast clear 3D */
+	if (iview->image->type == VK_IMAGE_TYPE_3D)
+		goto fail;
+
 	/* all layers are bound */
 	if (iview->base_layer > 0)
 		goto fail;
