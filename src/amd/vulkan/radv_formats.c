@@ -29,6 +29,8 @@
 #include "r600d_common.h"
 
 #include "util/u_half.h"
+#include "util/format_srgb.h"
+
 uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *desc,
 					  int first_non_void)
 {
@@ -803,11 +805,20 @@ bool radv_format_pack_clear_color(VkFormat format,
 				  VkClearColorValue *value)
 {
 	uint8_t r, g, b, a;
+	const struct vk_format_description *desc = vk_format_description(format);
+
 	if (vk_format_get_component_bits(format, VK_FORMAT_COLORSPACE_RGB, 0) <= 8) {
-		r = float_to_ubyte(value->float32[0]);
-		g = float_to_ubyte(value->float32[1]);
-		b = float_to_ubyte(value->float32[2]);
-		a = float_to_ubyte(value->float32[3]);
+		if (desc->colorspace == VK_FORMAT_COLORSPACE_RGB) {
+			r = float_to_ubyte(value->float32[0]);
+			g = float_to_ubyte(value->float32[1]);
+			b = float_to_ubyte(value->float32[2]);
+			a = float_to_ubyte(value->float32[3]);
+		} else if (desc->colorspace == VK_FORMAT_COLORSPACE_SRGB) {
+			r = util_format_linear_float_to_srgb_8unorm(value->float32[0]);
+			g = util_format_linear_float_to_srgb_8unorm(value->float32[1]);
+			b = util_format_linear_float_to_srgb_8unorm(value->float32[2]);
+			a = float_to_ubyte(value->float32[3]);
+		}
 	}
 	switch (format) {
 	case VK_FORMAT_R8_UNORM:
