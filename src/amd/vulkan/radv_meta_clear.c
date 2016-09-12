@@ -819,7 +819,8 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
 		goto fail;
 
-	if (clear_rect->rect.extent.width != iview->image->extent.width ||
+	if (clear_rect->rect.offset.x || clear_rect->rect.offset.y ||
+	    clear_rect->rect.extent.width != iview->image->extent.width ||
 	    clear_rect->rect.extent.height != iview->image->extent.height)
 		goto fail;
 
