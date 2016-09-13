@@ -112,9 +112,15 @@ if opt_header:
     print "      struct {"
 
     for type, name, args, num, h in entrypoints:
-        print_guard_start(name)
-        print "         %s (*%s)%s;" % (type, name, args)
-        print_guard_end(name)
+        guard = get_platform_guard_macro(name)
+        if guard is not None:
+            print "#ifdef {0}".format(guard)
+            print "         PFN_vk{0} {0};".format(name)
+            print "#else"
+            print "         void *{0};".format(name)
+            print "#endif"
+        else:
+            print "         PFN_vk{0} {0};".format(name)
     print "      };\n"
     print "   };\n"
     print "};\n"
@@ -175,28 +181,25 @@ static const char strings[] ="""
 offsets = []
 i = 0;
 for type, name, args, num, h in entrypoints:
-    print_guard_start(name)
     print "   \"vk%s\\0\"" % name
     offsets.append(i)
     i += 2 + len(name) + 1
-    print_guard_end(name)
-print """   ;
-
-/* Weak aliases for all potential validate functions. These will resolve to
- * NULL if they're not defined, which lets the resolve_entrypoint() function
- * either pick a validate wrapper if available or just plug in the actual
- * entry point.
- */
-"""
+print "   ;"
 
 # Now generate the table of all entry points and their validation functions
 
 print "\nstatic const struct radv_entrypoint entrypoints[] = {"
 for type, name, args, num, h in entrypoints:
-    print_guard_start(name)
     print "   { %5d, 0x%08x }," % (offsets[num], h)
-    print_guard_end(name)
 print "};\n"
+
+print """
+
+/* Weak aliases for all potential implementations. These will resolve to
+ * NULL if they're not defined, which lets the resolve_entrypoint() function
+ * either pick the correct entry point.
+ */
+"""
 
 for layer in [ "radv", "validate", "si", "cik", "vi" ]:
     for type, name, args, num, h in entrypoints:
@@ -270,17 +273,6 @@ radv_resolve_entrypoint(uint32_t index)
    }
 }
 """
-
-# Now output ifuncs and their resolve helpers for all entry points. The
-# resolve helper calls resolve_entrypoint() with the entry point index, which
-# lets the resolver look it up in the table.
-
-for type, name, args, num, h in entrypoints:
-    print_guard_start(name)
-    print "static void *resolve_%s(void) { return radv_resolve_entrypoint(%d); }" % (name, num)
-    print "%s vk%s%s\n   __attribute__ ((ifunc (\"resolve_%s\"), visibility (\"default\")));\n" % (type, name, args, name)
-    print_guard_end(name)
-
 
 # Now generate the hash table used for entry point look up.  This is a
 # uint16_t table of entry point indices. We use 0xffff to indicate an entry
