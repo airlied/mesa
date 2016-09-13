@@ -388,6 +388,15 @@ vk_format_depth_only(VkFormat format)
 	}
 }
 
+static inline bool
+vk_format_is_int(VkFormat format)
+{
+	const struct vk_format_description *desc = vk_format_description(format);
+	int channel =  vk_format_get_first_non_void_channel(format);
+
+	return channel >= 0 && desc->channel[channel].pure_integer;
+}
+
 static inline VkFormat
 vk_format_stencil_only(VkFormat format)
 {
