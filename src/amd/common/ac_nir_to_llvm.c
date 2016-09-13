@@ -2681,6 +2681,7 @@ static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
 static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 			       struct ac_tex_info *tinfo,
 			       nir_tex_instr *instr,
+			       nir_texop op,
 			       LLVMValueRef res_ptr, LLVMValueRef samp_ptr,
 			       LLVMValueRef *param, unsigned count,
 			       unsigned dmask)
@@ -2689,7 +2690,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	unsigned is_rect = 0;
 	bool da = instr->is_array || instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE;
 
-	if (instr->op == nir_texop_lod)
+	if (op == nir_texop_lod)
 		da = false;
 	/* Pad to power of two vector */
 	while (count < util_next_power_of_two(count))
@@ -2703,17 +2704,17 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	tinfo->args[1] = res_ptr;
 	num_args = 2;
 
-	if (instr->op == nir_texop_txf ||
-	    instr->op == nir_texop_query_levels ||
-	    instr->op == nir_texop_texture_samples ||
-	    instr->op == nir_texop_txs)
+	if (op == nir_texop_txf ||
+	    op == nir_texop_query_levels ||
+	    op == nir_texop_texture_samples ||
+	    op == nir_texop_txs)
 		tinfo->dst_type = ctx->v4i32;
 	else {
 		tinfo->dst_type = ctx->v4f32;
 		tinfo->args[num_args++] = samp_ptr;
 	}
 
-	if (instr->sampler_dim == GLSL_SAMPLER_DIM_BUF && instr->op == nir_texop_txf) {
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_BUF && op == nir_texop_txf) {
 		tinfo->args[0] = res_ptr;
 		tinfo->args[1] = LLVMConstInt(ctx->i32, 0, false);
 		tinfo->args[2] = param[0];
@@ -3033,6 +3034,57 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	}
 
 	/* TODO sample FMASK magic */
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_MS) {
+		LLVMValueRef txf_address[4];
+		struct ac_tex_info txf_info = { 0 };
+		unsigned txf_count = count;
+		memcpy(txf_address, address, sizeof(txf_address));
+
+		if (!instr->is_array)
+			txf_address[2] = ctx->i32zero;
+		txf_address[3] = ctx->i32zero;
+
+		set_tex_fetch_args(ctx, &txf_info, instr, nir_texop_txf,
+				   res_ptr, samp_ptr,
+				   txf_address, txf_count, 0xf);
+
+		result = build_tex_intrinsic(ctx, instr, &txf_info);
+		LLVMValueRef four = LLVMConstInt(ctx->i32, 4, false);
+		LLVMValueRef F = LLVMConstInt(ctx->i32, 0xf, false);
+
+		LLVMValueRef fmask = LLVMBuildExtractElement(ctx->builder,
+							     result,
+							     ctx->i32zero, "");
+
+		unsigned sample_chan = instr->is_array ? 3 : 2;
+
+		LLVMValueRef sample_index4 =
+			LLVMBuildMul(ctx->builder, address[sample_chan], four, "");
+		LLVMValueRef shifted_fmask =
+			LLVMBuildLShr(ctx->builder, fmask, sample_index4, "");
+		LLVMValueRef final_sample =
+			LLVMBuildAnd(ctx->builder, shifted_fmask, F, "");
+
+		/* Don't rewrite the sample index if WORD1.DATA_FORMAT of the FMASK
+		 * resource descriptor is 0 (invalid),
+		 */
+		LLVMValueRef fmask_desc =
+			LLVMBuildBitCast(ctx->builder, fmask_ptr,
+					 ctx->v8i32, "");
+
+		LLVMValueRef fmask_word1 =
+			LLVMBuildExtractElement(ctx->builder, fmask_desc,
+						ctx->i32one, "");
+
+		LLVMValueRef word1_is_nonzero =
+			LLVMBuildICmp(ctx->builder, LLVMIntNE,
+				      fmask_word1, ctx->i32zero, "");
+
+		/* Replace the MSAA sample index. */
+		address[sample_chan] =
+			LLVMBuildSelect(ctx->builder, word1_is_nonzero,
+					final_sample, address[sample_chan], "");
+	}
 
 	if (offsets && instr->op == nir_texop_txf) {
 		nir_const_value *const_offset =
@@ -3057,7 +3109,8 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 		else
 			dmask = 1 << instr->component;
 	}
-	set_tex_fetch_args(ctx, &tinfo, instr, res_ptr, samp_ptr, address, count, dmask);
+	set_tex_fetch_args(ctx, &tinfo, instr, instr->op,
+			   res_ptr, samp_ptr, address, count, dmask);
 
 	result = build_tex_intrinsic(ctx, instr, &tinfo);
 
