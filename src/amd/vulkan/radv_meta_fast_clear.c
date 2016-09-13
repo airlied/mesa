@@ -377,7 +377,8 @@ cleanup:
 
 static void
 emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
-		      const VkExtent2D *resolve_extent)
+		      const VkExtent2D *resolve_extent,
+		      bool fmask_decompress)
 {
 	struct radv_device *device = cmd_buffer->device;
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
@@ -433,7 +434,11 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 				  (VkBuffer[]) { vertex_buffer_h },
 				  (VkDeviceSize[]) { 0 });
 
-	VkPipeline pipeline_h = device->meta_state.fast_clear_flush.cmask_eliminate_pipeline;
+	VkPipeline pipeline_h;
+	if (fmask_decompress)
+		pipeline_h = device->meta_state.fast_clear_flush.fmask_decompress_pipeline;
+	else
+		pipeline_h = device->meta_state.fast_clear_flush.cmask_eliminate_pipeline;
 	RADV_FROM_HANDLE(radv_pipeline, pipeline, pipeline_h);
 
 	if (cmd_buffer->state.pipeline != pipeline) {
@@ -519,7 +524,8 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 				     VK_SUBPASS_CONTENTS_INLINE);
 
 	emit_fast_clear_flush(cmd_buffer,
-			      &(VkExtent2D) { image->extent.width, image->extent.height });
+			      &(VkExtent2D) { image->extent.width, image->extent.height },
+			      image->fmask.size > 0);
 	RADV_CALL(CmdEndRenderPass)(cmd_buffer_h);
 
 	radv_DestroyFramebuffer(device_h, fb_h,
