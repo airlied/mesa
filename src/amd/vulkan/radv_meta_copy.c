@@ -92,6 +92,7 @@ blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFla
 
 	return (struct radv_meta_blit2d_surf) {
 		.format = format,
+		.bs = vk_format_get_blocksize(format),
 		.level = level,
 		.layer = layer,
 		.image = image,
@@ -154,6 +155,7 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
 							pRegions[r].imageSubresource.baseArrayLayer);
 
 		struct radv_meta_blit2d_buffer buf_bsurf = {
+			.bs = img_bsurf.bs,
 			.format = img_bsurf.format,
 			.buffer = buffer,
 			.offset = pRegions[r].bufferOffset,
