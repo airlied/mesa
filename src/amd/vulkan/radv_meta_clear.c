@@ -792,6 +792,7 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
 	const uint32_t subpass_att = clear_att->colorAttachment;
 	const uint32_t pass_att = subpass->color_attachments[subpass_att].attachment;
+	VkImageLayout image_layout = subpass->color_attachments[subpass_att].layout;
 	const struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
 	const struct radv_image_view *iview = fb->attachments[pass_att].attachment;
 	VkClearColorValue clear_value = clear_att->clearValue.color;
@@ -804,6 +805,8 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (!cmd_buffer->device->allow_fast_clears)
 		return false;
 
+	if (!radv_layout_has_cmask(iview->image, image_layout))
+		goto fail;
 	if (vk_format_get_blocksizebits(iview->image->vk_format) > 64)
 		goto fail;
 
