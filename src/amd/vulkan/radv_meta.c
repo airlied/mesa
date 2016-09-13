@@ -328,7 +328,7 @@ radv_device_init_meta(struct radv_device *device)
 	return VK_SUCCESS;
 
 fail_fast_clear:
-	radv_device_finish_meta_fast_clear_flush_state(device);
+	radv_device_finish_meta_buffer_state(device);
 fail_buffer:
 	radv_device_finish_meta_depth_decomp_state(device);
 fail_depth_decomp:
