@@ -82,6 +82,8 @@ void radv_device_finish_meta_blit2d_state(struct radv_device *device);
 VkResult radv_device_init_meta_buffer_state(struct radv_device *device);
 void radv_device_finish_meta_buffer_state(struct radv_device *device);
 
+VkResult radv_device_init_meta_resolve_compute_state(struct radv_device *device);
+void radv_device_finish_meta_resolve_compute_state(struct radv_device *device);
 void
 radv_meta_save(struct radv_meta_saved_state *state,
 	       const struct radv_cmd_buffer *cmd_buffer,
@@ -191,6 +193,14 @@ void
 radv_meta_save_graphics_reset_vport_scissor(struct radv_meta_saved_state *saved_state,
 					    struct radv_cmd_buffer *cmd_buffer);
 
+void
+radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
+				struct radv_image *src_image,
+				VkImageLayout src_image_layout,
+				struct radv_image *dest_image,
+				VkImageLayout dest_image_layout,
+				uint32_t region_count,
+				const VkImageResolve *regions);
 
 #ifdef __cplusplus
 }
