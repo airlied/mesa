@@ -83,44 +83,43 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, int sampl
 	nir_ssa_def *img_coord = nir_iadd(&b, global_id, &src_offset->dest.ssa);
 	/* do a txf_ms on each sample */
 	nir_ssa_def *tmp;
-	if (is_integer) {
-		nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
-		tex->sampler_dim = GLSL_SAMPLER_DIM_MS;
-		tex->op = nir_texop_txf_ms;
-		tex->src[0].src_type = nir_tex_src_coord;
-		tex->src[0].src = nir_src_for_ssa(img_coord);
-		tex->src[1].src_type = nir_tex_src_ms_index;
-		tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, 0));
-		tex->dest_type = nir_type_float;
-		tex->is_array = false;
-		tex->coord_components = 2;
-		tex->texture = nir_deref_var_create(tex, input_img);
-		tex->sampler = NULL;
 
-		nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
-		nir_builder_instr_insert(&b, &tex->instr);
-		tmp = &tex->dest.ssa;
-	} else {
-		tmp = nir_imm_vec4(&b, 0.0, 0.0, 0.0, 0.0);
+	nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
+	tex->sampler_dim = GLSL_SAMPLER_DIM_MS;
+	tex->op = nir_texop_txf_ms;
+	tex->src[0].src_type = nir_tex_src_coord;
+	tex->src[0].src = nir_src_for_ssa(img_coord);
+	tex->src[1].src_type = nir_tex_src_ms_index;
+	tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, 0));
+	tex->dest_type = nir_type_float;
+	tex->is_array = false;
+	tex->coord_components = 2;
+	tex->texture = nir_deref_var_create(tex, input_img);
+	tex->sampler = NULL;
 
-		for (int i = 0; i < samples; i++) {
-			nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
-			tex->sampler_dim = GLSL_SAMPLER_DIM_MS;
-			tex->op = nir_texop_txf_ms;
-			tex->src[0].src_type = nir_tex_src_coord;
-			tex->src[0].src = nir_src_for_ssa(img_coord);
-			tex->src[1].src_type = nir_tex_src_ms_index;
-			tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, i));
-			tex->dest_type = nir_type_float;
-			tex->is_array = false;
-			tex->coord_components = 2;
-			tex->texture = nir_deref_var_create(tex, input_img);
-			tex->sampler = NULL;
+	nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+	nir_builder_instr_insert(&b, &tex->instr);
 
-			nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
-			nir_builder_instr_insert(&b, &tex->instr);
+	tmp = &tex->dest.ssa;
+	if (!is_integer) {
+		for (int i = 1; i < samples; i++) {
+			nir_tex_instr *tex_add = nir_tex_instr_create(b.shader, 2);
+			tex_add->sampler_dim = GLSL_SAMPLER_DIM_MS;
+			tex_add->op = nir_texop_txf_ms;
+			tex_add->src[0].src_type = nir_tex_src_coord;
+			tex_add->src[0].src = nir_src_for_ssa(img_coord);
+			tex_add->src[1].src_type = nir_tex_src_ms_index;
+			tex_add->src[1].src = nir_src_for_ssa(nir_imm_int(&b, i));
+			tex_add->dest_type = nir_type_float;
+			tex_add->is_array = false;
+			tex_add->coord_components = 2;
+			tex_add->texture = nir_deref_var_create(tex, input_img);
+			tex_add->sampler = NULL;
 
-			tmp = nir_fadd(&b, tmp, &tex->dest.ssa);
+			nir_ssa_dest_init(&tex_add->instr, &tex_add->dest, 4, 32, "tex");
+			nir_builder_instr_insert(&b, &tex_add->instr);
+
+			tmp = nir_fadd(&b, tmp, &tex_add->dest.ssa);
 		}
 
 		tmp = nir_fdiv(&b, tmp, nir_imm_float(&b, samples));
