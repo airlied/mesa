@@ -2749,7 +2749,7 @@ static void tex_fetch_ptrs(struct nir_to_llvm_context *ctx,
 		else
 			*samp_ptr = get_sampler_desc(ctx, instr->texture, DESC_SAMPLER);
 	}
-	if (fmask_ptr && instr->sampler)
+	if (fmask_ptr && !instr->sampler && instr->op == nir_texop_txf_ms)
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, DESC_FMASK);
 }
 
