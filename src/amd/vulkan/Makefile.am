@@ -80,10 +80,13 @@ VULKAN_LIB_DEPS = $(AMDGPU_LIBS)
 if HAVE_PLATFORM_X11
 AM_CPPFLAGS += \
 	$(XCB_DRI3_CFLAGS) \
-	-DVK_USE_PLATFORM_XCB_KHR
+	-DVK_USE_PLATFORM_XCB_KHR \
+	-DVK_USE_PLATFORM_XLIB_KHR
 
 VULKAN_SOURCES += $(VULKAN_WSI_X11_FILES)
-VULKAN_LIB_DEPS += $(XCB_DRI3_LIBS)
+
+# FIXME: Use pkg-config for X11-xcb ldflags.
+VULKAN_LIB_DEPS += $(XCB_DRI3_LIBS) -lX11-xcb
 endif
 
 
@@ -121,16 +124,12 @@ VULKAN_LIB_DEPS += \
 nodist_EXTRA_libvulkan_radeon_la_SOURCES = dummy.cpp
 libvulkan_radeon_la_SOURCES = $(VULKAN_GEM_FILES)
 
-VULKAN_ENTRYPOINT_CPPFLAGS = \
-	-DVK_USE_PLATFORM_XCB_KHR \
-	-DVK_USE_PLATFORM_WAYLAND_KHR
-
 radv_entrypoints.h : radv_entrypoints_gen.py $(vulkan_include_HEADERS)
-	$(AM_V_GEN)$(CPP) $(VULKAN_ENTRYPOINT_CPPFLAGS) $(top_srcdir)/include/vulkan/vulkan_intel.h |\
+	$(AM_V_GEN) cat $(vulkan_include_HEADERS) |\
 	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py header > $@
 
 radv_entrypoints.c : radv_entrypoints_gen.py $(vulkan_include_HEADERS)
-	$(AM_V_GEN)$(CPP) $(VULKAN_ENTRYPOINT_CPPFLAGS) $(top_srcdir)/include/vulkan/vulkan_intel.h |\
+	$(AM_V_GEN) cat $(vulkan_include_HEADERS) |\
 	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py code > $@
 
 .PHONY: radv_timestamp.h
@@ -159,6 +158,7 @@ libvulkan_radeon_la_LDFLAGS = \
 	-module \
 	-no-undefined \
 	-avoid-version \
+	$(BSYMBOLIC) \
 	$(LLVM_LDFLAGS) \
 	$(GC_SECTIONS) \
 	$(LD_NO_UNDEFINED)
