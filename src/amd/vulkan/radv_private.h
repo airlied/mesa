@@ -462,6 +462,15 @@ struct radv_meta_state {
 	} resolve;
 
 	struct {
+		VkDescriptorSetLayout                     ds_layout;
+		VkPipelineLayout                          p_layout;
+		struct {
+			VkPipeline                                pipeline;
+			VkPipeline                                i_pipeline;
+		} rc[MAX_SAMPLES_LOG2];
+	} resolve_compute;
+
+	struct {
 		VkPipeline                                decompress_pipeline;
 		VkPipeline                                resummarize_pipeline;
 		VkRenderPass                              pass;

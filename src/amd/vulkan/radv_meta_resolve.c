@@ -418,6 +418,35 @@ void radv_CmdResolveImage(
 	struct radv_device *device = cmd_buffer->device;
 	struct radv_meta_saved_state saved_state;
 	VkDevice device_h = radv_device_to_handle(device);
+	bool use_compute_resolve = false;
+
+	/* we can use the hw resolve only for single full resolves */
+	if (region_count == 1) {
+		if (regions[0].srcOffset.x ||
+		    regions[0].srcOffset.y ||
+		    regions[0].srcOffset.z)
+			use_compute_resolve = true;
+		if (regions[0].dstOffset.x ||
+		    regions[0].dstOffset.y ||
+		    regions[0].dstOffset.z)
+			use_compute_resolve = true;
+
+		if (regions[0].extent.width != src_image->extent.width ||
+		    regions[0].extent.height != src_image->extent.height ||
+		    regions[0].extent.depth != src_image->extent.depth)
+			use_compute_resolve = true;
+	} else
+		use_compute_resolve = true;
+
+	if (use_compute_resolve) {
+		radv_meta_resolve_compute_image(cmd_buffer,
+						src_image,
+						src_image_layout,
+						dest_image,
+						dest_image_layout,
+						region_count, regions);
+		return;
+	}
 
 	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
 
