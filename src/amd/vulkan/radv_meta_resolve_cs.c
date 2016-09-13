@@ -115,7 +115,7 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, int sampl
 		tex_all_same->dest_type = nir_type_float;
 		tex_all_same->is_array = false;
 		tex_all_same->coord_components = 2;
-		tex_all_same->texture = nir_deref_var_create(tex, input_img);
+		tex_all_same->texture = nir_deref_var_create(tex_all_same, input_img);
 		tex_all_same->sampler = NULL;
 
 		nir_ssa_dest_init(&tex_all_same->instr, &tex_all_same->dest, 1, 32, "tex");
@@ -138,7 +138,7 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, int sampl
 			tex_add->dest_type = nir_type_float;
 			tex_add->is_array = false;
 			tex_add->coord_components = 2;
-			tex_add->texture = nir_deref_var_create(tex, input_img);
+			tex_add->texture = nir_deref_var_create(tex_add, input_img);
 			tex_add->sampler = NULL;
 
 			nir_ssa_dest_init(&tex_add->instr, &tex_add->dest, 4, 32, "tex");
