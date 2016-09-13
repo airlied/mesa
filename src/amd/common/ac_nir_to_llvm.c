@@ -1617,6 +1617,7 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	bool has_offset = tinfo->has_offset;
 	switch (instr->op) {
 	case nir_texop_txf:
+	case nir_texop_txf_ms:
 		name = instr->sampler_dim == GLSL_SAMPLER_DIM_MS ? "llvm.SI.image.load" :
 		       instr->sampler_dim == GLSL_SAMPLER_DIM_BUF ? "llvm.SI.vs.load.input" :
 			"llvm.SI.image.load.mip";
@@ -2705,6 +2706,7 @@ static void set_tex_fetch_args(struct nir_to_llvm_context *ctx,
 	num_args = 2;
 
 	if (op == nir_texop_txf ||
+	    op == nir_texop_txf_ms ||
 	    op == nir_texop_query_levels ||
 	    op == nir_texop_texture_samples ||
 	    op == nir_texop_txs)
@@ -2885,7 +2887,7 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	LLVMValueRef address[16];
 	LLVMValueRef coords[5];
 	LLVMValueRef coord = NULL, lod = NULL, comparitor = NULL, bias, offsets = NULL;
-	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL;
+	LLVMValueRef res_ptr, samp_ptr, fmask_ptr = NULL, sample_index = NULL;
 	LLVMValueRef ddx = NULL, ddy = NULL;
 	LLVMValueRef derivs[6];
 	unsigned chan, count = 0;
@@ -2914,6 +2916,8 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 			lod = get_src(ctx, instr->src[i].src);
 			break;
 		case nir_tex_src_ms_index:
+			sample_index = get_src(ctx, instr->src[i].src);
+			break;
 		case nir_tex_src_ms_mcs:
 			break;
 		case nir_tex_src_ddx:
@@ -3023,6 +3027,8 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 	/* Pack LOD */
 	if ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && lod) {
 		address[count++] = lod;
+	} else if (instr->op == nir_texop_txf_ms && sample_index) {
+		address[count++] = sample_index;
 	} else if(instr->op == nir_texop_txs) {
 		count = 0;
 		address[count++] = lod;
