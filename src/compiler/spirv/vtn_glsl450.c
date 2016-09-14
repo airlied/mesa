@@ -634,6 +634,53 @@ handle_glsl450_alu(struct vtn_builder *b, enum GLSLstd450 entrypoint,
    }
 }
 
+static struct vtn_ssa_value *
+interpolate_at(struct vtn_builder *b,
+	       enum GLSLstd450 opcode,
+	       const uint32_t *w,
+	       uint32_t count)
+{
+   nir_intrinsic_op intrinsic_op;
+   int num_src = 0;
+   const struct glsl_type *type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+
+   struct vtn_ssa_value *dest = vtn_create_ssa_value(b, type);
+   switch (opcode) {
+   case GLSLstd450InterpolateAtCentroid:
+      intrinsic_op = nir_intrinsic_interp_var_at_centroid;
+      break;
+   case GLSLstd450InterpolateAtSample:
+      intrinsic_op = nir_intrinsic_interp_var_at_sample;
+      num_src = 1;
+      break;
+   case GLSLstd450InterpolateAtOffset:
+      intrinsic_op = nir_intrinsic_interp_var_at_offset;
+      num_src = 1;
+      break;
+   default:
+      unreachable("unknown interp opcode");
+   }
+   nir_intrinsic_instr *intrin = nir_intrinsic_instr_create(b->shader, intrinsic_op);
+
+   struct vtn_access_chain *chain = vtn_value(b, w[5], vtn_value_type_access_chain)->access_chain;
+   nir_deref *deref = &vtn_access_chain_to_deref(b, chain)->deref;
+   intrin->num_components = glsl_get_vector_elements(type);
+
+   intrin->variables[0] =
+      nir_deref_as_var(nir_copy_deref(&intrin->instr, deref));
+
+   if (num_src == 1)
+      intrin->src[0] = nir_src_for_ssa(vtn_ssa_value(b, w[6])->def);
+   nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(type), 32, NULL);
+   nir_builder_instr_insert(&b->nb, &intrin->instr);
+
+   dest->def = &intrin->dest.ssa;
+   dest->type = type;
+
+   return dest;
+}
+
 bool
 vtn_handle_glsl450_instruction(struct vtn_builder *b, uint32_t ext_opcode,
                                const uint32_t *w, unsigned count)
@@ -655,8 +702,12 @@ vtn_handle_glsl450_instruction(struct vtn_builder *b, uint32_t ext_opcode,
 
    case GLSLstd450InterpolateAtCentroid:
    case GLSLstd450InterpolateAtSample:
-   case GLSLstd450InterpolateAtOffset:
-      unreachable("Unhandled opcode");
+   case GLSLstd450InterpolateAtOffset: {
+      struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+      val->ssa = interpolate_at(b, (enum GLSLstd450)ext_opcode, w, count);
+      break;
+   }
+
 
    default:
       handle_glsl450_alu(b, (enum GLSLstd450)ext_opcode, w, count);
