@@ -198,9 +198,7 @@ VkResult radv_CreatePipelineLayout(
 
 		layout->set[set].dynamic_offset_start = dynamic_offset_count;
 		for (uint32_t b = 0; b < set_layout->binding_count; b++) {
-			dynamic_offset_count += set_layout->binding[b].array_size;
-			for (gl_shader_stage s = 0; s < MESA_SHADER_STAGES; s++) {
-			}
+			dynamic_offset_count += set_layout->binding[b].array_size * set_layout->binding[b].dynamic_offset_count;
 		}
 		_mesa_sha1_update(ctx, set_layout->binding,
 				  sizeof(set_layout->binding[0]) * set_layout->binding_count);
