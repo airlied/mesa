@@ -2987,6 +2987,20 @@ static void visit_tex(struct nir_to_llvm_context *ctx, nir_tex_instr *instr)
 
 	/* pack derivatives */
 	if (ddx || ddy) {
+		switch (instr->sampler_dim) {
+		case GLSL_SAMPLER_DIM_3D:
+		case GLSL_SAMPLER_DIM_CUBE:
+			num_deriv_comp = 3;
+			break;
+		case GLSL_SAMPLER_DIM_2D:
+		default:
+			num_deriv_comp = 2;
+			break;
+		case GLSL_SAMPLER_DIM_1D:
+			num_deriv_comp = 1;
+			break;
+		}
+
 		for (unsigned i = 0; i < num_deriv_comp; i++) {
 			derivs[i * 2] = to_float(ctx, llvm_extract_elem(ctx, ddx, i));
 			derivs[i * 2 + 1] = to_float(ctx, llvm_extract_elem(ctx, ddy, i));
