@@ -1050,3 +1050,64 @@ void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_sampl
 		break;
 	}
 }
+
+static void radv_cayman_get_sample_position(struct radv_device *device,
+					    unsigned sample_count,
+					    unsigned sample_index, float *out_value)
+{
+	int offset, index;
+	struct {
+		int idx:4;
+	} val;
+	switch (sample_count) {
+	case 1:
+	default:
+		out_value[0] = out_value[1] = 0.5;
+		break;
+	case 2:
+		offset = 4 * (sample_index * 2);
+		val.idx = (eg_sample_locs_2x[0] >> offset) & 0xf;
+		out_value[0] = (float)(val.idx + 8) / 16.0f;
+		val.idx = (eg_sample_locs_2x[0] >> (offset + 4)) & 0xf;
+		out_value[1] = (float)(val.idx + 8) / 16.0f;
+		break;
+	case 4:
+		offset = 4 * (sample_index * 2);
+		val.idx = (eg_sample_locs_4x[0] >> offset) & 0xf;
+		out_value[0] = (float)(val.idx + 8) / 16.0f;
+		val.idx = (eg_sample_locs_4x[0] >> (offset + 4)) & 0xf;
+		out_value[1] = (float)(val.idx + 8) / 16.0f;
+		break;
+	case 8:
+		offset = 4 * (sample_index % 4 * 2);
+		index = (sample_index / 4) * 4;
+		val.idx = (cm_sample_locs_8x[index] >> offset) & 0xf;
+		out_value[0] = (float)(val.idx + 8) / 16.0f;
+		val.idx = (cm_sample_locs_8x[index] >> (offset + 4)) & 0xf;
+		out_value[1] = (float)(val.idx + 8) / 16.0f;
+		break;
+	case 16:
+		offset = 4 * (sample_index % 4 * 2);
+		index = (sample_index / 4) * 4;
+		val.idx = (cm_sample_locs_16x[index] >> offset) & 0xf;
+		out_value[0] = (float)(val.idx + 8) / 16.0f;
+		val.idx = (cm_sample_locs_16x[index] >> (offset + 4)) & 0xf;
+		out_value[1] = (float)(val.idx + 8) / 16.0f;
+		break;
+	}
+}
+
+void radv_device_init_msaa(struct radv_device *device)
+{
+	int i;
+	radv_cayman_get_sample_position(device, 1, 0, device->sample_locations_1x[0]);
+
+	for (i = 0; i < 2; i++)
+		radv_cayman_get_sample_position(device, 2, i, device->sample_locations_2x[i]);
+	for (i = 0; i < 4; i++)
+		radv_cayman_get_sample_position(device, 4, i, device->sample_locations_4x[i]);
+	for (i = 0; i < 8; i++)
+		radv_cayman_get_sample_position(device, 8, i, device->sample_locations_8x[i]);
+	for (i = 0; i < 16; i++)
+		radv_cayman_get_sample_position(device, 16, i, device->sample_locations_16x[i]);
+}

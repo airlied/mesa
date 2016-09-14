@@ -299,8 +299,38 @@ radv_update_multisample_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA, ms->db_eqaa);
 	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1, ms->pa_sc_mode_cntl_1);
 
-
 	radv_cayman_emit_msaa_sample_locs(cmd_buffer->cs, num_samples);
+
+	uint32_t samples_offset;
+	void *samples_ptr;
+	void *src;
+	radv_cmd_buffer_upload_alloc(cmd_buffer, num_samples * 4 * 2, 256, &samples_offset,
+				     &samples_ptr);
+	switch (num_samples) {
+	case 1:
+		src = cmd_buffer->device->sample_locations_1x;
+		break;
+	case 2:
+		src = cmd_buffer->device->sample_locations_2x;
+		break;
+	case 4:
+		src = cmd_buffer->device->sample_locations_4x;
+		break;
+	case 8:
+		src = cmd_buffer->device->sample_locations_8x;
+		break;
+	case 16:
+		src = cmd_buffer->device->sample_locations_16x;
+		break;
+	}
+	memcpy(samples_ptr, src, num_samples * 4 * 2);
+
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
+	va += samples_offset;
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B030_SPI_SHADER_USER_DATA_PS_0 + 10 * 4, 2);
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, va >> 32);
 }
 
 static void
