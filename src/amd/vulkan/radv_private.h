@@ -568,6 +568,15 @@ struct radv_device {
 
 	bool allow_fast_clears;
 	bool allow_dcc;
+
+	/* MSAA sample locations.
+	 * The first index is the sample index.
+	 * The second index is the coordinate: X, Y. */
+	float sample_locations_1x[1][2];
+	float sample_locations_2x[2][2];
+	float sample_locations_4x[4][2];
+	float sample_locations_8x[8][2];
+	float sample_locations_16x[16][2];
 };
 
 void radv_device_get_cache_uuid(void *uuid);
@@ -834,6 +843,7 @@ void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer);
 void radv_cayman_emit_msaa_sample_locs(struct radeon_winsys_cs *cs, int nr_samples);
 unsigned radv_cayman_get_maxdist(int log_samples);
+void radv_device_init_msaa(struct radv_device *device);
 void radv_set_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			       struct radv_image *image,
 			       VkClearDepthStencilValue ds_clear_value,
