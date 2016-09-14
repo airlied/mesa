@@ -2622,7 +2622,7 @@ static LLVMValueRef visit_interp(struct nir_to_llvm_context *ctx,
 	unsigned chan;
 	LLVMValueRef src_c0, src_c1;
 	const char *intr_name;
-	LLVMValueRef src0 = get_src(ctx, instr->src[0]);
+	LLVMValueRef src0;
 	int input_index = instr->variables[0]->var->data.location - VARYING_SLOT_VAR0;
 	switch (instr->intrinsic) {
 	case nir_intrinsic_interp_var_at_centroid:
@@ -2631,6 +2631,7 @@ static LLVMValueRef visit_interp(struct nir_to_llvm_context *ctx,
 	case nir_intrinsic_interp_var_at_sample:
 	case nir_intrinsic_interp_var_at_offset:
 		location = INTERP_SAMPLE;
+		src0 = get_src(ctx, instr->src[0]);
 		break;
 	default:
 		break;
