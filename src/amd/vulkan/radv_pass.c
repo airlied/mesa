@@ -138,6 +138,20 @@ VkResult radv_CreateRenderPass(
 			subpass->depth_stencil_attachment.attachment = VK_ATTACHMENT_UNUSED;
 		}
 	}
+
+	for (unsigned i = 0; i < pCreateInfo->dependencyCount; ++i) {
+		uint32_t dst = pCreateInfo->pDependencies[i].dstSubpass;
+		if (dst == VK_SUBPASS_EXTERNAL) {
+			pass->end_barrier.src_stage_mask = pCreateInfo->pDependencies[i].srcStageMask;
+			pass->end_barrier.src_access_mask = pCreateInfo->pDependencies[i].srcAccessMask;
+			pass->end_barrier.dst_access_mask = pCreateInfo->pDependencies[i].dstAccessMask;
+		} else {
+			pass->subpasses[dst].start_barrier.src_stage_mask = pCreateInfo->pDependencies[i].srcStageMask;
+			pass->subpasses[dst].start_barrier.src_access_mask = pCreateInfo->pDependencies[i].srcAccessMask;
+			pass->subpasses[dst].start_barrier.dst_access_mask = pCreateInfo->pDependencies[i].dstAccessMask;
+		}
+	}
+
 	*pRenderPass = radv_render_pass_to_handle(pass);
 
 	return VK_SUCCESS;

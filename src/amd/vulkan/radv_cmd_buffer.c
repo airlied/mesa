@@ -1002,6 +1002,43 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	si_emit_cache_flush(cmd_buffer);
 }
 
+static void radv_stage_flush(struct radv_cmd_buffer *cmd_buffer,
+                             VkPipelineStageFlags src_stage_mask)
+{
+	if (src_stage_mask & (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+	                      VK_PIPELINE_STAGE_TRANSFER_BIT |
+	                      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+	                      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH;
+	}
+
+	if (src_stage_mask & (VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+	                     VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+	                     VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+	                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+	                     VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+	                     VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+	                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+	                     VK_PIPELINE_STAGE_TRANSFER_BIT |
+	                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+	                     VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
+	                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
+	} else if (src_stage_mask & (VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+	                             VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
+	                             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
+	                             VK_PIPELINE_STAGE_VERTEX_SHADER_BIT)) {
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_VS_PARTIAL_FLUSH;
+	}
+}
+
+static void radv_subpass_barrier(struct radv_cmd_buffer *cmd_buffer, const struct radv_subpass_barrier *barrier)
+{
+	radv_stage_flush(cmd_buffer, barrier->src_stage_mask);
+
+	/* TODO: actual cache flushes */
+}
+
 static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buffer,
                                                  VkAttachmentReference att)
 {
@@ -1030,6 +1067,8 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
                             const struct radv_subpass *subpass, bool transitions)
 {
 	if (transitions) {
+		radv_subpass_barrier(cmd_buffer, &subpass->start_barrier);
+
 		for (unsigned i = 0; i < subpass->color_count; ++i) {
 			radv_handle_subpass_image_transition(cmd_buffer,
 							subpass->color_attachments[i]);
@@ -1982,6 +2021,8 @@ void radv_CmdEndRenderPass(
 	VkCommandBuffer                             commandBuffer)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+
+	radv_subpass_barrier(cmd_buffer, &cmd_buffer->state.pass->end_barrier);
 
 	si_emit_cache_flush(cmd_buffer);
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);

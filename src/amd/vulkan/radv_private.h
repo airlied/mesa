@@ -1260,7 +1260,12 @@ struct radv_framebuffer {
 	struct radv_attachment_info                  attachments[0];
 };
 
-   
+struct radv_subpass_barrier {
+	VkPipelineStageFlags src_stage_mask;
+	VkAccessFlags        src_access_mask;
+	VkAccessFlags        dst_access_mask;
+};
+
 struct radv_subpass {
 	uint32_t                                     input_count;
 	VkAttachmentReference *                      input_attachments;
@@ -1271,6 +1276,8 @@ struct radv_subpass {
 
 	/** Subpass has at least one resolve attachment */
 	bool                                         has_resolve;
+
+	struct radv_subpass_barrier                  start_barrier;
 };
 
 struct radv_render_pass_attachment {
@@ -1286,8 +1293,9 @@ struct radv_render_pass {
 	uint32_t                                     attachment_count;
 	uint32_t                                     subpass_count;
 	VkAttachmentReference *                      subpass_attachments;
-	struct radv_render_pass_attachment *          attachments;
-	struct radv_subpass                           subpasses[0];
+	struct radv_render_pass_attachment *         attachments;
+	struct radv_subpass_barrier                  end_barrier;
+	struct radv_subpass                          subpasses[0];
 };
 
 VkResult radv_device_init_meta(struct radv_device *device);
