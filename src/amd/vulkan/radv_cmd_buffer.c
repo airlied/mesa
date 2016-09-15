@@ -1197,12 +1197,11 @@ VkResult radv_BeginCommandBuffer(
 
 	memset(&cmd_buffer->state, 0, sizeof(cmd_buffer->state));
 
-	/* Flush read caches at the beginning of CS not flushed by the kernel. */
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_INV_ICACHE |
-		RADV_CMD_FLAG_INV_SMEM_L1;
-
 	/* setup initial configuration into command buffer */
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
+		/* Flush read caches at the beginning of CS not flushed by the kernel. */
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_INV_ICACHE |
+		                                RADV_CMD_FLAG_INV_SMEM_L1;
 		si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
 		radv_set_db_count_control(cmd_buffer);
 		si_emit_cache_flush(cmd_buffer);
