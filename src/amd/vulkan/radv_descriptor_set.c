@@ -190,7 +190,6 @@ VkResult radv_CreatePipelineLayout(
 
 
 	ctx = _mesa_sha1_init();
-	memset(layout->stage, 0, sizeof(layout->stage));
 	for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
 		RADV_FROM_HANDLE(radv_descriptor_set_layout, set_layout,
 				 pCreateInfo->pSetLayouts[set]);
