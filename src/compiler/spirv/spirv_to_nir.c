@@ -828,6 +828,7 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
       case SpvDimCube:     dim = GLSL_SAMPLER_DIM_CUBE;  break;
       case SpvDimRect:     dim = GLSL_SAMPLER_DIM_RECT;  break;
       case SpvDimBuffer:   dim = GLSL_SAMPLER_DIM_BUF;   break;
+      case SpvDimSubpassData: dim = GLSL_SAMPLER_DIM_SUBPASS; break;
       default:
          unreachable("Invalid SPIR-V Sampler dimension");
       }
@@ -854,7 +855,7 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
          val->type->type = glsl_sampler_type(dim, is_shadow, is_array,
                                              glsl_get_base_type(sampled_type));
       } else if (sampled == 2) {
-         assert(format);
+         assert((dim == GLSL_SAMPLER_DIM_SUBPASS) || format);
          assert(!is_shadow);
          val->type->type = glsl_image_type(dim, is_array,
                                            glsl_get_base_type(sampled_type));
@@ -1419,6 +1420,7 @@ vtn_handle_texture(struct vtn_builder *b, SpvOp opcode,
       case GLSL_SAMPLER_DIM_2D:
       case GLSL_SAMPLER_DIM_RECT:
       case GLSL_SAMPLER_DIM_MS:
+      case GLSL_SAMPLER_DIM_SUBPASS:
          coord_components = 2;
          break;
       case GLSL_SAMPLER_DIM_3D:
