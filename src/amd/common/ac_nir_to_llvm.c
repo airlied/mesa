@@ -2230,6 +2230,7 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 	case GLSL_SAMPLER_DIM_CUBE:
 		return 3;
 	case GLSL_SAMPLER_DIM_RECT:
+	case GLSL_SAMPLER_DIM_SUBPASS:
 		return 2;
 	default:
 		break;
@@ -2238,7 +2239,7 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 }
 
 static LLVMValueRef get_image_coords(struct nir_to_llvm_context *ctx,
-				     nir_intrinsic_instr *instr)
+				     nir_intrinsic_instr *instr, bool add_frag_pos)
 {
 	const struct glsl_type *type = instr->variables[0]->var->type;
 	if(instr->variables[0]->deref.child)
@@ -2264,6 +2265,11 @@ static LLVMValueRef get_image_coords(struct nir_to_llvm_context *ctx,
 		int chan;
 		for (chan = 0; chan < count; ++chan) {
 			coords[chan] = LLVMBuildExtractElement(ctx->builder, src0, masks[chan], "");
+		}
+
+		if (add_frag_pos) {
+			for (chan = 0; chan < count; ++chan)
+				coords[chan] = LLVMBuildAdd(ctx->builder, coords[chan], LLVMBuildFPToUI(ctx->builder, ctx->frag_pos[chan], ctx->i32, ""), "");
 		}
 		if (count == 3) {
 			coords[3] = LLVMGetUndef(ctx->i32);
@@ -2302,8 +2308,9 @@ static LLVMValueRef visit_image_load(struct nir_to_llvm_context *ctx,
 	} else {
 		bool da = glsl_sampler_type_is_array(type) ||
 		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
+		bool add_frag_pos = glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_SUBPASS;
 
-		params[0] = get_image_coords(ctx, instr);
+		params[0] = get_image_coords(ctx, instr, add_frag_pos);
 		params[1] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[2] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[3] = LLVMConstInt(ctx->i1, 0, false);  /* r128 */
@@ -2351,7 +2358,7 @@ static void visit_image_store(struct nir_to_llvm_context *ctx,
 		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
 
 		params[0] = get_src(ctx, instr->src[2]); /* coords */
-		params[1] = get_image_coords(ctx, instr);
+		params[1] = get_image_coords(ctx, instr, false);
 		params[2] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[3] = LLVMConstInt(ctx->i32, 15, false); /* dmask */
 		params[4] = i1false;  /* r128 */
@@ -2402,7 +2409,7 @@ static LLVMValueRef visit_image_atomic(struct nir_to_llvm_context *ctx,
 		bool da = glsl_sampler_type_is_array(type) ||
 		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
 
-		coords = params[param_count++] = get_image_coords(ctx, instr);
+		coords = params[param_count++] = get_image_coords(ctx, instr, false);
 		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], DESC_IMAGE);
 		params[param_count++] = i1false; /* r128 */
 		params[param_count++] = da ? i1true : i1false;      /* da */
