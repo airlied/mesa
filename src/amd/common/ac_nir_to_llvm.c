@@ -2230,6 +2230,7 @@ static int image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 	case GLSL_SAMPLER_DIM_CUBE:
 		return 3;
 	case GLSL_SAMPLER_DIM_RECT:
+	case GLSL_SAMPLER_DIM_SUBPASS:
 		return 2;
 	default:
 		break;
