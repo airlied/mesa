@@ -197,7 +197,6 @@ struct blit2d_dst_temps {
 static void
 blit2d_bind_dst(struct radv_cmd_buffer *cmd_buffer,
                 struct radv_meta_blit2d_surf *dst,
-                uint64_t offset,
                 uint32_t width,
                 uint32_t height,
 		VkFormat depth_format,
@@ -292,7 +291,7 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer,
 
 		uint32_t offset = 0;
 		struct blit2d_dst_temps dst_temps;
-		blit2d_bind_dst(cmd_buffer, dst, offset, rects[r].dst_x + rects[r].width,
+		blit2d_bind_dst(cmd_buffer, dst, rects[r].dst_x + rects[r].width,
 				rects[r].dst_y + rects[r].height, depth_format, &dst_temps);
 
 		struct blit_vb_data {
