@@ -259,7 +259,7 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 		goto fail;
 	}
    
-	ws->addrlib = radv_amdgpu_addr_create(&ws->amdinfo, ws->family, ws->rev_id);
+	ws->addrlib = radv_amdgpu_addr_create(&ws->amdinfo, ws->family, ws->rev_id, ws->info.chip_class);
 	if (!ws->addrlib) {
 		fprintf(stderr, "amdgpu: Cannot create addrlib.\n");
 		goto fail;
