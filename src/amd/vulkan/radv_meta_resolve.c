@@ -635,9 +635,14 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 	for (uint32_t i = 0; i < subpass->color_count; ++i) {
 		VkAttachmentReference src_att = subpass->color_attachments[i];
 		VkAttachmentReference dest_att = subpass->resolve_attachments[i];
-
+		struct radv_image *dst_img = cmd_buffer->state.framebuffer->attachments[dest_att.attachment].attachment->image;
 		if (dest_att.attachment == VK_ATTACHMENT_UNUSED)
 			continue;
+
+		if (dst_img->surface.dcc_size) {
+			radv_initialize_dcc(cmd_buffer, dst_img, 0xffffffff);
+			cmd_buffer->state.attachments[dest_att.attachment].current_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
 
 		struct radv_subpass resolve_subpass = {
 			.color_count = 2,
