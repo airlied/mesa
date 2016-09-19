@@ -2085,8 +2085,8 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 	}
 }
 
-static void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
-				  struct radv_image *image, uint32_t value)
+void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
+			 struct radv_image *image, uint32_t value)
 {
 
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
