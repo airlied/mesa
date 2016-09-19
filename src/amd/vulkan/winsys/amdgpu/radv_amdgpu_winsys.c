@@ -119,6 +119,7 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 	struct drm_amdgpu_info_hw_ip dma = {};
 	drmDevicePtr devinfo;
 	int r;
+	int i, j;
 	/* Get PCI info. */
 	r = drmGetDevice(fd, &devinfo);
 	if (r) {
@@ -282,14 +283,13 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 	ws->info.has_virtual_memory = TRUE;
 	ws->info.has_sdma = dma.available_rings != 0;
 
-#if 0
 	/* Get the number of good compute units. */
 	ws->info.num_good_compute_units = 0;
 	for (i = 0; i < ws->info.max_se; i++)
 		for (j = 0; j < ws->info.max_sh_per_se; j++)
 			ws->info.num_good_compute_units +=
 				util_bitcount(ws->amdinfo.cu_bitmap[i][j]);
-#endif
+
 	memcpy(ws->info.si_tile_mode_array, ws->amdinfo.gb_tile_mode,
 	       sizeof(ws->amdinfo.gb_tile_mode));
 	ws->info.enabled_rb_mask = ws->amdinfo.enabled_rb_pipes_mask;
@@ -298,6 +298,9 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 	       sizeof(ws->amdinfo.gb_macro_tile_mode));
 
 	ws->info.gart_page_size = alignment_info.size_remote;
+
+	if (ws->info.chip_class == SI)
+		ws->info.gfx_ib_pad_with_type2 = TRUE;
 
 	ws->use_ib_bos = ws->family >= FAMILY_CI;
 	return true;
