@@ -109,7 +109,8 @@ static ADDR_E_RETURNCODE ADDR_API radv_freeSysMem(const ADDR_FREESYSMEM_INPUT * 
    return ADDR_OK;
 }
 
-ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family, int rev_id)
+ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family, int rev_id,
+				    enum chip_class chip_class)
 {
    ADDR_CREATE_INPUT addrCreateInput = {0};
    ADDR_CREATE_OUTPUT addrCreateOutput = {0};
@@ -127,8 +128,13 @@ ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family,
    regValue.backendDisables = amdinfo->backend_disable[0];
    regValue.pTileConfig = amdinfo->gb_tile_mode;
    regValue.noOfEntries = ARRAY_SIZE(amdinfo->gb_tile_mode);
-   regValue.pMacroTileConfig = amdinfo->gb_macro_tile_mode;
-   regValue.noOfMacroEntries = ARRAY_SIZE(amdinfo->gb_macro_tile_mode);
+   if (chip_class == SI) {
+      regValue.pMacroTileConfig = NULL;
+      regValue.noOfMacroEntries = 0;
+   } else {
+      regValue.pMacroTileConfig = amdinfo->gb_macro_tile_mode;
+      regValue.noOfMacroEntries = ARRAY_SIZE(amdinfo->gb_macro_tile_mode);
+   }
 
    createFlags.value = 0;
    createFlags.useTileIndex = 1;
@@ -408,10 +414,28 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
       assert(!(surf->flags & RADEON_SURF_Z_OR_SBUFFER));
       assert(AddrSurfInfoIn.tileMode == ADDR_TM_2D_TILED_THIN1);
 
-      if (AddrSurfInfoIn.tileType == ADDR_DISPLAYABLE)
-         AddrSurfInfoIn.tileIndex = 10; /* 2D displayable */
-      else
-         AddrSurfInfoIn.tileIndex = 14; /* 2D non-displayable */
+      if (ws->info.chip_class == SI) {
+         if (AddrSurfInfoIn.tileType == ADDR_DISPLAYABLE) {
+            if (surf->bpe == 2)
+               AddrSurfInfoIn.tileIndex = 11; /* 16bpp */
+            else
+               AddrSurfInfoIn.tileIndex = 12; /* 32bpp */
+         } else {
+            if (surf->bpe == 1)
+               AddrSurfInfoIn.tileIndex = 14; /* 8bpp */
+            else if (surf->bpe == 2)
+               AddrSurfInfoIn.tileIndex = 15; /* 16bpp */
+            else if (surf->bpe == 4)
+               AddrSurfInfoIn.tileIndex = 16; /* 32bpp */
+            else
+               AddrSurfInfoIn.tileIndex = 17; /* 64bpp (and 128bpp) */
+         }
+      } else {
+	if (AddrSurfInfoIn.tileType == ADDR_DISPLAYABLE)
+	  AddrSurfInfoIn.tileIndex = 10; /* 2D displayable */
+	else
+	  AddrSurfInfoIn.tileIndex = 14; /* 2D non-displayable */
+      }
    }
 
    surf->bo_size = 0;
