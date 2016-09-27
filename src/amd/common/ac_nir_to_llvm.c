@@ -3606,7 +3606,7 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	LLVMValueRef args[3];
 	LLVMValueRef input;
 	LLVMValueRef buffer_index;
-	int index = variable->data.location - 17;
+	int index = variable->data.location - VERT_ATTRIB_GENERIC0;
 	int idx = variable->data.location;
 	unsigned attrib_count = glsl_count_attribute_slots(variable->type, true);
 

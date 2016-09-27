@@ -1162,7 +1162,7 @@ radv_compute_vs_key(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 		unsigned binding;
 		binding = input_state->pVertexAttributeDescriptions[i].binding;
 		if (input_state->pVertexBindingDescriptions[binding].inputRate)
-			key.vs.instance_rate_inputs |= 1u << i;
+			key.vs.instance_rate_inputs |= 1u << input_state->pVertexAttributeDescriptions[i].location;
 	}
 	return key;
 }
