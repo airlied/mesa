@@ -435,6 +435,9 @@ VkResult radv_CreateDescriptorPool(
 		case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
 			bo_size += 96 * pCreateInfo->pPoolSizes[i].descriptorCount;
 			break;
+		default:
+			unreachable("unknown descriptor type\n");
+			break;
 		}
 	}
 

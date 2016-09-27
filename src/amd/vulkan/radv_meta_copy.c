@@ -78,7 +78,7 @@ vk_format_for_size(int bs)
 }
 
 static struct radv_meta_blit2d_surf
-blit_surf_for_image_level_layer(const struct radv_image* image, VkImageAspectFlags aspectMask,
+blit_surf_for_image_level_layer(struct radv_image* image, VkImageAspectFlags aspectMask,
 				int level, int layer)
 {
 	VkFormat format = image->vk_format;

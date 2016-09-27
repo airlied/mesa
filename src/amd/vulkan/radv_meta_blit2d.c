@@ -719,6 +719,9 @@ blit2d_init_color_pipeline(struct radv_device *device,
 		src_func = build_nir_buffer_fetch;
 		name = "meta_blit2d_buffer_fs";
 		break;
+	default:
+		unreachable("unknown blit src type\n");
+		break;
 	}
 
 	const VkPipelineVertexInputStateCreateInfo *vi_create_info;
@@ -873,6 +876,9 @@ blit2d_init_depth_only_pipeline(struct radv_device *device,
 		src_func = build_nir_buffer_fetch;
 		name = "meta_blit2d_depth_buffer_fs";
 		break;
+	default:
+		unreachable("unknown blit src type\n");
+		break;
 	}
 
 	const VkPipelineVertexInputStateCreateInfo *vi_create_info;
@@ -1022,6 +1028,9 @@ blit2d_init_stencil_only_pipeline(struct radv_device *device,
 	case BLIT2D_SRC_TYPE_BUFFER:
 		src_func = build_nir_buffer_fetch;
 		name = "meta_blit2d_stencil_buffer_fs";
+		break;
+	default:
+		unreachable("unknown blit src type\n");
 		break;
 	}
 
