@@ -267,6 +267,7 @@ radv_descriptor_set_create(struct radv_device *device,
 	set->layout = layout;
 	if (layout->size) {
 		uint32_t layout_size = align_u32(layout->size, 32);
+		set->size = layout->size;
 		if (!cmd_buffer) {
 			if (pool->current_offset + layout_size <= pool->size) {
 				set->bo = pool->bo;
@@ -303,7 +304,7 @@ radv_descriptor_set_create(struct radv_device *device,
 			}
 		} else {
 			unsigned bo_offset;
-			if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->size, 32,
+			if (!radv_cmd_buffer_upload_alloc(cmd_buffer, set->size, 32,
 							  &bo_offset,
 							  (void**)&set->mapped_ptr)) {
 				radv_free2(&device->alloc, NULL, set->dynamic_descriptors);
@@ -347,12 +348,12 @@ radv_descriptor_set_destroy(struct radv_device *device,
 			    struct radv_descriptor_set *set,
 			    bool free_bo)
 {
-	if (free_bo && set->layout->size) {
+	if (free_bo && set->size) {
 		assert(pool->full_list >= 0);
 		int next = pool->free_nodes[pool->full_list].next;
 		pool->free_nodes[pool->full_list].next = pool->free_list;
 		pool->free_nodes[pool->full_list].offset = (uint8_t*)set->mapped_ptr - pool->mapped_ptr;
-		pool->free_nodes[pool->full_list].size = align_u32(set->layout->size, 32);
+		pool->free_nodes[pool->full_list].size = align_u32(set->size, 32);
 		pool->free_list = pool->full_list;
 		pool->full_list = next;
 	}
