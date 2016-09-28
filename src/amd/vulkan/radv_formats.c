@@ -34,75 +34,75 @@
 uint32_t radv_translate_buffer_dataformat(const struct vk_format_description *desc,
 					  int first_non_void)
 {
-    unsigned type;
-    int i;
+	unsigned type;
+	int i;
 
-    if (desc->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
-	    return V_008F0C_BUF_DATA_FORMAT_10_11_11;
+	if (desc->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32)
+		return V_008F0C_BUF_DATA_FORMAT_10_11_11;
 
-    if (first_non_void < 0)
-	    return V_008F0C_BUF_DATA_FORMAT_INVALID;
-    type = desc->channel[first_non_void].type;
+	if (first_non_void < 0)
+		return V_008F0C_BUF_DATA_FORMAT_INVALID;
+	type = desc->channel[first_non_void].type;
 
-    if (type == VK_FORMAT_TYPE_FIXED)
+	if (type == VK_FORMAT_TYPE_FIXED)
+		return V_008F0C_BUF_DATA_FORMAT_INVALID;
+	if (desc->nr_channels == 4 &&
+	    desc->channel[0].size == 10 &&
+	    desc->channel[1].size == 10 &&
+	    desc->channel[2].size == 10 &&
+	    desc->channel[3].size == 2)
+		return V_008F0C_BUF_DATA_FORMAT_2_10_10_10;
+
+	/* See whether the components are of the same size. */
+	for (i = 0; i < desc->nr_channels; i++) {
+		if (desc->channel[first_non_void].size != desc->channel[i].size)
+			return V_008F0C_BUF_DATA_FORMAT_INVALID;
+	}
+
+	switch (desc->channel[first_non_void].size) {
+	case 8:
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F0C_BUF_DATA_FORMAT_8;
+		case 2:
+			return V_008F0C_BUF_DATA_FORMAT_8_8;
+		case 4:
+			return V_008F0C_BUF_DATA_FORMAT_8_8_8_8;
+		}
+		break;
+	case 16:
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F0C_BUF_DATA_FORMAT_16;
+		case 2:
+			return V_008F0C_BUF_DATA_FORMAT_16_16;
+		case 4:
+			return V_008F0C_BUF_DATA_FORMAT_16_16_16_16;
+		}
+		break;
+	case 32:
+		/* From the Southern Islands ISA documentation about MTBUF:
+		 * 'Memory reads of data in memory that is 32 or 64 bits do not
+		 * undergo any format conversion.'
+		 */
+		if (type != VK_FORMAT_TYPE_FLOAT &&
+		    !desc->channel[first_non_void].pure_integer)
+			return V_008F0C_BUF_DATA_FORMAT_INVALID;
+
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F0C_BUF_DATA_FORMAT_32;
+		case 2:
+			return V_008F0C_BUF_DATA_FORMAT_32_32;
+		case 3:
+			return V_008F0C_BUF_DATA_FORMAT_32_32_32;
+		case 4:
+			return V_008F0C_BUF_DATA_FORMAT_32_32_32_32;
+		}
+		break;
+	}
+
 	return V_008F0C_BUF_DATA_FORMAT_INVALID;
-    if (desc->nr_channels == 4 &&
-	desc->channel[0].size == 10 &&
-	desc->channel[1].size == 10 &&
-	desc->channel[2].size == 10 &&
-	desc->channel[3].size == 2)
-	return V_008F0C_BUF_DATA_FORMAT_2_10_10_10;
-
-    /* See whether the components are of the same size. */
-    for (i = 0; i < desc->nr_channels; i++) {
-	if (desc->channel[first_non_void].size != desc->channel[i].size)
-	    return V_008F0C_BUF_DATA_FORMAT_INVALID;
-    }
-
-    switch (desc->channel[first_non_void].size) {
-    case 8:
-	switch (desc->nr_channels) {
-	case 1:
-	    return V_008F0C_BUF_DATA_FORMAT_8;
-	case 2:
-	    return V_008F0C_BUF_DATA_FORMAT_8_8;
-	case 4:
-	    return V_008F0C_BUF_DATA_FORMAT_8_8_8_8;
-	}
-	break;
-    case 16:
-	switch (desc->nr_channels) {
-	case 1:
-	    return V_008F0C_BUF_DATA_FORMAT_16;
-	case 2:
-	    return V_008F0C_BUF_DATA_FORMAT_16_16;
-	case 4:
-	    return V_008F0C_BUF_DATA_FORMAT_16_16_16_16;
-	}
-	break;
-    case 32:
-	/* From the Southern Islands ISA documentation about MTBUF:
-	 * 'Memory reads of data in memory that is 32 or 64 bits do not
-	 * undergo any format conversion.'
-	 */
-	if (type != VK_FORMAT_TYPE_FLOAT &&
-	    !desc->channel[first_non_void].pure_integer)
-	    return V_008F0C_BUF_DATA_FORMAT_INVALID;
-
-	switch (desc->nr_channels) {
-	case 1:
-	    return V_008F0C_BUF_DATA_FORMAT_32;
-	case 2:
-	    return V_008F0C_BUF_DATA_FORMAT_32_32;
-	case 3:
-	    return V_008F0C_BUF_DATA_FORMAT_32_32_32;
-	case 4:
-	    return V_008F0C_BUF_DATA_FORMAT_32_32_32_32;
-	}
-	break;
-    }
-
-    return V_008F0C_BUF_DATA_FORMAT_INVALID;
 }
 
 uint32_t radv_translate_buffer_numformat(const struct vk_format_description *desc,
@@ -141,195 +141,195 @@ uint32_t radv_translate_tex_dataformat(VkFormat format,
 				       const struct vk_format_description *desc,
 				       int first_non_void)
 {
-   bool uniform = true;
-   int i;
+	bool uniform = true;
+	int i;
 
-   if (!desc)
-      return ~0;
-   /* Colorspace (return non-RGB formats directly). */
-   switch (desc->colorspace) {
-      /* Depth stencil formats */
-   case VK_FORMAT_COLORSPACE_ZS:
-      switch (format) {
-      case VK_FORMAT_D16_UNORM:
-	 return V_008F14_IMG_DATA_FORMAT_16;
-      case VK_FORMAT_D24_UNORM_S8_UINT:
-	 return V_008F14_IMG_DATA_FORMAT_8_24;
-      case VK_FORMAT_S8_UINT:
-	 return V_008F14_IMG_DATA_FORMAT_8;
-      case VK_FORMAT_D32_SFLOAT:
-	 return V_008F14_IMG_DATA_FORMAT_32;
-      case VK_FORMAT_D32_SFLOAT_S8_UINT:
-	 return V_008F14_IMG_DATA_FORMAT_X24_8_32;
-      default:
-	 goto out_unknown;
-      }
+	if (!desc)
+		return ~0;
+	/* Colorspace (return non-RGB formats directly). */
+	switch (desc->colorspace) {
+		/* Depth stencil formats */
+	case VK_FORMAT_COLORSPACE_ZS:
+		switch (format) {
+		case VK_FORMAT_D16_UNORM:
+			return V_008F14_IMG_DATA_FORMAT_16;
+		case VK_FORMAT_D24_UNORM_S8_UINT:
+			return V_008F14_IMG_DATA_FORMAT_8_24;
+		case VK_FORMAT_S8_UINT:
+			return V_008F14_IMG_DATA_FORMAT_8;
+		case VK_FORMAT_D32_SFLOAT:
+			return V_008F14_IMG_DATA_FORMAT_32;
+		case VK_FORMAT_D32_SFLOAT_S8_UINT:
+			return V_008F14_IMG_DATA_FORMAT_X24_8_32;
+		default:
+			goto out_unknown;
+		}
 
-   case VK_FORMAT_COLORSPACE_YUV:
-      goto out_unknown; /* TODO */
+	case VK_FORMAT_COLORSPACE_YUV:
+		goto out_unknown; /* TODO */
 
-   case VK_FORMAT_COLORSPACE_SRGB:
-      if (desc->nr_channels != 4 && desc->nr_channels != 1)
-	 goto out_unknown;
-      break;
+	case VK_FORMAT_COLORSPACE_SRGB:
+		if (desc->nr_channels != 4 && desc->nr_channels != 1)
+			goto out_unknown;
+		break;
 
-   default:
-      break;
-   }
+	default:
+		break;
+	}
 
-   if (desc->layout == VK_FORMAT_LAYOUT_RGTC) {
-       switch(format) {
-       case VK_FORMAT_BC4_UNORM_BLOCK:
-       case VK_FORMAT_BC4_SNORM_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC4;
-       case VK_FORMAT_BC5_UNORM_BLOCK:
-       case VK_FORMAT_BC5_SNORM_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC5;
-       default:
-	   break;
-       }
-   }
+	if (desc->layout == VK_FORMAT_LAYOUT_RGTC) {
+		switch(format) {
+		case VK_FORMAT_BC4_UNORM_BLOCK:
+		case VK_FORMAT_BC4_SNORM_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC4;
+		case VK_FORMAT_BC5_UNORM_BLOCK:
+		case VK_FORMAT_BC5_SNORM_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC5;
+		default:
+			break;
+		}
+	}
 
-   if (desc->layout == VK_FORMAT_LAYOUT_S3TC) {
-       switch(format) {
-       case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
-       case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
-       case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
-       case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC1;
-       case VK_FORMAT_BC2_UNORM_BLOCK:
-       case VK_FORMAT_BC2_SRGB_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC2;
-       case VK_FORMAT_BC3_UNORM_BLOCK:
-       case VK_FORMAT_BC3_SRGB_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC3;
-       default:
-	   break;
-       }
-   }
+	if (desc->layout == VK_FORMAT_LAYOUT_S3TC) {
+		switch(format) {
+		case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+		case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+		case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+		case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC1;
+		case VK_FORMAT_BC2_UNORM_BLOCK:
+		case VK_FORMAT_BC2_SRGB_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC2;
+		case VK_FORMAT_BC3_UNORM_BLOCK:
+		case VK_FORMAT_BC3_SRGB_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC3;
+		default:
+			break;
+		}
+	}
 
-   if (desc->layout == VK_FORMAT_LAYOUT_BPTC) {
-       switch(format) {
-       case VK_FORMAT_BC6H_UFLOAT_BLOCK:
-       case VK_FORMAT_BC6H_SFLOAT_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC6;
-       case VK_FORMAT_BC7_UNORM_BLOCK:
-       case VK_FORMAT_BC7_SRGB_BLOCK:
-	   return V_008F14_IMG_DATA_FORMAT_BC7;
-       default:
-	   break;
-       }
-   }
+	if (desc->layout == VK_FORMAT_LAYOUT_BPTC) {
+		switch(format) {
+		case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+		case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC6;
+		case VK_FORMAT_BC7_UNORM_BLOCK:
+		case VK_FORMAT_BC7_SRGB_BLOCK:
+			return V_008F14_IMG_DATA_FORMAT_BC7;
+		default:
+			break;
+		}
+	}
 
-   if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
-      return V_008F14_IMG_DATA_FORMAT_5_9_9_9;
-   } else if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32) {
-      return V_008F14_IMG_DATA_FORMAT_10_11_11;
-   }
+	if (format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
+		return V_008F14_IMG_DATA_FORMAT_5_9_9_9;
+	} else if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32) {
+		return V_008F14_IMG_DATA_FORMAT_10_11_11;
+	}
 
-   /* R8G8Bx_SNORM - TODO CxV8U8 */
+	/* R8G8Bx_SNORM - TODO CxV8U8 */
 
-   /* hw cannot support mixed formats (except depth/stencil, since only
-    * depth is read).*/
-   if (desc->is_mixed && desc->colorspace != VK_FORMAT_COLORSPACE_ZS)
-      goto out_unknown;
+	/* hw cannot support mixed formats (except depth/stencil, since only
+	 * depth is read).*/
+	if (desc->is_mixed && desc->colorspace != VK_FORMAT_COLORSPACE_ZS)
+		goto out_unknown;
 
-   /* See whether the components are of the same size. */
-   for (i = 1; i < desc->nr_channels; i++) {
-      uniform = uniform && desc->channel[0].size == desc->channel[i].size;
-   }
+	/* See whether the components are of the same size. */
+	for (i = 1; i < desc->nr_channels; i++) {
+		uniform = uniform && desc->channel[0].size == desc->channel[i].size;
+	}
 
-   /* Non-uniform formats. */
-   if (!uniform) {
-      switch(desc->nr_channels) {
-      case 3:
-	 if (desc->channel[0].size == 5 &&
-	     desc->channel[1].size == 6 &&
-	     desc->channel[2].size == 5) {
-	    return V_008F14_IMG_DATA_FORMAT_5_6_5;
-	 }
-	 goto out_unknown;
-      case 4:
-	 if (desc->channel[0].size == 5 &&
-	     desc->channel[1].size == 5 &&
-	     desc->channel[2].size == 5 &&
-	     desc->channel[3].size == 1) {
-	    return V_008F14_IMG_DATA_FORMAT_1_5_5_5;
-	 }
-	 if (desc->channel[0].size == 1 &&
-	     desc->channel[1].size == 5 &&
-	     desc->channel[2].size == 5 &&
-	     desc->channel[3].size == 5) {
-	    return V_008F14_IMG_DATA_FORMAT_5_5_5_1;
-	 }
-	 if (desc->channel[0].size == 10 &&
-	     desc->channel[1].size == 10 &&
-	     desc->channel[2].size == 10 &&
-	     desc->channel[3].size == 2) {
-	    /* Closed VK driver does this also no 2/10/10/10 snorm */
-	    if (desc->channel[0].type == VK_FORMAT_TYPE_SIGNED &&
-		desc->channel[0].normalized)
-	       goto out_unknown;
-	    return V_008F14_IMG_DATA_FORMAT_2_10_10_10;
-	 }
-	 goto out_unknown;
-      }
-      goto out_unknown;
-   }
+	/* Non-uniform formats. */
+	if (!uniform) {
+		switch(desc->nr_channels) {
+		case 3:
+			if (desc->channel[0].size == 5 &&
+			    desc->channel[1].size == 6 &&
+			    desc->channel[2].size == 5) {
+				return V_008F14_IMG_DATA_FORMAT_5_6_5;
+			}
+			goto out_unknown;
+		case 4:
+			if (desc->channel[0].size == 5 &&
+			    desc->channel[1].size == 5 &&
+			    desc->channel[2].size == 5 &&
+			    desc->channel[3].size == 1) {
+				return V_008F14_IMG_DATA_FORMAT_1_5_5_5;
+			}
+			if (desc->channel[0].size == 1 &&
+			    desc->channel[1].size == 5 &&
+			    desc->channel[2].size == 5 &&
+			    desc->channel[3].size == 5) {
+				return V_008F14_IMG_DATA_FORMAT_5_5_5_1;
+			}
+			if (desc->channel[0].size == 10 &&
+			    desc->channel[1].size == 10 &&
+			    desc->channel[2].size == 10 &&
+			    desc->channel[3].size == 2) {
+				/* Closed VK driver does this also no 2/10/10/10 snorm */
+				if (desc->channel[0].type == VK_FORMAT_TYPE_SIGNED &&
+				    desc->channel[0].normalized)
+					goto out_unknown;
+				return V_008F14_IMG_DATA_FORMAT_2_10_10_10;
+			}
+			goto out_unknown;
+		}
+		goto out_unknown;
+	}
 
-   if (first_non_void < 0 || first_non_void > 3)
-      goto out_unknown;
+	if (first_non_void < 0 || first_non_void > 3)
+		goto out_unknown;
 
-   /* uniform formats */
-   switch (desc->channel[first_non_void].size) {
-   case 4:
-      switch (desc->nr_channels) {
+	/* uniform formats */
+	switch (desc->channel[first_non_void].size) {
+	case 4:
+		switch (desc->nr_channels) {
 #if 0 /* Not supported for render targets */
-      case 2:
-	 return V_008F14_IMG_DATA_FORMAT_4_4;
+		case 2:
+			return V_008F14_IMG_DATA_FORMAT_4_4;
 #endif
-      case 4:
-	 return V_008F14_IMG_DATA_FORMAT_4_4_4_4;
-      }
-      break;
-   case 8:
-      switch (desc->nr_channels) {
-      case 1:
-	 return V_008F14_IMG_DATA_FORMAT_8;
-      case 2:
-	 return V_008F14_IMG_DATA_FORMAT_8_8;
-      case 4:
-	 return V_008F14_IMG_DATA_FORMAT_8_8_8_8;
-      }
-      break;
-   case 16:
-      switch (desc->nr_channels) {
-      case 1:
-	 return V_008F14_IMG_DATA_FORMAT_16;
-      case 2:
-	 return V_008F14_IMG_DATA_FORMAT_16_16;
-      case 4:
-	 return V_008F14_IMG_DATA_FORMAT_16_16_16_16;
-      }
-      break;
-   case 32:
-      switch (desc->nr_channels) {
-      case 1:
-	 return V_008F14_IMG_DATA_FORMAT_32;
-      case 2:
-	 return V_008F14_IMG_DATA_FORMAT_32_32;
+		case 4:
+			return V_008F14_IMG_DATA_FORMAT_4_4_4_4;
+		}
+		break;
+	case 8:
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F14_IMG_DATA_FORMAT_8;
+		case 2:
+			return V_008F14_IMG_DATA_FORMAT_8_8;
+		case 4:
+			return V_008F14_IMG_DATA_FORMAT_8_8_8_8;
+		}
+		break;
+	case 16:
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F14_IMG_DATA_FORMAT_16;
+		case 2:
+			return V_008F14_IMG_DATA_FORMAT_16_16;
+		case 4:
+			return V_008F14_IMG_DATA_FORMAT_16_16_16_16;
+		}
+		break;
+	case 32:
+		switch (desc->nr_channels) {
+		case 1:
+			return V_008F14_IMG_DATA_FORMAT_32;
+		case 2:
+			return V_008F14_IMG_DATA_FORMAT_32_32;
 #if 0 /* Not supported for render targets */
-      case 3:
-	 return V_008F14_IMG_DATA_FORMAT_32_32_32;
+		case 3:
+			return V_008F14_IMG_DATA_FORMAT_32_32_32;
 #endif
-      case 4:
-	 return V_008F14_IMG_DATA_FORMAT_32_32_32_32;
-      }
-   }
+		case 4:
+			return V_008F14_IMG_DATA_FORMAT_32_32_32_32;
+		}
+	}
 
- out_unknown:
-   /* R600_ERR("Unable to handle texformat %d %s\n", format, vk_format_name(format)); */
-   return ~0;
+out_unknown:
+	/* R600_ERR("Unable to handle texformat %d %s\n", format, vk_format_name(format)); */
+	return ~0;
 }
 
 uint32_t radv_translate_tex_numformat(VkFormat format,
@@ -446,54 +446,54 @@ static bool radv_is_sampler_format_supported(VkFormat format, bool *linear_sampl
 static bool radv_is_storage_image_format_supported(struct radv_physical_device *physical_device,
 						   VkFormat format)
 {
-   const struct vk_format_description *desc = vk_format_description(format);
-   unsigned data_format, num_format;
-   if (!desc || format == VK_FORMAT_UNDEFINED)
-      return false;
+	const struct vk_format_description *desc = vk_format_description(format);
+	unsigned data_format, num_format;
+	if (!desc || format == VK_FORMAT_UNDEFINED)
+		return false;
 
-   data_format = radv_translate_tex_dataformat(format, desc,
-					       vk_format_get_first_non_void_channel(format));
-   num_format = radv_translate_tex_numformat(format, desc,
-					     vk_format_get_first_non_void_channel(format));
+	data_format = radv_translate_tex_dataformat(format, desc,
+						    vk_format_get_first_non_void_channel(format));
+	num_format = radv_translate_tex_numformat(format, desc,
+						  vk_format_get_first_non_void_channel(format));
 
-   if(data_format == ~0 || num_format == ~0)
-      return false;
+	if(data_format == ~0 || num_format == ~0)
+		return false;
 
-   /* Extracted from the GCN3 ISA document. */
-   switch(num_format) {
-   case V_008F14_IMG_NUM_FORMAT_UNORM:
-   case V_008F14_IMG_NUM_FORMAT_SNORM:
-   case V_008F14_IMG_NUM_FORMAT_UINT:
-   case V_008F14_IMG_NUM_FORMAT_SINT:
-   case V_008F14_IMG_NUM_FORMAT_FLOAT:
-      break;
-   default:
-      return false;
-   }
+	/* Extracted from the GCN3 ISA document. */
+	switch(num_format) {
+	case V_008F14_IMG_NUM_FORMAT_UNORM:
+	case V_008F14_IMG_NUM_FORMAT_SNORM:
+	case V_008F14_IMG_NUM_FORMAT_UINT:
+	case V_008F14_IMG_NUM_FORMAT_SINT:
+	case V_008F14_IMG_NUM_FORMAT_FLOAT:
+		break;
+	default:
+		return false;
+	}
 
-   switch(data_format) {
-   case V_008F14_IMG_DATA_FORMAT_8:
-   case V_008F14_IMG_DATA_FORMAT_16:
-   case V_008F14_IMG_DATA_FORMAT_8_8:
-   case V_008F14_IMG_DATA_FORMAT_32:
-   case V_008F14_IMG_DATA_FORMAT_16_16:
-   case V_008F14_IMG_DATA_FORMAT_10_11_11:
-   case V_008F14_IMG_DATA_FORMAT_11_11_10:
-   case V_008F14_IMG_DATA_FORMAT_10_10_10_2:
-   case V_008F14_IMG_DATA_FORMAT_2_10_10_10:
-   case V_008F14_IMG_DATA_FORMAT_8_8_8_8:
-   case V_008F14_IMG_DATA_FORMAT_32_32:
-   case V_008F14_IMG_DATA_FORMAT_16_16_16_16:
-   case V_008F14_IMG_DATA_FORMAT_32_32_32_32:
-   case V_008F14_IMG_DATA_FORMAT_5_6_5:
-   case V_008F14_IMG_DATA_FORMAT_1_5_5_5:
-   case V_008F14_IMG_DATA_FORMAT_5_5_5_1:
-   case V_008F14_IMG_DATA_FORMAT_4_4_4_4:
-   /* TODO: FMASK formats. */
-      return true;
-   default:
-      return false;
-   }
+	switch(data_format) {
+	case V_008F14_IMG_DATA_FORMAT_8:
+	case V_008F14_IMG_DATA_FORMAT_16:
+	case V_008F14_IMG_DATA_FORMAT_8_8:
+	case V_008F14_IMG_DATA_FORMAT_32:
+	case V_008F14_IMG_DATA_FORMAT_16_16:
+	case V_008F14_IMG_DATA_FORMAT_10_11_11:
+	case V_008F14_IMG_DATA_FORMAT_11_11_10:
+	case V_008F14_IMG_DATA_FORMAT_10_10_10_2:
+	case V_008F14_IMG_DATA_FORMAT_2_10_10_10:
+	case V_008F14_IMG_DATA_FORMAT_8_8_8_8:
+	case V_008F14_IMG_DATA_FORMAT_32_32:
+	case V_008F14_IMG_DATA_FORMAT_16_16_16_16:
+	case V_008F14_IMG_DATA_FORMAT_32_32_32_32:
+	case V_008F14_IMG_DATA_FORMAT_5_6_5:
+	case V_008F14_IMG_DATA_FORMAT_1_5_5_5:
+	case V_008F14_IMG_DATA_FORMAT_5_5_5_1:
+	case V_008F14_IMG_DATA_FORMAT_4_4_4_4:
+		/* TODO: FMASK formats. */
+		return true;
+	default:
+		return false;
+	}
 }
 
 static bool radv_is_buffer_format_supported(VkFormat format)
@@ -504,12 +504,12 @@ static bool radv_is_buffer_format_supported(VkFormat format)
 		return false;
 
 	data_format = radv_translate_buffer_dataformat(desc,
-				  vk_format_get_first_non_void_channel(format));
+						       vk_format_get_first_non_void_channel(format));
 	num_format = radv_translate_buffer_numformat(desc,
-				  vk_format_get_first_non_void_channel(format));
+						     vk_format_get_first_non_void_channel(format));
 
 	return data_format != V_008F0C_BUF_DATA_FORMAT_INVALID &&
-	       num_format != ~0;
+		num_format != ~0;
 }
 
 bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable)
@@ -528,8 +528,8 @@ bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable)
 	} else
 		*blendable = true;
 	return color_format != V_028C70_COLOR_INVALID &&
-	       color_swap != ~0U &&
-	       color_num_format != ~0;
+		color_swap != ~0U &&
+		color_num_format != ~0;
 }
 
 static bool radv_is_zs_format_supported(VkFormat format)
@@ -539,74 +539,74 @@ static bool radv_is_zs_format_supported(VkFormat format)
 
 static void
 radv_physical_device_get_format_properties(struct radv_physical_device *physical_device,
-                                          VkFormat format,
-                                          VkFormatProperties *out_properties)
+					   VkFormat format,
+					   VkFormatProperties *out_properties)
 {
-   VkFormatFeatureFlags linear = 0, tiled = 0, buffer = 0;
-   const struct vk_format_description *desc = vk_format_description(format);
-   bool blendable;
-   if (!desc) {
-	   out_properties->linearTilingFeatures = linear;
-	   out_properties->optimalTilingFeatures = tiled;
-	   out_properties->bufferFeatures = buffer;
-	   return;
-   }
+	VkFormatFeatureFlags linear = 0, tiled = 0, buffer = 0;
+	const struct vk_format_description *desc = vk_format_description(format);
+	bool blendable;
+	if (!desc) {
+		out_properties->linearTilingFeatures = linear;
+		out_properties->optimalTilingFeatures = tiled;
+		out_properties->bufferFeatures = buffer;
+		return;
+	}
 
-   if (radv_is_storage_image_format_supported(physical_device, format)) {
-      tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-      linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-   }
+	if (radv_is_storage_image_format_supported(physical_device, format)) {
+		tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+		linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+	}
 
-   if (radv_is_buffer_format_supported(format)) {
-      buffer |= VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT |
-                VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT |
-                VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT;
-   }
+	if (radv_is_buffer_format_supported(format)) {
+		buffer |= VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT |
+			VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT |
+			VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT;
+	}
 
-   if (vk_format_is_depth_or_stencil(format)) {
-     if (radv_is_zs_format_supported(format))
-	 tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-     tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-     tiled |= VK_FORMAT_FEATURE_BLIT_SRC_BIT |
-       VK_FORMAT_FEATURE_BLIT_DST_BIT;
-   } else {
-	   bool linear_sampling;
-	   if (radv_is_sampler_format_supported(format, &linear_sampling)) {
-		   linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-			   VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-		   tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-			   VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-		   if (linear_sampling) {
-			   linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-			   tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-		   }
-	   }
-     if (radv_is_colorbuffer_format_supported(format, &blendable)) {
-       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
-       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
-       if (blendable) {
-	       linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
-	       tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
-       }
-     }
-   }
+	if (vk_format_is_depth_or_stencil(format)) {
+		if (radv_is_zs_format_supported(format))
+			tiled |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+		tiled |= VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+			VK_FORMAT_FEATURE_BLIT_DST_BIT;
+	} else {
+		bool linear_sampling;
+		if (radv_is_sampler_format_supported(format, &linear_sampling)) {
+			linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+				VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+			tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+				VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+			if (linear_sampling) {
+				linear |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+				tiled |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+			}
+		}
+		if (radv_is_colorbuffer_format_supported(format, &blendable)) {
+			linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
+			tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT;
+			if (blendable) {
+				linear |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+				tiled |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+			}
+		}
+	}
 
-   if (format == VK_FORMAT_R32_UINT || format == VK_FORMAT_R32_SINT) {
-	   buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
-	   linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
-	   tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
-   }
+	if (format == VK_FORMAT_R32_UINT || format == VK_FORMAT_R32_SINT) {
+		buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
+		linear |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
+		tiled |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
+	}
 
-   out_properties->linearTilingFeatures = linear;
-   out_properties->optimalTilingFeatures = tiled;
-   out_properties->bufferFeatures = buffer;
+	out_properties->linearTilingFeatures = linear;
+	out_properties->optimalTilingFeatures = tiled;
+	out_properties->bufferFeatures = buffer;
 }
 
 uint32_t radv_translate_colorformat(VkFormat format)
 {
 	const struct vk_format_description *desc = vk_format_description(format);
 
-#define HAS_SIZE(x,y,z,w) \
+#define HAS_SIZE(x,y,z,w)						\
 	(desc->channel[0].size == (x) && desc->channel[1].size == (y) && \
          desc->channel[2].size == (z) && desc->channel[3].size == (w))
 
@@ -683,13 +683,13 @@ uint32_t radv_translate_colorformat(VkFormat format)
 
 uint32_t radv_colorformat_endian_swap(uint32_t colorformat)
 {
-    if (0/*SI_BIG_ENDIAN*/) {
+	if (0/*SI_BIG_ENDIAN*/) {
 		switch(colorformat) {
-		/* 8-bit buffers. */
+			/* 8-bit buffers. */
 		case V_028C70_COLOR_8:
 			return V_028C70_ENDIAN_NONE;
 
-		/* 16-bit buffers. */
+			/* 16-bit buffers. */
 		case V_028C70_COLOR_5_6_5:
 		case V_028C70_COLOR_1_5_5_5:
 		case V_028C70_COLOR_4_4_4_4:
@@ -697,7 +697,7 @@ uint32_t radv_colorformat_endian_swap(uint32_t colorformat)
 		case V_028C70_COLOR_8_8:
 			return V_028C70_ENDIAN_8IN16;
 
-		/* 32-bit buffers. */
+			/* 32-bit buffers. */
 		case V_028C70_COLOR_8_8_8_8:
 		case V_028C70_COLOR_2_10_10_10:
 		case V_028C70_COLOR_8_24:
@@ -705,14 +705,14 @@ uint32_t radv_colorformat_endian_swap(uint32_t colorformat)
 		case V_028C70_COLOR_16_16:
 			return V_028C70_ENDIAN_8IN32;
 
-		/* 64-bit buffers. */
+			/* 64-bit buffers. */
 		case V_028C70_COLOR_16_16_16_16:
 			return V_028C70_ENDIAN_8IN16;
 
 		case V_028C70_COLOR_32_32:
 			return V_028C70_ENDIAN_8IN32;
 
-		/* 128-bit buffers. */
+			/* 128-bit buffers. */
 		case V_028C70_COLOR_32_32_32_32:
 			return V_028C70_ENDIAN_8IN32;
 		default:
@@ -945,25 +945,25 @@ bool radv_format_pack_clear_color(VkFormat format,
 }
 
 void radv_GetPhysicalDeviceFormatProperties(
-    VkPhysicalDevice                            physicalDevice,
-    VkFormat                                    format,
-    VkFormatProperties*                         pFormatProperties)
+	VkPhysicalDevice                            physicalDevice,
+	VkFormat                                    format,
+	VkFormatProperties*                         pFormatProperties)
 {
-   RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
+	RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
 
-   radv_physical_device_get_format_properties(physical_device,
-					      format,
-					      pFormatProperties);
+	radv_physical_device_get_format_properties(physical_device,
+						   format,
+						   pFormatProperties);
 }
 
 VkResult radv_GetPhysicalDeviceImageFormatProperties(
-    VkPhysicalDevice                            physicalDevice,
-    VkFormat                                    format,
-    VkImageType                                 type,
-    VkImageTiling                               tiling,
-    VkImageUsageFlags                           usage,
-    VkImageCreateFlags                          createFlags,
-    VkImageFormatProperties*                    pImageFormatProperties)
+	VkPhysicalDevice                            physicalDevice,
+	VkFormat                                    format,
+	VkImageType                                 type,
+	VkImageTiling                               tiling,
+	VkImageUsageFlags                           usage,
+	VkImageCreateFlags                          createFlags,
+	VkImageFormatProperties*                    pImageFormatProperties)
 {
 	RADV_FROM_HANDLE(radv_physical_device, physical_device, physicalDevice);
 	VkFormatProperties format_props;
@@ -995,7 +995,6 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 		maxExtent.depth = 1;
 		maxMipLevels = 15; /* log2(maxWidth) + 1 */
 		maxArraySize = 2048;
-		sampleCounts = VK_SAMPLE_COUNT_1_BIT;
 		break;
 	case VK_IMAGE_TYPE_2D:
 		maxExtent.width = 16384;
@@ -1077,15 +1076,15 @@ unsupported:
 }
 
 void radv_GetPhysicalDeviceSparseImageFormatProperties(
-    VkPhysicalDevice                            physicalDevice,
-    VkFormat                                    format,
-    VkImageType                                 type,
-    uint32_t                                    samples,
-    VkImageUsageFlags                           usage,
-    VkImageTiling                               tiling,
-    uint32_t*                                   pNumProperties,
-    VkSparseImageFormatProperties*              pProperties)
+	VkPhysicalDevice                            physicalDevice,
+	VkFormat                                    format,
+	VkImageType                                 type,
+	uint32_t                                    samples,
+	VkImageUsageFlags                           usage,
+	VkImageTiling                               tiling,
+	uint32_t*                                   pNumProperties,
+	VkSparseImageFormatProperties*              pProperties)
 {
-   /* Sparse images are not yet supported. */
-   *pNumProperties = 0;
+	/* Sparse images are not yet supported. */
+	*pNumProperties = 0;
 }
