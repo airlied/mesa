@@ -78,16 +78,17 @@ VkResult radv_CreateRenderPass(
 			desc->colorAttachmentCount;
 	}
 
-	pass->subpass_attachments =
-		radv_alloc2(&device->alloc, pAllocator,
-			    subpass_attachment_count * sizeof(VkAttachmentReference), 8,
-			    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-	if (pass->subpass_attachments == NULL) {
-		if (subpass_attachment_count) {
+	if (subpass_attachment_count) {
+		pass->subpass_attachments =
+			radv_alloc2(&device->alloc, pAllocator,
+				    subpass_attachment_count * sizeof(VkAttachmentReference), 8,
+				    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+		if (pass->subpass_attachments == NULL) {
 			radv_free2(&device->alloc, pAllocator, pass);
 			return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
 		}
-	}
+	} else
+		pass->subpass_attachments = NULL;
 
 	p = pass->subpass_attachments;
 	for (uint32_t i = 0; i < pCreateInfo->subpassCount; i++) {
