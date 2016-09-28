@@ -1044,12 +1044,6 @@ VkResult radv_GetPhysicalDeviceImageFormatProperties(
 		}
 	}
 
-	if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
-		if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-			goto unsupported;
-		}
-	}
-
 	*pImageFormatProperties = (VkImageFormatProperties) {
 		.maxExtent = maxExtent,
 		.maxMipLevels = maxMipLevels,
