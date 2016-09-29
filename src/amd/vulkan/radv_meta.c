@@ -348,6 +348,7 @@ fail_blit:
 fail_resolve:
 	radv_device_finish_meta_clear_state(device);
 fail_clear:
+	radv_pipeline_cache_finish(&device->meta_state.cache);
 	return result;
 }
 
