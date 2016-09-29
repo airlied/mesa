@@ -1000,6 +1000,9 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE)
 		radv_emit_graphics_pipeline(cmd_buffer, pipeline);
 
+	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_RENDER_TARGETS)
+		radv_emit_framebuffer_state(cmd_buffer);
+
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_VIEWPORT))
 		radv_emit_viewport(cmd_buffer);
 
@@ -1116,7 +1119,8 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
 	}
 
 	cmd_buffer->state.subpass = subpass;
-	radv_emit_framebuffer_state(cmd_buffer);
+
+	cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RENDER_TARGETS;
 }
 
 static void
