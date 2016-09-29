@@ -30,63 +30,63 @@
 
 void
 radv_meta_save(struct radv_meta_saved_state *state,
-              const struct radv_cmd_buffer *cmd_buffer,
-              uint32_t dynamic_mask)
+	       const struct radv_cmd_buffer *cmd_buffer,
+	       uint32_t dynamic_mask)
 {
-   state->old_pipeline = cmd_buffer->state.pipeline;
-   state->old_descriptor_set0 = cmd_buffer->state.descriptors[0];
-   memcpy(state->old_vertex_bindings, cmd_buffer->state.vertex_bindings,
-          sizeof(state->old_vertex_bindings));
+	state->old_pipeline = cmd_buffer->state.pipeline;
+	state->old_descriptor_set0 = cmd_buffer->state.descriptors[0];
+	memcpy(state->old_vertex_bindings, cmd_buffer->state.vertex_bindings,
+	       sizeof(state->old_vertex_bindings));
 
-   state->dynamic_mask = dynamic_mask;
-   radv_dynamic_state_copy(&state->dynamic, &cmd_buffer->state.dynamic,
-                          dynamic_mask);
+	state->dynamic_mask = dynamic_mask;
+	radv_dynamic_state_copy(&state->dynamic, &cmd_buffer->state.dynamic,
+				dynamic_mask);
 
-   memcpy(state->push_constants, cmd_buffer->push_constants, MAX_PUSH_CONSTANTS_SIZE);
+	memcpy(state->push_constants, cmd_buffer->push_constants, MAX_PUSH_CONSTANTS_SIZE);
 }
 
 void
 radv_meta_restore(const struct radv_meta_saved_state *state,
-                 struct radv_cmd_buffer *cmd_buffer)
+		  struct radv_cmd_buffer *cmd_buffer)
 {
-   cmd_buffer->state.pipeline = state->old_pipeline;
-   radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
-   memcpy(cmd_buffer->state.vertex_bindings, state->old_vertex_bindings,
-          sizeof(state->old_vertex_bindings));
+	cmd_buffer->state.pipeline = state->old_pipeline;
+	radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
+	memcpy(cmd_buffer->state.vertex_bindings, state->old_vertex_bindings,
+	       sizeof(state->old_vertex_bindings));
 
-   cmd_buffer->state.vb_dirty |= (1 << RADV_META_VERTEX_BINDING_COUNT) - 1;
-   cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
+	cmd_buffer->state.vb_dirty |= (1 << RADV_META_VERTEX_BINDING_COUNT) - 1;
+	cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
 
-   radv_dynamic_state_copy(&cmd_buffer->state.dynamic, &state->dynamic,
-                          state->dynamic_mask);
-   cmd_buffer->state.dirty |= state->dynamic_mask;
+	radv_dynamic_state_copy(&cmd_buffer->state.dynamic, &state->dynamic,
+				state->dynamic_mask);
+	cmd_buffer->state.dirty |= state->dynamic_mask;
 
-   memcpy(cmd_buffer->push_constants, state->push_constants, MAX_PUSH_CONSTANTS_SIZE);
-   cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT;
+	memcpy(cmd_buffer->push_constants, state->push_constants, MAX_PUSH_CONSTANTS_SIZE);
+	cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT;
 }
 
 void
 radv_meta_save_pass(struct radv_meta_saved_pass_state *state,
                     const struct radv_cmd_buffer *cmd_buffer)
 {
-   state->pass = cmd_buffer->state.pass;
-   state->subpass = cmd_buffer->state.subpass;
-   state->framebuffer = cmd_buffer->state.framebuffer;
-   state->attachments = cmd_buffer->state.attachments;
-   state->render_area = cmd_buffer->state.render_area;
+	state->pass = cmd_buffer->state.pass;
+	state->subpass = cmd_buffer->state.subpass;
+	state->framebuffer = cmd_buffer->state.framebuffer;
+	state->attachments = cmd_buffer->state.attachments;
+	state->render_area = cmd_buffer->state.render_area;
 }
 
 void
 radv_meta_restore_pass(const struct radv_meta_saved_pass_state *state,
                        struct radv_cmd_buffer *cmd_buffer)
 {
-   cmd_buffer->state.pass = state->pass;
-   cmd_buffer->state.subpass = state->subpass;
-   cmd_buffer->state.framebuffer = state->framebuffer;
-   cmd_buffer->state.attachments = state->attachments;
-   cmd_buffer->state.render_area = state->render_area;
-   if (state->subpass)
-      radv_emit_framebuffer_state(cmd_buffer);
+	cmd_buffer->state.pass = state->pass;
+	cmd_buffer->state.subpass = state->subpass;
+	cmd_buffer->state.framebuffer = state->framebuffer;
+	cmd_buffer->state.attachments = state->attachments;
+	cmd_buffer->state.render_area = state->render_area;
+	if (state->subpass)
+		radv_emit_framebuffer_state(cmd_buffer);
 }
 
 void
@@ -94,11 +94,11 @@ radv_meta_save_compute(struct radv_meta_saved_compute_state *state,
                        const struct radv_cmd_buffer *cmd_buffer,
                        unsigned push_constant_size)
 {
-   state->old_pipeline = cmd_buffer->state.compute_pipeline;
-   state->old_descriptor_set0 = cmd_buffer->state.descriptors[0];
+	state->old_pipeline = cmd_buffer->state.compute_pipeline;
+	state->old_descriptor_set0 = cmd_buffer->state.descriptors[0];
 
-   if (push_constant_size)
-      memcpy(state->push_constants, cmd_buffer->push_constants, push_constant_size);
+	if (push_constant_size)
+		memcpy(state->push_constants, cmd_buffer->push_constants, push_constant_size);
 }
 
 void
@@ -106,26 +106,26 @@ radv_meta_restore_compute(const struct radv_meta_saved_compute_state *state,
                           struct radv_cmd_buffer *cmd_buffer,
                           unsigned push_constant_size)
 {
-   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE,
-                        radv_pipeline_to_handle(state->old_pipeline));
-   radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
+	radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE,
+			     radv_pipeline_to_handle(state->old_pipeline));
+	radv_bind_descriptor_set(cmd_buffer, state->old_descriptor_set0, 0);
 
-   if (push_constant_size) {
-      memcpy(cmd_buffer->push_constants, state->push_constants, push_constant_size);
-      cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
-   }
+	if (push_constant_size) {
+		memcpy(cmd_buffer->push_constants, state->push_constants, push_constant_size);
+		cmd_buffer->push_constant_stages |= VK_SHADER_STAGE_COMPUTE_BIT;
+	}
 }
 
 VkImageViewType
 radv_meta_get_view_type(const struct radv_image *image)
 {
-   switch (image->type) {
-   case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
-   case VK_IMAGE_TYPE_2D: return VK_IMAGE_VIEW_TYPE_2D;
-   case VK_IMAGE_TYPE_3D: return VK_IMAGE_VIEW_TYPE_3D;
-   default:
-      unreachable("bad VkImageViewType");
-   }
+	switch (image->type) {
+	case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
+	case VK_IMAGE_TYPE_2D: return VK_IMAGE_VIEW_TYPE_2D;
+	case VK_IMAGE_TYPE_3D: return VK_IMAGE_VIEW_TYPE_3D;
+	default:
+		unreachable("bad VkImageViewType");
+	}
 }
 
 /**
@@ -134,49 +134,49 @@ radv_meta_get_view_type(const struct radv_image *image)
  */
 uint32_t
 radv_meta_get_iview_layer(const struct radv_image *dest_image,
-                         const VkImageSubresourceLayers *dest_subresource,
-                         const VkOffset3D *dest_offset)
+			  const VkImageSubresourceLayers *dest_subresource,
+			  const VkOffset3D *dest_offset)
 {
-   switch (dest_image->type) {
-   case VK_IMAGE_TYPE_1D:
-   case VK_IMAGE_TYPE_2D:
-      return dest_subresource->baseArrayLayer;
-   case VK_IMAGE_TYPE_3D:
-      /* HACK: Vulkan does not allow attaching a 3D image to a framebuffer,
-       * but meta does it anyway. When doing so, we translate the
-       * destination's z offset into an array offset.
-       */
-      return dest_offset->z;
-   default:
-      assert(!"bad VkImageType");
-      return 0;
-   }
+	switch (dest_image->type) {
+	case VK_IMAGE_TYPE_1D:
+	case VK_IMAGE_TYPE_2D:
+		return dest_subresource->baseArrayLayer;
+	case VK_IMAGE_TYPE_3D:
+		/* HACK: Vulkan does not allow attaching a 3D image to a framebuffer,
+		 * but meta does it anyway. When doing so, we translate the
+		 * destination's z offset into an array offset.
+		 */
+		return dest_offset->z;
+	default:
+		assert(!"bad VkImageType");
+		return 0;
+	}
 }
 
 static void *
 meta_alloc(void* _device, size_t size, size_t alignment,
            VkSystemAllocationScope allocationScope)
 {
-   struct radv_device *device = _device;
-   return device->alloc.pfnAllocation(device->alloc.pUserData, size, alignment,
-                                      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+	struct radv_device *device = _device;
+	return device->alloc.pfnAllocation(device->alloc.pUserData, size, alignment,
+					   VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
 }
 
 static void *
 meta_realloc(void* _device, void *original, size_t size, size_t alignment,
              VkSystemAllocationScope allocationScope)
 {
-   struct radv_device *device = _device;
-   return device->alloc.pfnReallocation(device->alloc.pUserData, original,
-                                        size, alignment,
-                                        VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+	struct radv_device *device = _device;
+	return device->alloc.pfnReallocation(device->alloc.pUserData, original,
+					     size, alignment,
+					     VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
 }
 
 static void
 meta_free(void* _device, void *data)
 {
-   struct radv_device *device = _device;
-   return device->alloc.pfnFree(device->alloc.pUserData, data);
+	struct radv_device *device = _device;
+	return device->alloc.pfnFree(device->alloc.pUserData, data);
 }
 
 static bool
@@ -248,7 +248,7 @@ radv_store_meta_pipeline(struct radv_device *device)
 		return;
 
 	if (radv_GetPipelineCacheData(radv_device_to_handle(device),
-				     radv_pipeline_cache_to_handle(&device->meta_state.cache),
+				      radv_pipeline_cache_to_handle(&device->meta_state.cache),
 				      &size, NULL))
 		return;
 
@@ -265,7 +265,7 @@ radv_store_meta_pipeline(struct radv_device *device)
 		goto fail;
 
 	if (radv_GetPipelineCacheData(radv_device_to_handle(device),
-				     radv_pipeline_cache_to_handle(&device->meta_state.cache),
+				      radv_pipeline_cache_to_handle(&device->meta_state.cache),
 				      &size, data))
 		goto fail;
 	if(write(fd, data, size) == -1)
