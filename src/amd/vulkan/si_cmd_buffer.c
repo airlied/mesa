@@ -411,6 +411,9 @@ void si_init_config(struct radv_physical_device *physical_device,
 				       S_028B50_ACCUM_TRI(11) |
 				       S_028B50_ACCUM_QUAD(11) |
 				       S_028B50_DONUT_SPLIT(16));
+	} else {
+		radeon_set_context_reg(cs, R_028C58_VGT_VERTEX_REUSE_BLOCK_CNTL, 14);
+		radeon_set_context_reg(cs, R_028C5C_VGT_OUT_DEALLOC_CNTL, 16);
 	}
 
 	if (physical_device->rad_info.family == CHIP_STONEY)
