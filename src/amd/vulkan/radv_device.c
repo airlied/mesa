@@ -1400,6 +1400,12 @@ radv_initialise_color_surface(struct radv_device *device,
 		S_028C70_COMP_SWAP(swap) |
 		S_028C70_BLEND_CLAMP(blend_clamp) |
 		S_028C70_BLEND_BYPASS(blend_bypass) |
+		S_028C70_SIMPLE_FLOAT(1) |
+		S_028C70_ROUND_MODE(ntype != V_028C70_NUMBER_UNORM &&
+				    ntype != V_028C70_NUMBER_SNORM &&
+				    ntype != V_028C70_NUMBER_SRGB &&
+				    format != V_028C70_COLOR_8_24 &&
+				    format != V_028C70_COLOR_24_8) |
 		S_028C70_NUMBER_TYPE(ntype) |
 		S_028C70_ENDIAN(endian);
 	if (iview->image->samples > 1)
