@@ -904,6 +904,7 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 
 	raster->pa_su_vtx_cntl =
 		S_028BE4_PIX_CENTER(1) | // TODO verify
+		S_028BE4_ROUND_MODE(V_028BE4_X_ROUND_TO_EVEN) |
 		S_028BE4_QUANT_MODE(V_028BE4_X_16_8_FIXED_POINT_1_256TH);
 
 	raster->pa_su_sc_mode_cntl =
