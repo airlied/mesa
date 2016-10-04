@@ -22,6 +22,7 @@
  *
  * Authors: Tom Stellard <thomas.stellard@amd.com>
  *
+ * Based on radeon_elf_util.c.
  */
 
 #include "ac_binary.h"
