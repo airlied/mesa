@@ -1706,7 +1706,6 @@ if test -n "$with_vulkan_drivers"; then
             ;;
         xradeon)
             PKG_CHECK_MODULES([AMDGPU], [libdrm_amdgpu >= $LIBDRM_AMDGPU_REQUIRED])
-            radeon_llvm_check "radv" "3" "9" "0"
             HAVE_RADEON_VULKAN=yes;
 	    ;;
         *)
@@ -2362,9 +2361,6 @@ radeon_llvm_check() {
     else
         amdgpu_llvm_target_name='amdgpu'
     fi
-    if test "x$enable_gallium_llvm" != "xyes"; then
-        AC_MSG_ERROR([--enable-gallium-llvm is required when building $1])
-    fi
     llvm_check_version_for $2 $3 $4 $1
     if test true && $LLVM_CONFIG --targets-built | grep -iqvw $amdgpu_llvm_target_name ; then
         AC_MSG_ERROR([LLVM $amdgpu_llvm_target_name not enabled in your LLVM build.])
@@ -2374,6 +2370,13 @@ radeon_llvm_check() {
     if test "x$have_libelf" != xyes; then
        AC_MSG_ERROR([$1 requires libelf when using llvm])
     fi
+}
+
+radeon_gallium_llvm_check() {
+    if test "x$enable_gallium_llvm" != "xyes"; then
+        AC_MSG_ERROR([--enable-gallium-llvm is required when building $1])
+    fi
+    radeon_llvm_check $*
 }
 
 swr_llvm_check() {
@@ -2460,7 +2463,7 @@ if test -n "$with_gallium_drivers"; then
             gallium_require_drm "Gallium R600"
             gallium_require_drm_loader
             if test "x$enable_opencl" = xyes; then
-                radeon_llvm_check "r600g" "3" "6" "0"
+                radeon_gallium_llvm_check "r600g" "3" "6" "0"
                 LLVM_COMPONENTS="${LLVM_COMPONENTS} bitreader asmparser"
             fi
             ;;
@@ -2470,7 +2473,7 @@ if test -n "$with_gallium_drivers"; then
             PKG_CHECK_MODULES([AMDGPU], [libdrm_amdgpu >= $LIBDRM_AMDGPU_REQUIRED])
             gallium_require_drm "radeonsi"
             gallium_require_drm_loader
-            radeon_llvm_check "radeonsi" "3" "6" "0"
+            radeon_gallium_llvm_check "radeonsi" "3" "6" "0"
             require_egl_drm "radeonsi"
             ;;
         xnouveau)
@@ -2587,6 +2590,10 @@ if test "x$MESA_LLVM" != x0; then
             LLVM_LIBS="$LLVM_LIBS `$LLVM_CONFIG --system-libs`"
         fi
     fi
+fi
+
+if test "x$HAVE_RADEON_VULKAN" != "x0"; then
+    radeon_llvm_check "radv" "3" "9" "0"
 fi
 
 AM_CONDITIONAL(HAVE_GALLIUM_SVGA, test "x$HAVE_GALLIUM_SVGA" = xyes)
