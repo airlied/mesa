@@ -1704,6 +1704,10 @@ if test -n "$with_vulkan_drivers"; then
             HAVE_INTEL_VULKAN=yes;
 
             ;;
+        xradeon)
+            PKG_CHECK_MODULES([AMDGPU], [libdrm_amdgpu >= $LIBDRM_AMDGPU_REQUIRED])
+            HAVE_RADEON_VULKAN=yes;
+	    ;;
         *)
             AC_MSG_ERROR([Vulkan driver '$driver' does not exist])
             ;;
@@ -2187,7 +2191,7 @@ if test "x$enable_gallium_llvm" = xauto; then
     i*86|x86_64|amd64) enable_gallium_llvm=yes;;
     esac
 fi
-if test "x$enable_gallium_llvm" = xyes; then
+if test "x$enable_gallium_llvm" = xyes || test "x$HAVE_RADEON_VULKAN" = xyes; then
     if test -n "$llvm_prefix"; then
         AC_PATH_TOOL([LLVM_CONFIG], [llvm-config], [no], ["$llvm_prefix/bin"])
     else
@@ -2357,10 +2361,7 @@ radeon_llvm_check() {
     else
         amdgpu_llvm_target_name='amdgpu'
     fi
-    if test "x$enable_gallium_llvm" != "xyes"; then
-        AC_MSG_ERROR([--enable-gallium-llvm is required when building $1])
-    fi
-    llvm_check_version_for "3" "6" "0" $1
+    llvm_check_version_for $2 $3 $4 $1
     if test true && $LLVM_CONFIG --targets-built | grep -iqvw $amdgpu_llvm_target_name ; then
         AC_MSG_ERROR([LLVM $amdgpu_llvm_target_name not enabled in your LLVM build.])
     fi
@@ -2369,6 +2370,13 @@ radeon_llvm_check() {
     if test "x$have_libelf" != xyes; then
        AC_MSG_ERROR([$1 requires libelf when using llvm])
     fi
+}
+
+radeon_gallium_llvm_check() {
+    if test "x$enable_gallium_llvm" != "xyes"; then
+        AC_MSG_ERROR([--enable-gallium-llvm is required when building $1])
+    fi
+    radeon_llvm_check $*
 }
 
 swr_llvm_check() {
@@ -2455,7 +2463,7 @@ if test -n "$with_gallium_drivers"; then
             gallium_require_drm "Gallium R600"
             gallium_require_drm_loader
             if test "x$enable_opencl" = xyes; then
-                radeon_llvm_check "r600g"
+                radeon_gallium_llvm_check "r600g" "3" "6" "0"
                 LLVM_COMPONENTS="${LLVM_COMPONENTS} bitreader asmparser"
             fi
             ;;
@@ -2465,7 +2473,7 @@ if test -n "$with_gallium_drivers"; then
             PKG_CHECK_MODULES([AMDGPU], [libdrm_amdgpu >= $LIBDRM_AMDGPU_REQUIRED])
             gallium_require_drm "radeonsi"
             gallium_require_drm_loader
-            radeon_llvm_check "radeonsi"
+            radeon_gallium_llvm_check "radeonsi" "3" "6" "0"
             require_egl_drm "radeonsi"
             ;;
         xnouveau)
@@ -2584,6 +2592,10 @@ if test "x$MESA_LLVM" != x0; then
     fi
 fi
 
+if test "x$HAVE_RADEON_VULKAN" != "x0"; then
+    radeon_llvm_check "radv" "3" "9" "0"
+fi
+
 AM_CONDITIONAL(HAVE_GALLIUM_SVGA, test "x$HAVE_GALLIUM_SVGA" = xyes)
 AM_CONDITIONAL(HAVE_GALLIUM_I915, test "x$HAVE_GALLIUM_I915" = xyes)
 AM_CONDITIONAL(HAVE_GALLIUM_ILO, test "x$HAVE_GALLIUM_ILO" = xyes)
@@ -2621,7 +2633,12 @@ AM_CONDITIONAL(HAVE_R200_DRI, test x$HAVE_R200_DRI = xyes)
 AM_CONDITIONAL(HAVE_RADEON_DRI, test x$HAVE_RADEON_DRI = xyes)
 AM_CONDITIONAL(HAVE_SWRAST_DRI, test x$HAVE_SWRAST_DRI = xyes)
 
+AM_CONDITIONAL(HAVE_RADEON_VULKAN, test "x$HAVE_RADEON_VULKAN" = xyes)
 AM_CONDITIONAL(HAVE_INTEL_VULKAN, test "x$HAVE_INTEL_VULKAN" = xyes)
+
+AM_CONDITIONAL(HAVE_AMD_DRIVERS, test "x$HAVE_GALLIUM_R600" = xyes -o \
+                                      "x$HAVE_GALLIUM_RADEONSI" = xyes -o \
+                                      "x$HAVE_RADEON_VULKAN" = xyes)
 
 AM_CONDITIONAL(HAVE_INTEL_DRIVERS, test "x$HAVE_INTEL_VULKAN" = xyes -o \
                                         "x$HAVE_I965_DRI" = xyes)
@@ -2713,6 +2730,8 @@ dnl Substitute the config
 AC_CONFIG_FILES([Makefile
 		src/Makefile
 		src/amd/Makefile
+		src/amd/common/Makefile
+		src/amd/vulkan/Makefile
 		src/compiler/Makefile
 		src/egl/Makefile
 		src/egl/main/egl.pc
