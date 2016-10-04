@@ -26,7 +26,7 @@
 #include <stdbool.h>
 #include "llvm-c/Core.h"
 #include "llvm-c/TargetMachine.h"
-#include "ac_radeon_winsys.h"
+#include "amd_family.h"
 
 struct ac_shader_binary;
 struct ac_shader_config;

@@ -27,7 +27,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include "main/macros.h"
-#include "ac_radeon_winsys.h"
+#include "amd_family.h"
 
 #define FREE(x) free(x)
 
