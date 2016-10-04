@@ -33,50 +33,7 @@
 #include <libelf.h>
 #include <stdio.h>
 
-
-/* Definitions for the LLVM config data format */
-#define R_00B028_SPI_SHADER_PGM_RSRC1_PS                    0x00B028
-#define R_00B02C_SPI_SHADER_PGM_RSRC2_PS                    0x00B02C
-#define   G_00B02C_EXTRA_LDS_SIZE(x)                      (((x) >> 8) & 0xFF)
-#define R_00B128_SPI_SHADER_PGM_RSRC1_VS                    0x00B128
-#define R_00B228_SPI_SHADER_PGM_RSRC1_GS                    0x00B228
-#define R_00B848_COMPUTE_PGM_RSRC1                          0x00B848
-#define   G_00B028_VGPRS(x)                               (((x) >> 0) & 0x3F)
-#define   G_00B028_SGPRS(x)                               (((x) >> 6) & 0x0F)
-#define   G_00B028_FLOAT_MODE(x)                          (((x) >> 12) & 0xFF)
-
-#define R_00B84C_COMPUTE_PGM_RSRC2                          0x00B84C
-#define   G_00B84C_SCRATCH_EN(x)                          (((x) >> 0) & 0x1)
-#define   G_00B84C_USER_SGPR(x)                           (((x) >> 1) & 0x1F)
-#define   G_00B84C_TGID_X_EN(x)                           (((x) >> 7) & 0x1)
-#define   G_00B84C_TGID_Y_EN(x)                           (((x) >> 8) & 0x1)
-#define   G_00B84C_TGID_Z_EN(x)                           (((x) >> 9) & 0x1)
-#define   G_00B84C_TG_SIZE_EN(x)                          (((x) >> 10) & 0x1)
-#define   G_00B84C_TIDIG_COMP_CNT(x)                      (((x) >> 11) & 0x03)
-/* CIK */
-#define   G_00B84C_EXCP_EN_MSB(x)                         (((x) >> 13) & 0x03)
-/*     */
-#define   G_00B84C_LDS_SIZE(x)                            (((x) >> 15) & 0x1FF)
-#define   G_00B84C_EXCP_EN(x)                             (((x) >> 24) & 0x7F)
-
-#define R_0286CC_SPI_PS_INPUT_ENA                           0x0286CC
-#define R_0286D0_SPI_PS_INPUT_ADDR                          0x0286D0
-
-#define R_00B848_COMPUTE_PGM_RSRC1                          0x00B848
-#define   G_00B848_VGPRS(x)                               (((x) >> 0) & 0x3F)
-#define   G_00B848_SGPRS(x)                               (((x) >> 6) & 0x0F)
-#define   G_00B848_PRIORITY(x)                            (((x) >> 10) & 0x03)
-#define   G_00B848_FLOAT_MODE(x)                          (((x) >> 12) & 0xFF)
-#define   G_00B848_PRIV(x)                                (((x) >> 20) & 0x1)
-#define   G_00B848_DX10_CLAMP(x)                          (((x) >> 21) & 0x1)
-#define   G_00B848_DEBUG_MODE(x)                          (((x) >> 22) & 0x1)
-#define   G_00B848_IEEE_MODE(x)                           (((x) >> 23) & 0x1)
-
-#define R_00B860_COMPUTE_TMPRING_SIZE                       0x00B860
-#define   G_00B860_WAVESIZE(x)                            (((x) >> 12) & 0x1FFF)
-
-#define R_0286E8_SPI_TMPRING_SIZE                           0x0286E8
-#define   G_0286E8_WAVESIZE(x)                            (((x) >> 12) & 0x1FFF)
+#include <sid.h>
 
 #define SPILLED_SGPRS                                     0x4
 #define SPILLED_VGPRS                                     0x8
