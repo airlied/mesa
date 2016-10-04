@@ -21,6 +21,7 @@
 
 include Makefile.sources
 
+# TODO cleanup these
 AM_CPPFLAGS = \
 	$(VALGRIND_CFLAGS) \
 	$(DEFINES) \
