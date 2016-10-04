@@ -91,12 +91,12 @@ static void parse_symbol_table(Elf_Data *symbol_table_data,
 		symbol_table_header->sh_size / symbol_table_header->sh_entsize;
 
 	/* We are over allocating this list, because symbol_count gives the
- 	 * total number of symbols, and we will only be filling the list
- 	 * with offsets of global symbols.  The memory savings from
- 	 * allocating the correct size of this list will be small, and
- 	 * I don't think it is worth the cost of pre-computing the number
- 	 * of global symbols.
- 	 */
+	 * total number of symbols, and we will only be filling the list
+	 * with offsets of global symbols.  The memory savings from
+	 * allocating the correct size of this list will be small, and
+	 * I don't think it is worth the cost of pre-computing the number
+	 * of global symbols.
+	 */
 	binary->global_symbol_offsets = CALLOC(symbol_count, sizeof(uint64_t));
 
 	while (gelf_getsym(symbol_table_data, i++, &symbol)) {
