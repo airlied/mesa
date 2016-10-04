@@ -1,4 +1,4 @@
-# Copyright © 2015 Intel Corporation
+# Copyright © 2016 Red Hat
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -29,13 +29,6 @@ vulkan_include_HEADERS = \
 
 lib_LTLIBRARIES = libvulkan_radeon.la
 
-check_LTLIBRARIES = libvulkan-test.la
-
-PER_GEN_LIBS = \
-   libradv-ci.la
-
-noinst_LTLIBRARIES = $(PER_GEN_LIBS)
-
 # The gallium includes are for the util/u_math.h include from main/macros.h
 
 AM_CPPFLAGS = \
@@ -60,10 +53,6 @@ AM_CFLAGS = -Wno-override-init -msse2 \
 	$(VISIBILITY_FLAGS) \
 	$(PTHREAD_CFLAGS) \
 	$(LLVM_CFLAGS)
-
-libradv_ci_la_CFLAGS = $(AM_CFLAGS) -DHW_VERSION=CI
-libradv_ci_la_SOURCES = $(GEN7_FILES)
-
 
 VULKAN_SOURCES = \
 	$(VULKAN_GENERATED_FILES) \
@@ -99,7 +88,7 @@ VULKAN_LIB_DEPS += \
 	$(WAYLAND_LIBS)
 endif
 
-noinst_LTLIBRARIES += libvulkan_common.la
+noinst_LTLIBRARIES = libvulkan_common.la
 libvulkan_common_la_SOURCES = $(VULKAN_SOURCES)
 
 VULKAN_LIB_DEPS += \
@@ -107,7 +96,6 @@ VULKAN_LIB_DEPS += \
 	$(top_builddir)/src/amd/common/libamd_common.la \
 	$(top_builddir)/src/compiler/nir/libnir.la \
 	$(top_builddir)/src/util/libmesautil.la \
-	$(PER_GEN_LIBS) \
 	$(LLVM_LIBS) \
 	$(LIBELF_LIBS) \
 	$(PTHREAD_LIBS) \
@@ -169,15 +157,10 @@ dev_icd.json : dev_icd.json.in
 		-e "s#@build_libdir@#${abs_top_builddir}/${LIB_DIR}#" \
 		< $(srcdir)/dev_icd.json.in > $@
 
-# Libvulkan with dummy gem. Used for unit tests.
-libvulkan_test_la_SOURCES = $(VULKAN_GEM_STUB_FILES)
-libvulkan_test_la_LIBADD = $(VULKAN_LIB_DEPS)
-
 include $(top_srcdir)/install-lib-links.mk
 
 noinst_HEADERS =
 
 LDADD = \
-	libvulkan-test.la \
 	$(PTHREAD_LIBS) -lm -lstdc++
 
