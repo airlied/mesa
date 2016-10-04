@@ -249,7 +249,7 @@ radv_shader_compile_to_nir(struct radv_device *device,
 
 	if (dump)
 		nir_print_shader(nir, stderr);
-   
+
 	return nir;
 }
 

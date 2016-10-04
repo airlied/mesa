@@ -56,7 +56,7 @@ radv_physical_device_init(struct radv_physical_device *device,
 {
 	VkResult result;
 	int fd;
-   
+
 	fd = open(path, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		return vk_errorf(VK_ERROR_INCOMPATIBLE_DRIVER,
@@ -120,7 +120,7 @@ static const VkExtensionProperties device_extensions[] = {
 };
 
 static void *
-default_alloc_func(void *pUserData, size_t size, size_t align, 
+default_alloc_func(void *pUserData, size_t size, size_t align,
                    VkSystemAllocationScope allocationScope)
 {
 	return malloc(size);
@@ -535,8 +535,6 @@ void radv_GetPhysicalDeviceMemoryProperties(
 		.size = physical_device->rad_info.gart_size,
 		.flags = 0,
 	};
-   
-
 }
 
 static VkResult
@@ -1044,7 +1042,7 @@ VkResult radv_QueueBindSparse(
 {
 	stub_return(VK_ERROR_INCOMPATIBLE_DRIVER);
 }
- 
+
 VkResult radv_CreateFence(
 	VkDevice                                    _device,
 	const VkFenceCreateInfo*                    pCreateInfo,
@@ -1069,7 +1067,7 @@ VkResult radv_CreateFence(
 
 	return VK_SUCCESS;
 }
- 
+
 void radv_DestroyFence(
 	VkDevice                                    _device,
 	VkFence                                     _fence,

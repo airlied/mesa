@@ -38,7 +38,7 @@ VkResult radv_CreateRenderPass(
 	size_t attachments_offset;
 
 	assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO);
-   
+
 	size = sizeof(*pass);
 	size += pCreateInfo->subpassCount * sizeof(pass->subpasses[0]);
 	attachments_offset = size;
@@ -180,4 +180,4 @@ void radv_GetRenderAreaGranularity(
 	pGranularity->width = 1;
 	pGranularity->height = 1;
 }
-	  
+

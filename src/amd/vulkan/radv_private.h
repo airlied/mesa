@@ -364,7 +364,7 @@ radv_free2(const VkAllocationCallbacks *parent_alloc,
 	else
 		radv_free(parent_alloc, data);
 }
-  
+
 struct radv_wsi_interaface;
 
 #define VK_ICD_WSI_PLATFORM_MAX 5
@@ -396,7 +396,7 @@ struct radv_instance {
 	int                                         physicalDeviceCount;
 	struct radv_physical_device                  physicalDevice;
 };
- 
+
 VkResult radv_init_wsi(struct radv_physical_device *physical_device);
 void radv_finish_wsi(struct radv_physical_device *physical_device);
 

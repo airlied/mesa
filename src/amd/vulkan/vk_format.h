@@ -77,19 +77,19 @@ enum vk_format_layout {
 	 */
 	VK_FORMAT_LAYOUT_OTHER = 9
 };
-   
+
 struct vk_format_block
 {
 	/** Block width in pixels */
 	unsigned width;
-   
+
 	/** Block height in pixels */
 	unsigned height;
 
 	/** Block size in bits */
 	unsigned bits;
 };
-   
+
 enum vk_format_type {
 	VK_FORMAT_TYPE_VOID = 0,
 	VK_FORMAT_TYPE_UNSIGNED = 1,
@@ -199,7 +199,7 @@ vk_format_get_blockheight(VkFormat format)
 
 	return desc->block.height;
 }
-   
+
 /**
  * Return the index of the first non-void channel
  * -1 if no non-void channels
@@ -231,7 +231,6 @@ enum vk_swizzle {
 	VK_SWIZZLE_MAX, /**< Number of enums counter (must be last) */
 };
 
-  
 static inline VkImageAspectFlags
 vk_format_aspects(VkFormat format)
 {

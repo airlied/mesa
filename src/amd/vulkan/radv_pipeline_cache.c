@@ -419,7 +419,7 @@ VkResult radv_GetPipelineCacheData(
 	header->device_id = device->instance->physicalDevice.rad_info.pci_id;
 	radv_device_get_cache_uuid(header->uuid);
 	p += header->header_size;
-   
+
 	struct cache_entry *entry;
 	for (uint32_t i = 0; i < cache->table_size; i++) {
 		if (!cache->hash_table[i])
@@ -436,7 +436,7 @@ VkResult radv_GetPipelineCacheData(
 		p += size;
 	}
 	*pDataSize = p - pData;
-      
+
 	return result;
 }
 

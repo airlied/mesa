@@ -682,7 +682,7 @@ wsi_wl_image_init(struct wsi_wl_swapchain *chain,
 		chain->base.device->ws->buffer_set_metadata(image->memory->bo.bo, &metadata);
 	}
 	surface = &image->image->surface;
-   
+
 	image->buffer = wl_drm_create_prime_buffer(chain->display->drm,
 						   fd, /* name */
 						   chain->extent.width,

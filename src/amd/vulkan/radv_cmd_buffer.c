@@ -513,7 +513,7 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 
 static void
 radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
-                            struct radv_pipeline *pipeline)
+			    struct radv_pipeline *pipeline)
 {
 	if (!pipeline || cmd_buffer->state.emitted_pipeline == pipeline)
 		return;
@@ -908,7 +908,7 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 		return;
 
 	radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
-	                                         16 * layout->dynamic_offset_count,
+				     16 * layout->dynamic_offset_count,
 				     256, &offset, &ptr);
 
 	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
@@ -1036,7 +1036,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static void radv_stage_flush(struct radv_cmd_buffer *cmd_buffer,
-                             VkPipelineStageFlags src_stage_mask)
+			     VkPipelineStageFlags src_stage_mask)
 {
 	if (src_stage_mask & (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
 	                      VK_PIPELINE_STAGE_TRANSFER_BIT |
@@ -1046,16 +1046,16 @@ static void radv_stage_flush(struct radv_cmd_buffer *cmd_buffer,
 	}
 
 	if (src_stage_mask & (VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
-	                     VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-	                     VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
-	                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-	                     VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-	                     VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
-	                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-	                     VK_PIPELINE_STAGE_TRANSFER_BIT |
-	                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-	                     VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
-	                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
+			      VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+			      VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+			      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+			      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+			      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+			      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+			      VK_PIPELINE_STAGE_TRANSFER_BIT |
+			      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+			      VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
+			      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
 		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
 	} else if (src_stage_mask & (VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
 	                             VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
@@ -1073,7 +1073,7 @@ static void radv_subpass_barrier(struct radv_cmd_buffer *cmd_buffer, const struc
 }
 
 static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buffer,
-                                                 VkAttachmentReference att)
+						 VkAttachmentReference att)
 {
 	unsigned idx = att.attachment;
 	struct radv_image_view *view = cmd_buffer->state.framebuffer->attachments[idx].attachment;
@@ -1097,7 +1097,7 @@ static void radv_handle_subpass_image_transition(struct radv_cmd_buffer *cmd_buf
 
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
-                            const struct radv_subpass *subpass, bool transitions)
+			    const struct radv_subpass *subpass, bool transitions)
 {
 	if (transitions) {
 		radv_subpass_barrier(cmd_buffer, &subpass->start_barrier);
@@ -1126,7 +1126,7 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
 static void
 radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
 				 struct radv_render_pass *pass,
-                                 const VkRenderPassBeginInfo *info)
+				 const VkRenderPassBeginInfo *info)
 {
 	struct radv_cmd_state *state = &cmd_buffer->state;
 
@@ -1177,9 +1177,9 @@ radv_cmd_state_setup_attachments(struct radv_cmd_buffer *cmd_buffer,
 }
 
 VkResult radv_AllocateCommandBuffers(
-	VkDevice                                    _device,
-	const VkCommandBufferAllocateInfo*          pAllocateInfo,
-	VkCommandBuffer*                            pCommandBuffers)
+	VkDevice _device,
+	const VkCommandBufferAllocateInfo *pAllocateInfo,
+	VkCommandBuffer *pCommandBuffers)
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_cmd_pool, pool, pAllocateInfo->commandPool);
@@ -1220,10 +1220,10 @@ radv_cmd_buffer_destroy(struct radv_cmd_buffer *cmd_buffer)
 }
 
 void radv_FreeCommandBuffers(
-	VkDevice                                    device,
-	VkCommandPool                               commandPool,
-	uint32_t                                    commandBufferCount,
-	const VkCommandBuffer*                      pCommandBuffers)
+	VkDevice device,
+	VkCommandPool commandPool,
+	uint32_t commandBufferCount,
+	const VkCommandBuffer *pCommandBuffers)
 {
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
 		RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, pCommandBuffers[i]);
@@ -1253,8 +1253,8 @@ static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 }
 
 VkResult radv_ResetCommandBuffer(
-	VkCommandBuffer                             commandBuffer,
-	VkCommandBufferResetFlags                   flags)
+	VkCommandBuffer commandBuffer,
+	VkCommandBufferResetFlags flags)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	radv_reset_cmd_buffer(cmd_buffer);
@@ -1262,8 +1262,8 @@ VkResult radv_ResetCommandBuffer(
 }
 
 VkResult radv_BeginCommandBuffer(
-	VkCommandBuffer                             commandBuffer,
-	const VkCommandBufferBeginInfo*             pBeginInfo)
+	VkCommandBuffer commandBuffer,
+	const VkCommandBufferBeginInfo *pBeginInfo)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	radv_reset_cmd_buffer(cmd_buffer);
@@ -1274,12 +1274,12 @@ VkResult radv_BeginCommandBuffer(
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
 		/* Flush read caches at the beginning of CS not flushed by the kernel. */
 		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_INV_ICACHE |
-		                                RADV_CMD_FLAG_PS_PARTIAL_FLUSH |
-		                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
-		                                RADV_CMD_FLAG_INV_VMEM_L1 |
-		                                RADV_CMD_FLAG_INV_SMEM_L1 |
-		                                RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
-		                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+			RADV_CMD_FLAG_PS_PARTIAL_FLUSH |
+			RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+			RADV_CMD_FLAG_INV_VMEM_L1 |
+			RADV_CMD_FLAG_INV_SMEM_L1 |
+			RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
+			RADV_CMD_FLAG_INV_GLOBAL_L2;
 		si_init_config(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
 		radv_set_db_count_control(cmd_buffer);
 		si_emit_cache_flush(cmd_buffer);
@@ -2145,7 +2145,7 @@ void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
 }
- 
+
 static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					       struct radv_image *image,
 					       VkImageLayout src_layout,
