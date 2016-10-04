@@ -400,7 +400,7 @@ static void radv_process_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 				     },
 				     cmd_buffer, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-		
+
 		VkFramebuffer fb_h;
 		radv_CreateFramebuffer(device_h,
 				       &(VkFramebufferCreateInfo) {
@@ -438,7 +438,7 @@ static void radv_process_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 		emit_depth_decomp(cmd_buffer, &(VkOffset2D){0, 0 }, &(VkExtent2D){width, height}, pipeline_h);
 		RADV_CALL(CmdEndRenderPass)(cmd_buffer_h);
-		
+
 		radv_DestroyFramebuffer(device_h, fb_h,
 					&cmd_buffer->pool->alloc);
 	}
