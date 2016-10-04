@@ -36,15 +36,13 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/src/gallium/auxiliary \
 	-I$(top_srcdir)/src/gallium/include
 
-AM_CFLAGS = -Wno-override-init -msse2 \
-	$(VISIBILITY_CFLAGS) \
+AM_CFLAGS = $(VISIBILITY_CFLAGS) \
 	$(PTHREAD_CFLAGS) \
 	$(LLVM_CFLAGS) \
 	$(LIBELF_CFLAGS)
 
 AM_CXXFLAGS = \
 	$(VISIBILITY_CXXFLAGS) \
-	$(MSVC2013_COMPAT_CXXFLAGS) \
 	$(LLVM_CXXFLAGS)
 
 noinst_LTLIBRARIES = libamd_common.la

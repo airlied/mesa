@@ -21,6 +21,9 @@
 
 AMD_COMPILER_SOURCES := \
 	ac_binary.c \
+	ac_binary.h \
 	ac_llvm_helper.cpp \
 	ac_llvm_util.c \
-	ac_nir_to_llvm.c
+	ac_llvm_util.h \
+	ac_nir_to_llvm.c \
+	ac_nir_to_llvm.h
