@@ -20,11 +20,11 @@
 # IN THE SOFTWARE.
 
 RADV_WS_AMDGPU_FILES := \
-	winsys/amdgpu/radv_amdgpu_winsys.c \
-	winsys/amdgpu/radv_amdgpu_winsys.h \
-	winsys/amdgpu/radv_amdgpu_surface.c \
 	winsys/amdgpu/radv_amdgpu_bo.c \
-	winsys/amdgpu/radv_amdgpu_cs.c
+	winsys/amdgpu/radv_amdgpu_cs.c \
+	winsys/amdgpu/radv_amdgpu_surface.c \
+	winsys/amdgpu/radv_amdgpu_winsys.c \
+	winsys/amdgpu/radv_amdgpu_winsys.h
 
 VULKAN_FILES := \
 	radv_cmd_buffer.c \
@@ -40,18 +40,18 @@ VULKAN_FILES := \
 	radv_meta_bufimage.c \
 	radv_meta_clear.c \
 	radv_meta_copy.c \
-	radv_meta_resolve.c \
-	radv_meta_resolve_cs.c \
 	radv_meta_decompress.c \
 	radv_meta_fast_clear.c \
+	radv_meta_resolve.c \
+	radv_meta_resolve_cs.c \
 	radv_pass.c \
 	radv_pipeline.c \
 	radv_pipeline_cache.c \
 	radv_query.c \
 	radv_util.c \
 	radv_wsi.c \
-	vk_format_table.c \
 	si_cmd_buffer.c \
+	vk_format_table.c \
 	$(RADV_WS_AMDGPU_FILES)
 
 VULKAN_WSI_WAYLAND_FILES := \
@@ -65,6 +65,3 @@ VULKAN_GENERATED_FILES := \
 	radv_entrypoints.h \
 	radv_timestamp.h
 
-
-VI_FILES := \
-	vi_state.c
