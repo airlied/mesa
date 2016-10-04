@@ -47,6 +47,5 @@ radv_amdgpu_ctx(struct radeon_winsys_ctx *base)
 {
 	return (struct radv_amdgpu_ctx *)base;
 }
-			       
 
 void radv_amdgpu_cs_init_functions(struct radv_amdgpu_winsys *ws);

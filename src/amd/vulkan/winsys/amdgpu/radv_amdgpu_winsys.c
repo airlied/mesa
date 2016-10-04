@@ -259,7 +259,7 @@ do_winsys_init(struct radv_amdgpu_winsys *ws, int fd)
 		fprintf(stderr, "amdgpu: Unknown family.\n");
 		goto fail;
 	}
-   
+
 	ws->addrlib = radv_amdgpu_addr_create(&ws->amdinfo, ws->family, ws->rev_id, ws->info.chip_class);
 	if (!ws->addrlib) {
 		fprintf(stderr, "amdgpu: Cannot create addrlib.\n");
@@ -329,7 +329,7 @@ radv_amdgpu_winsys_create(int fd)
 	uint32_t drm_major, drm_minor, r;
 	amdgpu_device_handle dev;
 	struct radv_amdgpu_winsys *ws;
-   
+
 	r = amdgpu_device_initialize(fd, &drm_major, &drm_minor, &dev);
 	if (r)
 		return NULL;

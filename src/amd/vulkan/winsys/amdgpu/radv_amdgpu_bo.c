@@ -123,7 +123,7 @@ radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
 	bo->ws = ws;
 	radv_amdgpu_add_buffer_to_global_list(bo);
 	return (struct radeon_winsys_bo *)bo;
-error_va_map:   
+error_va_map:
 	amdgpu_va_range_free(va_handle);
 
 error_va_alloc:
