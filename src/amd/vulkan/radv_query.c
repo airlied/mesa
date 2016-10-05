@@ -203,11 +203,11 @@ void radv_CmdCopyQueryPoolResults(
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(pool->bo);
-	uint64_t dest_va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
+	uint64_t dest_va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo);
 	dest_va += dst_buffer->offset + dstOffset;
 
 	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, pool->bo, 8);
-	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo, 8);
 
 	for(unsigned i = 0; i < queryCount; ++i, dest_va += stride) {
 		unsigned query = firstQuery + i;

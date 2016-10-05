@@ -306,7 +306,7 @@ static void fill_buffer_shader(struct radv_cmd_buffer *cmd_buffer,
 					&ds);
 
 	struct radv_buffer dst_buffer = {
-		.bo = &(struct radv_bo) {bo},
+		.bo = bo,
 		.offset = offset,
 		.size = size
 	};
@@ -368,13 +368,13 @@ static void copy_buffer_shader(struct radv_cmd_buffer *cmd_buffer,
 					&ds);
 
 	struct radv_buffer dst_buffer = {
-		.bo = &(struct radv_bo) {dst_bo},
+		.bo = dst_bo,
 		.offset = dst_offset,
 		.size = size
 	};
 
 	struct radv_buffer src_buffer = {
-		.bo = &(struct radv_bo) {src_bo},
+		.bo = src_bo,
 		.offset = src_offset,
 		.size = size
 	};
@@ -481,7 +481,7 @@ void radv_CmdFillBuffer(
 	if (fillSize == VK_WHOLE_SIZE)
 		fillSize = (dst_buffer->size - dstOffset) & ~3ull;
 
-	radv_fill_buffer(cmd_buffer, dst_buffer->bo->bo, dst_buffer->offset + dstOffset,
+	radv_fill_buffer(cmd_buffer, dst_buffer->bo, dst_buffer->offset + dstOffset,
 			 fillSize, data);
 }
 
@@ -501,7 +501,7 @@ void radv_CmdCopyBuffer(
 		uint64_t dest_offset = dest_buffer->offset + pRegions[r].dstOffset;
 		uint64_t copy_size = pRegions[r].size;
 
-		radv_copy_buffer(cmd_buffer, src_buffer->bo->bo, dest_buffer->bo->bo,
+		radv_copy_buffer(cmd_buffer, src_buffer->bo, dest_buffer->bo,
 				 src_offset, dest_offset, copy_size);
 	}
 }
@@ -516,14 +516,14 @@ void radv_CmdUpdateBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 	uint64_t words = dataSize / 4;
-	uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo->bo);
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(dst_buffer->bo);
 	va += dstOffset + dst_buffer->offset;
 
 	assert(!(dataSize & 3));
 	assert(!(va & 3));
 
 	if (dataSize < 4096) {
-		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo->bo, 8);
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo, 8);
 
 		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, words + 4);
 
@@ -537,7 +537,7 @@ void radv_CmdUpdateBuffer(
 	} else {
 		uint32_t buf_offset;
 		radv_cmd_buffer_upload_data(cmd_buffer, dataSize, 32, pData, &buf_offset);
-		radv_copy_buffer(cmd_buffer, cmd_buffer->upload.upload_bo.bo, dst_buffer->bo->bo,
+		radv_copy_buffer(cmd_buffer, cmd_buffer->upload.upload_bo, dst_buffer->bo,
 				 buf_offset, dstOffset + dst_buffer->offset, dataSize);
 	}
 }

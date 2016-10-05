@@ -699,14 +699,14 @@ x11_image_init(struct radv_device *device, struct x11_swapchain *chain,
    radv_BindImageMemory(VK_NULL_HANDLE, image_h, memory_h, 0);
 
    bret = device->ws->buffer_get_fd(device->ws,
-				    image->memory->bo.bo, &fd);
+				    image->memory->bo, &fd);
    if (bret == false)
      goto fail_alloc_memory;
 
    {
      struct radeon_bo_metadata metadata;
      radv_init_metadata(device, image->image, &metadata);
-     device->ws->buffer_set_metadata(image->memory->bo.bo, &metadata);
+     device->ws->buffer_set_metadata(image->memory->bo, &metadata);
    }
    surface = &image->image->surface;
    uint32_t bpp = 32;

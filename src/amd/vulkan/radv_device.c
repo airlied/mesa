@@ -845,10 +845,10 @@ VkResult radv_AllocateMemory(
 		flags |= RADEON_FLAG_NO_CPU_ACCESS;
 	else
 		flags |= RADEON_FLAG_CPU_ACCESS;
-	mem->bo.bo = device->ws->buffer_create(device->ws, alloc_size, 32768,
+	mem->bo = device->ws->buffer_create(device->ws, alloc_size, 32768,
 					       domain, flags);
 
-	if (!mem->bo.bo) {
+	if (!mem->bo) {
 		result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
 		goto fail;
 	}
@@ -875,8 +875,8 @@ void radv_FreeMemory(
 	if (mem == NULL)
 		return;
 
-	device->ws->buffer_destroy(mem->bo.bo);
-	mem->bo.bo = NULL;
+	device->ws->buffer_destroy(mem->bo);
+	mem->bo = NULL;
 
 	radv_free2(&device->alloc, pAllocator, mem);
 }
@@ -897,7 +897,7 @@ VkResult radv_MapMemory(
 		return VK_SUCCESS;
 	}
 
-	*ppData = device->ws->buffer_map(mem->bo.bo);
+	*ppData = device->ws->buffer_map(mem->bo);
 	if (*ppData) {
 		*ppData += offset;
 		return VK_SUCCESS;
@@ -916,7 +916,7 @@ void radv_UnmapMemory(
 	if (mem == NULL)
 		return;
 
-	device->ws->buffer_unmap(mem->bo.bo);
+	device->ws->buffer_unmap(mem->bo);
 }
 
 VkResult radv_FlushMappedMemoryRanges(
@@ -1006,7 +1006,7 @@ VkResult radv_BindBufferMemory(
 	RADV_FROM_HANDLE(radv_buffer, buffer, _buffer);
 
 	if (mem) {
-		buffer->bo = &mem->bo;
+		buffer->bo = mem->bo;
 		buffer->offset = memoryOffset;
 	} else {
 		buffer->bo = NULL;
@@ -1026,7 +1026,7 @@ VkResult radv_BindImageMemory(
 	RADV_FROM_HANDLE(radv_image, image, _image);
 
 	if (mem) {
-		image->bo = &mem->bo;
+		image->bo = mem->bo;
 		image->offset = memoryOffset;
 	} else {
 		image->bo = NULL;
@@ -1315,17 +1315,17 @@ radv_initialise_color_surface(struct radv_device *device,
 
 	memset(cb, 0, sizeof(*cb));
 
-	va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset;
+	va = device->ws->buffer_get_va(iview->bo) + iview->image->offset;
 	va += level_info->offset;
 	cb->cb_color_base = va >> 8;
 
 	/* CMASK variables */
-	va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset;
+	va = device->ws->buffer_get_va(iview->bo) + iview->image->offset;
 	va += iview->image->cmask.offset;
 	cb->cb_color_cmask = va >> 8;
 	cb->cb_color_cmask_slice = iview->image->cmask.slice_tile_max;
 
-	va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset;
+	va = device->ws->buffer_get_va(iview->bo) + iview->image->offset;
 	va += iview->image->dcc_offset;
 	cb->cb_dcc_base = va >> 8;
 
@@ -1352,7 +1352,7 @@ radv_initialise_color_surface(struct radv_device *device,
 	}
 
 	if (iview->image->fmask.size) {
-		va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset + iview->image->fmask.offset;
+		va = device->ws->buffer_get_va(iview->bo) + iview->image->offset + iview->image->fmask.offset;
 		if (device->instance->physicalDevice.rad_info.chip_class >= CIK)
 			cb->cb_color_pitch |= S_028C64_FMASK_TILE_MAX(iview->image->fmask.pitch_in_pixels / 8 - 1);
 		cb->cb_color_attrib |= S_028C74_FMASK_TILE_MODE_INDEX(iview->image->fmask.tile_mode_index);
@@ -1476,7 +1476,7 @@ radv_initialise_ds_surface(struct radv_device *device,
 		fprintf(stderr, "Invalid DB format: %d, disabling DB.\n", iview->vk_format);
 	}
 
-	va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset;
+	va = device->ws->buffer_get_va(iview->bo) + iview->image->offset;
 	s_offs = z_offs = va;
 	z_offs += iview->image->surface.level[level].offset;
 	s_offs += iview->image->surface.stencil_level[level].offset;
@@ -1541,7 +1541,7 @@ radv_initialise_ds_surface(struct radv_device *device,
 			/* Use all of the htile_buffer for depth if there's no stencil. */
 			ds->db_stencil_info |= S_028044_TILE_STENCIL_DISABLE(1);
 
-		va = device->ws->buffer_get_va(iview->bo->bo) + iview->image->offset +
+		va = device->ws->buffer_get_va(iview->bo) + iview->image->offset +
 		     iview->image->htile.offset;
 		ds->db_htile_data_base = va >> 8;
 		ds->db_htile_surface = S_028ABC_FULL_CACHE(1);

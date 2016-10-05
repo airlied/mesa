@@ -302,11 +302,6 @@ radv_vector_finish(struct radv_vector *queue)
         elem = (queue)->data + (__radv_vector_offset & ((queue)->size - 1)), __radv_vector_offset < (queue)->head; \
         __radv_vector_offset += (queue)->element_size)
 
-
-struct radv_bo {
-	struct radeon_winsys_bo *bo;
-};
-
 void *radv_resolve_entrypoint(uint32_t index);
 void *radv_lookup_entrypoint(const char *name);
 
@@ -582,7 +577,7 @@ struct radv_device {
 void radv_device_get_cache_uuid(void *uuid);
 
 struct radv_device_memory {
-	struct radv_bo                               bo;
+	struct radeon_winsys_bo                      *bo;
 	uint32_t                                     type_index;
 	VkDeviceSize                                 map_size;
 	void *                                       map;
@@ -600,11 +595,11 @@ struct radv_descriptor_set {
 	uint32_t size;
 
 	struct radv_buffer_view *buffer_views;
-	struct radv_bo bo;
+	struct radeon_winsys_bo *bo;
 	uint64_t va;
 	uint32_t *mapped_ptr;
 	struct radv_descriptor_range *dynamic_descriptors;
-	struct radv_bo *descriptors[0];
+	struct radeon_winsys_bo *descriptors[0];
 };
 
 struct radv_descriptor_pool_free_node {
@@ -616,7 +611,7 @@ struct radv_descriptor_pool_free_node {
 struct radv_descriptor_pool {
 	struct list_head descriptor_sets;
 
-	struct radv_bo bo;
+	struct radeon_winsys_bo *bo;
 	uint8_t *mapped_ptr;
 	uint64_t current_offset;
 	uint64_t size;
@@ -634,7 +629,7 @@ struct radv_buffer {
 	VkBufferUsageFlags                           usage;
 
 	/* Set when bound */
-	struct radv_bo *                              bo;
+	struct radeon_winsys_bo *                      bo;
 	VkDeviceSize                                 offset;
 };
 
@@ -778,7 +773,7 @@ struct radv_cmd_buffer_upload {
 	uint8_t *map;
 	unsigned offset;
 	uint64_t size;
-	struct radv_bo upload_bo;
+	struct radeon_winsys_bo *upload_bo;
 	struct list_head list;
 };
 
@@ -1094,7 +1089,7 @@ struct radv_image {
 	uint32_t alignment;
 
 	/* Set when bound */
-	struct radv_bo *bo;
+	struct radeon_winsys_bo *bo;
 	VkDeviceSize offset;
 	uint32_t dcc_offset;
 	struct radeon_surf surface;
@@ -1139,7 +1134,7 @@ radv_init_metadata(struct radv_device *device,
 
 struct radv_image_view {
 	struct radv_image *image; /**< VkImageViewCreateInfo::image */
-	struct radv_bo *bo;
+	struct radeon_winsys_bo *bo;
 
 	VkImageViewType type;
 	VkImageAspectFlags aspect_mask;
@@ -1172,7 +1167,7 @@ void radv_image_view_init(struct radv_image_view *view,
 void radv_image_set_optimal_micro_tile_mode(struct radv_device *device,
 					    struct radv_image *image, uint32_t micro_tile_mode);
 struct radv_buffer_view {
-	struct radv_bo *bo;
+	struct radeon_winsys_bo *bo;
 	VkFormat vk_format;
 	uint64_t range; /**< VkBufferViewCreateInfo::range */
 	uint32_t state[4];
