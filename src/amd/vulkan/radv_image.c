@@ -938,6 +938,8 @@ void radv_GetImageSubresourceLayout(
 	pLayout->arrayPitch = image->surface.level[level].slice_size;
 	pLayout->depthPitch = image->surface.level[level].slice_size;
 	pLayout->size = image->surface.level[level].slice_size;
+	if (image->type == VK_IMAGE_TYPE_3D)
+		pLayout->size *= image->surface.level[level].nblk_z;
 }
 
 
