@@ -830,7 +830,7 @@ static void si_cp_dma_realign_engine(struct radv_cmd_buffer *cmd_buffer, unsigne
 
 	radv_cmd_buffer_upload_alloc(cmd_buffer, buf_size, CP_DMA_ALIGNMENT,  &offset, &ptr);
 
-	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
+	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
 	va += offset;
 
 	si_cp_dma_prepare(cmd_buffer, size, size, &dma_flags);

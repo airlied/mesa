@@ -243,7 +243,7 @@ radv_descriptor_set_create(struct radv_device *device,
 {
 	struct radv_descriptor_set *set;
 	unsigned mem_size = sizeof(struct radv_descriptor_set) +
-		sizeof(struct radv_bo *) * layout->buffer_count;
+		sizeof(struct radeon_winsys_bo *) * layout->buffer_count;
 	set = radv_alloc2(&device->alloc, NULL, mem_size, 8,
 			  VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 
@@ -272,7 +272,7 @@ radv_descriptor_set_create(struct radv_device *device,
 			if (pool->current_offset + layout_size <= pool->size) {
 				set->bo = pool->bo;
 				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + pool->current_offset);
-				set->va = device->ws->buffer_get_va(set->bo.bo) + pool->current_offset;
+				set->va = device->ws->buffer_get_va(set->bo) + pool->current_offset;
 				pool->current_offset += layout_size;
 
 			} else {
@@ -300,7 +300,7 @@ radv_descriptor_set_create(struct radv_device *device,
 
 				set->bo = pool->bo;
 				set->mapped_ptr = (uint32_t*)(pool->mapped_ptr + offset);
-				set->va = device->ws->buffer_get_va(set->bo.bo) + offset;
+				set->va = device->ws->buffer_get_va(set->bo) + offset;
 			}
 		} else {
 			unsigned bo_offset;
@@ -312,7 +312,7 @@ radv_descriptor_set_create(struct radv_device *device,
 				return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
 			}
 
-			set->va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo.bo);
+			set->va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
 			set->va += bo_offset;
 		}
 	}
@@ -443,9 +443,9 @@ VkResult radv_CreateDescriptorPool(
 	}
 
 	if (bo_size) {
-		pool->bo.bo = device->ws->buffer_create(device->ws, bo_size,
+		pool->bo = device->ws->buffer_create(device->ws, bo_size,
 							32, RADEON_DOMAIN_VRAM, 0);
-		pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo.bo);
+		pool->mapped_ptr = (uint8_t*)device->ws->buffer_map(pool->bo);
 	}
 	pool->size = bo_size;
 
@@ -467,8 +467,8 @@ void radv_DestroyDescriptorPool(
 		radv_descriptor_set_destroy(device, pool, set, false);
 	}
 
-	if (pool->bo.bo)
-		device->ws->buffer_destroy(pool->bo.bo);
+	if (pool->bo)
+		device->ws->buffer_destroy(pool->bo);
 	radv_free2(&device->alloc, pAllocator, pool);
 }
 
@@ -545,7 +545,7 @@ VkResult radv_FreeDescriptorSets(
 
 static void write_texel_buffer_descriptor(struct radv_device *device,
 					  unsigned *dst,
-					  struct radv_bo **buffer_list,
+					  struct radeon_winsys_bo **buffer_list,
 					  const VkBufferView _buffer_view)
 {
 	RADV_FROM_HANDLE(radv_buffer_view, buffer_view, _buffer_view);
@@ -556,11 +556,11 @@ static void write_texel_buffer_descriptor(struct radv_device *device,
 
 static void write_buffer_descriptor(struct radv_device *device,
                                     unsigned *dst,
-                                    struct radv_bo **buffer_list,
+                                    struct radeon_winsys_bo **buffer_list,
                                     const VkDescriptorBufferInfo *buffer_info)
 {
 	RADV_FROM_HANDLE(radv_buffer, buffer, buffer_info->buffer);
-	uint64_t va = device->ws->buffer_get_va(buffer->bo->bo);
+	uint64_t va = device->ws->buffer_get_va(buffer->bo);
 	uint32_t range = buffer_info->range;
 
 	if (buffer_info->range == VK_WHOLE_SIZE)
@@ -582,11 +582,11 @@ static void write_buffer_descriptor(struct radv_device *device,
 
 static void write_dynamic_buffer_descriptor(struct radv_device *device,
                                             struct radv_descriptor_range *range,
-                                            struct radv_bo **buffer_list,
+                                            struct radeon_winsys_bo **buffer_list,
                                             const VkDescriptorBufferInfo *buffer_info)
 {
 	RADV_FROM_HANDLE(radv_buffer, buffer, buffer_info->buffer);
-	uint64_t va = device->ws->buffer_get_va(buffer->bo->bo);
+	uint64_t va = device->ws->buffer_get_va(buffer->bo);
 	unsigned size = buffer_info->range;
 
 	if (buffer_info->range == VK_WHOLE_SIZE)
@@ -602,7 +602,7 @@ static void write_dynamic_buffer_descriptor(struct radv_device *device,
 static void
 write_image_descriptor(struct radv_device *device,
 		       unsigned *dst,
-		       struct radv_bo **buffer_list,
+		       struct radeon_winsys_bo **buffer_list,
 		       const VkDescriptorImageInfo *image_info)
 {
 	RADV_FROM_HANDLE(radv_image_view, iview, image_info->imageView);
@@ -610,10 +610,11 @@ write_image_descriptor(struct radv_device *device,
 	memcpy(dst + 8, iview->fmask_descriptor, 8 * 4);
 	*buffer_list = iview->bo;
 }
+
 static void
 write_combined_image_sampler_descriptor(struct radv_device *device,
 					unsigned *dst,
-					struct radv_bo **buffer_list,
+					struct radeon_winsys_bo **buffer_list,
 					const VkDescriptorImageInfo *image_info,
 					bool has_sampler)
 {
@@ -650,7 +651,7 @@ void radv_UpdateDescriptorSets(
 		const struct radv_descriptor_set_binding_layout *binding_layout =
 			set->layout->binding + writeset->dstBinding;
 		uint32_t *ptr = set->mapped_ptr;
-		struct radv_bo **buffer_list =  set->descriptors;
+		struct radeon_winsys_bo **buffer_list =  set->descriptors;
 
 		ptr += binding_layout->offset / 4;
 		ptr += binding_layout->size * writeset->dstArrayElement / 4;

@@ -430,7 +430,7 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_buffer vertex_buffer = {
 		.device = device,
 		.size = sizeof(vertex_data),
-		.bo = &cmd_buffer->upload.upload_bo,
+		.bo = cmd_buffer->upload.upload_bo,
 		.offset = offset,
 	};
 
@@ -681,7 +681,7 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_buffer vertex_buffer = {
 		.device = device,
 		.size = sizeof(vertex_data),
-		.bo = &cmd_buffer->upload.upload_bo,
+		.bo = cmd_buffer->upload.upload_bo,
 		.offset = offset,
 	};
 
@@ -850,11 +850,11 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	si_emit_cache_flush(cmd_buffer);
 	/* clear cmask buffer */
 	if (iview->image->surface.dcc_size) {
-		radv_fill_buffer(cmd_buffer, iview->image->bo->bo,
+		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->dcc_offset,
 				 iview->image->surface.dcc_size, 0x20202020);
 	} else {
-		radv_fill_buffer(cmd_buffer, iview->image->bo->bo,
+		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->cmask.offset,
 				 iview->image->cmask.size, 0);
 	}

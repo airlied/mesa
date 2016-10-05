@@ -284,7 +284,7 @@ meta_emit_blit(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_buffer vertex_buffer = {
 		.device = device,
 		.size = vb_size,
-		.bo = &cmd_buffer->upload.upload_bo,
+		.bo = cmd_buffer->upload.upload_bo,
 		.offset = offset,
 	};
 

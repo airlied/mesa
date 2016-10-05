@@ -339,7 +339,7 @@ emit_depth_decomp(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_buffer vertex_buffer = {
 		.device = device,
 		.size = sizeof(vertex_data),
-		.bo = &cmd_buffer->upload.upload_bo,
+		.bo = cmd_buffer->upload.upload_bo,
 		.offset = offset,
 	};
 
