@@ -672,14 +672,14 @@ wsi_wl_image_init(struct wsi_wl_swapchain *chain,
 		goto fail_mem;
 
 	bret = chain->base.device->ws->buffer_get_fd(chain->base.device->ws,
-						     image->memory->bo.bo, &fd);
+						     image->memory->bo, &fd);
 	if (bret == false)
 		goto fail_mem;
 
 	{
 		struct radeon_bo_metadata metadata;
 		radv_init_metadata(chain->base.device, image->image, &metadata);
-		chain->base.device->ws->buffer_set_metadata(image->memory->bo.bo, &metadata);
+		chain->base.device->ws->buffer_set_metadata(image->memory->bo, &metadata);
 	}
 	surface = &image->image->surface;
 
