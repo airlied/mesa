@@ -114,6 +114,9 @@ void radv_DestroyQueryPool(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_query_pool, pool, _pool);
 
+	if (!pool)
+		return;
+
 	device->ws->buffer_destroy(pool->bo);
 	radv_free2(&device->alloc, pAllocator, pool);
 }

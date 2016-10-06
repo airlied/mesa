@@ -387,6 +387,8 @@ void radv_DestroyPipelineCache(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_pipeline_cache, cache, _cache);
 
+	if (!cache)
+		return;
 	radv_pipeline_cache_finish(cache);
 
 	radv_free2(&device->alloc, pAllocator, cache);

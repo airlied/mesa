@@ -1227,7 +1227,8 @@ void radv_FreeCommandBuffers(
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
 		RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, pCommandBuffers[i]);
 
-		radv_cmd_buffer_destroy(cmd_buffer);
+		if (cmd_buffer)
+			radv_cmd_buffer_destroy(cmd_buffer);
 	}
 }
 
@@ -1699,6 +1700,9 @@ void radv_DestroyCommandPool(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_cmd_pool, pool, commandPool);
+
+	if (!pool)
+		return;
 
 	list_for_each_entry_safe(struct radv_cmd_buffer, cmd_buffer,
 				 &pool->cmd_buffers, pool_link) {

@@ -1078,6 +1078,8 @@ void radv_DestroyFence(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_fence, fence, _fence);
 
+	if (!fence)
+		return;
 	device->ws->destroy_fence(fence->fence);
 	radv_free2(&device->alloc, pAllocator, fence);
 }
@@ -1217,6 +1219,8 @@ void radv_DestroyEvent(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_event, event, _event);
 
+	if (!event)
+		return;
 	device->ws->buffer_destroy(event->bo);
 	radv_free2(&device->alloc, pAllocator, event);
 }
@@ -1285,6 +1289,9 @@ void radv_DestroyBuffer(
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_buffer, buffer, _buffer);
+
+	if (!buffer)
+		return;
 
 	radv_free2(&device->alloc, pAllocator, buffer);
 }
@@ -1604,6 +1611,8 @@ void radv_DestroyFramebuffer(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_framebuffer, fb, _fb);
 
+	if (!fb)
+		return;
 	radv_free2(&device->alloc, pAllocator, fb);
 }
 
@@ -1763,5 +1772,7 @@ void radv_DestroySampler(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_sampler, sampler, _sampler);
 
+	if (!sampler)
+		return;
 	radv_free2(&device->alloc, pAllocator, sampler);
 }

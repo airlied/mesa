@@ -920,6 +920,9 @@ radv_DestroyImage(VkDevice _device, VkImage _image,
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 
+	if (!_image)
+		return;
+
 	radv_free2(&device->alloc, pAllocator, radv_image_from_handle(_image));
 }
 
@@ -971,7 +974,8 @@ radv_DestroyImageView(VkDevice _device, VkImageView _iview,
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_image_view, iview, _iview);
 
-
+	if (!iview)
+		return;
 	radv_free2(&device->alloc, pAllocator, iview);
 }
 
@@ -1018,6 +1022,9 @@ radv_DestroyBufferView(VkDevice _device, VkBufferView bufferView,
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_buffer_view, view, bufferView);
+
+	if (!view)
+		return;
 
 	radv_free2(&device->alloc, pAllocator, view);
 }
