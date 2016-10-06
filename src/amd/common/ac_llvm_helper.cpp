@@ -39,10 +39,8 @@
 extern "C" void
 ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes)
 {
-#if HAVE_LLVM >= 0x0306
    llvm::Argument *A = llvm::unwrap<llvm::Argument>(val);
    llvm::AttrBuilder B;
    B.addDereferenceableAttr(bytes);
    A->addAttr(llvm::AttributeSet::get(A->getContext(), A->getArgNo() + 1,  B));
-#endif
 }
