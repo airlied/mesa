@@ -160,6 +160,9 @@ void radv_DestroyDescriptorSetLayout(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_descriptor_set_layout, set_layout, _set_layout);
 
+	if (!set_layout)
+		return;
+
 	radv_free2(&device->alloc, pAllocator, set_layout);
 }
 
@@ -229,6 +232,8 @@ void radv_DestroyPipelineLayout(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_pipeline_layout, pipeline_layout, _pipelineLayout);
 
+	if (!pipeline_layout)
+		return;
 	radv_free2(&device->alloc, pAllocator, pipeline_layout);
 }
 
@@ -462,6 +467,9 @@ void radv_DestroyDescriptorPool(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_descriptor_pool, pool, _pool);
 
+	if (!pool)
+		return;
+
 	list_for_each_entry_safe(struct radv_descriptor_set, set,
 				 &pool->descriptor_sets, descriptor_pool) {
 		radv_descriptor_set_destroy(device, pool, set, false);
@@ -538,7 +546,8 @@ VkResult radv_FreeDescriptorSets(
 	for (uint32_t i = 0; i < count; i++) {
 		RADV_FROM_HANDLE(radv_descriptor_set, set, pDescriptorSets[i]);
 
-		radv_descriptor_set_destroy(device, pool, set, true);
+		if (set)
+			radv_descriptor_set_destroy(device, pool, set, true);
 	}
 	return VK_SUCCESS;
 }

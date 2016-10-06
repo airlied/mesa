@@ -98,6 +98,9 @@ void radv_DestroyShaderModule(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 	RADV_FROM_HANDLE(radv_shader_module, module, _module);
 
+	if (!module)
+		return;
+
 	radv_free2(&device->alloc, pAllocator, module);
 }
 
