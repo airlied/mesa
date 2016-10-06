@@ -52,12 +52,6 @@ SUBDIRS += compiler
 
 if HAVE_AMD_DRIVERS
 SUBDIRS += amd
-
-if HAVE_RADEON_VULKAN
-SUBDIRS += amd/common
-SUBDIRS += amd/vulkan
-endif
-
 endif
 
 if HAVE_INTEL_DRIVERS
@@ -100,6 +94,12 @@ endif
 ## Requires the i965 compiler (part of mesa) and wayland-drm
 if HAVE_INTEL_VULKAN
 SUBDIRS += intel/vulkan
+endif
+
+# Requires wayland-drm
+if HAVE_RADEON_VULKAN
+SUBDIRS += amd/common
+SUBDIRS += amd/vulkan
 endif
 
 if HAVE_GALLIUM
