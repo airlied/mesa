@@ -906,6 +906,18 @@ static LLVMValueRef emit_imul_high(struct nir_to_llvm_context *ctx,
 	return result;
 }
 
+static LLVMValueRef emit_bitfield_extract(struct nir_to_llvm_context *ctx,
+					  const char *intrin,
+					  LLVMValueRef srcs[3])
+{
+	LLVMValueRef result;
+	LLVMValueRef icond = LLVMBuildICmp(ctx->builder, LLVMIntEQ, srcs[2], LLVMConstInt(ctx->i32, 32, false), "");
+	result = emit_llvm_intrinsic(ctx, intrin, ctx->i32, srcs, 3, LLVMReadNoneAttribute);
+
+	result = LLVMBuildSelect(ctx->builder, icond, srcs[0], result, "");
+	return result;
+}
+
 static LLVMValueRef emit_bitfield_insert(struct nir_to_llvm_context *ctx,
 					 LLVMValueRef src0, LLVMValueRef src1,
 					 LLVMValueRef src2, LLVMValueRef src3)
@@ -922,6 +934,8 @@ static LLVMValueRef emit_bitfield_insert(struct nir_to_llvm_context *ctx,
 	bfi_args[1] = LLVMBuildShl(ctx->builder, src1, src2, "");
 	bfi_args[2] = src0;
 
+	LLVMValueRef icond = LLVMBuildICmp(ctx->builder, LLVMIntEQ, src3, LLVMConstInt(ctx->i32, 32, false), "");
+
 	/* Calculate:
 	 *   (arg0 & arg1) | (~arg0 & arg2) = arg2 ^ (arg0 & (arg1 ^ arg2)
 	 * Use the right-hand side, which the LLVM backend can convert to V_BFI.
@@ -929,6 +943,8 @@ static LLVMValueRef emit_bitfield_insert(struct nir_to_llvm_context *ctx,
 	result = LLVMBuildXor(ctx->builder, bfi_args[2],
 			      LLVMBuildAnd(ctx->builder, bfi_args[0],
 					   LLVMBuildXor(ctx->builder, bfi_args[1], bfi_args[2], ""), ""), "");
+
+	result = LLVMBuildSelect(ctx->builder, icond, src1, result, "");
 	return result;
 }
 
@@ -1422,10 +1438,10 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		result = emit_intrin_3f_param(ctx, "llvm.fma.f32", src[0], src[1], src[2]);
 		break;
 	case nir_op_ibitfield_extract:
-		result = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.bfe.i32", ctx->i32, src, 3, LLVMReadNoneAttribute);
+		result = emit_bitfield_extract(ctx, "llvm.AMDGPU.bfe.i32", src);
 		break;
 	case nir_op_ubitfield_extract:
-		result = emit_llvm_intrinsic(ctx, "llvm.AMDGPU.bfe.u32", ctx->i32, src, 3, LLVMReadNoneAttribute);
+		result = emit_bitfield_extract(ctx, "llvm.AMDGPU.bfe.u32", src);
 		break;
 	case nir_op_bitfield_insert:
 		result = emit_bitfield_insert(ctx, src[0], src[1], src[2], src[3]);
