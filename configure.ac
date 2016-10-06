@@ -2538,6 +2538,10 @@ if test -n "$with_gallium_drivers"; then
     done
 fi
 
+if test "x$HAVE_RADEON_VULKAN" != "x0"; then
+    radeon_llvm_check "radv" "3" "9" "0"
+fi
+
 dnl Set LLVM_LIBS - This is done after the driver configuration so
 dnl that drivers can add additional components to LLVM_COMPONENTS.
 dnl Previously, gallium drivers were updating LLVM_LIBS directly
@@ -2590,10 +2594,6 @@ if test "x$MESA_LLVM" != x0; then
             LLVM_LIBS="$LLVM_LIBS `$LLVM_CONFIG --system-libs`"
         fi
     fi
-fi
-
-if test "x$HAVE_RADEON_VULKAN" != "x0"; then
-    radeon_llvm_check "radv" "3" "9" "0"
 fi
 
 AM_CONDITIONAL(HAVE_GALLIUM_SVGA, test "x$HAVE_GALLIUM_SVGA" = xyes)
