@@ -443,6 +443,10 @@ static void create_function(struct nir_to_llvm_context *ctx,
 	arg_types[arg_idx++] = const_array(ctx->i8, 1024 * 1024);
 
 	array_count = arg_idx;
+
+	/* scratch address */
+	arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 2); /* address of scratch */
+
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
 		arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 3); /* grid size */
@@ -516,6 +520,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 
 	ctx->push_constants = LLVMGetParam(ctx->main_function, arg_idx++);
 
+	arg_idx++; /* scratch address */
 	switch (nir->stage) {
 	case MESA_SHADER_COMPUTE:
 		ctx->num_work_groups =
@@ -4618,6 +4623,37 @@ static void ac_diagnostic_handler(LLVMDiagnosticInfoRef di, void *context)
 	LLVMDisposeMessage(description);
 }
 
+static const char *scratch_rsrc_dword0_symbol =
+	"SCRATCH_RSRC_DWORD0";
+
+static const char *scratch_rsrc_dword1_symbol =
+	"SCRATCH_RSRC_DWORD1";
+
+static void ac_apply_scratch_relocs(struct ac_shader_binary *binary, int sgpr)
+{
+	uint32_t nop_val = 0xbf800000;
+	unsigned i;
+	for (i = 0 ; i < binary->reloc_count; i++) {
+		const struct ac_shader_reloc *reloc =
+					&binary->relocs[i];
+		if (!strcmp(scratch_rsrc_dword0_symbol, reloc->name)) {
+			uint32_t reg_val = *(uint32_t *)(binary->code + reloc->offset - 4);
+			reg_val &= 0xffffff00;
+			reg_val |= sgpr;
+			*(uint32_t *)(binary->code + reloc->offset - 4) = reg_val;
+			util_memcpy_cpu_to_le32(binary->code + reloc->offset,
+			&nop_val, 4);
+		} else if (!strcmp(scratch_rsrc_dword1_symbol, reloc->name)) {
+			uint32_t reg_val = *(uint32_t *)(binary->code + reloc->offset - 4);
+			reg_val &= 0xffffff00;
+			reg_val |= (sgpr + 1);
+			*(uint32_t *)(binary->code + reloc->offset - 4) = reg_val;
+			util_memcpy_cpu_to_le32(binary->code + reloc->offset,
+			&nop_val, 4);
+		}
+	}
+}
+
 static unsigned ac_llvm_compile(LLVMModuleRef M,
                                 struct ac_shader_binary *binary,
                                 LLVMTargetMachineRef tm)
@@ -4657,6 +4693,8 @@ static unsigned ac_llvm_compile(LLVMModuleRef M,
 	/* Clean up */
 	LLVMDisposeMemoryBuffer(out_buffer);
 
+	/* patch for vulkan scratch rsrc */
+	ac_apply_scratch_relocs(binary, AC_USERDATA_SCRATCH_OFFSET);
 out:
 	return retval;
 }
