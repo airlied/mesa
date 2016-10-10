@@ -443,6 +443,7 @@ struct radv_device {
 	bool allow_fast_clears;
 	bool allow_dcc;
 
+	uint32_t scratch_waves;
 	/* MSAA sample locations.
 	 * The first index is the sample index.
 	 * The second index is the coordinate: X, Y. */
@@ -676,6 +677,14 @@ struct radv_cmd_buffer {
 	struct radv_cmd_buffer_upload upload;
 
 	bool record_fail;
+
+	/* for primary cmd buffers */
+	struct radeon_winsys_bo *scratch_bo;
+	uint32_t scratch_patch_idx;
+
+	/* for primary + secondary cmd buffers */
+	uint32_t scratch_needed_mask;
+	uint32_t scratch_size_needed;
 };
 
 struct radv_image;
