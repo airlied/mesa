@@ -684,6 +684,22 @@ VkResult radv_CreateDevice(
 		radv_finishme("DCC fast clears have not been tested\n");
 
 	radv_device_init_msaa(device);
+
+	/* The maximum number of scratch waves. Scratch space isn't divided
+	 * evenly between CUs. The number is only a function of the number of CUs.
+	 * We can decrease the constant to decrease the scratch buffer size.
+	 *
+	 * sctx->scratch_waves must be >= the maximum posible size of
+	 * 1 threadgroup, so that the hw doesn't hang from being unable
+	 * to start any.
+	 *
+	 * The recommended value is 4 per CU at most. Higher numbers don't
+	 * bring much benefit, but they still occupy chip resources (think
+	 * async compute). I've seen ~2% performance difference between 4 and 32.
+	 */
+	uint32_t max_threads_per_block = 2048;
+	device->scratch_waves = MAX2(32 * physical_device->rad_info.num_good_compute_units,
+				     max_threads_per_block / 64);
 	device->empty_cs = device->ws->cs_create(device->ws, RING_GFX);
 	radeon_emit(device->empty_cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
 	radeon_emit(device->empty_cs, CONTEXT_CONTROL_LOAD_ENABLE(1));
