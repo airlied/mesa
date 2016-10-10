@@ -352,9 +352,6 @@ static void radv_fill_shader_variant(struct radv_device *device,
 	bool scratch_enabled = variant->config.scratch_bytes_per_wave > 0;
 	unsigned vgpr_comp_cnt = 0;
 
-	if (scratch_enabled)
-		radv_finishme("shader scratch space");
-
 	switch (stage) {
 	case MESA_SHADER_VERTEX:
 		variant->rsrc2 = S_00B12C_USER_SGPR(variant->info.num_user_sgprs) |

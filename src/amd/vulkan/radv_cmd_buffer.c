@@ -437,6 +437,13 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer,
 	va = ws->buffer_get_va(vs->bo);
 	ws->cs_add_buffer(cmd_buffer->cs, vs->bo, 8);
 
+	if (vs->config.scratch_bytes_per_wave) {
+		uint32_t needed = vs->config.scratch_bytes_per_wave * cmd_buffer->device->scratch_waves;
+		if (needed > cmd_buffer->scratch_size_needed)
+			cmd_buffer->scratch_size_needed = needed;
+		cmd_buffer->scratch_needed_mask |= (1 << MESA_SHADER_VERTEX);
+	}
+
 	clip_dist_mask = vs->info.vs.clip_dist_mask;
 	cull_dist_mask = vs->info.vs.cull_dist_mask;
 	total_mask = clip_dist_mask | cull_dist_mask;
@@ -500,6 +507,13 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	vs = pipeline->shaders[MESA_SHADER_VERTEX];
 	va = ws->buffer_get_va(ps->bo);
 	ws->cs_add_buffer(cmd_buffer->cs, ps->bo, 8);
+
+	if (ps->config.scratch_bytes_per_wave) {
+		uint32_t needed = ps->config.scratch_bytes_per_wave * cmd_buffer->device->scratch_waves;
+		if (needed > cmd_buffer->scratch_size_needed)
+			cmd_buffer->scratch_size_needed = needed;
+		cmd_buffer->scratch_needed_mask |= (1 << MESA_SHADER_FRAGMENT);
+	}
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B020_SPI_SHADER_PGM_LO_PS, 4);
 	radeon_emit(cmd_buffer->cs, va >> 8);
@@ -592,6 +606,15 @@ radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_028A94_VGT_MULTI_PRIM_IB_RESET_EN,
 			       pipeline->graphics.prim_restart_enable);
 
+	uint32_t max_scratch_bytes_per_wave = 0;
+	max_scratch_bytes_per_wave = MAX2(max_scratch_bytes_per_wave,
+					  pipeline->shaders[MESA_SHADER_VERTEX]->config.scratch_bytes_per_wave);
+	max_scratch_bytes_per_wave = MAX2(max_scratch_bytes_per_wave,
+					  pipeline->shaders[MESA_SHADER_FRAGMENT]->config.scratch_bytes_per_wave);
+
+	radeon_set_context_reg(cmd_buffer->cs, R_0286E8_SPI_TMPRING_SIZE,
+			       S_0286E8_WAVES(cmd_buffer->device->scratch_waves) |
+			       S_0286E8_WAVESIZE(max_scratch_bytes_per_wave >> 10));
 	cmd_buffer->state.emitted_pipeline = pipeline;
 }
 
@@ -1337,6 +1360,13 @@ radv_cmd_buffer_destroy(struct radv_cmd_buffer *cmd_buffer)
 
 	if (cmd_buffer->upload.upload_bo)
 		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->upload.upload_bo);
+
+	if (cmd_buffer->scratch_bo)
+		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->scratch_bo);
+
+	if (cmd_buffer->compute_scratch_bo)
+		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->compute_scratch_bo);
+
 	cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs);
 	vk_free(&cmd_buffer->pool->alloc, cmd_buffer);
 }
@@ -1367,6 +1397,19 @@ static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 		free(up);
 	}
 
+	if (cmd_buffer->scratch_bo) {
+		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->scratch_bo);
+		cmd_buffer->scratch_bo = NULL;
+	}
+
+	if (cmd_buffer->compute_scratch_bo) {
+		cmd_buffer->device->ws->buffer_destroy(cmd_buffer->compute_scratch_bo);
+		cmd_buffer->compute_scratch_bo = NULL;
+	}
+
+	cmd_buffer->scratch_needed_mask = 0;
+	cmd_buffer->scratch_size_needed = 0;
+	cmd_buffer->compute_scratch_size_needed = 0;
 	if (cmd_buffer->upload.upload_bo)
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs,
 						      cmd_buffer->upload.upload_bo, 8);
@@ -1421,6 +1464,19 @@ VkResult radv_BeginCommandBuffer(
 		case RADV_QUEUE_TRANSFER:
 		default:
 			break;
+		}
+
+		uint32_t pad_word = 0xffff1000U;
+		if (cmd_buffer->device->instance->physicalDevice.rad_info.gfx_ib_pad_with_type2)
+			pad_word = 0x80000000;
+
+		cmd_buffer->scratch_patch_idx = cmd_buffer->cs->cdw;
+		cmd_buffer->cs_to_patch_scratch = cmd_buffer->cs->buf;
+		for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
+			radeon_emit(cmd_buffer->cs, pad_word);
+			radeon_emit(cmd_buffer->cs, pad_word);
+			radeon_emit(cmd_buffer->cs, pad_word);
+			radeon_emit(cmd_buffer->cs, pad_word);
 		}
 	}
 
@@ -1559,6 +1615,61 @@ VkResult radv_EndCommandBuffer(
 
 	if (cmd_buffer->queue_family_index != RADV_QUEUE_TRANSFER)
 		si_emit_cache_flush(cmd_buffer);
+
+	int idx = cmd_buffer->scratch_patch_idx;
+	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY && cmd_buffer->compute_scratch_size_needed) {
+		cmd_buffer->compute_scratch_bo = cmd_buffer->device->ws->buffer_create(cmd_buffer->device->ws,
+										       cmd_buffer->compute_scratch_size_needed,
+										       4096,
+										       RADEON_DOMAIN_VRAM,
+										       RADEON_FLAG_NO_CPU_ACCESS);
+
+		if (!cmd_buffer->compute_scratch_bo) {
+			cmd_buffer->record_fail = true;
+			return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+		}
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->compute_scratch_bo, 8);
+
+		uint64_t scratch_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->compute_scratch_bo);
+		uint32_t rsrc1 = S_008F04_BASE_ADDRESS_HI(scratch_va >> 32) |
+			S_008F04_SWIZZLE_ENABLE(1);
+		uint32_t reg_base;
+
+		reg_base = shader_stage_to_user_data_0(MESA_SHADER_COMPUTE);
+		cmd_buffer->cs_to_patch_scratch[idx++] = PKT3(PKT3_SET_SH_REG, 2, 0);
+		cmd_buffer->cs_to_patch_scratch[idx++] = (reg_base - SI_SH_REG_OFFSET) >> 2;
+		cmd_buffer->cs_to_patch_scratch[idx++] = scratch_va;
+		cmd_buffer->cs_to_patch_scratch[idx++] = rsrc1;
+	}
+	
+	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY && cmd_buffer->scratch_size_needed) {
+		cmd_buffer->scratch_bo = cmd_buffer->device->ws->buffer_create(cmd_buffer->device->ws,
+									       cmd_buffer->scratch_size_needed,
+									       4096,
+									       RADEON_DOMAIN_VRAM,
+									       RADEON_FLAG_NO_CPU_ACCESS);
+
+		if (!cmd_buffer->scratch_bo) {
+			cmd_buffer->record_fail = true;
+			return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+		}
+
+		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, cmd_buffer->scratch_bo, 8);
+
+		uint64_t scratch_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->scratch_bo);
+		uint32_t rsrc1 = S_008F04_BASE_ADDRESS_HI(scratch_va >> 32) |
+			S_008F04_SWIZZLE_ENABLE(1);
+		radv_foreach_stage(stage, cmd_buffer->scratch_needed_mask) {
+			uint32_t reg_base;
+			assert (stage != MESA_SHADER_COMPUTE);
+			reg_base = shader_stage_to_user_data_0(stage);
+			cmd_buffer->cs_to_patch_scratch[idx++] = PKT3(PKT3_SET_SH_REG, 2, 0);
+			cmd_buffer->cs_to_patch_scratch[idx++] = (reg_base - SI_SH_REG_OFFSET) >> 2;
+			cmd_buffer->cs_to_patch_scratch[idx++] = scratch_va;
+			cmd_buffer->cs_to_patch_scratch[idx++] = rsrc1;
+		}
+	}
+
 	if (!cmd_buffer->device->ws->cs_finalize(cmd_buffer->cs) ||
 	    cmd_buffer->record_fail)
 		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -1594,9 +1705,16 @@ radv_emit_compute_pipeline(struct radv_cmd_buffer *cmd_buffer)
 	radeon_emit(cmd_buffer->cs, compute_shader->rsrc1);
 	radeon_emit(cmd_buffer->cs, compute_shader->rsrc2);
 
+	if (compute_shader->config.scratch_bytes_per_wave) {
+		uint32_t needed = compute_shader->config.scratch_bytes_per_wave * cmd_buffer->device->scratch_waves;
+		if (needed > cmd_buffer->compute_scratch_size_needed)
+			cmd_buffer->compute_scratch_size_needed = needed;
+	}
+
 	/* change these once we have scratch support */
 	radeon_set_sh_reg(cmd_buffer->cs, R_00B860_COMPUTE_TMPRING_SIZE,
-			  S_00B860_WAVES(32) | S_00B860_WAVESIZE(0));
+			  S_00B860_WAVES(cmd_buffer->device->scratch_waves) |
+			  S_00B860_WAVESIZE(compute_shader->config.scratch_bytes_per_wave >> 10));
 
 	radeon_set_sh_reg_seq(cmd_buffer->cs, R_00B81C_COMPUTE_NUM_THREAD_X, 3);
 	radeon_emit(cmd_buffer->cs,
@@ -1785,6 +1903,14 @@ void radv_CmdExecuteCommands(
 
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
 		RADV_FROM_HANDLE(radv_cmd_buffer, secondary, pCmdBuffers[i]);
+
+		if (secondary->scratch_size_needed > primary->scratch_size_needed)
+			primary->scratch_size_needed = secondary->scratch_size_needed;
+
+		if (secondary->compute_scratch_size_needed > primary->compute_scratch_size_needed)
+			primary->compute_scratch_size_needed = secondary->compute_scratch_size_needed;
+
+		primary->scratch_needed_mask |= secondary->scratch_needed_mask;
 
 		primary->device->ws->cs_execute_secondary(primary->cs, secondary->cs);
 	}
