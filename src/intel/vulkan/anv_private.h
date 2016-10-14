@@ -66,6 +66,8 @@ struct gen_l3_config;
 #include "brw_context.h"
 #include "isl/isl.h"
 
+#include "wsi_common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
