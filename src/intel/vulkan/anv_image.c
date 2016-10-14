@@ -259,7 +259,7 @@ anv_image_create(VkDevice _device,
    anv_assert(pCreateInfo->extent.height > 0);
    anv_assert(pCreateInfo->extent.depth > 0);
 
-   image = anv_alloc2(&device->alloc, alloc, sizeof(*image), 8,
+   image = vk_alloc2(&device->alloc, alloc, sizeof(*image), 8,
                       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (!image)
       return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
@@ -288,7 +288,7 @@ anv_image_create(VkDevice _device,
 
 fail:
    if (image)
-      anv_free2(&device->alloc, alloc, image);
+      vk_free2(&device->alloc, alloc, image);
 
    return r;
 }
@@ -313,7 +313,7 @@ anv_DestroyImage(VkDevice _device, VkImage _image,
 {
    ANV_FROM_HANDLE(anv_device, device, _device);
 
-   anv_free2(&device->alloc, pAllocator, anv_image_from_handle(_image));
+   vk_free2(&device->alloc, pAllocator, anv_image_from_handle(_image));
 }
 
 VkResult anv_BindImageMemory(
@@ -608,7 +608,7 @@ anv_CreateImageView(VkDevice _device,
    ANV_FROM_HANDLE(anv_device, device, _device);
    struct anv_image_view *view;
 
-   view = anv_alloc2(&device->alloc, pAllocator, sizeof(*view), 8,
+   view = vk_alloc2(&device->alloc, pAllocator, sizeof(*view), 8,
                      VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (view == NULL)
       return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
@@ -642,7 +642,7 @@ anv_DestroyImageView(VkDevice _device, VkImageView _iview,
                           iview->storage_surface_state);
    }
 
-   anv_free2(&device->alloc, pAllocator, iview);
+   vk_free2(&device->alloc, pAllocator, iview);
 }
 
 
@@ -707,7 +707,7 @@ anv_CreateBufferView(VkDevice _device,
    ANV_FROM_HANDLE(anv_device, device, _device);
    struct anv_buffer_view *view;
 
-   view = anv_alloc2(&device->alloc, pAllocator, sizeof(*view), 8,
+   view = vk_alloc2(&device->alloc, pAllocator, sizeof(*view), 8,
                      VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (!view)
       return vk_error(VK_ERROR_OUT_OF_HOST_MEMORY);
@@ -734,7 +734,7 @@ anv_DestroyBufferView(VkDevice _device, VkBufferView bufferView,
       anv_state_pool_free(&device->surface_state_pool,
                           view->storage_surface_state);
 
-   anv_free2(&device->alloc, pAllocator, view);
+   vk_free2(&device->alloc, pAllocator, view);
 }
 
 const struct anv_surface *
