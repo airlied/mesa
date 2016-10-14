@@ -139,8 +139,8 @@ wsi_x11_get_connection(struct wsi_device *wsi_dev,
 }
 
 static const VkSurfaceFormatKHR formats[] = {
-   { .format = VK_FORMAT_B8G8R8A8_SRGB, },
    { .format = VK_FORMAT_B8G8R8A8_UNORM, },
+   { .format = VK_FORMAT_B8G8R8A8_SRGB, },
 };
 
 static const VkPresentModeKHR present_modes[] = {
