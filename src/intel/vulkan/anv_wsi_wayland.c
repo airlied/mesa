@@ -24,12 +24,8 @@
 #include <wayland-client.h>
 #include <wayland-drm-client-protocol.h>
 
-#include "anv_wsi.h"
-
-#include "vk_format_info.h"
-#include <util/hash_table.h>
-
 #include "wsi_common_wayland.h"
+#include "anv_private.h"
 
 VkBool32 anv_GetPhysicalDeviceWaylandPresentationSupportKHR(
     VkPhysicalDevice                            physicalDevice,
@@ -56,5 +52,5 @@ VkResult anv_CreateWaylandSurfaceKHR(
    else
       alloc = &instance->alloc;
 
-   return anv_create_wl_surface(alloc, pCreateInfo, pSurface);
+   return wsi_create_wl_surface(alloc, pCreateInfo, pSurface);
 }
