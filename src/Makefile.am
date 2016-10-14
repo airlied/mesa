@@ -74,6 +74,10 @@ endif
 # include only conditionally ?
 SUBDIRS += compiler
 
+if HAVE_VULKAN_COMMON
+SUBDIRS += vulkan
+endif
+
 if HAVE_AMD_DRIVERS
 SUBDIRS += amd
 endif

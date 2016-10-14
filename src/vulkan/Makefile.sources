@@ -1,0 +1,2 @@
+COMMON_HEADER_FILES = \
+	common/vk_alloc.h
