@@ -407,7 +407,7 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 							  {
 								  .sampler = NULL,
 								  .imageView = radv_image_view_to_handle(&src_iview),
-								  .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+								  .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 							  },
 						  }
 					  },
@@ -422,7 +422,7 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 							  {
 								  .sampler = NULL,
 								  .imageView = radv_image_view_to_handle(&dest_iview),
-								  .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+								  .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 							  },
 						  }
 					  }

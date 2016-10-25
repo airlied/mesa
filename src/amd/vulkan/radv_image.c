@@ -679,6 +679,7 @@ radv_image_alloc_htile(struct radv_device *device,
 	image->alignment = align64(image->alignment, 32768);
 }
 
+static uint32_t image_id;
 VkResult
 radv_image_create(VkDevice _device,
 		  const struct radv_image_create_info *create_info,
@@ -712,6 +713,7 @@ radv_image_create(VkDevice _device,
 	image->samples = pCreateInfo->samples;
 	image->tiling = pCreateInfo->tiling;
 	image->usage = pCreateInfo->usage;
+	image->image_id = image_id++;
 	radv_init_surface(device, &image->surface, create_info);
 
 	device->ws->surface_init(device->ws, &image->surface);
@@ -719,6 +721,7 @@ radv_image_create(VkDevice _device,
 	image->size = image->surface.bo_size;
 	image->alignment = image->surface.bo_alignment;
 
+	fprintf(stderr, "%04d: creating image - %d (%dx%d)\n", image->image_id, image->type, image->extent.width, image->extent.height);
 	if ((pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
 	    image->surface.dcc_size)
 		radv_image_alloc_dcc(device, image);

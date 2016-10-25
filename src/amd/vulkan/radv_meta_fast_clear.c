@@ -66,11 +66,19 @@ static nir_shader *
 build_nir_fs(void)
 {
 	nir_builder b;
-
+	const struct glsl_type *color_type = glsl_vec4_type();
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_FRAGMENT, NULL);
 	b.shader->info.name = ralloc_asprintf(b.shader,
 					      "meta_fast_clear_noop_fs");
 
+	nir_variable *fs_out_color =
+		nir_variable_create(b.shader, nir_var_shader_out, color_type,
+				    "f_color");
+	fs_out_color->data.location = FRAG_RESULT_DATA0;
+
+	nir_ssa_def *result = nir_imm_vec4(&b, 0.0, 0.0, 0.0, 1.0);
+	nir_store_var(&b, fs_out_color, result, 0xf);
+	
 	return b.shader;
 }
 
@@ -86,8 +94,8 @@ create_pass(struct radv_device *device)
 	attachment.samples = 1;
 	attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachment.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
-	attachment.finalLayout = VK_IMAGE_LAYOUT_GENERAL;
+	attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	result = radv_CreateRenderPass(device_h,
 				       &(VkRenderPassCreateInfo) {
@@ -102,7 +110,7 @@ create_pass(struct radv_device *device)
 						       .pColorAttachments = (VkAttachmentReference[]) {
 							       {
 								       .attachment = 0,
-								       .layout = VK_IMAGE_LAYOUT_GENERAL,
+								       .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 							       },
 						       },
 						       .pResolveAttachments = NULL,
@@ -199,7 +207,7 @@ create_pipeline(struct radv_device *device,
 		.rasterizerDiscardEnable = false,
 		.polygonMode = VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_NONE,
-		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.frontFace = VK_FRONT_FACE_CLOCKWISE,
 	};
 
 	result = radv_graphics_pipeline_create(device_h,
@@ -483,4 +491,52 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 	radv_meta_restore(&saved_state, cmd_buffer);
 	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
+}
+
+/**
+ * Emit any needed fast clear eliminations for the current subpass.
+ */
+void
+radv_cmd_buffer_fastclear_subpass(struct radv_cmd_buffer *cmd_buffer)
+{
+	struct radv_framebuffer *fb = cmd_buffer->state.framebuffer;
+	const struct radv_subpass *subpass = cmd_buffer->state.subpass;
+	struct radv_meta_saved_state saved_state;
+
+	/* FINISHME(perf): Skip clears for resolve attachments.
+	 *
+	 * From the Vulkan 1.0 spec:
+	 *
+	 *    If the first use of an attachment in a render pass is as a resolve
+	 *    attachment, then the loadOp is effectively ignored as the resolve is
+	 *    guaranteed to overwrite all pixels in the render area.
+	 */
+
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
+
+	for (uint32_t i = 0; i < subpass->color_count; ++i) {
+		VkAttachmentReference src_att = subpass->color_attachments[i];
+
+		struct radv_subpass fc_subpass = {
+			.color_count = 1,
+			.color_attachments = (VkAttachmentReference[]) { src_att },
+			.depth_stencil_attachment = { .attachment = VK_ATTACHMENT_UNUSED },
+		};
+
+		radv_cmd_buffer_set_subpass(cmd_buffer, &fc_subpass, false);
+
+		/* Subpass resolves must respect the render area. We can ignore the
+		 * render area here because vkCmdBeginRenderPass set the render area
+		 * with 3DSTATE_DRAWING_RECTANGLE.
+		 *
+		 * XXX(chadv): Does the hardware really respect
+		 * 3DSTATE_DRAWING_RECTANGLE when draing a 3DPRIM_RECTLIST?
+		 */
+		emit_fast_clear_flush(cmd_buffer,
+				      &(VkExtent2D) { fb->width, fb->height },
+				      false);
+	}
+
+	cmd_buffer->state.subpass = subpass;
+	radv_meta_restore(&saved_state, cmd_buffer);
 }

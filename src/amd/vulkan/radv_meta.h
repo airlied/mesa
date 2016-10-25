@@ -186,6 +186,7 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 				     uint32_t region_count,
 				     const VkImageResolve *regions);
 
+void radv_cmd_buffer_fastclear_subpass(struct radv_cmd_buffer *cmd_buffer);
 #ifdef __cplusplus
 }
 #endif

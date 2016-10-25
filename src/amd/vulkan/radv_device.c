@@ -622,8 +622,8 @@ VkResult radv_CreateDevice(
 		device->ws->ctx_destroy(device->hw_ctx);
 		goto fail_free;
 	}
-	device->allow_fast_clears = env_var_as_boolean("RADV_FAST_CLEARS", false);
-	device->allow_dcc = !env_var_as_boolean("RADV_DCC_DISABLE", false);
+	device->allow_fast_clears = env_var_as_boolean("RADV_FAST_CLEARS", true);
+	device->allow_dcc = !env_var_as_boolean("RADV_DCC_DISABLE", true);
 
 	if (device->allow_fast_clears && device->allow_dcc)
 		radv_finishme("DCC fast clears have not been tested\n");
@@ -1358,6 +1358,7 @@ radv_initialise_color_surface(struct radv_device *device,
 	const struct radeon_surf *surf = &iview->image->surface;
 	const struct radeon_surf_level *level_info = &surf->level[iview->base_mip];
 
+	fprintf(stderr, "%04d: color surface for image\n", iview->image->image_id);
 	desc = vk_format_description(iview->vk_format);
 
 	memset(cb, 0, sizeof(*cb));

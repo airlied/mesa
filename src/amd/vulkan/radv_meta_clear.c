@@ -845,9 +845,10 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (ret == false)
 		goto fail;
 
+	fprintf(stderr, "%04d: fast clearing image %d: %d x %d - %d, (%d/%d)\n", iview->image->image_id, subpass_att, iview->image->extent.width,
+		iview->image->extent.height, iview->image->vk_format, iview->image->levels, iview->image->array_size);
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
-	si_emit_cache_flush(cmd_buffer);
 	/* clear cmask buffer */
 	if (iview->image->surface.dcc_size) {
 		radv_fill_buffer(cmd_buffer, iview->image->bo,
@@ -858,14 +859,18 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 				 iview->image->offset + iview->image->cmask.offset,
 				 iview->image->cmask.size, 0);
 	}
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
+					RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
-
+	si_emit_cache_flush(cmd_buffer);
 	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
 
 	return true;
 fail:
+	clear_color[0] = 0;
+	clear_color[1] = 0;
+	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
 	return false;
 }
 

@@ -435,14 +435,16 @@ void radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 	assert(!(offset & 3));
 	assert(!(size & 3));
 
-	if (size >= 4096)
-		fill_buffer_shader(cmd_buffer, bo, offset, size, value);
-	else if (size) {
+	if (size)// >= 4096)
+	  fill_buffer_shader(cmd_buffer, bo, offset, size, value);
+#if 0
+		else
 		uint64_t va = cmd_buffer->device->ws->buffer_get_va(bo);
 		va += offset;
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, bo, 8);
 		si_cp_dma_clear_buffer(cmd_buffer, va, size, value);
 	}
+#endif
 }
 
 static

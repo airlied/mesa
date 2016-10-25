@@ -573,15 +573,24 @@ radv_emit_scissor(struct radv_cmd_buffer *cmd_buffer)
 static void
 radv_emit_fb_color_state(struct radv_cmd_buffer *cmd_buffer,
 			 int index,
-			 struct radv_color_buffer_info *cb)
+			 struct radv_color_buffer_info *cb,
+			 struct radv_image *image,
+			 VkImageLayout layout)
 {
 	bool is_vi = cmd_buffer->device->instance->physicalDevice.rad_info.chip_class >= VI;
+	uint32_t cb_color_info = cb->cb_color_info;
+
+	if (!radv_layout_has_cmask(image, layout)) {
+		cb->cb_color_attrib &= C_028C70_FAST_CLEAR;
+		cb->cb_color_attrib &= C_028C70_COMPRESSION;
+	}
+	fprintf(stderr, "%04d: bind cb for image - cmask %d\n", image->image_id, radv_layout_has_cmask(image, layout));
 	radeon_set_context_reg_seq(cmd_buffer->cs, R_028C60_CB_COLOR0_BASE + index * 0x3c, 11);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_base);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_pitch);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_slice);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_view);
-	radeon_emit(cmd_buffer->cs, cb->cb_color_info);
+	radeon_emit(cmd_buffer->cs, cb_color_info);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_attrib);
 	radeon_emit(cmd_buffer->cs, cb->cb_dcc_control);
 	radeon_emit(cmd_buffer->cs, cb->cb_color_cmask);
@@ -763,6 +772,7 @@ radv_load_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 	if (!image->cmask.size && !image->surface.dcc_size)
 		return;
 
+#if 1
 	uint32_t reg = R_028C8C_CB_COLOR0_CLEAR_WORD0 + idx * 0x3c;
 	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, image->bo, 8);
 
@@ -777,6 +787,12 @@ radv_load_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_emit(cmd_buffer->cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
 	radeon_emit(cmd_buffer->cs, 0);
+#else
+	radeon_set_context_reg_seq(cmd_buffer->cs, R_028C8C_CB_COLOR0_CLEAR_WORD0 + idx * 0x3c, 2);
+	radeon_emit(cmd_buffer->cs, 0);
+	radeon_emit(cmd_buffer->cs, 0);
+#endif
+	
 }
 
 void
@@ -794,6 +810,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 	}
 	for (i = 0; i < subpass->color_count; ++i) {
 		int idx = subpass->color_attachments[i].attachment;
+		VkImageLayout layout = subpass->color_attachments[i].layout;
 		struct radv_attachment_info *att = &framebuffer->attachments[idx];
 
 		if (dst_resolve_micro_tile_mode != -1) {
@@ -803,7 +820,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, att->attachment->bo, 8);
 
 		assert(att->attachment->aspect_mask & VK_IMAGE_ASPECT_COLOR_BIT);
-		radv_emit_fb_color_state(cmd_buffer, i, &att->cb);
+		radv_emit_fb_color_state(cmd_buffer, i, &att->cb, att->attachment->image, layout);
 
 		radv_load_color_clear_regs(cmd_buffer, att->attachment->image, i);
 	}
@@ -1859,6 +1876,7 @@ void radv_CmdNextSubpass(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
 	si_emit_cache_flush(cmd_buffer);
+//	radv_cmd_buffer_fastclear_subpass(cmd_buffer);
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs,
@@ -2167,6 +2185,7 @@ void radv_CmdEndRenderPass(
 	radv_subpass_barrier(cmd_buffer, &cmd_buffer->state.pass->end_barrier);
 
 	si_emit_cache_flush(cmd_buffer);
+//	radv_cmd_buffer_fastclear_subpass(cmd_buffer);
 	radv_cmd_buffer_resolve_subpass(cmd_buffer);
 
 	for (unsigned i = 0; i < cmd_buffer->state.framebuffer->attachment_count; ++i) {
@@ -2240,6 +2259,7 @@ void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
 
+	si_emit_cache_flush(cmd_buffer);
 	radv_fill_buffer(cmd_buffer, image->bo, image->offset + image->cmask.offset,
 			 image->cmask.size, value);
 
@@ -2247,6 +2267,7 @@ void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+	si_emit_cache_flush(cmd_buffer);
 }
 
 static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
@@ -2256,14 +2277,29 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 					       VkImageSubresourceRange range,
 					       VkImageAspectFlags pending_clears)
 {
-	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
-		if (image->fmask.size)
-			radv_initialise_cmask(cmd_buffer, image, 0xccccccccu);
-		else
-			radv_initialise_cmask(cmd_buffer, image, 0xffffffffu);
+	fprintf(stderr, "%04d: cmask image transition %d->%d %dx%d\n", image->image_id, src_layout, dst_layout, image->extent.width, image->extent.height);
+	if (dst_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+	    (pending_clears & vk_format_aspects(image->vk_format)) == vk_format_aspects(image->vk_format) &&
+	    cmd_buffer->state.render_area.offset.x == 0 && cmd_buffer->state.render_area.offset.y == 0 &&
+	    cmd_buffer->state.render_area.extent.width == image->extent.width &&
+	    cmd_buffer->state.render_area.extent.height == image->extent.height) {
+		/* The clear will initialize htile. */
+		fprintf(stderr, "%04d: clear merge\n", image->image_id);
+		return;
+	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+		fprintf(stderr, "%04d: undefined\n", image->image_id);
+//		if (image->fmask.size)
+//			radv_initialise_cmask(cmd_buffer, image, 0xccccccccu);
+//		else
+//			radv_initialise_cmask(cmd_buffer, image, 0xffffffffu);
 	} else if (radv_layout_has_cmask(image, src_layout) &&
 		   !radv_layout_has_cmask(image, dst_layout)) {
+		fprintf(stderr, "%04d: flushing\n", image->image_id);
 		radv_fast_clear_flush_image_inplace(cmd_buffer, image);
+	} else if (!radv_layout_has_cmask(image, src_layout) &&
+		   radv_layout_has_cmask(image, dst_layout)) {
+		fprintf(stderr, "%04d: resett\n", image->image_id);
+//		radv_initialise_cmask(cmd_buffer, image, 0xffffffffu);
 	}
 }
 
@@ -2345,6 +2381,26 @@ void radv_CmdPipelineBarrier(
 		dst_flags |= pBufferMemoryBarriers[i].dstAccessMask;
 	}
 
+	enum radv_cmd_flush_bits flush_bits = 0;
+	for_each_bit(b, src_flags) {
+		switch ((VkAccessFlagBits)(1 << b)) {
+		case VK_ACCESS_SHADER_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_INV_GLOBAL_L2;
+			break;
+		case VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+			break;
+		case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
+			break;
+		case VK_ACCESS_TRANSFER_WRITE_BIT:
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+			break;
+		default:
+			break;
+		}
+	}
+
 	for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
 		RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
 		src_flags |= pImageMemoryBarriers[i].srcAccessMask;
@@ -2357,8 +2413,7 @@ void radv_CmdPipelineBarrier(
 					     0);
 	}
 
-	enum radv_cmd_flush_bits flush_bits = 0;
-
+	flush_bits = 0;
 	for_each_bit(b, src_flags) {
 		switch ((VkAccessFlagBits)(1 << b)) {
 		case VK_ACCESS_SHADER_WRITE_BIT:

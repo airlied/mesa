@@ -616,6 +616,7 @@ write_image_descriptor(struct radv_device *device,
 		       const VkDescriptorImageInfo *image_info)
 {
 	RADV_FROM_HANDLE(radv_image_view, iview, image_info->imageView);
+	fprintf(stderr, "%04d: bind tex image\n", iview->image->image_id);
 	memcpy(dst, iview->descriptor, 8 * 4);
 	memcpy(dst + 8, iview->fmask_descriptor, 8 * 4);
 	*buffer_list = iview->bo;

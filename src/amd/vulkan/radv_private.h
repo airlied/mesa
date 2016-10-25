@@ -988,6 +988,7 @@ struct radv_image {
 
 	/* Depth buffer compression and fast clear. */
 	struct r600_htile_info htile;
+	int image_id;
 };
 
 bool radv_layout_has_htile(const struct radv_image *image,
