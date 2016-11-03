@@ -84,6 +84,18 @@ static const VkExtensionProperties instance_extensions[] = {
 		.specVersion = 5,
 	},
 #endif
+	{
+		.extensionName = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+		.specVersion = 1,
+	},
 };
 
 static const VkExtensionProperties common_device_extensions[] = {
@@ -113,6 +125,18 @@ static const VkExtensionProperties common_device_extensions[] = {
 	},
 	{
 		.extensionName = VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
 		.specVersion = 1,
 	},
 };
@@ -254,7 +278,6 @@ radv_physical_device_finish(struct radv_physical_device *device)
 	device->ws->destroy(device->ws);
 	close(device->local_fd);
 }
-
 
 static void *
 default_alloc_func(void *pUserData, size_t size, size_t align,
@@ -1694,7 +1717,7 @@ VkResult radv_AllocateMemory(
 	VkResult result;
 	enum radeon_bo_domain domain;
 	uint32_t flags = 0;
-	const VkDedicatedAllocationMemoryAllocateInfoNV *dedicate_info = NULL;
+
 	assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
 	if (pAllocateInfo->allocationSize == 0) {
@@ -1703,15 +1726,10 @@ VkResult radv_AllocateMemory(
 		return VK_SUCCESS;
 	}
 
-	vk_foreach_struct(ext, pAllocateInfo->pNext) {
-		switch (ext->sType) {
-		case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV:
-			dedicate_info = (const VkDedicatedAllocationMemoryAllocateInfoNV *)ext;
-			break;
-		default:
-			break;
-		}
-	}
+	const VkImportMemoryFdInfoKHX *import_info =
+		vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHX);
+	const VkDedicatedAllocationMemoryAllocateInfoNV *dedicate_info =
+		vk_find_struct_const(pAllocateInfo->pNext, DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV);
 
 	mem = vk_alloc2(&device->alloc, pAllocator, sizeof(*mem), 8,
 			  VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -1724,6 +1742,17 @@ VkResult radv_AllocateMemory(
 	} else {
 		mem->image = NULL;
 		mem->buffer = NULL;
+	}
+
+	if (import_info) {
+		assert(import_info->handleType ==
+		       VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHX);
+		mem->bo = device->ws->buffer_from_fd(device->ws, import_info->fd,
+						     NULL, NULL);
+		if (!mem->bo)
+			goto fail;
+		else
+			goto out_success;
 	}
 
 	uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
@@ -1749,7 +1778,7 @@ VkResult radv_AllocateMemory(
 		goto fail;
 	}
 	mem->type_index = pAllocateInfo->memoryTypeIndex;
-
+out_success:
 	*pMem = radv_device_memory_to_handle(mem);
 
 	return VK_SUCCESS;
@@ -2695,7 +2724,6 @@ void radv_DestroySampler(
 	vk_free2(&device->alloc, pAllocator, sampler);
 }
 
-
 /* vk_icd.h does not declare this function, so we declare it here to
  * suppress Wmissing-prototypes.
  */
@@ -2738,4 +2766,35 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion)
 	*/
 	*pSupportedVersion = MIN2(*pSupportedVersion, 3u);
 	return VK_SUCCESS;
+}
+
+VkResult radv_GetMemoryFdKHX(VkDevice _device,
+			     VkDeviceMemory _memory,
+			     VkExternalMemoryHandleTypeFlagsKHX handleType,
+			     int *pFD)
+{
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	RADV_FROM_HANDLE(radv_device_memory, memory, _memory);
+
+	/* We support only one handle type. */
+	assert(handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHX);
+
+	bool ret = radv_get_memory_fd(device, memory, pFD);
+	if (ret == false)
+		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+	return VK_SUCCESS;
+}
+
+VkResult radv_GetMemoryFdPropertiesKHX(VkDevice _device,
+				       VkExternalMemoryHandleTypeFlagBitsKHX handleType,
+				       int fd,
+				       VkMemoryFdPropertiesKHX *pMemoryFdProperties)
+{
+   /* The valid usage section for this function says:
+    *
+    *    "handleType must not be one of the handle types defined as opaque."
+    *
+    * Since we only handle opaque handles for now, there are no FD properties.
+    */
+   return VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX;
 }
