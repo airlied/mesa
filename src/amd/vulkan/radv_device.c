@@ -115,6 +115,18 @@ static const VkExtensionProperties common_device_extensions[] = {
 		.extensionName = VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,
 		.specVersion = 1,
 	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+		.specVersion = 1,
+	},
 };
 
 static VkResult
@@ -254,7 +266,6 @@ radv_physical_device_finish(struct radv_physical_device *device)
 	device->ws->destroy(device->ws);
 	close(device->local_fd);
 }
-
 
 static void *
 default_alloc_func(void *pUserData, size_t size, size_t align,
@@ -1673,6 +1684,7 @@ VkResult radv_AllocateMemory(
 	enum radeon_bo_domain domain;
 	uint32_t flags = 0;
 	const VkDedicatedAllocationMemoryAllocateInfoNV *dedicate_info = NULL;
+	const VkImportMemoryFdInfoKHX *import_info = NULL;
 	assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
 	if (pAllocateInfo->allocationSize == 0) {
@@ -1685,6 +1697,12 @@ VkResult radv_AllocateMemory(
 		switch (ext->sType) {
 		case VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV:
 			dedicate_info = (const VkDedicatedAllocationMemoryAllocateInfoNV *)ext;
+			break;
+		case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHX: {
+			import_info = (const VkImportMemoryFdInfoKHX *)ext;
+			break;
+		}
+		case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHX:
 			break;
 		default:
 			break;
@@ -1702,6 +1720,15 @@ VkResult radv_AllocateMemory(
 	} else {
 		mem->image = NULL;
 		mem->buffer = NULL;
+	}
+
+	if (import_info) {
+		mem->bo = device->ws->buffer_from_fd(device->ws, import_info->fd,
+						     NULL, NULL);
+		if (!mem->bo)
+			goto fail;
+		else
+			goto out_success;
 	}
 
 	uint64_t alloc_size = align_u64(pAllocateInfo->allocationSize, 4096);
@@ -1727,7 +1754,7 @@ VkResult radv_AllocateMemory(
 		goto fail;
 	}
 	mem->type_index = pAllocateInfo->memoryTypeIndex;
-
+out_success:
 	*pMem = radv_device_memory_to_handle(mem);
 
 	return VK_SUCCESS;
@@ -2673,7 +2700,6 @@ void radv_DestroySampler(
 	vk_free2(&device->alloc, pAllocator, sampler);
 }
 
-
 /* vk_icd.h does not declare this function, so we declare it here to
  * suppress Wmissing-prototypes.
  */
@@ -2715,5 +2741,18 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion)
 	*          because the loader no longer does so.
 	*/
 	*pSupportedVersion = MIN2(*pSupportedVersion, 3u);
+	return VK_SUCCESS;
+}
+
+VkResult radv_GetMemoryFdKHX(VkDevice _device,
+			     VkDeviceMemory _memory,
+			     VkExternalMemoryHandleTypeFlagsKHX handleType,
+			     int *pFD)
+{
+	RADV_FROM_HANDLE(radv_device, device, _device);
+	RADV_FROM_HANDLE(radv_device_memory, memory, _memory);
+	bool ret = radv_get_memory_fd(device, memory, pFD);
+	if (ret == false)
+		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 	return VK_SUCCESS;
 }

@@ -28,6 +28,7 @@
 #include "sid.h"
 #include "r600d_common.h"
 
+#include "util/vk_util.h"
 #include "util/u_half.h"
 #include "util/format_srgb.h"
 #include "util/format_r11g11b10f.h"
@@ -1120,18 +1121,68 @@ unsupported:
 	return VK_ERROR_FORMAT_NOT_SUPPORTED;
 }
 
+static void
+get_external_image_format_properties(VkPhysicalDevice physicalDevice,
+				     const VkPhysicalDeviceImageFormatInfo2KHR*  pImageFormatInfo,
+				     const VkPhysicalDeviceExternalImageFormatInfoKHX *external_info,
+				     VkExternalMemoryPropertiesKHX *external_properties)
+{
+	VkExternalMemoryFeatureFlagBitsKHX flags = 0;
+	VkExternalMemoryHandleTypeFlagsKHX export_flags = 0;
+	VkExternalMemoryHandleTypeFlagsKHX compat_flags = 0;
+	switch (pImageFormatInfo->type) {
+	case VK_IMAGE_TYPE_2D:
+		flags = VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHX|VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHX|VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHX;
+		compat_flags = export_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHX;
+		break;
+	default:
+		break;
+	}
+
+	*external_properties = (VkExternalMemoryPropertiesKHX) {
+		.externalMemoryFeatures = flags,
+		.exportFromImportedHandleTypes = export_flags,
+		.compatibleHandleTypes = compat_flags,
+	};
+}
+
 VkResult radv_GetPhysicalDeviceImageFormatProperties2KHR(
 	VkPhysicalDevice                            physicalDevice,
-	const VkPhysicalDeviceImageFormatInfo2KHR*  pImageFormatInfo,
+	const VkPhysicalDeviceImageFormatInfo2KHR  *pImageFormatInfo,
 	VkImageFormatProperties2KHR                *pImageFormatProperties)
 {
-	return radv_GetPhysicalDeviceImageFormatProperties(physicalDevice,
-							   pImageFormatInfo->format,
-							   pImageFormatInfo->type,
-							   pImageFormatInfo->tiling,
-							   pImageFormatInfo->usage,
-							   pImageFormatInfo->flags,
-							   &pImageFormatProperties->imageFormatProperties);
+	const struct vk_struct_common *out_header = (const struct vk_struct_common *)pImageFormatProperties->pNext;
+	VkResult result;
+
+	result = radv_GetPhysicalDeviceImageFormatProperties(physicalDevice,
+							     pImageFormatInfo->format,
+							     pImageFormatInfo->type,
+							     pImageFormatInfo->tiling,
+							     pImageFormatInfo->usage,
+							     pImageFormatInfo->flags,
+							     &pImageFormatProperties->imageFormatProperties);
+
+	if (result != VK_SUCCESS)
+		return result;
+
+	vk_foreach_struct_const(ext, pImageFormatInfo->pNext) {
+		switch (ext->sType) {
+		case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO_KHX: {
+			const VkPhysicalDeviceExternalImageFormatInfoKHX *external_info = (VkPhysicalDeviceExternalImageFormatInfoKHX *)ext;
+			VkExternalMemoryPropertiesKHX *external_properties = (VkExternalMemoryPropertiesKHX *)out_header;
+
+			get_external_image_format_properties(physicalDevice,
+							     pImageFormatInfo,
+							     external_info,
+							     external_properties);
+			break;
+		}
+		default:
+			break;
+		}
+		out_header = out_header->pNext;
+	}
+	return result;
 }
 
 void radv_GetPhysicalDeviceSparseImageFormatProperties(
@@ -1156,4 +1207,12 @@ void radv_GetPhysicalDeviceSparseImageFormatProperties2KHR(
 {
 	/* Sparse images are not yet supported. */
 	*pPropertyCount = 0;
+}
+
+void radv_GetPhysicalDeviceExternalBufferPropertiesKHX(
+	VkPhysicalDevice                            physicalDevice,
+	const VkPhysicalDeviceExternalBufferInfoKHX *pExternalBufferInfo,
+	VkExternalBufferPropertiesKHX               *pExternalBufferProperties)
+{
+
 }
