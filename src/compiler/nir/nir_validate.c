@@ -483,7 +483,7 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
              (instr->variables[0]->var->data.mode == nir_var_uniform &&
               glsl_get_base_type(type) == GLSL_TYPE_SUBROUTINE));
       validate_assert(state, instr->num_components == glsl_get_vector_elements(type));
-      validate_assert(state, instr->variables[0]->var->data.mode != nir_var_shader_in &&
+      validate_assert(state, /*instr->variables[0]->var->data.mode != nir_var_shader_in &&*/
              instr->variables[0]->var->data.mode != nir_var_uniform &&
              instr->variables[0]->var->data.mode != nir_var_shader_storage);
       validate_assert(state, (nir_intrinsic_write_mask(instr) & ~((1 << instr->num_components) - 1)) == 0);
