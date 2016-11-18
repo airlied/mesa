@@ -38,9 +38,13 @@ struct ac_vs_variant_key {
 	uint32_t instance_rate_inputs;
 };
 
+#define FS_INTERP_FORCE_SAMPLE 0
+#define FS_INTERP_BC_OPTIMIZE 1
+#define FS_INTERP_FORCE_CENTER 2
 struct ac_fs_variant_key {
 	uint32_t col_format;
 	uint32_t is_int8;
+	uint32_t fs_interp:2;
 };
 
 union ac_shader_variant_key {

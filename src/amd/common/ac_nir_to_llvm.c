@@ -84,6 +84,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef front_face;
 	LLVMValueRef ancillary;
 	LLVMValueRef frag_pos[4];
+	LLVMValueRef bc_opt_persp, bc_opt_linear;
 
 	LLVMBasicBlockRef continue_block;
 	LLVMBasicBlockRef break_block;
@@ -2753,7 +2754,16 @@ static LLVMValueRef lookup_interp_param(struct nir_to_llvm_context *ctx,
 		return NULL;
 	case INTERP_MODE_SMOOTH:
 	case INTERP_MODE_NONE:
-		if (location == INTERP_CENTER)
+		if (ctx->options->key.fs.fs_interp == FS_INTERP_BC_OPTIMIZE) {
+			if (location == INTERP_CENTER || location == INTERP_CENTROID)
+				return ctx->bc_opt_persp;
+			else
+				return ctx->persp_sample;
+		} else if (ctx->options->key.fs.fs_interp == FS_INTERP_FORCE_SAMPLE)
+			return ctx->persp_sample;
+		else if (ctx->options->key.fs.fs_interp == FS_INTERP_FORCE_CENTER)
+			return ctx->persp_center;
+		else if (location == INTERP_CENTER)
 			return ctx->persp_center;
 		else if (location == INTERP_CENTROID)
 			return ctx->persp_centroid;
@@ -2761,7 +2771,16 @@ static LLVMValueRef lookup_interp_param(struct nir_to_llvm_context *ctx,
 			return ctx->persp_sample;
 		break;
 	case INTERP_MODE_NOPERSPECTIVE:
-		if (location == INTERP_CENTER)
+		if (ctx->options->key.fs.fs_interp == FS_INTERP_BC_OPTIMIZE) {
+			if (location == INTERP_CENTER || location == INTERP_CENTROID)
+				return ctx->bc_opt_linear;
+			else
+				return ctx->linear_sample;
+		} else if (ctx->options->key.fs.fs_interp == FS_INTERP_FORCE_SAMPLE)
+			return ctx->linear_sample;
+		else if (ctx->options->key.fs.fs_interp == FS_INTERP_FORCE_CENTER)
+			return ctx->linear_center;
+		else if (location == INTERP_CENTER)
 			return ctx->linear_center;
 		else if (location == INTERP_CENTROID)
 			return ctx->linear_centroid;
@@ -4527,6 +4546,38 @@ static void ac_llvm_finalize_module(struct nir_to_llvm_context * ctx)
 	LLVMDisposePassManager(passmgr);
 }
 
+static void
+ac_optimize_frag_interp(struct nir_to_llvm_context *ctx)
+{
+	LLVMValueRef bc_opt, tmp;
+	int i;
+	LLVMValueRef center, centroid;
+	bc_opt = ctx->prim_mask;
+	bc_opt = LLVMBuildLShr(ctx->builder, bc_opt,
+			       LLVMConstInt(ctx->i32, 31, false),
+			       "");
+	bc_opt = LLVMBuildTrunc(ctx->builder, bc_opt, ctx->i1, "");
+
+	ctx->bc_opt_persp = LLVMGetUndef(ctx->v2i32);
+	ctx->bc_opt_linear = LLVMGetUndef(ctx->v2i32);
+	for (i = 0; i < 2; i++) {
+		LLVMValueRef idx = i ? ctx->i32one : ctx->i32zero;
+		center = LLVMBuildExtractElement(ctx->builder, ctx->persp_center, idx, "");
+		centroid = LLVMBuildExtractElement(ctx->builder, ctx->persp_centroid, idx, "");
+		tmp = LLVMBuildSelect(ctx->builder, bc_opt,
+				      center, centroid, "");
+		ctx->bc_opt_persp = LLVMBuildInsertElement(ctx->builder, ctx->bc_opt_persp, tmp, idx, "");
+	}
+	for (i = 0; i < 2; i++) {
+		LLVMValueRef idx = i ? ctx->i32one : ctx->i32zero;
+		center = LLVMBuildExtractElement(ctx->builder, ctx->linear_center, idx, "");
+		centroid = LLVMBuildExtractElement(ctx->builder, ctx->linear_centroid, idx, "");
+		tmp = LLVMBuildSelect(ctx->builder, bc_opt,
+				      center, centroid, "");
+		ctx->bc_opt_linear = LLVMBuildInsertElement(ctx->builder, ctx->bc_opt_linear, tmp, idx, "");
+	}
+}
+
 static
 LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
                                        struct nir_shader *nir,
@@ -4576,6 +4627,10 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 		}
 	}
 
+	if (nir->stage == MESA_SHADER_FRAGMENT) {
+		if (ctx.options->key.fs.fs_interp == FS_INTERP_BC_OPTIMIZE)
+			ac_optimize_frag_interp(&ctx);
+	}
 	nir_foreach_variable(variable, &nir->inputs)
 		handle_shader_input_decl(&ctx, variable);
 
