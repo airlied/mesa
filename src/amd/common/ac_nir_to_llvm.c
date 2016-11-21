@@ -2936,9 +2936,11 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		result = ctx->start_instance;
 		break;
 	case nir_intrinsic_load_sample_id:
+		ctx->shader_info->fs.force_persample = true;
 		result = unpack_param(ctx, ctx->ancillary, 8, 4);
 		break;
 	case nir_intrinsic_load_sample_pos:
+		ctx->shader_info->fs.force_persample = true;
 		result = load_sample_pos(ctx);
 		break;
 	case nir_intrinsic_load_front_face:
@@ -3920,9 +3922,18 @@ handle_fs_input_decl(struct nir_to_llvm_context *ctx,
 	variable->data.driver_location = idx * 4;
 	ctx->input_mask |= ((1ull << attrib_count) - 1) << variable->data.location;
 
-	if (glsl_get_base_type(glsl_without_array(variable->type)) == GLSL_TYPE_FLOAT)
-		interp = lookup_interp_param(ctx, variable->data.interpolation, INTERP_CENTER);
-	else
+	if (glsl_get_base_type(glsl_without_array(variable->type)) == GLSL_TYPE_FLOAT) {
+		unsigned interp_type;
+		if (variable->data.sample) {
+			interp_type = INTERP_SAMPLE;
+			ctx->shader_info->fs.force_persample = true;
+		} else if (variable->data.centroid)
+			interp_type = INTERP_CENTROID;
+		else
+			interp_type = INTERP_CENTER;
+
+		interp = lookup_interp_param(ctx, variable->data.interpolation, interp_type);
+	} else
 		interp = NULL;
 
 	for (unsigned i = 0; i < attrib_count; ++i)
@@ -4828,6 +4839,9 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 			shader_info->cs.block_size[i] = nir->info->cs.local_size[i];
 	}
 
-	if (nir->stage == MESA_SHADER_FRAGMENT)
+	if (nir->stage == MESA_SHADER_FRAGMENT) {
+		if (options->key.fs.fs_interp == FS_INTERP_FORCE_SAMPLE)
+			shader_info->fs.force_persample = true;
 		shader_info->fs.early_fragment_test = nir->info->fs.early_fragment_tests;
+	}
 }

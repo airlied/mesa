@@ -288,6 +288,10 @@ radv_update_multisample_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_mask[0]);
 	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_mask[1]);
 
+	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA, ms->db_eqaa);
+	radeon_set_context_reg(cmd_buffer->cs, R_0286E0_SPI_BARYC_CNTL, ms->spi_baryc_cntl);
+	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1, ms->pa_sc_mode_cntl_1);
+
 	if (old_pipeline && num_samples == old_pipeline->graphics.ms.num_samples)
 		return;
 
@@ -295,9 +299,6 @@ radv_update_multisample_state(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ms->pa_sc_line_cntl);
 	radeon_emit(cmd_buffer->cs, ms->pa_sc_aa_config);
 
-	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA, ms->db_eqaa);
-	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1, ms->pa_sc_mode_cntl_1);
-	radeon_set_context_reg(cmd_buffer->cs, R_0286E0_SPI_BARYC_CNTL, ms->spi_baryc_cntl);
 	radv_cayman_emit_msaa_sample_locs(cmd_buffer->cs, num_samples);
 
 	uint32_t samples_offset;
