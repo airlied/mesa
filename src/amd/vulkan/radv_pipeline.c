@@ -1020,6 +1020,7 @@ radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
 	uint32_t mask = 0xffff;
 
 	ms->num_samples = vkms->rasterizationSamples;
+	ms->spi_baryc_cntl = S_0286E0_FRONT_FACE_ALL_BITS(1);
 	ms->pa_sc_line_cntl = S_028BDC_DX10_DIAMOND_TEST_ENA(1);
 	ms->pa_sc_aa_config = 0;
 	ms->db_eqaa = S_028804_HIGH_QUALITY_INTERSECTIONS(1) |
@@ -1034,6 +1035,9 @@ radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
 		S_028A4C_MULTI_SHADER_ENGINE_PRIM_DISCARD_ENABLE(1) |
 		EG_S_028A4C_FORCE_EOV_CNTDWN_ENABLE(1) |
 		EG_S_028A4C_FORCE_EOV_REZ_ENABLE(1);
+
+	if (vkms->sampleShadingEnable)
+		ms->spi_baryc_cntl |= S_0286E0_POS_FLOAT_LOCATION(2);
 
 	if (vkms->rasterizationSamples > 1) {
 		unsigned log_samples = util_logbase2(vkms->rasterizationSamples);

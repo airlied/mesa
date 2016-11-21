@@ -297,7 +297,7 @@ radv_update_multisample_state(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_set_context_reg(cmd_buffer->cs, CM_R_028804_DB_EQAA, ms->db_eqaa);
 	radeon_set_context_reg(cmd_buffer->cs, EG_R_028A4C_PA_SC_MODE_CNTL_1, ms->pa_sc_mode_cntl_1);
-
+	radeon_set_context_reg(cmd_buffer->cs, R_0286E0_SPI_BARYC_CNTL, ms->spi_baryc_cntl);
 	radv_cayman_emit_msaa_sample_locs(cmd_buffer->cs, num_samples);
 
 	uint32_t samples_offset;
@@ -432,7 +432,6 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	struct radeon_winsys *ws = cmd_buffer->device->ws;
 	struct radv_shader_variant *ps, *vs;
 	uint64_t va;
-	unsigned spi_baryc_cntl = S_0286E0_FRONT_FACE_ALL_BITS(1);
 	struct radv_blend_state *blend = &pipeline->graphics.blend;
 	unsigned ps_offset = 0;
 	unsigned z_order;
@@ -477,11 +476,8 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 	radeon_set_context_reg(cmd_buffer->cs, R_0286D0_SPI_PS_INPUT_ADDR,
 			       ps->config.spi_ps_input_addr);
 
-	spi_baryc_cntl |= S_0286E0_POS_FLOAT_LOCATION(2);
 	radeon_set_context_reg(cmd_buffer->cs, R_0286D8_SPI_PS_IN_CONTROL,
 			       S_0286D8_NUM_INTERP(ps->info.fs.num_interp));
-
-	radeon_set_context_reg(cmd_buffer->cs, R_0286E0_SPI_BARYC_CNTL, spi_baryc_cntl);
 
 	radeon_set_context_reg(cmd_buffer->cs, R_028710_SPI_SHADER_Z_FORMAT,
 			       ps->info.fs.writes_stencil ? V_028710_SPI_SHADER_32_GR :

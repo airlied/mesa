@@ -845,6 +845,7 @@ struct radv_multisample_state {
 	uint32_t pa_sc_mode_cntl_1;
 	uint32_t pa_sc_aa_config;
 	uint32_t pa_sc_aa_mask[2];
+	uint32_t spi_baryc_cntl;
 	unsigned num_samples;
 };
 
