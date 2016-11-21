@@ -731,7 +731,6 @@ radv_image_create(VkDevice _device,
 	if (image->samples > 1 && vk_format_is_color(pCreateInfo->format)) {
 		radv_image_alloc_fmask(device, image);
 	} else if (vk_format_is_depth(pCreateInfo->format)) {
-
 		radv_image_alloc_htile(device, image);
 	}
 

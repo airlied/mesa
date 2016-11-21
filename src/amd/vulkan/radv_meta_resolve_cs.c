@@ -455,6 +455,7 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 					      push_constants);
 			radv_unaligned_dispatch(cmd_buffer, extent.width, extent.height, 1);
 			radv_temp_descriptor_set_destroy(cmd_buffer->device, set);
+			++cmd_buffer->counters.counters[RADV_COUNTER_CS_RESOLVES];
 		}
 	}
 	radv_meta_restore_compute(&saved_state, cmd_buffer, 16);

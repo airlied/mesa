@@ -728,6 +728,7 @@ radv_emit_fragment_shader(struct radv_cmd_buffer *cmd_buffer,
 		++ps_offset;
 	}
 
+	cmd_buffer->counters.counters[RADV_COUNTER_MISSING_INTERPS] += __builtin_popcount(vs->info.vs.export_mask) & ~ __builtin_popcount(ps->info.fs.input_mask);
 	for (unsigned i = 0; i < 32 && (1u << i) <= ps->info.fs.input_mask; ++i) {
 		unsigned vs_offset, flat_shade;
 		unsigned val;
@@ -766,6 +767,9 @@ radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
 {
 	if (!pipeline || cmd_buffer->state.emitted_pipeline == pipeline)
 		return;
+	++cmd_buffer->counters.counters[RADV_COUNTER_PIPELINE_BINDS];
+	if (pipeline->num_vertex_attribs <= 1)
+		++cmd_buffer->counters.counters[RADV_COUNTER_SINGLE_VBO];
 
 	radv_emit_graphics_depth_stencil_state(cmd_buffer, pipeline);
 	radv_emit_graphics_blend_state(cmd_buffer, pipeline);
@@ -837,8 +841,10 @@ radv_emit_fb_ds_state(struct radv_cmd_buffer *cmd_buffer,
 {
 	uint32_t db_z_info = ds->db_z_info;
 
-	if (!radv_layout_has_htile(image, layout))
+	if (!radv_layout_has_htile(image, layout)) {
 		db_z_info &= C_028040_TILE_SURFACE_ENABLE;
+		fprintf(stderr, "db disable htile\n");
+	}
 
 	if (!radv_layout_can_expclear(image, layout))
 		db_z_info &= C_028040_ALLOW_EXPCLEAR & C_028044_ALLOW_EXPCLEAR;
@@ -1236,6 +1242,7 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 	if (!stages || !layout || (!layout->push_constant_size && !layout->dynamic_offset_count))
 		return;
 
+	++cmd_buffer->counters.counters[RADV_COUNTER_PUSH_CONSTANT_UPDATES];
 	radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
 				     16 * layout->dynamic_offset_count,
 				     256, &offset, &ptr);
@@ -1285,6 +1292,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 		uint32_t num_attribs = cmd_buffer->state.pipeline->num_vertex_attribs;
 		uint64_t va;
 
+		++cmd_buffer->counters.counters[RADV_COUNTER_VBO_BINDS];
 		/* allocate some descriptor state for vertex buffers */
 		radv_cmd_buffer_upload_alloc(cmd_buffer, num_attribs * 16, 256,
 					     &vb_offset, &vb_ptr);
@@ -1452,6 +1460,9 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
 	cmd_buffer->state.subpass = subpass;
 
 	cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RENDER_TARGETS;
+	++cmd_buffer->counters.counters[RADV_COUNTER_SUBPASSES];
+	if (cmd_buffer->state.subpass->color_count == 0 && cmd_buffer->state.subpass->depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED)
+		++cmd_buffer->counters.counters[RADV_COUNTER_DEPTH_ONLY_SUBPASSES];
 }
 
 static void
@@ -1611,6 +1622,7 @@ VkResult radv_BeginCommandBuffer(
 	radv_reset_cmd_buffer(cmd_buffer);
 
 	memset(&cmd_buffer->state, 0, sizeof(cmd_buffer->state));
+	memset(&cmd_buffer->counters, 0, sizeof(cmd_buffer->counters));
 
 	/* setup initial configuration into command buffer */
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
@@ -2196,6 +2208,7 @@ void radv_CmdDraw(
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DRAW_COUNT]++;
 }
 
 static void radv_emit_primitive_reset_index(struct radv_cmd_buffer *cmd_buffer)
@@ -2254,6 +2267,7 @@ void radv_CmdDrawIndexed(
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DRAW_COUNT]++;
 }
 
 static void
@@ -2309,6 +2323,7 @@ radv_emit_indirect_draw(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cs, stride); /* stride */
 	radeon_emit(cs, di_src_sel);
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DRAW_COUNT]++;
 }
 
 static void
@@ -2463,6 +2478,7 @@ void radv_CmdDispatch(
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DISPATCH_COUNT]++;
 }
 
 void radv_CmdDispatchIndirect(
@@ -2515,6 +2531,7 @@ void radv_CmdDispatchIndirect(
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DISPATCH_COUNT]++;
 }
 
 void radv_unaligned_dispatch(
@@ -2569,6 +2586,7 @@ void radv_unaligned_dispatch(
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 	radv_cmd_buffer_trace_emit(cmd_buffer);
+	cmd_buffer->counters.counters[RADV_COUNTER_DISPATCH_COUNT]++;
 }
 
 void radv_CmdEndRenderPass(
@@ -2610,6 +2628,7 @@ static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+	++cmd_buffer->counters.counters[RADV_COUNTER_HTILE_INITS];
 }
 
 static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffer,
@@ -2619,6 +2638,9 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 					       VkImageSubresourceRange range,
 					       VkImageAspectFlags pending_clears)
 {
+	if (src_layout == dst_layout)
+		return;
+
 	if (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
 	    (pending_clears & vk_format_aspects(image->vk_format)) == vk_format_aspects(image->vk_format) &&
 	    cmd_buffer->state.render_area.offset.x == 0 && cmd_buffer->state.render_area.offset.y == 0 &&
@@ -2643,6 +2665,7 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 		range.levelCount = 1;
 
 		radv_decompress_depth_image_inplace(cmd_buffer, image, &range);
+		++cmd_buffer->counters.counters[RADV_COUNTER_HTILE_DECOMPRESSIONS];
 	}
 }
 
@@ -2696,6 +2719,8 @@ void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
+	++cmd_buffer->counters.counters[RADV_COUNTER_DCC_INITS];
+
 }
 
 static void radv_handle_dcc_image_transition(struct radv_cmd_buffer *cmd_buffer,

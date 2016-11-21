@@ -365,6 +365,7 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
 	radv_CmdDraw(cmd_buffer_h, 3, 1, 0, 0);
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 	si_emit_cache_flush(cmd_buffer);
+	++cmd_buffer->counters.counters[RADV_COUNTER_HW_RESOLVES];
 }
 
 void radv_CmdResolveImage(
@@ -605,6 +606,7 @@ radv_cmd_buffer_resolve_subpass(struct radv_cmd_buffer *cmd_buffer)
 		if (dst_img->surface.dcc_size) {
 			radv_initialize_dcc(cmd_buffer, dst_img, 0xffffffff);
 			cmd_buffer->state.attachments[dest_att.attachment].current_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			++cmd_buffer->counters.counters[RADV_COUNTER_DCC_DECOMPRESSES];
 		}
 
 		struct radv_subpass resolve_subpass = {

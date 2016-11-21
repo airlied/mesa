@@ -269,6 +269,45 @@ struct radv_extensions {
 	uint32_t                    num_ext;
 };
 
+enum radv_counter_id {
+	RADV_COUNTER_DRAW_COUNT,
+	RADV_COUNTER_DISPATCH_COUNT,
+	RADV_COUNTER_FAST_COLOR_CLEARS,
+	RADV_COUNTER_SLOW_COLOR_CLEARS,
+	RADV_COUNTER_FAST_DEPTH_CLEARS,
+	RADV_COUNTER_SLOW_DEPTH_CLEARS,
+	RADV_COUNTER_PIPELINE_BINDS,
+	RADV_COUNTER_MISSING_INTERPS,
+	RADV_COUNTER_SINGLE_VBO,
+	RADV_COUNTER_VBO_BINDS,
+	RADV_COUNTER_PUSH_CONSTANT_UPDATES,
+	RADV_COUNTER_HW_RESOLVES,
+	RADV_COUNTER_CS_RESOLVES,
+	RADV_COUNTER_DCC_INITS,
+	RADV_COUNTER_DCC_DECOMPRESSES,
+	RADV_COUNTER_ELIMINATE_FAST_CLEARS,
+	RADV_COUNTER_FMASK_DECOMPRESSIONS,
+	RADV_COUNTER_HTILE_INITS,
+	RADV_COUNTER_HTILE_DECOMPRESSIONS,
+	RADV_COUNTER_DB_FAST_CLEARS,
+	RADV_COUNTER_DB_SLOW_CLEARS,
+	RADV_COUNTER_CS_FLUSHES,
+	RADV_COUNTER_VS_FLUSHES,
+	RADV_COUNTER_PS_FLUSHES,
+	RADV_COUNTER_VMEM_FLUSHES,
+	RADV_COUNTER_SMEM_FLUSHES,
+	RADV_COUNTER_L2_FLUSHES,
+	RADV_COUNTER_CB_FLUSHES,
+	RADV_COUNTER_DB_FLUSHES,
+	RADV_COUNTER_SUBPASSES,
+	RADV_COUNTER_DEPTH_ONLY_SUBPASSES,
+	RADV_COUNTER_NUM
+};
+
+struct radv_counters {
+	unsigned long counters[RADV_COUNTER_NUM];
+};
+
 struct radv_physical_device {
 	VK_LOADER_DATA                              _loader_data;
 
@@ -515,6 +554,7 @@ struct radv_device {
 	uint32_t                                     *trace_id_ptr;
 
 	struct radv_physical_device                  *physical_device;
+	struct radv_counters counters;
 };
 
 struct radv_device_memory {
@@ -750,6 +790,8 @@ struct radv_cmd_buffer {
 	uint32_t gsvs_ring_size_needed;
 
 	int ring_offsets_idx; /* just used for verification */
+
+	struct radv_counters counters;
 };
 
 struct radv_image;

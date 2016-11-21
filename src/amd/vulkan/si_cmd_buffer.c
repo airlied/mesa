@@ -614,14 +614,19 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_ICACHE)
 		cp_coher_cntl |= S_0085F0_SH_ICACHE_ACTION_ENA(1);
-	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_SMEM_L1)
+	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_SMEM_L1) {
 		cp_coher_cntl |= S_0085F0_SH_KCACHE_ACTION_ENA(1);
-	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_VMEM_L1)
+		++cmd_buffer->counters.counters[RADV_COUNTER_SMEM_FLUSHES];
+	}
+	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_VMEM_L1) {
 		cp_coher_cntl |= S_0085F0_TCL1_ACTION_ENA(1);
+		++cmd_buffer->counters.counters[RADV_COUNTER_VMEM_FLUSHES];
+	}
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_INV_GLOBAL_L2) {
 		cp_coher_cntl |= S_0085F0_TC_ACTION_ENA(1);
 		if (chip_class >= VI)
 			cp_coher_cntl |= S_0301F0_TC_WB_ACTION_ENA(1);
+		++cmd_buffer->counters.counters[RADV_COUNTER_L2_FLUSHES];
 	}
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_CB) {
@@ -645,11 +650,13 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 			radeon_emit(cmd_buffer->cs, 0);
 			radeon_emit(cmd_buffer->cs, 0);
 		}
+		++cmd_buffer->counters.counters[RADV_COUNTER_CB_FLUSHES];
 	}
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_DB) {
 		cp_coher_cntl |= S_0085F0_DB_ACTION_ENA(1) |
 			S_0085F0_DB_DEST_BASE_ENA(1);
+		++cmd_buffer->counters.counters[RADV_COUNTER_DB_FLUSHES];
 	}
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_CB_META) {
@@ -667,15 +674,18 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 		if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_PS_PARTIAL_FLUSH) {
 			radeon_emit(cmd_buffer->cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
 			radeon_emit(cmd_buffer->cs, EVENT_TYPE(V_028A90_PS_PARTIAL_FLUSH) | EVENT_INDEX(4));
+			++cmd_buffer->counters.counters[RADV_COUNTER_PS_FLUSHES];
 		} else if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_VS_PARTIAL_FLUSH) {
 			radeon_emit(cmd_buffer->cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
 			radeon_emit(cmd_buffer->cs, EVENT_TYPE(V_028A90_VS_PARTIAL_FLUSH) | EVENT_INDEX(4));
+			++cmd_buffer->counters.counters[RADV_COUNTER_VS_FLUSHES];
 		}
 	}
 
 	if (cmd_buffer->state.flush_bits & RADV_CMD_FLAG_CS_PARTIAL_FLUSH) {
 		radeon_emit(cmd_buffer->cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
 		radeon_emit(cmd_buffer->cs, EVENT_TYPE(V_028A90_CS_PARTIAL_FLUSH) | EVENT_INDEX(4));
+		++cmd_buffer->counters.counters[RADV_COUNTER_CS_FLUSHES];
 	}
 
 	/* VGT state sync */

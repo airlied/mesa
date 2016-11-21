@@ -1439,6 +1439,8 @@ VkResult radv_QueueSubmit(
 			cs_array[j] = cmd_buffer->cs;
 			if ((cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT))
 				can_patch = false;
+			for(unsigned k = 0; k < RADV_COUNTER_NUM; ++k)
+				queue->device->counters.counters[k] += cmd_buffer->counters.counters[k];
 		}
 
 		for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; j += advance) {

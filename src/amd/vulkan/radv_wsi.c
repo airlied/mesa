@@ -338,6 +338,40 @@ VkResult radv_AcquireNextImageKHR(
 	return result;
 }
 
+static void print_counters(const struct radv_counters* counters) {
+	FILE *f = fopen("/tmp/radv_counters", "w");
+	fprintf(f, "draw count       : %lu\n", counters->counters[RADV_COUNTER_DRAW_COUNT]);
+	fprintf(f, "dispatch count   : %lu\n", counters->counters[RADV_COUNTER_DISPATCH_COUNT]);
+	fprintf(f, "slow color clears: %lu\n", counters->counters[RADV_COUNTER_SLOW_COLOR_CLEARS]);
+	fprintf(f, "fast color clears: %lu\n", counters->counters[RADV_COUNTER_FAST_COLOR_CLEARS]);
+	fprintf(f, "slow depth clears: %lu\n", counters->counters[RADV_COUNTER_SLOW_DEPTH_CLEARS]);
+	fprintf(f, "fast depth clears: %lu\n", counters->counters[RADV_COUNTER_FAST_DEPTH_CLEARS]);
+	fprintf(f, "pipeline binds: %lu\n", counters->counters[RADV_COUNTER_PIPELINE_BINDS]);
+	fprintf(f, "single vbo binds: %lu\n", counters->counters[RADV_COUNTER_SINGLE_VBO]);
+	fprintf(f, "vbo binds: %lu\n", counters->counters[RADV_COUNTER_VBO_BINDS]);
+	fprintf(f, "push constant updates: %lu\n", counters->counters[RADV_COUNTER_PUSH_CONSTANT_UPDATES]);
+	fprintf(f, "missing interps: %f\n", counters->counters[RADV_COUNTER_MISSING_INTERPS] / (double)counters->counters[RADV_COUNTER_PIPELINE_BINDS]);
+	fprintf(f, "hw resolves: %lu\n", counters->counters[RADV_COUNTER_HW_RESOLVES]);
+	fprintf(f, "cs resolves: %lu\n", counters->counters[RADV_COUNTER_CS_RESOLVES]);
+	fprintf(f, "dcc initializations: %lu\n", counters->counters[RADV_COUNTER_DCC_INITS]);
+	fprintf(f, "dcc decompressions: %lu\n", counters->counters[RADV_COUNTER_DCC_DECOMPRESSES]);
+	fprintf(f, "eliminate fast clears: %lu\n", counters->counters[RADV_COUNTER_ELIMINATE_FAST_CLEARS]);
+	fprintf(f, "fmask decompressions: %lu\n", counters->counters[RADV_COUNTER_FMASK_DECOMPRESSIONS]);
+	fprintf(f, "htile initializations: %lu\n", counters->counters[RADV_COUNTER_HTILE_INITS]);
+	fprintf(f, "htile decompressions: %lu\n", counters->counters[RADV_COUNTER_HTILE_DECOMPRESSIONS]);
+	fprintf(f, "cs flushes: %lu\n", counters->counters[RADV_COUNTER_CS_FLUSHES]);
+	fprintf(f, "vs flushes: %lu\n", counters->counters[RADV_COUNTER_VS_FLUSHES]);
+	fprintf(f, "ps flushes: %lu\n", counters->counters[RADV_COUNTER_PS_FLUSHES]);
+	fprintf(f, "vmem flushes: %lu\n", counters->counters[RADV_COUNTER_VMEM_FLUSHES]);
+	fprintf(f, "smem flushes: %lu\n", counters->counters[RADV_COUNTER_SMEM_FLUSHES]);
+	fprintf(f, "L2 flushes: %lu\n", counters->counters[RADV_COUNTER_L2_FLUSHES]);
+	fprintf(f, "cb flushes: %lu\n", counters->counters[RADV_COUNTER_CB_FLUSHES]);
+	fprintf(f, "db flushes: %lu\n", counters->counters[RADV_COUNTER_DB_FLUSHES]);
+	fprintf(f, "subpasses: %lu\n", counters->counters[RADV_COUNTER_SUBPASSES]);
+	fprintf(f, "depth only subpasses: %lu\n", counters->counters[RADV_COUNTER_DEPTH_ONLY_SUBPASSES]);
+	fclose(f);
+}
+
 VkResult radv_QueuePresentKHR(
 	VkQueue                                  _queue,
 	const VkPresentInfoKHR*                  pPresentInfo)
@@ -345,6 +379,8 @@ VkResult radv_QueuePresentKHR(
 	RADV_FROM_HANDLE(radv_queue, queue, _queue);
 	VkResult result = VK_SUCCESS;
 
+	print_counters(&queue->device->counters);
+	memset(&queue->device->counters, 0, sizeof(queue->device->counters));
 	for (uint32_t i = 0; i < pPresentInfo->swapchainCount; i++) {
 		RADV_FROM_HANDLE(wsi_swapchain, swapchain, pPresentInfo->pSwapchains[i]);
 
