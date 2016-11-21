@@ -391,10 +391,13 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 				  (VkDeviceSize[]) { 0 });
 
 	VkPipeline pipeline_h;
-	if (fmask_decompress)
+	if (fmask_decompress) {
+		++cmd_buffer->counters.counters[RADV_COUNTER_FMASK_DECOMPRESSIONS];
 		pipeline_h = device->meta_state.fast_clear_flush.fmask_decompress_pipeline;
-	else
+	} else {
+		++cmd_buffer->counters.counters[RADV_COUNTER_ELIMINATE_FAST_CLEARS];
 		pipeline_h = device->meta_state.fast_clear_flush.cmask_eliminate_pipeline;
+	}
 	RADV_FROM_HANDLE(radv_pipeline, pipeline, pipeline_h);
 
 	if (cmd_buffer->state.pipeline != pipeline) {

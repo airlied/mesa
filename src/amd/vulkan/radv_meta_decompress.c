@@ -451,6 +451,7 @@ void radv_decompress_depth_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 					 VkImageSubresourceRange *subresourceRange)
 {
 	assert(cmd_buffer->queue_family_index == RADV_QUEUE_GENERAL);
+	++cmd_buffer->counters.counters[RADV_COUNTER_HTILE_DECOMPRESSIONS];
 	radv_process_depth_image_inplace(cmd_buffer, image, subresourceRange,
 					 cmd_buffer->device->meta_state.depth_decomp.decompress_pipeline);
 }

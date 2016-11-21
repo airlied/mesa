@@ -1,3 +1,4 @@
+
 /*
  * Copyright © 2015 Intel Corporation
  *
@@ -460,6 +461,7 @@ emit_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	radv_CmdDraw(cmd_buffer_h, 3, clear_rect->layerCount, 0, 0);
 
 	radv_cmd_buffer_set_subpass(cmd_buffer, subpass, false);
+	++cmd_buffer->counters.counters[RADV_COUNTER_SLOW_COLOR_CLEARS];
 }
 
 
@@ -628,7 +630,7 @@ static bool depth_view_can_fast_clear(const struct radv_image_view *iview,
 }
 
 static struct radv_pipeline *
-pick_depthstencil_pipeline(struct radv_meta_state *meta_state,
+pick_depthstencil_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_meta_state *meta_state,
 			   const struct radv_image_view *iview,
 			   int samples_log2,
 			   VkImageAspectFlags aspects,
@@ -643,7 +645,9 @@ pick_depthstencil_pipeline(struct radv_meta_state *meta_state,
 		/* we don't know the previous clear values, so we always have
 		 * the NO_EXPCLEAR path */
 		index = DEPTH_CLEAR_FAST_NO_EXPCLEAR;
-	}
+		++cmd_buffer->counters.counters[RADV_COUNTER_FAST_DEPTH_CLEARS];
+	} else
+		++cmd_buffer->counters.counters[RADV_COUNTER_SLOW_DEPTH_CLEARS];
 
 	switch (aspects) {
 	case VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT:
@@ -721,7 +725,7 @@ emit_depthstencil_clear(struct radv_cmd_buffer *cmd_buffer,
 					(VkBuffer[]) { radv_buffer_to_handle(&vertex_buffer) },
 					(VkDeviceSize[]) { 0 });
 
-	struct radv_pipeline *pipeline = pick_depthstencil_pipeline(meta_state,
+	struct radv_pipeline *pipeline = pick_depthstencil_pipeline(cmd_buffer, meta_state,
 								    iview,
 								    samples_log2,
 								    aspects,
@@ -865,13 +869,17 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	if (iview->image->surface.level[0].mode < RADEON_SURF_MODE_1D)
 		goto fail;
 
-	if (memcmp(&iview->extent, &iview->image->extent, sizeof(iview->extent)))
+	if (memcmp(&iview->extent, &iview->image->extent, sizeof(iview->extent))) {
+		//fprintf(stderr, "fast clear fail on extent size\n");
 		goto fail;
+	}
 
 	if (clear_rect->rect.offset.x || clear_rect->rect.offset.y ||
 	    clear_rect->rect.extent.width != iview->image->extent.width ||
-	    clear_rect->rect.extent.height != iview->image->extent.height)
+	    clear_rect->rect.extent.height != iview->image->extent.height) {
+		//fprintf(stderr, "fast clear fail on clear_rect size\n");
 		goto fail;
+	}
 
 	if (clear_rect->baseArrayLayer != 0)
 		goto fail;
@@ -902,7 +910,7 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_INV_GLOBAL_L2;
 
 	radv_set_color_clear_regs(cmd_buffer, iview->image, subpass_att, clear_color);
-
+	++cmd_buffer->counters.counters[RADV_COUNTER_FAST_COLOR_CLEARS];
 	return true;
 fail:
 	return false;
