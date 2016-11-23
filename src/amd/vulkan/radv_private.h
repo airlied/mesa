@@ -261,6 +261,7 @@ struct radv_physical_device {
 	uint8_t                                     uuid[VK_UUID_SIZE];
 
 	struct wsi_device                       wsi_device;
+	bool is_different_gpu;
 };
 
 struct radv_instance {
@@ -987,6 +988,9 @@ struct radv_image {
 
 	/* Depth buffer compression and fast clear. */
 	struct r600_htile_info htile;
+
+	struct radv_image *prime_image;
+	struct radv_device_memory *prime_memory;
 };
 
 bool radv_layout_has_htile(const struct radv_image *image,

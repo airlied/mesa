@@ -105,6 +105,9 @@ radv_physical_device_init(struct radv_physical_device *device,
 	}
 	drmFreeVersion(version);
 
+	if (getenv("DRI_PRIME"))
+		device->is_different_gpu = true;
+
 	device->_loader_data.loaderMagic = ICD_LOADER_MAGIC;
 	device->instance = instance;
 	assert(strlen(path) < ARRAY_SIZE(device->path));

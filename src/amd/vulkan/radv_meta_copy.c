@@ -397,3 +397,34 @@ void radv_CmdCopyImage(
 
 	radv_meta_restore(&saved_state, cmd_buffer);
 }
+
+void radv_blit_to_prime_linear(struct radv_cmd_buffer *cmd_buffer,
+			       struct radv_image *image)
+{
+	struct radv_meta_saved_state saved_state;
+	struct radv_meta_saved_pass_state saved_pass_state;
+
+	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
+
+	struct radv_meta_blit2d_surf b_src =
+		blit_surf_for_image_level_layer(image,
+						VK_IMAGE_ASPECT_COLOR_BIT,
+						0,
+						0);
+
+	struct radv_meta_blit2d_surf b_dst =
+		blit_surf_for_image_level_layer(image->prime_image,
+						VK_IMAGE_ASPECT_COLOR_BIT,
+						0,
+						0);
+	struct radv_meta_blit2d_rect rect = {
+		.width = image->extent.width,
+		.height = image->extent.height,
+	};
+
+	radv_meta_blit2d(cmd_buffer, &b_src, NULL, &b_dst, 1, &rect);
+
+	radv_meta_restore(&saved_state, cmd_buffer);
+	radv_meta_restore_pass(&saved_pass_state, cmd_buffer);
+}

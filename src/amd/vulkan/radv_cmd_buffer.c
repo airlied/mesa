@@ -2296,6 +2296,20 @@ static void radv_handle_dcc_image_transition(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+static void radv_handle_prime_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					       struct radv_image *image,
+					       VkImageLayout src_layout,
+					       VkImageLayout dst_layout,
+					       VkImageSubresourceRange range,
+					       VkImageAspectFlags pending_clears)
+{
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER;
+	si_emit_cache_flush(cmd_buffer);
+	radv_blit_to_prime_linear(cmd_buffer, image);
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER;
+	si_emit_cache_flush(cmd_buffer);
+}
+
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					 struct radv_image *image,
 					 VkImageLayout src_layout,
@@ -2314,6 +2328,10 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 	if (image->surface.dcc_size)
 		radv_handle_dcc_image_transition(cmd_buffer, image, src_layout,
 						 dst_layout, range, pending_clears);
+
+	if (image->prime_image && dst_layout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+		radv_handle_prime_image_transition(cmd_buffer, image, src_layout,
+						   dst_layout, range, pending_clears);
 }
 
 void radv_CmdPipelineBarrier(
