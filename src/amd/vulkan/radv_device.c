@@ -370,7 +370,7 @@ void radv_GetPhysicalDeviceFeatures(
 		.independentBlend                         = true,
 		.geometryShader                           = false,
 		.tessellationShader                       = false,
-		.sampleRateShading                        = false,
+		.sampleRateShading                        = true,
 		.dualSrcBlend                             = true,
 		.logicOp                                  = true,
 		.multiDrawIndirect                        = true,

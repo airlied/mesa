@@ -1021,8 +1021,10 @@ radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
 
 	ms->num_samples = vkms->rasterizationSamples;
 
-	if (pipeline->shaders[MESA_SHADER_FRAGMENT]->info.fs.force_persample) {
-		ps_iter_samples = vkms->rasterizationSamples;
+	if (vkms->sampleShadingEnable) {
+		ps_iter_samples = ms->num_samples * vkms->minSampleShading;
+	} else if (pipeline->shaders[MESA_SHADER_FRAGMENT]->info.fs.force_persample) {
+		ps_iter_samples = ms->num_samples;
 	}
 
 	ms->pa_sc_line_cntl = S_028BDC_DX10_DIAMOND_TEST_ENA(1);
