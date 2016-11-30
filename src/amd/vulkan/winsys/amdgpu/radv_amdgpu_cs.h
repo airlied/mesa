@@ -38,10 +38,18 @@
 #include "radv_radeon_winsys.h"
 #include "radv_amdgpu_winsys.h"
 
+enum radv_last_submit {
+	RADV_LAST_SUBMIT_GFX,
+	RADV_LAST_SUBMIT_DMA,
+	RADV_LAST_SUBMIT_COMPUTE,
+	RADV_LAST_SUBMIT_MAX,
+};
+
 struct radv_amdgpu_ctx {
 	struct radv_amdgpu_winsys *ws;
 	amdgpu_context_handle ctx;
-	uint64_t last_seq_no;
+	struct amdgpu_cs_fence last_submission[RADV_LAST_SUBMIT_MAX];
+	enum radv_last_submit last_submit_idx;
 };
 
 static inline struct radv_amdgpu_ctx *

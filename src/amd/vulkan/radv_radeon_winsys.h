@@ -285,7 +285,7 @@ struct radeon_winsys {
 	struct radeon_winsys_ctx *(*ctx_create)(struct radeon_winsys *ws);
 	void (*ctx_destroy)(struct radeon_winsys_ctx *ctx);
 
-	bool (*ctx_wait_idle)(struct radeon_winsys_ctx *ctx);
+	bool (*ctx_wait_idle)(struct radeon_winsys_ctx *ctx, int ring);
 
 	struct radeon_winsys_cs *(*cs_create)(struct radeon_winsys *ws,
 					      enum ring_type ring_type);
