@@ -658,10 +658,13 @@ void radv_GetPhysicalDeviceMemoryProperties(
 }
 
 static void
-radv_queue_init(struct radv_device *device, struct radv_queue *queue)
+radv_queue_init(struct radv_device *device, struct radv_queue *queue,
+		int queue_family_index, int idx)
 {
 	queue->_loader_data.loaderMagic = ICD_LOADER_MAGIC;
 	queue->device = device;
+	queue->queue_family_index = queue_family_index;
+	queue->queue_idx = idx;
 }
 
 static void
@@ -708,18 +711,30 @@ VkResult radv_CreateDevice(
 	else
 		device->alloc = physical_device->instance->alloc;
 
+	for (unsigned i = 0; i < pCreateInfo->queueCreateInfoCount; i++) {
+		const VkDeviceQueueCreateInfo *queue_create = &pCreateInfo->pQueueCreateInfos[i];
+		uint32_t qfi = queue_create->queueFamilyIndex;
+
+		device->queues[qfi] = vk_alloc(&device->alloc,
+					       queue_create->queueCount * sizeof(struct radv_queue), 8, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+		if (!device->queues[qfi])
+			goto fail_free_queues;
+		device->queue_count[qfi] = queue_create->queueCount;
+
+		for (unsigned q = 0; q < queue_create->queueCount; q++)
+			radv_queue_init(device, &device->queues[qfi][q], qfi, q);
+	}
+
 	device->hw_ctx = device->ws->ctx_create(device->ws);
 	if (!device->hw_ctx) {
 		result = VK_ERROR_OUT_OF_HOST_MEMORY;
-		goto fail_free;
+		goto fail_free_queues;
 	}
-
-	radv_queue_init(device, &device->queue);
 
 	result = radv_device_init_meta(device);
 	if (result != VK_SUCCESS) {
 		device->ws->ctx_destroy(device->hw_ctx);
-		goto fail_free;
+		goto fail_free_queues;
 	}
 	device->allow_fast_clears = env_var_as_boolean("RADV_FAST_CLEARS", false);
 	device->allow_dcc = !env_var_as_boolean("RADV_DCC_DISABLE", false);
@@ -736,6 +751,13 @@ VkResult radv_CreateDevice(
 	device->ws->cs_finalize(device->empty_cs);
 	*pDevice = radv_device_to_handle(device);
 	return VK_SUCCESS;
+fail_free_queues:
+	for (unsigned i = 0; i < RADV_MAX_QUEUE_FAMILIES; i++) {
+		for (unsigned q = 0; q < device->queue_count[i]; q++)
+			radv_queue_finish(&device->queues[i][q]);
+		if (device->queue_count[i])
+			vk_free(&device->alloc, device->queues[i]);
+	}
 fail_free:
 	vk_free(&device->alloc, device);
 	return result;
@@ -748,7 +770,12 @@ void radv_DestroyDevice(
 	RADV_FROM_HANDLE(radv_device, device, _device);
 
 	device->ws->ctx_destroy(device->hw_ctx);
-	radv_queue_finish(&device->queue);
+	for (unsigned i = 0; i < RADV_MAX_QUEUE_FAMILIES; i++) {
+		for (unsigned q = 0; q < device->queue_count[i]; q++)
+			radv_queue_finish(&device->queues[i][q]);
+		if (device->queue_count[i])
+			vk_free(&device->alloc, device->queues[i]);
+	}
 	radv_device_finish_meta(device);
 
 	vk_free(&device->alloc, device);
@@ -822,15 +849,13 @@ VkResult radv_EnumerateDeviceLayerProperties(
 
 void radv_GetDeviceQueue(
 	VkDevice                                    _device,
-	uint32_t                                    queueNodeIndex,
+	uint32_t                                    queueFamilyIndex,
 	uint32_t                                    queueIndex,
 	VkQueue*                                    pQueue)
 {
 	RADV_FROM_HANDLE(radv_device, device, _device);
 
-	assert(queueIndex == 0);
-
-	*pQueue = radv_queue_to_handle(&device->queue);
+	*pQueue = radv_queue_to_handle(&device->queues[queueFamilyIndex][queueIndex]);
 }
 
 VkResult radv_QueueSubmit(
