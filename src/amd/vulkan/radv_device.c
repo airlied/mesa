@@ -553,20 +553,63 @@ void radv_GetPhysicalDeviceQueueFamilyProperties(
 	uint32_t*                                   pCount,
 	VkQueueFamilyProperties*                    pQueueFamilyProperties)
 {
+	RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
+	int num_queue_families = 1;
+	bool all_queues = env_var_as_boolean("RADV_SHOW_QUEUES", true);
+	int idx;
+	if (all_queues && pdevice->rad_info.chip_class >= CIK) {
+		if (pdevice->rad_info.sdma_rings > 0)
+			num_queue_families++;
+		if (pdevice->rad_info.compute_rings > 0)
+			num_queue_families++;
+	}
+
 	if (pQueueFamilyProperties == NULL) {
-		*pCount = 1;
+		*pCount = num_queue_families;
 		return;
 	}
-	assert(*pCount >= 1);
 
-	*pQueueFamilyProperties = (VkQueueFamilyProperties) {
-		.queueFlags = VK_QUEUE_GRAPHICS_BIT |
-		VK_QUEUE_COMPUTE_BIT |
-		VK_QUEUE_TRANSFER_BIT,
-		.queueCount = 1,
-		.timestampValidBits = 64,
-		.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
-	};
+	if (!*pCount)
+		return;
+
+	idx = 0;
+	if (*pCount >= 1) {
+		pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
+			.queueFlags = VK_QUEUE_GRAPHICS_BIT |
+			VK_QUEUE_COMPUTE_BIT |
+			VK_QUEUE_TRANSFER_BIT,
+			.queueCount = 1,
+			.timestampValidBits = 64,
+			.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
+		};
+		idx++;
+	}
+
+	if (!all_queues)
+		return;
+
+	if (pdevice->rad_info.compute_rings > 0) {
+		if (*pCount >= (idx + 1)) {
+			pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
+				.queueFlags = VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT,
+				.queueCount = pdevice->rad_info.compute_rings,
+				.timestampValidBits = 64,
+				.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
+			};
+			idx++;
+		}
+	}
+
+	if (pdevice->rad_info.sdma_rings > 0) {
+		if (*pCount == (idx + 1)) {
+			pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
+				.queueFlags = VK_QUEUE_TRANSFER_BIT,
+				.queueCount = pdevice->rad_info.sdma_rings,
+				.timestampValidBits = 64,
+				.minImageTransferGranularity = (VkExtent3D) { 8, 8, 8 },
+			};
+		}
+	}
 }
 
 void radv_GetPhysicalDeviceMemoryProperties(
