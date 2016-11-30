@@ -390,6 +390,11 @@ struct radv_meta_state {
 		VkDescriptorSetLayout                     img_ds_layout;
 		VkPipeline pipeline;
 	} btoi;
+	struct {
+		VkPipelineLayout                          img_p_layout;
+		VkDescriptorSetLayout                     img_ds_layout;
+		VkPipeline pipeline;
+	} itoi;
 
 	struct {
 		VkPipeline                                pipeline;
