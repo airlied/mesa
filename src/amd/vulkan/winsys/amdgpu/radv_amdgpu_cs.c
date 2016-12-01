@@ -719,7 +719,7 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 		ib.size = size;
 		ib.ib_mc_address = ws->buffer_get_va(bo);
 
-		request.ip_type = AMDGPU_HW_IP_GFX;
+		request.ip_type = cs0->hw_ip;
 		request.ring = queue_idx;
 		request.resources = bo_list;
 		request.number_of_ibs = 1;
