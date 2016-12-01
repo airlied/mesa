@@ -118,7 +118,7 @@ static VkResult radv_create_cmd_buffer(
 {
 	struct radv_cmd_buffer *cmd_buffer;
 	VkResult result;
-
+	unsigned ring;
 	cmd_buffer = vk_alloc(&pool->alloc, sizeof(*cmd_buffer), 8,
 				VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
 	if (cmd_buffer == NULL)
@@ -132,14 +132,24 @@ static VkResult radv_create_cmd_buffer(
 
 	if (pool) {
 		list_addtail(&cmd_buffer->pool_link, &pool->cmd_buffers);
+		cmd_buffer->queue_family_index = pool->queue_family_index;
+
 	} else {
 		/* Init the pool_link so we can safefly call list_del when we destroy
 		 * the command buffer
 		 */
 		list_inithead(&cmd_buffer->pool_link);
+		cmd_buffer->queue_family_index = RADV_QUEUE_GENERAL;
 	}
 
-	cmd_buffer->cs = device->ws->cs_create(device->ws, RING_GFX);
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_GENERAL)
+		ring = RING_GFX;
+	else if (cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE)
+		ring = RING_COMPUTE;
+	else if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		ring = RING_DMA;
+
+	cmd_buffer->cs = device->ws->cs_create(device->ws, ring);
 	if (!cmd_buffer->cs) {
 		result = VK_ERROR_OUT_OF_HOST_MEMORY;
 		goto fail;
@@ -1686,6 +1696,8 @@ VkResult radv_CreateCommandPool(
 		pool->alloc = device->alloc;
 
 	list_inithead(&pool->cmd_buffers);
+
+	pool->queue_family_index = pCreateInfo->queueFamilyIndex;
 
 	*pCmdPool = radv_cmd_pool_to_handle(pool);
 

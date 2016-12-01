@@ -668,9 +668,11 @@ struct radv_cmd_state {
 	unsigned                                     active_occlusion_queries;
 	float					     offset_scale;
 };
+
 struct radv_cmd_pool {
 	VkAllocationCallbacks                        alloc;
 	struct list_head                             cmd_buffers;
+	uint32_t queue_family_index;
 };
 
 struct radv_cmd_buffer_upload {
@@ -693,6 +695,7 @@ struct radv_cmd_buffer {
 	VkCommandBufferLevel                         level;
 	struct radeon_winsys_cs *cs;
 	struct radv_cmd_state state;
+	uint32_t queue_family_index;
 
 	uint8_t push_constants[MAX_PUSH_CONSTANTS_SIZE];
 	uint32_t dynamic_buffers[16 * MAX_DYNAMIC_BUFFERS];
