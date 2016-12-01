@@ -1162,7 +1162,7 @@ void radv_CmdClearColorImage(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	RADV_FROM_HANDLE(radv_image, image, image_h);
 	union meta_saved_state saved_state;
-	bool cs = false;
+	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
 
 	if (cs)
 		radv_meta_begin_cleari(cmd_buffer, &saved_state.compute);

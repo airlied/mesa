@@ -110,8 +110,9 @@ meta_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
                           struct radv_buffer* buffer,
                           struct radv_image* image,
                           uint32_t regionCount,
-                          const VkBufferImageCopy* pRegions, bool cs)
+                          const VkBufferImageCopy* pRegions)
 {
+	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
 	union meta_saved_state saved_state;
 
 	/* The Vulkan 1.0 spec says "dstImage must have a sample count equal to
@@ -217,8 +218,10 @@ void radv_CmdCopyBufferToImage(
 	RADV_FROM_HANDLE(radv_image, dest_image, destImage);
 	RADV_FROM_HANDLE(radv_buffer, src_buffer, srcBuffer);
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
 	meta_copy_buffer_to_image(cmd_buffer, src_buffer, dest_image,
-				  regionCount, pRegions, false);
+				  regionCount, pRegions);
 }
 
 static void
@@ -313,6 +316,8 @@ void radv_CmdCopyImageToBuffer(
 	RADV_FROM_HANDLE(radv_image, src_image, srcImage);
 	RADV_FROM_HANDLE(radv_buffer, dst_buffer, destBuffer);
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
 	meta_copy_image_to_buffer(cmd_buffer, dst_buffer, src_image,
 				  regionCount, pRegions);
 }
@@ -322,9 +327,9 @@ meta_copy_image(struct radv_cmd_buffer *cmd_buffer,
 		struct radv_image *src_image,
 		struct radv_image *dest_image,
 		uint32_t regionCount,
-		const VkImageCopy *pRegions,
-		bool cs)
+		const VkImageCopy *pRegions)
 {
+	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
 	union meta_saved_state saved_state;
 
 	/* From the Vulkan 1.0 spec:
@@ -423,6 +428,9 @@ void radv_CmdCopyImage(
 	RADV_FROM_HANDLE(radv_image, src_image, srcImage);
 	RADV_FROM_HANDLE(radv_image, dest_image, destImage);
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
+
 	meta_copy_image(cmd_buffer, src_image, dest_image,
-			regionCount, pRegions, false);
+			regionCount, pRegions);
 }
