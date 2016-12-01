@@ -889,7 +889,7 @@ VkResult radv_QueueSubmit(
 			if ((cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT))
 				can_patch = false;
 		}
-		ret = queue->device->ws->cs_submit(ctx, cs_array,
+		ret = queue->device->ws->cs_submit(ctx, queue->queue_idx, cs_array,
 						   pSubmits[i].commandBufferCount,
 						   can_patch, base_fence);
 		if (ret)
@@ -899,7 +899,7 @@ VkResult radv_QueueSubmit(
 
 	if (fence) {
 		if (!submitCount)
-			ret = queue->device->ws->cs_submit(ctx, &queue->device->empty_cs,
+			ret = queue->device->ws->cs_submit(ctx, queue->queue_idx, &queue->device->empty_cs,
 							   1, false, base_fence);
 
 		fence->submitted = true;

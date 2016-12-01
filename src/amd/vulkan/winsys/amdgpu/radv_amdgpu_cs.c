@@ -525,6 +525,7 @@ static void radv_assign_last_submit(struct radv_amdgpu_ctx *ctx,
 }
 
 static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
+						int queue_idx,
 						struct radeon_winsys_cs **cs_array,
 						unsigned cs_count,
 						struct radeon_winsys_fence *_fence)
@@ -565,6 +566,7 @@ static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
 	}
 
 	request.ip_type = cs0->hw_ip;
+	request.ip_instance = queue_idx;
 	request.number_of_ibs = 1;
 	request.ibs = &cs0->ib;
 	request.resources = bo_list;
@@ -589,6 +591,7 @@ static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
 }
 
 static int radv_amdgpu_winsys_cs_submit_fallback(struct radeon_winsys_ctx *_ctx,
+						 int queue_idx,
 						 struct radeon_winsys_cs **cs_array,
 						 unsigned cs_count,
 						 struct radeon_winsys_fence *_fence)
@@ -615,6 +618,7 @@ static int radv_amdgpu_winsys_cs_submit_fallback(struct radeon_winsys_ctx *_ctx,
 		}
 
 		request.ip_type = cs0->hw_ip;
+		request.ip_instance = queue_idx;
 		request.resources = bo_list;
 		request.number_of_ibs = cnt;
 		request.ibs = ibs;
@@ -654,6 +658,7 @@ static int radv_amdgpu_winsys_cs_submit_fallback(struct radeon_winsys_ctx *_ctx,
 }
 
 static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
+					       int queue_idx,
 					       struct radeon_winsys_cs **cs_array,
 					       unsigned cs_count,
 					       struct radeon_winsys_fence *_fence)
@@ -715,6 +720,7 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 		ib.ib_mc_address = ws->buffer_get_va(bo);
 
 		request.ip_type = AMDGPU_HW_IP_GFX;
+		request.ip_instance = queue_idx;
 		request.resources = bo_list;
 		request.number_of_ibs = 1;
 		request.ibs = &ib;
@@ -745,6 +751,7 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 }
 
 static int radv_amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
+					int queue_idx,
 					struct radeon_winsys_cs **cs_array,
 					unsigned cs_count,
 					bool can_patch,
@@ -752,13 +759,13 @@ static int radv_amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 {
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(cs_array[0]);
 	if (!cs->ws->use_ib_bos) {
-		return radv_amdgpu_winsys_cs_submit_sysmem(_ctx, cs_array,
+		return radv_amdgpu_winsys_cs_submit_sysmem(_ctx, queue_idx, cs_array,
 							   cs_count, _fence);
 	} else if (can_patch && cs_count > AMDGPU_CS_MAX_IBS_PER_SUBMIT && false) {
-		return radv_amdgpu_winsys_cs_submit_chained(_ctx, cs_array,
+		return radv_amdgpu_winsys_cs_submit_chained(_ctx, queue_idx, cs_array,
 							    cs_count, _fence);
 	} else {
-		return radv_amdgpu_winsys_cs_submit_fallback(_ctx, cs_array,
+		return radv_amdgpu_winsys_cs_submit_fallback(_ctx, queue_idx, cs_array,
 							     cs_count, _fence);
 	}
 }
