@@ -1297,6 +1297,7 @@ VkResult radv_BeginCommandBuffer(
 			si_emit_cache_flush(cmd_buffer);
 			break;
 		case RADV_QUEUE_COMPUTE:
+#if 0
 			cmd_buffer->state.flush_bits = RADV_CMD_FLAG_INV_ICACHE |
 				RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 				RADV_CMD_FLAG_INV_VMEM_L1 |
@@ -1304,6 +1305,7 @@ VkResult radv_BeginCommandBuffer(
 				RADV_CMD_FLAG_INV_GLOBAL_L2;
 			si_init_compute(&cmd_buffer->device->instance->physicalDevice, cmd_buffer);
 			si_emit_cache_flush(cmd_buffer);
+#endif
 			break;
 		case RADV_QUEUE_TRANSFER:
 		default:

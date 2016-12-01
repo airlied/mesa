@@ -558,8 +558,8 @@ void radv_GetPhysicalDeviceQueueFamilyProperties(
 	bool all_queues = env_var_as_boolean("RADV_SHOW_QUEUES", true);
 	int idx;
 	if (all_queues && pdevice->rad_info.chip_class >= CIK) {
-		if (pdevice->rad_info.sdma_rings > 0)
-			num_queue_families++;
+//		if (pdevice->rad_info.sdma_rings > 0)
+//			num_queue_families++;
 		if (pdevice->rad_info.compute_rings > 0)
 			num_queue_families++;
 	}
@@ -599,7 +599,7 @@ void radv_GetPhysicalDeviceQueueFamilyProperties(
 			idx++;
 		}
 	}
-
+#if 0
 	if (pdevice->rad_info.sdma_rings > 0) {
 		if (*pCount == (idx + 1)) {
 			pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
@@ -610,6 +610,7 @@ void radv_GetPhysicalDeviceQueueFamilyProperties(
 			};
 		}
 	}
+#endif
 }
 
 void radv_GetPhysicalDeviceMemoryProperties(
