@@ -708,6 +708,8 @@ struct radv_cmd_buffer {
 
 struct radv_image;
 
+void si_init_compute(struct radv_physical_device *physical_device,
+		     struct radv_cmd_buffer *cmd_buffer);
 void si_init_config(struct radv_physical_device *physical_device,
 		    struct radv_cmd_buffer *cmd_buffer);
 void si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,
