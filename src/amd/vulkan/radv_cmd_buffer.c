@@ -1659,14 +1659,23 @@ VkResult radv_EndCommandBuffer(
 		uint64_t scratch_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->scratch_bo);
 		uint32_t rsrc1 = S_008F04_BASE_ADDRESS_HI(scratch_va >> 32) |
 			S_008F04_SWIZZLE_ENABLE(1);
+
+		uint32_t *ring_ptr;
+		uint32_t ring_offset;
+		radv_cmd_buffer_upload_alloc(cmd_buffer, 4 * 4, 256, &ring_offset,
+					     (void **)&ring_ptr);
+		ring_ptr[0] = scratch_va;
+		ring_ptr[1] = rsrc1;
+		uint64_t va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo) + ring_offset;
+
 		radv_foreach_stage(stage, cmd_buffer->scratch_needed_mask) {
 			uint32_t reg_base;
-			assert (stage != MESA_SHADER_COMPUTE);
+
 			reg_base = shader_stage_to_user_data_0(stage);
 			cmd_buffer->cs_to_patch_scratch[idx++] = PKT3(PKT3_SET_SH_REG, 2, 0);
 			cmd_buffer->cs_to_patch_scratch[idx++] = (reg_base - SI_SH_REG_OFFSET) >> 2;
-			cmd_buffer->cs_to_patch_scratch[idx++] = scratch_va;
-			cmd_buffer->cs_to_patch_scratch[idx++] = rsrc1;
+			cmd_buffer->cs_to_patch_scratch[idx++] = va;
+			cmd_buffer->cs_to_patch_scratch[idx++] = va >> 32;
 		}
 	}
 

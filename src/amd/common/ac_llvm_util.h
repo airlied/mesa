@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-LLVMTargetMachineRef ac_create_target_machine(enum radeon_family family);
+LLVMTargetMachineRef ac_create_target_machine(enum radeon_family family, bool enable_shed);
 
 void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes);
 bool ac_is_sgpr_param(LLVMValueRef param);

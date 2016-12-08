@@ -479,6 +479,7 @@ struct radv_device {
 	bool allow_dcc;
 	bool shader_stats_dump;
 
+	bool llvm_has_user_spill;
 	uint32_t scratch_waves;
 	/* MSAA sample locations.
 	 * The first index is the sample index.

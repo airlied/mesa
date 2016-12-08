@@ -52,6 +52,7 @@ struct ac_nir_compiler_options {
 	struct radv_pipeline_layout *layout;
 	union ac_shader_variant_key key;
 	bool unsafe_math;
+	bool spill_user_ptr;
 	enum radeon_family family;
 	enum chip_class chip_class;
 };

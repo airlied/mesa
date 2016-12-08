@@ -470,8 +470,13 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		 !ctx->options->layout->dynamic_offset_count)
 		need_push_constants = false;
 
-	/* scratch address */
-	arg_types[arg_idx++] = LLVMVectorType(ctx->i32, 2); /* address of scratch */
+	if (!ctx->options->spill_user_ptr) {
+		/* scratch and ring buffer addresses */
+		if (ctx->stage == MESA_SHADER_COMPUTE)
+			arg_types[arg_idx++] = ctx->v2i32;
+		else
+			arg_types[arg_idx++] = const_array(ctx->v16i8, 8); /* address of scratch */
+	}
 
 	/* 1 for each descriptor set */
 	for (unsigned i = 0; i < num_sets; ++i) {
@@ -538,10 +543,13 @@ static void create_function(struct nir_to_llvm_context *ctx)
 	    arg_idx, array_params_mask, sgpr_count, ctx->options->unsafe_math);
 	set_llvm_calling_convention(ctx->main_function, ctx->stage);
 
-
 	ctx->shader_info->num_input_sgprs = 0;
 	ctx->shader_info->num_input_vgprs = 0;
 
+	if (ctx->options->spill_user_ptr)
+		ctx->shader_info->num_user_sgprs = 2;
+	else
+		ctx->shader_info->num_user_sgprs = 0;
 	for (i = 0; i < user_sgpr_count; i++)
 		ctx->shader_info->num_user_sgprs += llvm_get_type_size(arg_types[i]) / 4;
 
@@ -556,9 +564,10 @@ static void create_function(struct nir_to_llvm_context *ctx)
 	arg_idx = 0;
 	user_sgpr_idx = 0;
 
+	if (!ctx->options->spill_user_ptr)
+		arg_idx++;
 	set_userdata_location_shader(ctx, AC_UD_SCRATCH, user_sgpr_idx, 2);
 	user_sgpr_idx += 2;
-	arg_idx++; /* scratch address */
 
 	for (unsigned i = 0; i < num_sets; ++i) {
 		if (ctx->options->layout->set[i].layout->shader_stages & (1 << ctx->stage)) {
@@ -4692,7 +4701,7 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 
 	memset(shader_info, 0, sizeof(*shader_info));
 
-	LLVMSetTarget(ctx.module, "amdgcn--");
+	LLVMSetTarget(ctx.module, options->spill_user_ptr ? "amdgcn-mesa-mesashed" : "amdgcn--");
 	setup_types(&ctx);
 
 	ctx.builder = LLVMCreateBuilderInContext(ctx.context);
@@ -4875,7 +4884,7 @@ void ac_compile_nir_shader(LLVMTargetMachineRef tm,
 	if (dump_shader)
 		fprintf(stderr, "disasm:\n%s\n", binary->disasm_string);
 
-	ac_shader_binary_read_config(binary, config, 0);
+	ac_shader_binary_read_config(binary, config, 0, options->spill_user_ptr);
 
 	LLVMContextRef ctx = LLVMGetModuleContext(llvm_module);
 	LLVMDisposeModule(llvm_module);

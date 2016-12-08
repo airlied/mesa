@@ -730,6 +730,9 @@ VkResult radv_CreateDevice(
 		goto fail;
 	}
 
+	/* TODO : predicate on LLVM version this goes into */
+	device->llvm_has_user_spill = true;
+
 	result = radv_device_init_meta(device);
 	if (result != VK_SUCCESS) {
 		device->ws->ctx_destroy(device->hw_ctx);
