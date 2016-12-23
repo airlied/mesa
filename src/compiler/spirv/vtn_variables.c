@@ -1609,6 +1609,14 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
    case SpvOpStore: {
       struct vtn_access_chain *dest =
          vtn_value(b, w[1], vtn_value_type_access_chain)->access_chain;
+
+      if (glsl_get_base_type(dest->var->type->type) == GLSL_TYPE_SAMPLER) {
+         struct vtn_value *val = vtn_untyped_value(b, w[2]);
+         dest->var = val->access_chain->var;
+         b->values[w[1]].value_type = vtn_value_type_invalid;
+         vtn_push_value(b, w[1], vtn_value_type_access_chain)->access_chain = val->access_chain;
+         return;
+      }
       struct vtn_ssa_value *src = vtn_ssa_value(b, w[2]);
       vtn_variable_store(b, src, dest);
       break;
