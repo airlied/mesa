@@ -623,6 +623,44 @@ triop("flrp", tfloat, "src0 * (1 - src2) + src1 * src2")
 
 
 triop("fcsel", tfloat32, "(src0 != 0.0f) ? src1 : src2")
+
+# 3 way min/max/med
+triop("fmin3", tfloat, "fminf(src0, fminf(src1, src2))")
+triop("imin3", tint, "src0 < src1 ? ((src0 < src2) ? src0 : src2) : ((src1 < src2) ? src1 : src2)")
+triop("umin3", tuint, "src0 < src1 ? ((src0 < src2) ? src0 : src2) : ((src1 < src2) ? src1 : src2)")
+
+triop("fmax3", tfloat, "fmaxf(src0, fmaxf(src1, src2))")
+triop("imax3", tint, "src0 > src1 ? ((src0 > src2) ? src0 : src2) : ((src1 > src2) ? src1 : src2)")
+triop("umax3", tuint, "src0 > src1 ? ((src0 > src2) ? src0 : src2) : ((src1 > src2) ? src1 : src2)")
+
+triop("fmed3", tfloat, """
+dst = fmaxf(src0, fmaxf(src1, src2));
+if (dst == src0)
+   dst = fmaxf(src1, src2);
+else if (dst == src1)
+   dst = fmaxf(src0, src2);
+else
+   dst = fmaxf(src0, src1);
+""")
+triop("imed3", tint, """
+dst = src0 > src1 ? ((src0 > src2) ? src0 : src2) : ((src1 > src2) ? src1 : src2);
+if (dst == src0)
+   dst = src1 > src2 ? src1 : src2;
+else if (dst == src1)
+   dst = src0 > src2 ? src0 : src2;
+else
+   dst = src0 > src1 ? src0 : src1;
+""")
+triop("umed3", tuint, """
+dst = src0 > src1 ? ((src0 > src2) ? src0 : src2) : ((src1 > src2) ? src1 : src2);
+if (dst == src0)
+   dst = src1 > src2 ? src1 : src2;
+else if (dst == src1)
+   dst = src0 > src2 ? src0 : src2;
+else
+   dst = src0 > src1 ? src0 : src1;
+""")
+
 opcode("bcsel", 0, tuint, [0, 0, 0],
       [tbool, tuint, tuint], "", "src0 ? src1 : src2")
 
