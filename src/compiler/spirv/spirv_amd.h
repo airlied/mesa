@@ -29,4 +29,16 @@ enum AMDSPVGCNShader {
   SpvOpTimeAMD = 3,
 };
 
+enum AMDSPVTrinaryMinmax {
+  SpvOpFMin3AMD = 1,
+  SpvOpUMin3AMD,
+  SpvOpSMin3AMD,
+  SpvOpFMax3AMD,
+  SpvOpUMax3AMD,
+  SpvOpSMax3AMD,
+  SpvOpFMid3AMD,
+  SpvOpUMid3AMD,
+  SpvOpSMid3AMD,
+};
+
 #endif

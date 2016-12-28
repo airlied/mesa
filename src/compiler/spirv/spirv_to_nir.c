@@ -262,6 +262,12 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
          if (b->ext && b->ext->amd_gcn_shader) {
             val->ext_handler = vtn_handle_amd_gcn_shader_instruction;
             break;
+	 }
+	 assert(!"Unsupported extension");
+      } else if (strcmp((const char *)&w[2], "SPV_AMD_shader_trinary_minmax") == 0) {
+         if (b->ext && b->ext->amd_shader_trinary_minmax) {
+            val->ext_handler = vtn_handle_amd_shader_trinary_minmax_instruction;
+            break;
          }
          assert(!"Unsupported extension");
       } else {

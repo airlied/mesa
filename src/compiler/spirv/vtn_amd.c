@@ -59,3 +59,52 @@ vtn_handle_amd_gcn_shader_instruction(struct vtn_builder *b, uint32_t ext_opcode
    nir_builder_instr_insert(&b->nb, &intrin->instr);
    return true;
 }
+
+bool
+vtn_handle_amd_shader_trinary_minmax_instruction(struct vtn_builder *b, uint32_t ext_opcode,
+                                                 const uint32_t *w, unsigned count)
+{
+   struct nir_builder *nb = &b->nb;
+   const struct glsl_type *dest_type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+   struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+   val->ssa = vtn_create_ssa_value(b, dest_type);
+
+   unsigned num_inputs = count - 5;
+   assert(num_inputs == 3);
+   nir_ssa_def *src[3] = { NULL, };
+      for (unsigned i = 0; i < num_inputs; i++)
+      src[i] = vtn_ssa_value(b, w[i + 5])->def;
+      
+   switch ((enum AMDSPVTrinaryMinmax)ext_opcode) {
+   case SpvOpFMin3AMD:
+      val->ssa->def = nir_fmin3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpUMin3AMD:
+      val->ssa->def = nir_umin3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpSMin3AMD:
+      val->ssa->def = nir_imin3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpFMax3AMD:
+      val->ssa->def = nir_fmax3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpUMax3AMD:
+      val->ssa->def = nir_umax3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpSMax3AMD:
+      val->ssa->def = nir_imax3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpFMid3AMD:
+      val->ssa->def = nir_fmed3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpUMid3AMD:
+      val->ssa->def = nir_umed3(nb, src[0], src[1], src[2]);
+      break;
+   case SpvOpSMid3AMD:
+      val->ssa->def = nir_imed3(nb, src[0], src[1], src[2]);
+      break;
+   }
+
+   return true;
+}
