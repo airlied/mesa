@@ -852,7 +852,10 @@ static LLVMValueRef get_alu_src(struct nir_to_llvm_context *ctx,
 		    LLVMConstInt(ctx->i32, src.swizzle[2], false),
 		    LLVMConstInt(ctx->i32, src.swizzle[3], false)};
 
-		if (src_components > 1 && num_components == 1) {
+		if (src_components == 1 && num_components == 1) {
+			value = LLVMBuildExtractElement(ctx->builder, value,
+			                                masks[0], "");
+		} else if (src_components > 1 && num_components == 1) {
 			value = LLVMBuildExtractElement(ctx->builder, value,
 			                                masks[0], "");
 		} else if (src_components == 1 && num_components > 1) {
