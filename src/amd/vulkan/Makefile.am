@@ -25,6 +25,10 @@ noinst_HEADERS = \
 	$(top_srcdir)/include/vulkan/vk_platform.h \
 	$(top_srcdir)/include/vulkan/vulkan.h
 
+# Unused in-tree but used for out of tree development (KHR internal or otherwise)
+vulkan_extra_includedir = $(includedir)/vulkan
+vulkan_extra_include_HEADERS =
+
 lib_LTLIBRARIES = libvulkan_radeon.la
 
 # The gallium includes are for the util/u_math.h include from main/macros.h
@@ -111,13 +115,13 @@ libvulkan_radeon_la_SOURCES = $(VULKAN_GEM_FILES)
 
 vulkan_api_xml = $(top_srcdir)/src/vulkan/registry/vk.xml
 
-radv_entrypoints.h : radv_entrypoints_gen.py $(vulkan_api_xml)
+radv_entrypoints.h : radv_entrypoints_gen.py $(vulkan_api_xml) $(vulkan_extra_include_HEADERS)
 	$(AM_V_GEN) cat $(vulkan_api_xml) |\
-	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py header > $@
+	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py header $(vulkan_extra_include_HEADERS) > $@
 
-radv_entrypoints.c : radv_entrypoints_gen.py $(vulkan_api_xml)
+radv_entrypoints.c : radv_entrypoints_gen.py $(vulkan_api_xml) $(vulkan_extra_include_HEADERS)
 	$(AM_V_GEN) cat $(vulkan_api_xml) |\
-	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py code > $@
+	$(PYTHON2) $(srcdir)/radv_entrypoints_gen.py code $(vulkan_extra_include_HEADERS) > $@
 
 vk_format_table.c: vk_format_table.py \
 		   vk_format_parse.py \
