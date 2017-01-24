@@ -24,6 +24,13 @@
 
 import sys
 import xml.etree.ElementTree as ET
+import fileinput
+import re
+
+# Each function typedef in the vulkan.h header is all on one line and matches
+# this regepx. We hope that won't change.
+
+p = re.compile('typedef ([^ ]*) *\((?:VKAPI_PTR)? *\*PFN_vk([^(]*)\)(.*);')
 
 # We generate a static hash table for entry point lookup
 # (vkGetProcAddress). We use a linear congruential generator for our hash
@@ -58,10 +65,10 @@ opt_code = False
 
 if (sys.argv[1] == "header"):
     opt_header = True
-    sys.argv.pop()
+    sys.argv.pop(1)
 elif (sys.argv[1] == "code"):
     opt_code = True
-    sys.argv.pop()
+    sys.argv.pop(1)
 
 # Extract the entry points from the registry
 def get_entrypoints(doc, entrypoints_to_defines):
@@ -92,8 +99,36 @@ def get_entrypoints_defines(doc):
             entrypoints_to_defines[fullname] = define
     return entrypoints_to_defines
 
+def get_platform_guard_macro(name):
+    if "Xlib" in name:
+        return "VK_USE_PLATFORM_XLIB_KHR"
+    elif "Xcb" in name:
+        return "VK_USE_PLATFORM_XCB_KHR"
+    elif "Wayland" in name:
+        return "VK_USE_PLATFORM_WAYLAND_KHR"
+    elif "Mir" in name:
+        return "VK_USE_PLATFORM_MIR_KHR"
+    elif "Android" in name:
+        return "VK_USE_PLATFORM_ANDROID_KHR"
+    elif "Win32" in name:
+        return "VK_USE_PLATFORM_WIN32_KHR"
+    else:
+        return None
+
 doc = ET.parse(sys.stdin)
 entrypoints = get_entrypoints(doc, get_entrypoints_defines(doc))
+
+# See if we got any other files
+if (len(sys.argv) > 1):
+    i = len(entrypoints)
+    for line in fileinput.input(sys.argv[1:]):
+        m = p.match(line)
+        if (m):
+            if m.group(2) == 'VoidFunction':
+                continue
+            fullname = "vk" + m.group(2)
+            entrypoints.append((m.group(1), m.group(2), m.group(3).strip("()"), i, hash(fullname), get_platform_guard_macro(fullname)))
+            i = i + 1
 
 # For outputting entrypoints.h we generate a radv_EntryPoint() prototype
 # per entry point.
