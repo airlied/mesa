@@ -107,6 +107,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef linear_sample, linear_center, linear_centroid;
 	LLVMValueRef front_face;
 	LLVMValueRef ancillary;
+	LLVMValueRef sample_coverage;
 	LLVMValueRef frag_pos[4];
 
 	LLVMBasicBlockRef continue_block;
@@ -536,7 +537,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		arg_types[arg_idx++] = ctx->f32;  /* pos w float */
 		arg_types[arg_idx++] = ctx->i32;  /* front face */
 		arg_types[arg_idx++] = ctx->i32;  /* ancillary */
-		arg_types[arg_idx++] = ctx->f32;  /* sample coverage */
+		arg_types[arg_idx++] = ctx->i32;  /* sample coverage */
 		arg_types[arg_idx++] = ctx->i32;  /* fixed pt */
 		break;
 	default:
@@ -663,6 +664,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		ctx->frag_pos[3] = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->front_face = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->ancillary = LLVMGetParam(ctx->main_function, arg_idx++);
+		ctx->sample_coverage = LLVMGetParam(ctx->main_function, arg_idx++);
 		break;
 	default:
 		unreachable("Shader stage not implemented");
@@ -3119,6 +3121,10 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 	case nir_intrinsic_load_sample_pos:
 		ctx->shader_info->fs.force_persample = true;
 		result = load_sample_pos(ctx);
+		break;
+	case nir_intrinsic_load_sample_mask_in:
+		ctx->shader_info->fs.force_persample = true;
+		result = ctx->sample_coverage;
 		break;
 	case nir_intrinsic_load_front_face:
 		result = ctx->front_face;
