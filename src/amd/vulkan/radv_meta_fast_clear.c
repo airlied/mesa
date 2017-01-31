@@ -229,8 +229,47 @@ create_pipeline(struct radv_device *device,
 					       &device->meta_state.fast_clear_flush.fmask_decompress_pipeline);
 	if (result != VK_SUCCESS)
 		goto cleanup_cmask;
+	result = radv_graphics_pipeline_create(device_h,
+					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
+					       &(VkGraphicsPipelineCreateInfo) {
+						       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+						       .stageCount = 2,
+						       .pStages = stages,
+
+						       .pVertexInputState = &vi_state,
+						       .pInputAssemblyState = &ia_state,
+
+					       .pViewportState = &(VkPipelineViewportStateCreateInfo) {
+						       .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+						       .viewportCount = 0,
+						       .scissorCount = 0,
+					       },
+						       .pRasterizationState = &rs_state,
+					       .pMultisampleState = &(VkPipelineMultisampleStateCreateInfo) {
+						       .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+						       .rasterizationSamples = 1,
+						       .sampleShadingEnable = false,
+						       .pSampleMask = NULL,
+						       .alphaToCoverageEnable = false,
+						       .alphaToOneEnable = false,
+					       },
+						.pColorBlendState = &blend_state,
+						.pDynamicState = NULL,
+						.renderPass = device->meta_state.fast_clear_flush.pass,
+						.subpass = 0,
+					       },
+					       &(struct radv_graphics_pipeline_create_info) {
+						       .use_rectlist = true,
+						       .custom_blend_mode = V_028808_CB_DCC_DECOMPRESS,
+					       },
+					       &device->meta_state.alloc,
+					       &device->meta_state.fast_clear_flush.dcc_decompress_pipeline);
+	if (result != VK_SUCCESS)
+		goto cleanup_fmask;
 
 	goto cleanup;
+ cleanup_fmask:
+	radv_DestroyPipeline(device_h, device->meta_state.fast_clear_flush.fmask_decompress_pipeline, &device->meta_state.alloc);
 cleanup_cmask:
 	radv_DestroyPipeline(device_h, device->meta_state.fast_clear_flush.cmask_eliminate_pipeline, &device->meta_state.alloc);
 cleanup:
@@ -256,6 +295,11 @@ radv_device_finish_meta_fast_clear_flush_state(struct radv_device *device)
 	}
 
 	pipeline_h = state->fast_clear_flush.fmask_decompress_pipeline;
+	if (pipeline_h) {
+		radv_DestroyPipeline(device_h, pipeline_h, alloc);
+	}
+
+	pipeline_h = state->fast_clear_flush.dcc_decompress_pipeline;
 	if (pipeline_h) {
 		radv_DestroyPipeline(device_h, pipeline_h, alloc);
 	}
@@ -298,13 +342,16 @@ cleanup:
 static void
 emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 		      const VkExtent2D *resolve_extent,
-		      bool fmask_decompress)
+		      bool fmask_decompress,
+		      bool dcc_decompress)
 {
 	struct radv_device *device = cmd_buffer->device;
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 
 	VkPipeline pipeline_h;
-	if (fmask_decompress)
+	if (dcc_decompress)
+		pipeline_h = device->meta_state.fast_clear_flush.dcc_decompress_pipeline;
+	else if (fmask_decompress)
 		pipeline_h = device->meta_state.fast_clear_flush.fmask_decompress_pipeline;
 	else
 		pipeline_h = device->meta_state.fast_clear_flush.cmask_eliminate_pipeline;
@@ -407,7 +454,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 		emit_fast_clear_flush(cmd_buffer,
 				      &(VkExtent2D) { image->info.width, image->info.height },
-				      image->fmask.size > 0);
+				      image->fmask.size > 0, image->surface.dcc_size > 0);
 		radv_CmdEndRenderPass(cmd_buffer_h);
 
 		radv_DestroyFramebuffer(device_h, fb_h,
