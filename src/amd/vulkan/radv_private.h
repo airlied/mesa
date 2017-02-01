@@ -110,6 +110,7 @@ enum {
 	RADV_DEBUG_NO_HIZ            =  0x20,
 	RADV_DEBUG_NO_COMPUTE_QUEUE  =  0x40,
 	RADV_DEBUG_UNSAFE_MATH       =  0x80,
+	RADV_DEBUG_NO_TRANSFER_QUEUE  = 0x100,
 };
 
 #define radv_printflike(a, b) __attribute__((__format__(__printf__, a, b)))
@@ -1308,6 +1309,43 @@ struct radv_fence {
 	bool submitted;
 	bool signalled;
 };
+
+void radv_cik_dma_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
+				       struct radv_buffer *src_buffer,
+				       struct radv_image *dest_image,
+				       uint32_t region_count,
+				       const VkBufferImageCopy *pRegions);
+void radv_cik_dma_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
+				       struct radv_image *src_image,
+				       struct radv_buffer *dest_buffer,
+				       uint32_t region_count,
+				       const VkBufferImageCopy *pRegions);
+
+void radv_cik_dma_copy_image(struct radv_cmd_buffer *cmd_buffer,
+			     struct radv_image *src_image,
+			     VkImageLayout src_image_layout,
+			     struct radv_image *dest_image,
+			     VkImageLayout dest_image_layout,
+			     uint32_t region_count,
+			     const VkImageCopy *pRegions);
+
+void radv_cik_dma_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
+			      struct radv_buffer *src_buffer,
+			      struct radv_buffer *dest_buffer,
+			      uint32_t region_count,
+			      const VkBufferCopy *pRegions);
+
+void radv_cik_dma_update_buffer(struct radv_cmd_buffer *cmd_buffer,
+				struct radv_buffer *dst_buffer,
+				VkDeviceSize dst_offset,
+				VkDeviceSize data_size,
+				const void *data);
+
+void radv_cik_dma_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
+			      struct radv_buffer *dst_buffer,
+			      VkDeviceSize dst_offset,
+			      VkDeviceSize fillSize,
+			      uint32_t data);
 
 #define RADV_DEFINE_HANDLE_CASTS(__radv_type, __VkType)		\
 								\

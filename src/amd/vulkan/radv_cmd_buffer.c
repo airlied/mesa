@@ -2777,6 +2777,13 @@ void radv_CmdPipelineBarrier(
 	VkAccessFlags src_flags = 0;
 	VkAccessFlags dst_flags = 0;
 	uint32_t b;
+
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		/* NOP waits for idle on CIK and later. */
+		radeon_emit(cmd_buffer->cs, 0x00000000); /* NOP */
+		return;
+	}
+
 	for (uint32_t i = 0; i < memoryBarrierCount; i++) {
 		src_flags |= pMemoryBarriers[i].srcAccessMask;
 		dst_flags |= pMemoryBarriers[i].dstAccessMask;
