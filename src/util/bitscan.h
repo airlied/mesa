@@ -319,6 +319,20 @@ util_bitcount64(uint64_t n)
 #endif
 }
 
+/** Alignment must be a power of 2. */
+static inline bool
+u_is_aligned(uintmax_t n, uintmax_t a)
+{
+   assert(a == (a & -a));
+   return (n & (a - 1)) == 0;
+}
+
+static inline uint32_t
+u_align_down_npot_u32(uint32_t v, uint32_t a)
+{
+   return v - (v % a);
+}
+
 #ifdef __cplusplus
 }
 #endif

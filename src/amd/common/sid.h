@@ -283,6 +283,7 @@
 #define        SDMA_TS_SUB_OPCODE_SET_LOCAL_TIMESTAMP     0x0
 #define        SDMA_TS_SUB_OPCODE_GET_LOCAL_TIMESTAMP     0x1
 #define        SDMA_TS_SUB_OPCODE_GET_GLOBAL_TIMESTAMP    0x2
+#define        SDMA_CONSTANT_FILL_DWORDS                  (2 << 14) /* use in the n field */
 #define    CIK_SDMA_PACKET_SRBM_WRITE              0xe
 /* There is apparently an undocumented HW "feature" that
    prevents the HW from copying past 256 bytes of (1 << 22) */

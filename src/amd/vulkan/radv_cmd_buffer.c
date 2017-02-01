@@ -498,6 +498,9 @@ void radv_cmd_buffer_trace_emit(struct radv_cmd_buffer *cmd_buffer)
 	struct radeon_cmdbuf *cs = cmd_buffer->cs;
 	uint64_t va;
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
+
 	va = radv_buffer_get_va(device->trace_bo);
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
 		va += 4;
@@ -3623,12 +3626,12 @@ VkResult radv_EndCommandBuffer(
 			cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
 
 		si_emit_cache_flush(cmd_buffer);
-	}
 
-	/* Make sure CP DMA is idle at the end of IBs because the kernel
-	 * doesn't wait for it.
-	 */
-	si_cp_dma_wait_for_idle(cmd_buffer);
+		/* Make sure CP DMA is idle at the end of IBs because the kernel
+		 * doesn't wait for it.
+		 */
+		si_cp_dma_wait_for_idle(cmd_buffer);
+	}
 
 	vk_free(&cmd_buffer->pool->alloc, cmd_buffer->state.attachments);
 	vk_free(&cmd_buffer->pool->alloc, cmd_buffer->state.subpass_sample_locs);
@@ -5443,6 +5446,12 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer,
 	struct radeon_cmdbuf *cs = cmd_buffer->cs;
 	enum radv_cmd_flush_bits src_flush_bits = 0;
 	enum radv_cmd_flush_bits dst_flush_bits = 0;
+
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		/* NOP waits for idle on CIK and later. */
+		cmd_buffer->device->transfer_fns->emit_nop(cmd_buffer);
+		return;
+	}
 
 	for (unsigned i = 0; i < info->eventCount; ++i) {
 		RADV_FROM_HANDLE(radv_event, event, info->pEvents[i]);

@@ -685,6 +685,81 @@ struct radv_bo_list {
 	pthread_mutex_t mutex;
 };
 
+struct radv_buffer;
+struct radv_cmd_buffer;
+struct radv_image;
+
+struct radv_transfer_per_image_info {
+	VkOffset3D offset;
+	uint32_t mip_level;
+	uint64_t va;
+	uint32_t pitch;
+	uint32_t slice_pitch;
+	uint32_t bpp;
+};
+
+struct radv_transfer_per_buffer_info {
+	uint64_t va;
+	uint32_t pitch;
+	uint32_t slice_pitch;
+};
+
+struct radv_transfer_image_info {
+	struct radv_transfer_per_image_info src_info;
+	struct radv_transfer_per_image_info dst_info;
+	VkExtent3D extent;
+};
+
+struct radv_transfer_image_buffer_info {
+	struct radv_transfer_per_image_info image_info;
+	struct radv_transfer_per_buffer_info buf_info;
+	VkExtent3D extent;
+};
+
+struct radv_transfer_fns {
+	VkDeviceSize (*emit_copy_buffer)(struct radv_cmd_buffer *cmd_buffer,
+					 uint64_t src_va,
+					 uint64_t dst_va,
+					 VkDeviceSize copy_size);
+	void (*emit_update_buffer)(struct radv_cmd_buffer *cmd_buffer,
+				   uint64_t dst_va,
+				   VkDeviceSize data_size,
+				   const void *pdata);
+	VkDeviceSize (*emit_fill_buffer)(struct radv_cmd_buffer *cmd_buffer,
+					 uint64_t dst_va,
+					 VkDeviceSize data_size,
+					 uint32_t data);
+	void (*get_per_image_info)(struct radv_image *image,
+				   bool is_stencil,
+				   struct radv_transfer_per_image_info *info);
+	void (*copy_buffer_image_l2l)(struct radv_cmd_buffer *cmd_buffer,
+				      const struct radv_transfer_image_buffer_info *info,
+				      bool buf2img);
+	void (*copy_buffer_image_l2t)(struct radv_cmd_buffer *cmd_buffer,
+				      const struct radv_transfer_image_buffer_info *info,
+				      struct radv_image *image,
+				      bool buf2img);
+	void (*copy_image_l2l)(struct radv_cmd_buffer *cmd_buffer,
+			       const struct radv_transfer_image_info *image_info,
+			       struct radv_image *src_image,
+			       struct radv_image *dst_image);
+	void (*copy_image_l2t)(struct radv_cmd_buffer *cmd_buffer,
+			       const struct radv_transfer_image_info *image_info,
+			       struct radv_image *src_image,
+			       struct radv_image *dst_image);
+	void (*copy_image_t2t)(struct radv_cmd_buffer *cmd_buffer,
+			       const struct radv_transfer_image_info *image_info,
+			       struct radv_image *src_image,
+			       struct radv_image *dst_image);
+
+	void (*emit_nop)(struct radv_cmd_buffer *cmd_buffer);
+
+	bool (*use_scanline_t2t)(struct radv_cmd_buffer *cmd_buffer,
+				 const struct radv_transfer_image_info *image_info,
+				 struct radv_image *src_image,
+				 struct radv_image *dst_image);
+};
+
 struct radv_device {
 	VK_LOADER_DATA                              _loader_data;
 
@@ -755,6 +830,8 @@ struct radv_device {
 
 	/* Whether anisotropy is forced with RADV_TEX_ANISO (-1 is disabled). */
 	int force_aniso;
+
+	const struct radv_transfer_fns *transfer_fns;
 };
 
 struct radv_device_memory {
@@ -1244,6 +1321,11 @@ struct radv_cmd_buffer {
 	 * Bitmask of pending active query flushes.
 	 */
 	enum radv_cmd_flush_bits active_query_flush_bits;
+
+	/*
+	 * Temporary required for T2T scanline copies on transfer queue.
+	 */
+	struct radeon_winsys_bo *transfer_temp_bo;
 };
 
 struct radv_image;
@@ -2175,6 +2257,43 @@ si_conv_gl_prim_to_vertices(unsigned gl_prim)
 		return 0;
 	}
 }
+
+void radv_setup_transfer(struct radv_device *device);
+void radv_transfer_cmd_copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer,
+					    struct radv_buffer *src_buffer,
+					    struct radv_image *dst_image,
+					    VkImageLayout dst_image_layout,
+					    uint32_t region_count,
+					    const VkBufferImageCopy *pregions);
+void radv_transfer_cmd_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
+					    struct radv_image *src_image,
+					    VkImageLayout src_image_layout,
+					    struct radv_buffer *dst_buffer,
+					    uint32_t region_count,
+					    const VkBufferImageCopy *pregions);
+void radv_transfer_cmd_copy_image(struct radv_cmd_buffer *cmd_buffer,
+				  struct radv_image *src_image,
+				  VkImageLayout src_image_layout,
+				  struct radv_image *dst_image,
+				  VkImageLayout dst_image_layout,
+				  uint32_t region_count,
+				  const VkImageCopy *pregions);
+void radv_transfer_cmd_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
+				   struct radv_buffer *src_buffer,
+				   struct radv_buffer *dst_buffer,
+				   uint32_t region_count,
+				   const VkBufferCopy *pregions);
+void radv_transfer_cmd_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
+				   struct radv_buffer *dst_buffer,
+				   VkDeviceSize dst_offset,
+				   VkDeviceSize fillSize,
+				   uint32_t data);
+
+void radv_transfer_cmd_update_buffer(struct radv_cmd_buffer *cmd_buffer,
+				     struct radv_buffer *dst_buffer,
+				     VkDeviceSize dst_offset,
+				     VkDeviceSize data_size,
+				     const void *pdata);
 
 #define RADV_DEFINE_HANDLE_CASTS(__radv_type, __VkType)		\
 								\

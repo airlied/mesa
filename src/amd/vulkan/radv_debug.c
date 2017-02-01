@@ -698,6 +698,8 @@ radv_check_gpu_hangs(struct radv_queue *queue, struct radeon_cmdbuf *cs)
 	case RING_COMPUTE:
 		radv_dump_compute_state(compute_pipeline, stderr);
 		break;
+	case RING_DMA:
+		break;
 	default:
 		assert(0);
 		break;

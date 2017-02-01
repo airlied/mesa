@@ -90,6 +90,9 @@ struct radeon_info {
 	/* CP info. */
 	bool                        gfx_ib_pad_with_type2;
 	unsigned                    ib_start_alignment;
+	unsigned                    sdma_ib_size_alignment;
+	unsigned                    gfx_compute_ib_size_alignment;
+
 	uint32_t                    me_fw_version;
 	uint32_t                    me_fw_feature;
 	uint32_t                    pfp_fw_version;

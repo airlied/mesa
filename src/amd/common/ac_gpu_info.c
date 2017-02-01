@@ -538,6 +538,11 @@ bool ac_query_gpu_info(int fd, void *dev_p,
 
 	info->has_gds_ordered_append = info->chip_class >= GFX7 &&
 				       info->drm_minor >= 29;
+	ib_align = 0;
+	ib_align = MAX2(ib_align, gfx.ib_size_alignment);
+	ib_align = MAX2(ib_align, compute.ib_size_alignment);
+	info->gfx_compute_ib_size_alignment = ib_align;
+	info->sdma_ib_size_alignment = dma.ib_size_alignment;
 	return true;
 }
 
