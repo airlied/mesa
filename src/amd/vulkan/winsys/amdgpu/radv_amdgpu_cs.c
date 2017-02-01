@@ -401,10 +401,20 @@ static void radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 static bool radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
 {
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
+	struct radeon_winsys *ws = (struct radeon_winsys*)cs->ws;
+	uint32_t pad_word = 0xffff1000;
+
+	if (radv_amdgpu_winsys(ws)->info.chip_class == SI) {
+		if (cs->hw_ip == AMDGPU_HW_IP_DMA)
+			pad_word = 0xf0000000;
+		else
+			pad_word = 0x80000000;
+	} else if (cs->hw_ip == AMDGPU_HW_IP_DMA)
+		pad_word = 0x00000000;
 
 	if (cs->ws->use_ib_bos) {
 		while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
-			radeon_emit(&cs->base, 0xffff1000);
+			radeon_emit(&cs->base, pad_word);
 
 		*cs->ib_size_ptr |= cs->base.cdw;
 
