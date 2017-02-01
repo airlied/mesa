@@ -467,6 +467,9 @@ void radv_cmd_buffer_trace_emit(struct radv_cmd_buffer *cmd_buffer)
 	struct radeon_cmdbuf *cs = cmd_buffer->cs;
 	uint64_t va;
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
+
 	va = radv_buffer_get_va(device->trace_bo);
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
 		va += 4;
@@ -4437,6 +4440,12 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer,
 	struct radeon_cmdbuf *cs = cmd_buffer->cs;
 	enum radv_cmd_flush_bits src_flush_bits = 0;
 	enum radv_cmd_flush_bits dst_flush_bits = 0;
+
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		/* NOP waits for idle on CIK and later. */
+		radeon_emit(cmd_buffer->cs, 0x00000000); /* NOP */
+		return;
+	}
 
 	for (unsigned i = 0; i < info->eventCount; ++i) {
 		RADV_FROM_HANDLE(radv_event, event, info->pEvents[i]);
