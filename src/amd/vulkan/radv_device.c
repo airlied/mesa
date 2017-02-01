@@ -373,6 +373,7 @@ static const struct debug_control radv_debug_options[] = {
 	{"syncshaders", RADV_DEBUG_SYNC_SHADERS},
 	{"nosisched", RADV_DEBUG_NO_SISCHED},
 	{"preoptir", RADV_DEBUG_PREOPTIR},
+	{"notransfer", RADV_DEBUG_NO_TRANSFER_QUEUE},
 	{NULL, 0}
 };
 
@@ -960,6 +961,12 @@ static void radv_get_physical_device_queue_family_properties(
 	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
 		num_queue_families++;
 
+	if (pdevice->rad_info.num_sdma_rings > 0 &&
+	    pdevice->rad_info.chip_class >= CIK &&
+	    pdevice->rad_info.chip_class < GFX9 &&
+	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_TRANSFER_QUEUE))
+		num_queue_families++;
+
 	if (pQueueFamilyProperties == NULL) {
 		*pCount = num_queue_families;
 		return;
@@ -992,6 +999,21 @@ static void radv_get_physical_device_queue_family_properties(
 				.queueCount = pdevice->rad_info.num_compute_rings,
 				.timestampValidBits = 64,
 				.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
+			};
+			idx++;
+		}
+	}
+
+	if (pdevice->rad_info.num_sdma_rings > 0 &&
+	    pdevice->rad_info.chip_class >= CIK &&
+	    pdevice->rad_info.chip_class < GFX9 &&
+	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_TRANSFER_QUEUE)) {
+		if (*pCount > idx) {
+			*pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
+				.queueFlags = VK_QUEUE_TRANSFER_BIT,
+				.queueCount = pdevice->rad_info.num_sdma_rings,
+				.timestampValidBits = 64,
+				.minImageTransferGranularity = (VkExtent3D) { 8, 8, 1 },
 			};
 			idx++;
 		}

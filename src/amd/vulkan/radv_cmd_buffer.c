@@ -3681,6 +3681,13 @@ void radv_CmdPipelineBarrier(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 	enum radv_cmd_flush_bits src_flush_bits = 0;
 	enum radv_cmd_flush_bits dst_flush_bits = 0;
+	uint32_t b;
+
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		/* NOP waits for idle on CIK and later. */
+		radeon_emit(cmd_buffer->cs, 0x00000000); /* NOP */
+		return;
+	}
 
 	for (uint32_t i = 0; i < memoryBarrierCount; i++) {
 		src_flush_bits |= radv_src_access_flush(cmd_buffer, pMemoryBarriers[i].srcAccessMask);

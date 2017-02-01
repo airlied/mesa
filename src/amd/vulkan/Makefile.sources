@@ -31,6 +31,7 @@ RADV_WS_AMDGPU_FILES := \
 	winsys/amdgpu/radv_amdgpu_winsys_public.h
 
 VULKAN_FILES := \
+	radv_cik_sdma.c \
 	radv_cmd_buffer.c \
 	radv_cs.h \
 	radv_debug.c \
