@@ -9138,6 +9138,7 @@
 #define    CIK_SDMA_PACKET_TRAP                    0x6
 #define    CIK_SDMA_PACKET_SEMAPHORE               0x7
 #define    CIK_SDMA_PACKET_CONSTANT_FILL           0xb
+#define        SDMA_CONSTANT_FILL_DWORDS                  (2 << 14) /* use in the n field */
 #define    CIK_SDMA_PACKET_SRBM_WRITE              0xe
 #define    CIK_SDMA_COPY_MAX_SIZE                  0x3fffe0
 

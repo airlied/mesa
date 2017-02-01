@@ -437,6 +437,7 @@ static const struct debug_control radv_debug_options[] = {
 	{"startup", RADV_DEBUG_STARTUP},
 	{"checkir", RADV_DEBUG_CHECKIR},
 	{"nothreadllvm", RADV_DEBUG_NOTHREADLLVM},
+	{"notransfer", RADV_DEBUG_NO_TRANSFER_QUEUE},
 	{NULL, 0}
 };
 
@@ -1145,6 +1146,16 @@ void radv_GetPhysicalDeviceProperties2(
 	}
 }
 
+static bool radv_enable_transfer_queue(struct radv_physical_device *pdevice)
+{
+	if (pdevice->rad_info.num_sdma_rings > 0 &&
+	    pdevice->rad_info.chip_class >= VI &&
+	    pdevice->rad_info.chip_class < GFX9 &&
+	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_TRANSFER_QUEUE))
+		return true;
+	return false;
+}
+
 static void radv_get_physical_device_queue_family_properties(
 	struct radv_physical_device*                pdevice,
 	uint32_t*                                   pCount,
@@ -1154,6 +1165,9 @@ static void radv_get_physical_device_queue_family_properties(
 	int idx;
 	if (pdevice->rad_info.num_compute_rings > 0 &&
 	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
+		num_queue_families++;
+
+	if (radv_enable_transfer_queue(pdevice))
 		num_queue_families++;
 
 	if (pQueueFamilyProperties == NULL) {
@@ -1188,6 +1202,18 @@ static void radv_get_physical_device_queue_family_properties(
 				.queueCount = pdevice->rad_info.num_compute_rings,
 				.timestampValidBits = 64,
 				.minImageTransferGranularity = (VkExtent3D) { 1, 1, 1 },
+			};
+			idx++;
+		}
+	}
+
+	if (radv_enable_transfer_queue(pdevice)) {
+		if (*pCount > idx) {
+			*pQueueFamilyProperties[idx] = (VkQueueFamilyProperties) {
+				.queueFlags = VK_QUEUE_TRANSFER_BIT,
+				.queueCount = pdevice->rad_info.num_sdma_rings,
+				.timestampValidBits = 64,
+				.minImageTransferGranularity = (VkExtent3D) { 8, 8, 1 },
 			};
 			idx++;
 		}
@@ -1594,6 +1620,9 @@ VkResult radv_CreateDevice(
 			break;
 		case RADV_QUEUE_COMPUTE:
 			radeon_emit(device->empty_cs[family], PKT3(PKT3_NOP, 0, 0));
+			radeon_emit(device->empty_cs[family], 0);
+			break;
+		case RADV_QUEUE_TRANSFER:
 			radeon_emit(device->empty_cs[family], 0);
 			break;
 		}
@@ -2082,6 +2111,9 @@ radv_get_preamble_cs(struct radv_queue *queue,
 	unsigned hs_offchip_param = 0;
 	unsigned tess_offchip_ring_offset;
 	uint32_t ring_bo_flags = RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING;
+
+	if (queue->queue_family_index == RADV_QUEUE_TRANSFER)
+		return VK_SUCCESS;
 	if (!queue->has_tess_rings) {
 		if (needs_tess_rings)
 			add_tess_rings = true;

@@ -458,6 +458,10 @@ void radv_CmdFillBuffer(
 	if (fillSize == VK_WHOLE_SIZE)
 		fillSize = (dst_buffer->size - dstOffset) & ~3ull;
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		radv_cik_dma_fill_buffer(cmd_buffer, dst_buffer, dstOffset, fillSize, data);
+		return;
+	}
 	radv_fill_buffer(cmd_buffer, dst_buffer->bo, dst_buffer->offset + dstOffset,
 			 fillSize, data);
 }
@@ -480,6 +484,10 @@ void radv_CmdCopyBuffer(
 	old_predicating = cmd_buffer->state.predicating;
 	cmd_buffer->state.predicating = false;
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		radv_cik_dma_copy_buffer(cmd_buffer, src_buffer, dest_buffer, regionCount, pRegions);
+		return;
+	}
 	for (unsigned r = 0; r < regionCount; r++) {
 		uint64_t src_offset = src_buffer->offset + pRegions[r].srcOffset;
 		uint64_t dest_offset = dest_buffer->offset + pRegions[r].dstOffset;
@@ -493,15 +501,13 @@ void radv_CmdCopyBuffer(
 	cmd_buffer->state.predicating = old_predicating;
 }
 
-void radv_CmdUpdateBuffer(
-	VkCommandBuffer                             commandBuffer,
-	VkBuffer                                    dstBuffer,
-	VkDeviceSize                                dstOffset,
-	VkDeviceSize                                dataSize,
-	const void*                                 pData)
+static void
+radv_update_buffer(struct radv_cmd_buffer *cmd_buffer,
+		   struct radv_buffer *dst_buffer,
+		   VkDeviceSize dstOffset,
+		   VkDeviceSize dataSize,
+		   const void *pData)
 {
-	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
 	bool mec = radv_cmd_buffer_uses_mec(cmd_buffer);
 	uint64_t words = dataSize / 4;
 	uint64_t va = radv_buffer_get_va(dst_buffer->bo);
@@ -537,4 +543,24 @@ void radv_CmdUpdateBuffer(
 		radv_copy_buffer(cmd_buffer, cmd_buffer->upload.upload_bo, dst_buffer->bo,
 				 buf_offset, dstOffset + dst_buffer->offset, dataSize);
 	}
+}
+
+void radv_CmdUpdateBuffer(
+	VkCommandBuffer                             commandBuffer,
+	VkBuffer                                    dstBuffer,
+	VkDeviceSize                                dstOffset,
+	VkDeviceSize                                dataSize,
+	const void*                                 pData)
+{
+	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+	RADV_FROM_HANDLE(radv_buffer, dst_buffer, dstBuffer);
+
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
+		radv_cik_dma_update_buffer(cmd_buffer, dst_buffer,
+					   dstOffset, dataSize, pData);
+		return;
+	}
+
+	radv_update_buffer(cmd_buffer, dst_buffer, dstOffset,
+			   dataSize, pData);
 }
