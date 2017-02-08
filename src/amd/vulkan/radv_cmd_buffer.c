@@ -2638,6 +2638,8 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 	           (radv_layout_is_htile_compressed(image, src_layout) &&
 	            !radv_layout_is_htile_compressed(image, dst_layout))) {
 
+		if (image->surface.flags & RADEON_SURF_TC_COMPATIBLE_HTILE)
+			return;
 		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		range.baseMipLevel = 0;
 		range.levelCount = 1;

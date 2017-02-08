@@ -118,6 +118,12 @@ radv_init_surface(struct radv_device *device,
 		surface->flags |= RADEON_SURF_DISABLE_DCC;
 	if (create_info->scanout)
 		surface->flags |= RADEON_SURF_SCANOUT;
+
+	if (is_depth && array_mode == RADEON_SURF_MODE_2D) {
+		/* Z32 float depth supports tc compat htile */
+		if (vk_format_depth_only(pCreateInfo->format) == VK_FORMAT_D32_SFLOAT)
+			surface->flags |= RADEON_SURF_TC_COMPATIBLE_HTILE;
+	}
 	return 0;
 }
 #define ATI_VENDOR_ID 0x1002
@@ -217,6 +223,9 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 		state[7] = (gpu_address +
 			    image->dcc_offset +
 			    base_level_info->dcc_offset) >> 8;
+	} else if (image->surface.flags & RADEON_SURF_TC_COMPATIBLE_HTILE) {
+		state[6] |= S_008F28_COMPRESSION_EN(1);
+		state[7] = (gpu_address + image->htile.offset);
 	}
 }
 
@@ -643,6 +652,7 @@ radv_image_get_htile_size(struct radv_device *device,
 	image->htile.height = height;
 	image->htile.xalign = cl_width * 8;
 	image->htile.yalign = cl_height * 8;
+	image->htile.alignment = base_align;
 
 	return image->array_size *
 		align(slice_bytes, base_align);
@@ -655,7 +665,13 @@ radv_image_alloc_htile(struct radv_device *device,
 	if (device->debug_flags & RADV_DEBUG_NO_HIZ)
 		return;
 
-	image->htile.size = radv_image_get_htile_size(device, image);
+	if (image->surface.flags & RADEON_SURF_TC_COMPATIBLE_HTILE) {
+		image->htile.size = image->surface.htile_size;
+		image->htile.alignment = image->surface.htile_alignment;
+	} else {
+		image->htile.size = radv_image_get_htile_size(device, image);
+		image->htile.alignment = image->htile.alignment;
+	}
 
 	if (!image->htile.size)
 		return;
