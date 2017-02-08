@@ -141,6 +141,7 @@ ADDR_HANDLE radv_amdgpu_addr_create(struct amdgpu_gpu_info *amdinfo, int family,
 	createFlags.value = 0;
 	createFlags.useTileIndex = 1;
 	createFlags.degradeBaseLevel = 1;
+	createFlags.useHtileSliceAlign = 1;
 
 	addrCreateInput.chipEngine = CIASICIDGFXENGINE_SOUTHERNISLAND;
 	addrCreateInput.chipFamily = family;
@@ -164,7 +165,9 @@ static int radv_compute_level(ADDR_HANDLE addrlib,
                               ADDR_COMPUTE_SURFACE_INFO_INPUT *AddrSurfInfoIn,
                               ADDR_COMPUTE_SURFACE_INFO_OUTPUT *AddrSurfInfoOut,
                               ADDR_COMPUTE_DCCINFO_INPUT *AddrDccIn,
-                              ADDR_COMPUTE_DCCINFO_OUTPUT *AddrDccOut)
+                              ADDR_COMPUTE_DCCINFO_OUTPUT *AddrDccOut,
+			      ADDR_COMPUTE_HTILE_INFO_INPUT *AddrHtileIn,
+			      ADDR_COMPUTE_HTILE_INFO_OUTPUT *AddrHtileOut)
 {
 	struct radeon_surf_level *surf_level;
 	ADDR_E_RETURNCODE ret;
@@ -260,6 +263,32 @@ static int radv_compute_level(ADDR_HANDLE addrlib,
 		}
 	}
 
+	/* TC-compatible HTILE. */
+	if (!is_stencil &&
+	    AddrSurfInfoIn->flags.depth &&
+	    AddrSurfInfoIn->flags.tcCompatible &&
+	    surf_level->mode == RADEON_SURF_MODE_2D &&
+	    level == 0) {
+		AddrHtileIn->flags.tcCompatible = 1;
+		AddrHtileIn->pitch = AddrSurfInfoOut->pitch;
+		AddrHtileIn->height = AddrSurfInfoOut->height;
+		AddrHtileIn->numSlices = AddrSurfInfoOut->depth;
+		AddrHtileIn->blockWidth = ADDR_HTILE_BLOCKSIZE_8;
+		AddrHtileIn->blockHeight = ADDR_HTILE_BLOCKSIZE_8;
+		AddrHtileIn->pTileInfo = AddrSurfInfoOut->pTileInfo;
+		AddrHtileIn->tileIndex = AddrSurfInfoOut->tileIndex;
+		AddrHtileIn->macroModeIndex = AddrSurfInfoOut->macroModeIndex;
+
+		ret = AddrComputeHtileInfo(addrlib,
+					   AddrHtileIn,
+					   AddrHtileOut);
+
+		if (ret == ADDR_OK) {
+			surf->htile_size = AddrHtileOut->htileBytes;
+			surf->htile_alignment = AddrHtileOut->baseAlign;
+		}
+	}
+
 	return 0;
 }
 
@@ -285,6 +314,8 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 	ADDR_COMPUTE_SURFACE_INFO_OUTPUT AddrSurfInfoOut = {0};
 	ADDR_COMPUTE_DCCINFO_INPUT AddrDccIn = {0};
 	ADDR_COMPUTE_DCCINFO_OUTPUT AddrDccOut = {0};
+	ADDR_COMPUTE_HTILE_INFO_INPUT AddrHtileIn = {0};
+	ADDR_COMPUTE_HTILE_INFO_OUTPUT AddrHtileOut = {0};
 	ADDR_TILEINFO AddrTileInfoIn = {0};
 	ADDR_TILEINFO AddrTileInfoOut = {0};
 	int r;
@@ -297,6 +328,8 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 	AddrSurfInfoOut.size = sizeof(ADDR_COMPUTE_SURFACE_INFO_OUTPUT);
 	AddrDccIn.size = sizeof(ADDR_COMPUTE_DCCINFO_INPUT);
 	AddrDccOut.size = sizeof(ADDR_COMPUTE_DCCINFO_OUTPUT);
+	AddrHtileIn.size = sizeof(ADDR_COMPUTE_HTILE_INFO_INPUT);
+	AddrHtileOut.size = sizeof(ADDR_COMPUTE_HTILE_INFO_OUTPUT);
 	AddrSurfInfoOut.pTileInfo = &AddrTileInfoOut;
 
 	type = RADEON_SURF_GET(surf->flags, TYPE);
@@ -361,7 +394,10 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 	AddrSurfInfoIn.flags.cube = type == RADEON_SURF_TYPE_CUBEMAP;
 	AddrSurfInfoIn.flags.display = (surf->flags & RADEON_SURF_SCANOUT) != 0;
 	AddrSurfInfoIn.flags.pow2Pad = surf->last_level > 0;
-	AddrSurfInfoIn.flags.degrade4Space = 1;
+	AddrSurfInfoIn.flags.tcCompatible = (surf->flags & RADEON_SURF_TC_COMPATIBLE_HTILE) != 0;
+
+	/* Only degrade the tile mode for space if TC */
+	AddrSurfInfoIn.flags.degrade4Space = !AddrSurfInfoIn.flags.tcCompatible;
 
 	/* DCC notes:
 	 * - If we add MSAA support, keep in mind that CB can't decompress 8bpp
@@ -441,11 +477,15 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 	surf->bo_size = 0;
 	surf->dcc_size = 0;
 	surf->dcc_alignment = 1;
+	surf->htile_size = 0;
+	surf->htile_alignment = 0;
 
 	/* Calculate texture layout information. */
 	for (level = 0; level <= surf->last_level; level++) {
 		r = radv_compute_level(ws->addrlib, surf, false, level, type, compressed,
-				       &AddrSurfInfoIn, &AddrSurfInfoOut, &AddrDccIn, &AddrDccOut);
+				       &AddrSurfInfoIn, &AddrSurfInfoOut,
+				       &AddrDccIn, &AddrDccOut,
+				       &AddrHtileIn, &AddrHtileOut);
 		if (r)
 			return r;
 
@@ -473,12 +513,14 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 		AddrSurfInfoIn.bpp = 8;
 		AddrSurfInfoIn.flags.depth = 0;
 		AddrSurfInfoIn.flags.stencil = 1;
+		AddrSurfInfoIn.flags.tcCompatible = 0;
 		/* This will be ignored if AddrSurfInfoIn.pTileInfo is NULL. */
 		AddrTileInfoIn.tileSplitBytes = surf->stencil_tile_split;
 
 		for (level = 0; level <= surf->last_level; level++) {
 			r = radv_compute_level(ws->addrlib, surf, true, level, type, compressed,
-					       &AddrSurfInfoIn, &AddrSurfInfoOut, &AddrDccIn, &AddrDccOut);
+					       &AddrSurfInfoIn, &AddrSurfInfoOut, &AddrDccIn, &AddrDccOut,
+					       NULL, NULL);
 			if (r)
 				return r;
 
@@ -507,6 +549,13 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 					 ws->info.num_tile_pipes);
 	}
 #endif
+
+	/* Make sure HTILE covers the whole miptree, because the shader reads
+	 * TC-compatible HTILE even for levels where it's disabled by DB.
+	 */
+	if (surf->htile_size && surf->last_level)
+		surf->htile_size *= 2;
+
 	return 0;
 }
 
