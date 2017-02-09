@@ -480,6 +480,7 @@ struct radv_meta_state {
 		VkPipeline                                cmask_eliminate_pipeline;
 		VkPipeline                                fmask_decompress_pipeline;
 		VkRenderPass                              pass;
+		VkPipelineLayout			  p_layout;
 	} fast_clear_flush;
 
 	struct {

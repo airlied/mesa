@@ -42,21 +42,48 @@ build_nir_vs(void)
 	const struct glsl_type *vec4 = glsl_vec4_type();
 
 	nir_builder b;
-	nir_variable *a_position;
 	nir_variable *v_position;
 
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_VERTEX, NULL);
 	b.shader->info->name = ralloc_strdup(b.shader, "meta_fast_clear_vs");
 
-	a_position = nir_variable_create(b.shader, nir_var_shader_in, vec4,
-					 "a_position");
-	a_position->data.location = VERT_ATTRIB_GENERIC0;
+	nir_intrinsic_instr *dims = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
+	dims->src[0] = nir_src_for_ssa(nir_imm_int(&b, 0));
+	dims->num_components = 2;
+	nir_ssa_dest_init(&dims->instr, &dims->dest, 2, 32, "dims");
+	nir_builder_instr_insert(&b, &dims->instr);
+
+	nir_intrinsic_instr *vertex_id = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_vertex_id_zero_base);
+	nir_ssa_dest_init(&vertex_id->instr, &vertex_id->dest, 1, 32, "vertexid");
+	nir_builder_instr_insert(&b, &vertex_id->instr);
+
+	/* vertex 0 - 0, 0 */
+	/* vertex 1 - 0, h */
+	/* vertex 2 - w, 0 */
+	/* so channel 0 is vertex_id != 2 ? 0 : w
+	   channel 1 is vertex id != 1 ? 0 : h */
+
+	nir_ssa_def *c0cmp = nir_ine(&b, &vertex_id->dest.ssa,
+				     nir_imm_int(&b, 2));
+	nir_ssa_def *c1cmp = nir_ine(&b, &vertex_id->dest.ssa,
+				     nir_imm_int(&b, 1));
+
+	nir_ssa_def *comp[4];
+	comp[0] = nir_bcsel(&b, c0cmp,
+			    nir_imm_int(&b, 0),
+			    nir_i2f(&b, nir_channel(&b, &dims->dest.ssa, 0)));
+	comp[1] = nir_bcsel(&b, c1cmp,
+				    nir_imm_int(&b, 0),
+			    nir_i2f(&b, nir_channel(&b, &dims->dest.ssa, 1)));
+	comp[2] = nir_imm_float(&b, 0.0);
+	comp[3] = nir_imm_float(&b, 1.0);
+	nir_ssa_def *outvec = nir_vec(&b, comp, 4);
 
 	v_position = nir_variable_create(b.shader, nir_var_shader_out, vec4,
 					 "gl_Position");
 	v_position->data.location = VARYING_SLOT_POS;
 
-	nir_copy_var(&b, v_position, a_position);
+	nir_store_var(&b, v_position, outvec, 0xf);
 
 	return b.shader;
 }
@@ -137,6 +164,20 @@ create_pipeline(struct radv_device *device,
 		goto cleanup;
 	}
 
+	VkPipelineLayoutCreateInfo pl_create_info = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = 0,
+		.pushConstantRangeCount = 1,
+		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_VERTEX_BIT, 0, 8},
+	};
+
+	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
+					  &pl_create_info,
+					  &device->meta_state.alloc,
+					  &device->meta_state.fast_clear_flush.p_layout);
+	if (result != VK_SUCCESS)
+		goto cleanup;
+
 	const VkPipelineShaderStageCreateInfo stages[2] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -154,24 +195,8 @@ create_pipeline(struct radv_device *device,
 
 	const VkPipelineVertexInputStateCreateInfo vi_state = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
-			{
-				.binding = 0,
-				.stride = sizeof(struct vertex_attrs),
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-			},
-		},
-		.vertexAttributeDescriptionCount = 1,
-		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
-			{
-				/* Position */
-				.location = 0,
-				.binding = 0,
-				.format = VK_FORMAT_R32G32_SFLOAT,
-				.offset = offsetof(struct vertex_attrs, position),
-			},
-		}
+		.vertexBindingDescriptionCount = 0,
+		.vertexAttributeDescriptionCount = 0,
 	};
 
 	const VkPipelineInputAssemblyStateCreateInfo ia_state = {
@@ -229,6 +254,7 @@ create_pipeline(struct radv_device *device,
 						.pColorBlendState = &blend_state,
 						.pDynamicState = NULL,
 						.renderPass = device->meta_state.fast_clear_flush.pass,
+					        .layout = device->meta_state.fast_clear_flush.p_layout,
 						.subpass = 0,
 					       },
 					       &(struct radv_graphics_pipeline_create_info) {
@@ -238,7 +264,7 @@ create_pipeline(struct radv_device *device,
 					       &device->meta_state.alloc,
 					       &device->meta_state.fast_clear_flush.cmask_eliminate_pipeline);
 	if (result != VK_SUCCESS)
-		goto cleanup;
+		goto cleanup_layout;
 
 	result = radv_graphics_pipeline_create(device_h,
 					       radv_pipeline_cache_to_handle(&device->meta_state.cache),
@@ -267,6 +293,7 @@ create_pipeline(struct radv_device *device,
 						.pColorBlendState = &blend_state,
 						.pDynamicState = NULL,
 						.renderPass = device->meta_state.fast_clear_flush.pass,
+					        .layout = device->meta_state.fast_clear_flush.p_layout,
 						.subpass = 0,
 					       },
 					       &(struct radv_graphics_pipeline_create_info) {
@@ -281,6 +308,10 @@ create_pipeline(struct radv_device *device,
 	goto cleanup;
 cleanup_cmask:
 	radv_DestroyPipeline(device_h, device->meta_state.fast_clear_flush.cmask_eliminate_pipeline, &device->meta_state.alloc);
+cleanup_layout:
+	radv_DestroyPipelineLayout(radv_device_to_handle(device),
+				   device->meta_state.fast_clear_flush.p_layout,
+				   &device->meta_state.alloc);
 cleanup:
 	ralloc_free(fs_module.nir);
 	return result;
@@ -307,6 +338,10 @@ radv_device_finish_meta_fast_clear_flush_state(struct radv_device *device)
 	if (pipeline_h) {
 		radv_DestroyPipeline(device_h, pipeline_h, alloc);
 	}
+
+	radv_DestroyPipelineLayout(radv_device_to_handle(device),
+				   state->fast_clear_flush.p_layout,
+				   &state->alloc);
 }
 
 VkResult
@@ -351,44 +386,12 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 	struct radv_device *device = cmd_buffer->device;
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
 	uint32_t offset;
-	const struct vertex_attrs vertex_data[3] = {
-		{
-			.position = {
-				0,
-				0,
-			},
-		},
-		{
-			.position = {
-				0,
-				resolve_extent->height,
-			},
-		},
-		{
-			.position = {
-				resolve_extent->width,
-				0,
-			},
-		},
+	unsigned push_constants[2] = {
+		resolve_extent->width,
+		resolve_extent->height,
 	};
-
 	cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 					 RADV_CMD_FLAG_FLUSH_AND_INV_CB_META);
-	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
-	struct radv_buffer vertex_buffer = {
-		.device = device,
-		.size = sizeof(vertex_data),
-		.bo = cmd_buffer->upload.upload_bo,
-		.offset = offset,
-	};
-
-	VkBuffer vertex_buffer_h = radv_buffer_to_handle(&vertex_buffer);
-
-	radv_CmdBindVertexBuffers(cmd_buffer_h,
-				  /*firstBinding*/ 0,
-				  /*bindingCount*/ 1,
-				  (VkBuffer[]) { vertex_buffer_h },
-				  (VkDeviceSize[]) { 0 });
 
 	VkPipeline pipeline_h;
 	if (fmask_decompress) {
@@ -405,6 +408,10 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 				     pipeline_h);
 	}
 
+	radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
+			      device->meta_state.fast_clear_flush.p_layout,
+			      VK_SHADER_STAGE_VERTEX_BIT, 0, 8,
+			      push_constants);
 	radv_CmdDraw(cmd_buffer_h, 3, 1, 0, 0);
 	cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 					 RADV_CMD_FLAG_FLUSH_AND_INV_CB_META);
@@ -424,7 +431,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 	assert(cmd_buffer->queue_family_index == RADV_QUEUE_GENERAL);
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
-	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor_novertex(&saved_state, cmd_buffer);
 
 	struct radv_image_view iview;
 	radv_image_view_init(&iview, cmd_buffer->device,
