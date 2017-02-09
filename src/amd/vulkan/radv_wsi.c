@@ -369,6 +369,7 @@ static void print_counters(const struct radv_counters* counters) {
 	fprintf(f, "db flushes: %lu\n", counters->counters[RADV_COUNTER_DB_FLUSHES]);
 	fprintf(f, "subpasses: %lu\n", counters->counters[RADV_COUNTER_SUBPASSES]);
 	fprintf(f, "depth only subpasses: %lu\n", counters->counters[RADV_COUNTER_DEPTH_ONLY_SUBPASSES]);
+	fprintf(f, "num command buffers submitted: %lu\n", counters->counters[RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED]);
 	fclose(f);
 }
 

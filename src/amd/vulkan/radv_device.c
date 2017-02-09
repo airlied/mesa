@@ -1442,6 +1442,7 @@ VkResult radv_QueueSubmit(
 			for(unsigned k = 0; k < RADV_COUNTER_NUM; ++k)
 				queue->device->counters.counters[k] += cmd_buffer->counters.counters[k];
 		}
+		queue->device->counters.counters[RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED] += pSubmits[i].commandBufferCount;
 
 		for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; j += advance) {
 			advance = MIN2(max_cs_submission,
