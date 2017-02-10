@@ -1454,6 +1454,7 @@ VkResult radv_QueueSubmit(
 					 pSubmits[i].pCommandBuffers[j]);
 			assert(cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 			if (cmd_buffer->no_draws == true) {
+				queue->device->counters.counters[RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED_NO_DRAW]++;
 				continue;
 			}
 			cs_array[draw_cmds_count] = cmd_buffer->cs;

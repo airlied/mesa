@@ -370,6 +370,7 @@ static void print_counters(const struct radv_counters* counters) {
 	fprintf(f, "subpasses: %lu\n", counters->counters[RADV_COUNTER_SUBPASSES]);
 	fprintf(f, "depth only subpasses: %lu\n", counters->counters[RADV_COUNTER_DEPTH_ONLY_SUBPASSES]);
 	fprintf(f, "num command buffers submitted: %lu\n", counters->counters[RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED]);
+	fprintf(f, "num command buffers submitted with 0 draws: %lu\n", counters->counters[RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED_NO_DRAW]);
 	fclose(f);
 }
 
