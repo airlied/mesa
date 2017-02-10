@@ -472,7 +472,9 @@ radv_emit_shader_binary(struct radv_cmd_buffer *cmd_buffer,
 
 		*va_p = va;
 	} else {
-		ws->cs_add_buffer(cmd_buffer->cs, shader->bo, 8);
+		bool bret = ws->cs_add_buffer(cmd_buffer->cs, shader->bo, 8);
+		if (bret)
+			cmd_buffer->counters.counters[RADV_COUNTER_COMMAND_BUFFERS_NUM_SHADER_BO]++;
 		*va_p = ws->buffer_get_va(shader->bo);
 	}
 }

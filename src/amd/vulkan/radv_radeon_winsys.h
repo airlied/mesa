@@ -313,7 +313,7 @@ struct radeon_winsys {
 			 bool can_patch,
 			 struct radeon_winsys_fence *fence);
 
-	void (*cs_add_buffer)(struct radeon_winsys_cs *cs,
+	bool (*cs_add_buffer)(struct radeon_winsys_cs *cs,
 			      struct radeon_winsys_bo *bo,
 			      uint8_t priority);
 

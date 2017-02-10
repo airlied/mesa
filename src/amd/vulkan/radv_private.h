@@ -303,6 +303,7 @@ enum radv_counter_id {
 	RADV_COUNTER_DEPTH_ONLY_SUBPASSES,
 	RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED,
 	RADV_COUNTER_COMMAND_BUFFERS_SUBMITTED_NO_DRAW,
+	RADV_COUNTER_COMMAND_BUFFERS_NUM_SHADER_BO,
 	RADV_COUNTER_NUM
 };
 
@@ -763,6 +764,7 @@ struct radv_cmd_buffer_upload {
 	struct radeon_winsys_bo *upload_bo;
 	struct list_head list;
 };
+
 
 struct radv_cmd_buffer {
 	VK_LOADER_DATA                               _loader_data;

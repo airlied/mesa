@@ -352,7 +352,7 @@ static int radv_amdgpu_cs_find_buffer(struct radv_amdgpu_cs *cs,
 	return -1;
 }
 
-static void radv_amdgpu_cs_add_buffer_internal(struct radv_amdgpu_cs *cs,
+static bool radv_amdgpu_cs_add_buffer_internal(struct radv_amdgpu_cs *cs,
 					       amdgpu_bo_handle bo,
 					       uint8_t priority)
 {
@@ -361,7 +361,7 @@ static void radv_amdgpu_cs_add_buffer_internal(struct radv_amdgpu_cs *cs,
 
 	if (index != -1) {
 		cs->priorities[index] = MAX2(cs->priorities[index], priority);
-		return;
+		return false;
 	}
 
 	if (cs->num_buffers == cs->max_num_buffers) {
@@ -378,16 +378,17 @@ static void radv_amdgpu_cs_add_buffer_internal(struct radv_amdgpu_cs *cs,
 	cs->buffer_hash_table[hash] = cs->num_buffers;
 
 	++cs->num_buffers;
+	return true;
 }
 
-static void radv_amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
+static bool radv_amdgpu_cs_add_buffer(struct radeon_winsys_cs *_cs,
 				 struct radeon_winsys_bo *_bo,
 				 uint8_t priority)
 {
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
 	struct radv_amdgpu_winsys_bo *bo = radv_amdgpu_winsys_bo(_bo);
 
-	radv_amdgpu_cs_add_buffer_internal(cs, bo->bo, priority);
+	return radv_amdgpu_cs_add_buffer_internal(cs, bo->bo, priority);
 }
 
 static void radv_amdgpu_cs_execute_secondary(struct radeon_winsys_cs *_parent,
