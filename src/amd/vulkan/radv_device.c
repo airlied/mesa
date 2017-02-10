@@ -1448,21 +1448,25 @@ VkResult radv_QueueSubmit(
 		cs_array = malloc(sizeof(struct radeon_winsys_cs *) *
 					        pSubmits[i].commandBufferCount);
 
+		int draw_cmds_count = 0;
 		for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; j++) {
 			RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer,
 					 pSubmits[i].pCommandBuffers[j]);
 			assert(cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-
-			cs_array[j] = cmd_buffer->cs;
+			if (cmd_buffer->no_draws == true) {
+				continue;
+			}
+			cs_array[draw_cmds_count] = cmd_buffer->cs;
+			draw_cmds_count++;
 			if ((cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT))
 				can_patch = false;
 		}
 
-		for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; j += advance) {
+		for (uint32_t j = 0; j < draw_cmds_count; j += advance) {
 			advance = MIN2(max_cs_submission,
-				       pSubmits[i].commandBufferCount - j);
+				       draw_cmds_count - j);
 			bool b = j == 0;
-			bool e = j + advance == pSubmits[i].commandBufferCount;
+			bool e = j + advance == draw_cmds_count;
 
 			if (queue->device->trace_bo)
 				*queue->device->trace_id_ptr = 0;
