@@ -360,7 +360,9 @@ void radv_shader_variant_destroy(struct radv_device *device,
 	if (__sync_fetch_and_sub(&variant->ref_count, 1) != 1)
 		return;
 
-	device->ws->buffer_destroy(variant->bo);
+	free(variant->code);
+	if (variant->bo)
+		device->ws->buffer_destroy(variant->bo);
 	free(variant);
 }
 
@@ -407,14 +409,18 @@ static void radv_fill_shader_variant(struct radv_device *device,
 		S_00B848_DX10_CLAMP(1) |
 		S_00B848_FLOAT_MODE(variant->config.float_mode);
 
-	variant->bo = device->ws->buffer_create(device->ws, binary->code_size, 256,
-						RADEON_DOMAIN_GTT, RADEON_FLAG_CPU_ACCESS);
+	if (radv_shader_variant_inline(variant)) {
+		variant->code = binary->code;
+		variant->bo = NULL;
+	} else {
+		variant->bo = device->ws->buffer_create(device->ws, binary->code_size, 256,
+							RADEON_DOMAIN_GTT, RADEON_FLAG_CPU_ACCESS);
 
-	void *ptr = device->ws->buffer_map(variant->bo);
-	memcpy(ptr, binary->code, binary->code_size);
-	device->ws->buffer_unmap(variant->bo);
-
-
+		void *ptr = device->ws->buffer_map(variant->bo);
+		memcpy(ptr, binary->code, binary->code_size);
+		device->ws->buffer_unmap(variant->bo);
+		variant->code = NULL;
+	}
 }
 
 static struct radv_shader_variant *radv_shader_variant_create(struct radv_device *device,
@@ -452,7 +458,7 @@ static struct radv_shader_variant *radv_shader_variant_create(struct radv_device
 	if (code_out) {
 		*code_out = binary.code;
 		*code_size_out = binary.code_size;
-	} else
+	} else if (!variant->code)
 		free(binary.code);
 	free(binary.config);
 	free(binary.rodata);
@@ -490,7 +496,7 @@ radv_pipeline_create_gs_copy_shader(struct radv_pipeline *pipeline,
 	if (code_out) {
 		*code_out = binary.code;
 		*code_size_out = binary.code_size;
-	} else
+	} else if (!variant->code)
 		free(binary.code);
 	free(binary.config);
 	free(binary.rodata);
@@ -576,7 +582,7 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 		variant = radv_pipeline_cache_insert_shader(cache, sha1, variant,
 							    code, code_size);
 
-	if (code)
+	if (code && !variant->code)
 		free(code);
 	return variant;
 }

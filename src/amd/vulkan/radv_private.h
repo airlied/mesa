@@ -877,7 +877,15 @@ struct radv_shader_variant {
 	unsigned rsrc1;
 	unsigned rsrc2;
 	uint32_t code_size;
+	void *code;
 };
+
+static inline bool radv_shader_variant_inline(struct radv_shader_variant *variant)
+{
+	if (variant->code_size < 4096)
+		return true;
+	return false;
+}
 
 struct radv_depth_stencil_state {
 	uint32_t db_depth_control;
