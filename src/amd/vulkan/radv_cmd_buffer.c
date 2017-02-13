@@ -1266,8 +1266,43 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 	cmd_buffer->push_constant_stages &= ~stages;
 }
 
+struct radv_prim_vertex_count {
+   unsigned min;
+   unsigned incr;
+};
+
+static const struct radv_prim_vertex_count prim_table[0x1D] = {
+	[V_008958_DI_PT_POINTLIST] = { 1, 1 },
+	[V_008958_DI_PT_LINELIST] = { 1, 1 },
+	[V_008958_DI_PT_LINESTRIP] = { 1, 1 },
+};
+
+static inline const struct radv_prim_vertex_count *
+radv_prim_vertex_count(uint32_t prim)
+{
+	return &prim_table[prim];
+}
+
+/**
+ * Given a vertex count, return the number of primitives.
+ * For polygons, return the number of triangles.
+ */
+static inline unsigned
+radv_prims_for_vertices(uint32_t prim, unsigned num)
+{
+   const struct radv_prim_vertex_count *info = radv_prim_vertex_count(prim);
+
+   assert(info);
+   assert(info->incr != 0);
+
+   if (num < info->min)
+      return 0;
+
+   return 1 + ((num - info->min) / info->incr);
+}
+
 static void
-radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
+radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer, bool instanced_or_indirect_draw, uint32_t count)
 {
 	struct radv_pipeline *pipeline = cmd_buffer->state.pipeline;
 	struct radv_device *device = cmd_buffer->device;
@@ -1331,6 +1366,17 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->state.dirty & (RADV_CMD_DIRTY_DYNAMIC_SCISSOR))
 		radv_emit_scissor(cmd_buffer);
 
+	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE ||
+	    instanced_or_indirect_draw != cmd_buffer->state.last_draw_instanced_or_indirect) {
+		cmd_buffer->state.last_draw_instanced_or_indirect = instanced_or_indirect_draw;
+		ia_multi_vgt_param = si_get_ia_multi_vgt_param(cmd_buffer);
+
+		if (cmd_buffer->device->physical_device->rad_info.chip_class >= CIK)
+			radeon_set_context_reg_idx(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, 1, ia_multi_vgt_param);
+		else
+			radeon_set_context_reg(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, ia_multi_vgt_param);
+	}
+
 	if (cmd_buffer->state.dirty & RADV_CMD_DIRTY_PIPELINE) {
 		uint32_t stages = 0;
 
@@ -1340,15 +1386,12 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer)
 				S_028B54_VS_EN(V_028B54_VS_STAGE_COPY_SHADER);
 
 		radeon_set_context_reg(cmd_buffer->cs, R_028B54_VGT_SHADER_STAGES_EN, stages);
-		ia_multi_vgt_param = si_get_ia_multi_vgt_param(cmd_buffer);
 
 		if (cmd_buffer->device->physical_device->rad_info.chip_class >= CIK) {
-			radeon_set_context_reg_idx(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, 1, ia_multi_vgt_param);
 			radeon_set_context_reg_idx(cmd_buffer->cs, R_028B58_VGT_LS_HS_CONFIG, 2, ls_hs_config);
 			radeon_set_uconfig_reg_idx(cmd_buffer->cs, R_030908_VGT_PRIMITIVE_TYPE, 1, cmd_buffer->state.pipeline->graphics.prim);
 		} else {
 			radeon_set_config_reg(cmd_buffer->cs, R_008958_VGT_PRIMITIVE_TYPE, cmd_buffer->state.pipeline->graphics.prim);
-			radeon_set_context_reg(cmd_buffer->cs, R_028AA8_IA_MULTI_VGT_PARAM, ia_multi_vgt_param);
 			radeon_set_context_reg(cmd_buffer->cs, R_028B58_VGT_LS_HS_CONFIG, ls_hs_config);
 		}
 		radeon_set_context_reg(cmd_buffer->cs, R_028A6C_VGT_GS_OUT_PRIM_TYPE, cmd_buffer->state.pipeline->graphics.gs_out);
@@ -2172,7 +2215,8 @@ void radv_CmdDraw(
 	uint32_t                                    firstInstance)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-	radv_cmd_buffer_flush_state(cmd_buffer);
+
+	radv_cmd_buffer_flush_state(cmd_buffer, (instanceCount > 1), vertexCount);
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 10);
 
@@ -2223,7 +2267,7 @@ void radv_CmdDrawIndexed(
 	uint32_t index_max_size = (cmd_buffer->state.index_buffer->size - cmd_buffer->state.index_offset) / index_size;
 	uint64_t index_va;
 
-	radv_cmd_buffer_flush_state(cmd_buffer);
+	radv_cmd_buffer_flush_state(cmd_buffer, (instanceCount > 1), indexCount);
 	radv_emit_primitive_reset_index(cmd_buffer);
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 15);
@@ -2321,7 +2365,7 @@ radv_cmd_draw_indirect_count(VkCommandBuffer                             command
                              uint32_t                                    stride)
 {
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-	radv_cmd_buffer_flush_state(cmd_buffer);
+	radv_cmd_buffer_flush_state(cmd_buffer, true, 0);
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws,
 							   cmd_buffer->cs, 14);
@@ -2346,7 +2390,7 @@ radv_cmd_draw_indexed_indirect_count(
 	int index_size = cmd_buffer->state.index_type ? 4 : 2;
 	uint32_t index_max_size = (cmd_buffer->state.index_buffer->size - cmd_buffer->state.index_offset) / index_size;
 	uint64_t index_va;
-	radv_cmd_buffer_flush_state(cmd_buffer);
+	radv_cmd_buffer_flush_state(cmd_buffer, true, 0);
 	radv_emit_primitive_reset_index(cmd_buffer);
 
 	index_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->state.index_buffer->bo);

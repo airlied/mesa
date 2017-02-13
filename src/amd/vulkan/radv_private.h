@@ -682,8 +682,9 @@ struct radv_attachment_state {
 
 struct radv_cmd_state {
 	uint32_t                                      vb_dirty;
-	bool                                          vertex_descriptors_dirty;
 	radv_cmd_dirty_mask_t                         dirty;
+	bool                                          vertex_descriptors_dirty;
+	bool                                          last_draw_instanced_or_indirect;
 
 	struct radv_pipeline *                        pipeline;
 	struct radv_pipeline *                        emitted_pipeline;
