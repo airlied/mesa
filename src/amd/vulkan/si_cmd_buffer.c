@@ -216,7 +216,7 @@ si_init_compute(struct radv_cmd_buffer *cmd_buffer)
 	si_emit_compute(physical_device, cmd_buffer->cs);
 }
 
-static void
+void
 si_emit_config(struct radv_physical_device *physical_device,
 	       struct radeon_winsys_cs *cs)
 {

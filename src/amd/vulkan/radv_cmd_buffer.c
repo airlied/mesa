@@ -1638,7 +1638,6 @@ VkResult radv_BeginCommandBuffer(
 				RADV_CMD_FLAG_INV_SMEM_L1 |
 				RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
 				RADV_CMD_FLAG_INV_GLOBAL_L2;
-			emit_gfx_buffer_state(cmd_buffer);
 			radv_set_db_count_control(cmd_buffer);
 			si_emit_cache_flush(cmd_buffer);
 			break;

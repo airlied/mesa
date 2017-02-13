@@ -762,7 +762,8 @@ bool radv_cmd_buffer_uses_mec(struct radv_cmd_buffer *cmd_buffer);
 
 void si_init_compute(struct radv_cmd_buffer *cmd_buffer);
 void si_init_config(struct radv_cmd_buffer *cmd_buffer);
-
+void si_emit_config(struct radv_physical_device *physical_device,
+		    struct radeon_winsys_cs *cs);
 void cik_create_gfx_config(struct radv_device *device);
 
 void si_write_viewport(struct radeon_winsys_cs *cs, int first_vp,

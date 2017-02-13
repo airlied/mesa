@@ -1181,6 +1181,20 @@ fill_geom_rings(struct radv_queue *queue,
 		S_008F0C_ADD_TID_ENABLE(true);
 }
 
+static void emit_gfx_buffer_state(struct radv_device *device,
+				  struct radeon_winsys_cs *cs)
+{
+	if (device->gfx_init) {
+		uint64_t va = device->ws->buffer_get_va(device->gfx_init);
+		device->ws->cs_add_buffer(cs, device->gfx_init, 8);
+		radeon_emit(cs, PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0));
+		radeon_emit(cs, va);
+		radeon_emit(cs, (va >> 32) & 0xffff);
+		radeon_emit(cs, device->gfx_init_size_dw & 0xffff);
+	} else
+		si_emit_config(device->physical_device, cs);
+}
+
 static VkResult
 radv_get_preamble_cs(struct radv_queue *queue,
                      uint32_t scratch_size,
@@ -1196,15 +1210,18 @@ radv_get_preamble_cs(struct radv_queue *queue,
 	struct radeon_winsys_bo *gsvs_ring_bo = NULL;
 	struct radeon_winsys_cs *cs = NULL;
 
+#if 0
 	if (!scratch_size && !compute_scratch_size && !esgs_ring_size && !gsvs_ring_size) {
 		*preamble_cs = NULL;
 		return VK_SUCCESS;
 	}
+#endif
 
 	if (scratch_size <= queue->scratch_size &&
 	    compute_scratch_size <= queue->compute_scratch_size &&
 	    esgs_ring_size <= queue->esgs_ring_size &&
-	    gsvs_ring_size <= queue->gsvs_ring_size) {
+	    gsvs_ring_size <= queue->gsvs_ring_size &&
+	    queue->preamble_cs) {
 		*preamble_cs = queue->preamble_cs;
 		return VK_SUCCESS;
 	}
@@ -1282,7 +1299,9 @@ radv_get_preamble_cs(struct radv_queue *queue,
 	if (!cs)
 		goto fail;
 
-
+	if (queue->queue_family_index == 0)
+		emit_gfx_buffer_state(queue->device, cs);
+	
 	if (scratch_bo)
 		queue->device->ws->cs_add_buffer(cs, scratch_bo, 8);
 
