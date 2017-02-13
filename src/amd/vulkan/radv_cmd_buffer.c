@@ -2816,6 +2816,7 @@ void radv_CmdPipelineBarrier(
 	}
 	cmd_buffer->state.flush_bits |= flush_bits;
 
+	radv_stage_flush(cmd_buffer, srcStageMask);
 	for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
 		RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
 		radv_handle_image_transition(cmd_buffer, image,
@@ -2852,9 +2853,7 @@ void radv_CmdPipelineBarrier(
 		}
 	}
 
-	flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
-		RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
-
+	radv_stage_flush(cmd_buffer, destStageMask);
 	cmd_buffer->state.flush_bits |= flush_bits;
 }
 
