@@ -496,3 +496,6 @@ vtn_u64_literal(const uint32_t *w)
 {
    return (uint64_t)w[1] << 32 | w[0];
 }
+
+bool vtn_handle_amd_gcn_shader_instruction(struct vtn_builder *b, uint32_t ext_opcode,
+                                           const uint32_t *words, unsigned count);

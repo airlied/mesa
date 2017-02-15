@@ -128,6 +128,10 @@ static const VkExtensionProperties common_device_extensions[] = {
 		.extensionName = VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,
 		.specVersion = 1,
 	},
+	{
+		.extensionName = VK_AMD_GCN_SHADER_EXTENSION_NAME,
+		.specVersion = 1,
+	},
 };
 
 static VkResult
