@@ -132,6 +132,14 @@ static const VkExtensionProperties common_device_extensions[] = {
 		.extensionName = VK_AMD_GCN_SHADER_EXTENSION_NAME,
 		.specVersion = 1,
 	},
+	{
+		.extensionName = VK_AMD_SHADER_TRINARY_MINMAX_EXTENSION_NAME,
+		.specVersion = 1,
+	},
+	{
+		.extensionName = VK_AMD_SHADER_BALLOT_EXTENSION_NAME,
+		.specVersion = 1,
+	},
 };
 
 static VkResult
