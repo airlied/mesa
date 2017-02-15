@@ -256,6 +256,12 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
       struct vtn_value *val = vtn_push_value(b, w[1], vtn_value_type_extension);
       if (strcmp((const char *)&w[2], "GLSL.std.450") == 0) {
          val->ext_handler = vtn_handle_glsl450_instruction;
+      } else if (strcmp((const char *)&w[2], "SPV_AMD_gcn_shader") == 0) {
+         if (b->ext && b->ext->amd_gcn_shader) {
+            val->ext_handler = vtn_handle_amd_gcn_shader_instruction;
+            break;
+         }
+         assert(!"Unsupported extension");
       } else {
          assert(!"Unsupported extension");
       }
