@@ -96,6 +96,9 @@ radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws,
 	if (flags & RADEON_FLAG_GTT_WC)
 		request.flags |= AMDGPU_GEM_CREATE_CPU_GTT_USWC;
 
+	/* this won't do anything on pre 4.9 kernels */
+	if (initial_domain & RADEON_DOMAIN_VRAM)
+		request.flags |= (AMDGPU_GEM_CREATE_VRAM_CLEARED);
 	r = amdgpu_bo_alloc(ws->dev, &request, &buf_handle);
 	if (r) {
 		fprintf(stderr, "amdgpu: Failed to allocate a buffer:\n");
