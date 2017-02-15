@@ -4110,6 +4110,46 @@ visit_load_tess_coord(struct nir_to_llvm_context *ctx,
 				get_def_type(ctx->nir, &instr->dest.ssa), "");
 }
 
+static LLVMValueRef
+visit_cube_face_index(struct nir_to_llvm_context *ctx,
+		      nir_intrinsic_instr *instr)
+{
+	LLVMValueRef result;
+	LLVMValueRef in[3];
+	LLVMValueRef src0 = ac_to_float(&ctx->ac, get_src(ctx->nir, instr->src[0]));
+	for (unsigned chan = 0; chan < 3; chan++)
+		in[chan] = llvm_extract_elem(&ctx->ac, src0, chan);
+
+	result = ac_build_intrinsic(&ctx->ac,  "llvm.amdgcn.cubeid",
+				    ctx->f32, in, 3, AC_FUNC_ATTR_READNONE);
+	return result;
+}
+
+static LLVMValueRef
+visit_cube_face_coord(struct nir_to_llvm_context *ctx,
+		      nir_intrinsic_instr *instr)
+{
+	LLVMValueRef results[2];
+	LLVMValueRef in[3];
+	LLVMValueRef src0 = ac_to_float(&ctx->ac, get_src(ctx->nir, instr->src[0]));
+	for (unsigned chan = 0; chan < 3; chan++)
+		in[chan] = llvm_extract_elem(&ctx->ac, src0, chan);
+
+	results[0] = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.cubetc",
+					ctx->f32, in, 3, AC_FUNC_ATTR_READNONE);
+	results[1] = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.cubesc",
+					ctx->f32, in, 3, AC_FUNC_ATTR_READNONE);
+	return ac_build_gather_values(&ctx->ac, results, 2);
+}
+
+static LLVMValueRef
+visit_time(struct nir_to_llvm_context *ctx,
+		     nir_intrinsic_instr *instr)
+{
+	return ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.s.memrealtime",
+				  ctx->i64, NULL, 0, AC_FUNC_ATTR_READNONE);
+}
+
 static void visit_intrinsic(struct ac_nir_context *ctx,
                             nir_intrinsic_instr *instr)
 {
@@ -4410,6 +4450,15 @@ static void visit_intrinsic(struct ac_nir_context *ctx,
 		result = ac_build_mbcnt(&ctx->ac, get_src(ctx, instr->src[0]));
 		break;
 
+	case nir_intrinsic_cube_face_index:
+		result = visit_cube_face_index(ctx->nctx, instr);
+		break;
+	case nir_intrinsic_cube_face_coord:
+		result = visit_cube_face_coord(ctx->nctx, instr);
+		break;
+	case nir_intrinsic_time:
+		result = visit_time(ctx->nctx, instr);
+		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
 		nir_print_instr(&instr->instr, stderr);

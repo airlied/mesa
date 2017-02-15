@@ -84,6 +84,7 @@ EXTENSIONS = [
     Extension('VK_EXT_shader_subgroup_ballot',            1, True),
     Extension('VK_EXT_shader_subgroup_vote',              1, True),
     Extension('VK_AMD_shader_ballot',                     1, 'device->rad_info.chip_class >= VI && HAVE_LLVM >= 0x600'),
+    Extension('VK_AMD_gcn_shader',                       1, True),
 ]
 
 class VkVersion:

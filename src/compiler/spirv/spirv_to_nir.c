@@ -266,6 +266,12 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
             vtn_warn("Unsupported extension SPV_AMD_shader_ballot");
          }
          val->ext_handler = vtn_handle_amd_ballot_ext;
+      } else if (strcmp((const char *)&w[2], "SPV_AMD_gcn_shader") == 0) {
+         if (b->ext && b->ext->amd_gcn_shader) {
+            val->ext_handler = vtn_handle_amd_gcn_shader_instruction;
+            break;
+         }
+         vtn_warn(!"Unsupported extension");
       } else {
          unreachable("Unsupported extension");
       }

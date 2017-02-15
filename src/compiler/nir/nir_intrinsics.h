@@ -445,6 +445,11 @@ INTRINSIC(shared_atomic_xor, 2, ARR(1, 1), true, 1, 0, 1, BASE, xx, xx, 0)
 INTRINSIC(shared_atomic_exchange, 2, ARR(1, 1), true, 1, 0, 1, BASE, xx, xx, 0)
 INTRINSIC(shared_atomic_comp_swap, 3, ARR(1, 1, 1), true, 1, 0, 1, BASE, xx, xx, 0)
 
+/* AMD_gcn_shader intrinsics */
+INTRINSIC(cube_face_coord, 1, ARR(3), true, 2, 0, 0, xx, xx, xx, 0)
+INTRINSIC(cube_face_index, 1, ARR(3), true, 1, 0, 0, xx, xx, xx, 0)
+INTRINSIC(time, 0, ARR(0), true, 1, 0, 0, xx, xx, xx, 0)
+
 /* Used by nir_builder.h to generate loader helpers for the system values. */
 #ifndef DEFINE_SYSTEM_VALUE
 #define DEFINE_SYSTEM_VALUE(name)

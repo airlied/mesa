@@ -56,6 +56,7 @@ struct nir_spirv_supported_extensions {
    bool shader_group_vote;
    bool amd_shader_ballot;
    bool groups;
+   bool amd_gcn_shader;
 };
 
 nir_function *spirv_to_nir(const uint32_t *words, size_t word_count,
