@@ -930,6 +930,14 @@ typedef enum SpvOp_ {
     SpvOpModuleProcessed = 330,
     SpvOpSubgroupBallotKHR = 4421,
     SpvOpSubgroupFirstInvocationKHR = 4422,
+    SpvOpGroupIAddNonUniformAMD = 5000,
+    SpvOpGroupFAddNonUniformAMD = 5001,
+    SpvOpGroupFMinNonUniformAMD = 5002,
+    SpvOpGroupUMinNonUniformAMD = 5003,
+    SpvOpGroupSMinNonUniformAMD = 5004,
+    SpvOpGroupFMaxNonUniformAMD = 5005,
+    SpvOpGroupUMaxNonUniformAMD = 5006,
+    SpvOpGroupSMaxNonUniformAMD = 5007,
     SpvOpMax = 0x7fffffff,
 } SpvOp;
 

@@ -502,3 +502,5 @@ bool vtn_handle_amd_gcn_shader_instruction(struct vtn_builder *b, uint32_t ext_o
 
 bool vtn_handle_amd_shader_trinary_minmax_instruction(struct vtn_builder *b, uint32_t ext_opcode,
 						      const uint32_t *words, unsigned count);
+bool vtn_handle_arb_shader_ballot_instruction(struct vtn_builder *b, uint32_t ext_opcode,
+					      const uint32_t *w, unsigned count);

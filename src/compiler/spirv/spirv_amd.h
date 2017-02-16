@@ -41,4 +41,9 @@ enum AMDSPVTrinaryMinmax {
   SpvOpSMid3AMD,
 };
 
+enum ARBSPVShaderBallot {
+  BallotARB = 0,
+  ReadInvocationARB = 1,
+  ReadFirstInvocationARB = 2,
+};
 #endif

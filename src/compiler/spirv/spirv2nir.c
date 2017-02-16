@@ -72,8 +72,15 @@ int main(int argc, char **argv)
       return 1;
    }
 
+   struct nir_spirv_supported_extensions ext = {
+     .int64 = true,
+     .amd_gcn_shader = true,
+     .amd_shader_trinary_minmax = true,
+     .arb_shader_ballot = true,
+   };
+
    nir_function *func = spirv_to_nir(map, word_count, NULL, 0,
-                                     MESA_SHADER_FRAGMENT, "main", NULL, NULL);
+                                     MESA_SHADER_FRAGMENT, "main", &ext, NULL);
    nir_print_shader(func->shader, stderr);
 
    return 0;

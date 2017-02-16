@@ -270,6 +270,12 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
             break;
          }
          assert(!"Unsupported extension");
+      } else if (strcmp((const char *)&w[2], "SPV_ARB_shader_ballot") == 0) {
+         if (b->ext && b->ext->arb_shader_ballot) {
+	    val->ext_handler = vtn_handle_arb_shader_ballot_instruction;
+            break;
+         }
+         assert(!"Unsupported extension");
       } else {
          assert(!"Unsupported extension");
       }
@@ -2558,6 +2564,32 @@ vtn_handle_barrier(struct vtn_builder *b, SpvOp opcode,
    nir_builder_instr_insert(&b->nb, &intrin->instr);
 }
 
+static void
+vtn_handle_group(struct vtn_builder *b, SpvOp opcode,
+		 const uint32_t *w, unsigned count)
+{
+   nir_intrinsic_op intrinsic_op;
+   const struct glsl_type *dest_type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+   struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+   val->ssa = vtn_create_ssa_value(b, dest_type);
+   switch (opcode) {
+   case SpvOpGroupAll:
+      intrinsic_op = nir_intrinsic_group_all;
+      break;
+   default:
+      unreachable("unhandled group instr");
+   }
+   nir_intrinsic_instr *intrin =
+      nir_intrinsic_instr_create(b->shader, intrinsic_op);
+
+   nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(dest_type),
+		     glsl_get_bit_size(dest_type), NULL);
+   val->ssa->def = &intrin->dest.ssa;
+   nir_builder_instr_insert(&b->nb, &intrin->instr);
+}
+
+	 
 static unsigned
 gl_primitive_from_spv_execution_mode(SpvExecutionMode mode)
 {
@@ -2701,13 +2733,14 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
          spv_check_supported(int64, cap);
          break;
 
+      case SpvCapabilityGroups:
+	break;
       case SpvCapabilityAddresses:
       case SpvCapabilityKernel:
       case SpvCapabilityImageBasic:
       case SpvCapabilityImageReadWrite:
       case SpvCapabilityImageMipmap:
       case SpvCapabilityPipes:
-      case SpvCapabilityGroups:
       case SpvCapabilityDeviceEnqueue:
       case SpvCapabilityLiteralSampler:
       case SpvCapabilityGenericPointer:
@@ -3240,7 +3273,11 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
       vtn_handle_barrier(b, opcode, w, count);
       break;
 
+   case SpvOpGroupAll:
+      vtn_handle_group(b, opcode, w, count);
+      break;
    default:
+     fprintf(stderr, "unhandled opcode: %d\n", opcode);
       unreachable("Unhandled opcode");
    }
 

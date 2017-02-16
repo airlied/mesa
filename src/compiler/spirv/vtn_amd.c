@@ -108,3 +108,36 @@ vtn_handle_amd_shader_trinary_minmax_instruction(struct vtn_builder *b, uint32_t
 
    return true;
 }
+
+bool
+vtn_handle_arb_shader_ballot_instruction(struct vtn_builder *b, uint32_t ext_opcode,
+					 const uint32_t *w, unsigned count)
+{
+   struct nir_builder *nb = &b->nb;
+   nir_intrinsic_op op;
+   const struct glsl_type *dest_type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+   struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+   val->ssa = vtn_create_ssa_value(b, dest_type);
+   fprintf(stderr, "got ballot opcode %d\n", ext_opcode);
+
+   switch ((enum ARBSPVShaderBallot)ext_opcode) {
+   case BallotARB:
+      op = nir_intrinsic_ballot;
+      break;
+   case ReadInvocationARB:
+      op = nir_intrinsic_read_invocation;
+      break;
+   case ReadFirstInvocationARB:
+      op = nir_intrinsic_read_first_invocation;
+      break;
+   };
+
+   nir_intrinsic_instr *intrin = nir_intrinsic_instr_create(b->nb.shader, op);
+
+   nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(dest_type),
+		     glsl_get_bit_size(dest_type), NULL);
+   val->ssa->def = &intrin->dest.ssa;
+   nir_builder_instr_insert(&b->nb, &intrin->instr);
+   return true;
+}
