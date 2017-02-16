@@ -160,6 +160,8 @@ radv_optimize_nir(struct nir_shader *shader)
         } while (progress);
 }
 
+#include <unistd.h>
+#include <fcntl.h>
 static nir_shader *
 radv_shader_compile_to_nir(struct radv_device *device,
 			   struct radv_shader_module *module,
@@ -189,6 +191,15 @@ radv_shader_compile_to_nir(struct radv_device *device,
 		uint32_t *spirv = (uint32_t *) module->data;
 		assert(module->size % 4 == 0);
 
+		static int shader_id;
+		char name[64];
+
+		snprintf(name, 64, "/tmp/shader%d", shader_id++);
+		int fd = open(name, O_RDWR|O_CREAT, 0666);
+		if (fd != -1){
+			write(fd, module->data, module->size);
+			close(fd);
+		}
 		uint32_t num_spec_entries = 0;
 		struct nir_spirv_specialization *spec_entries = NULL;
 		if (spec_info && spec_info->mapEntryCount > 0) {
