@@ -154,6 +154,7 @@ static LLVMAttribute ac_attr_to_llvm_attr(enum ac_func_attr attr)
    case AC_FUNC_ATTR_NOUNWIND: return LLVMNoUnwindAttribute;
    case AC_FUNC_ATTR_READNONE: return LLVMReadNoneAttribute;
    case AC_FUNC_ATTR_READONLY: return LLVMReadOnlyAttribute;
+   case AC_FUNC_ATTR_CONVERGENT: return LLVMConvergentAttribute;
    default:
 	   fprintf(stderr, "Unhandled function attribute: %x\n", attr);
 	   return 0;
@@ -172,6 +173,7 @@ static const char *attr_to_str(enum ac_func_attr attr)
    case AC_FUNC_ATTR_NOUNWIND: return "nounwind";
    case AC_FUNC_ATTR_READNONE: return "readnone";
    case AC_FUNC_ATTR_READONLY: return "readonly";
+   case AC_FUNC_ATTR_CONVERGENT: return "convergent";
    default:
 	   fprintf(stderr, "Unhandled function attribute: %x\n", attr);
 	   return 0;
