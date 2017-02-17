@@ -2589,6 +2589,33 @@ vtn_handle_group(struct vtn_builder *b, SpvOp opcode,
    nir_builder_instr_insert(&b->nb, &intrin->instr);
 }
 
+static void
+vtn_handle_group_amd(struct vtn_builder *b, SpvOp opcode,
+		 const uint32_t *w, unsigned count)
+{
+   nir_intrinsic_op intrinsic_op;
+   const struct glsl_type *dest_type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+   struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+   val->ssa = vtn_create_ssa_value(b, dest_type);
+   switch (opcode) {
+   case SpvOpGroupUMinNonUniformAMD:
+      intrinsic_op = nir_intrinsic_group_umin_nonuniform_amd;
+      break;
+   default:
+      unreachable("unhandled group instr");
+   }
+
+   nir_intrinsic_instr *intrin =
+      nir_intrinsic_instr_create(b->shader, intrinsic_op);
+
+   intrin->src[0] = nir_src_for_ssa(vtn_ssa_value(b, w[5])->def);
+   nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(dest_type),
+		     glsl_get_bit_size(dest_type), NULL);
+   val->ssa->def = &intrin->dest.ssa;
+   nir_builder_instr_insert(&b->nb, &intrin->instr);
+}
+
 	 
 static unsigned
 gl_primitive_from_spv_execution_mode(SpvExecutionMode mode)
@@ -3275,6 +3302,9 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
 
    case SpvOpGroupAll:
       vtn_handle_group(b, opcode, w, count);
+      break;
+   case SpvOpGroupUMinNonUniformAMD:
+      vtn_handle_group_amd(b, opcode, w, count);
       break;
    default:
      fprintf(stderr, "unhandled opcode: %d\n", opcode);

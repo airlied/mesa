@@ -304,6 +304,7 @@ INTRINSIC(read_first_invocation, 0, ARR(0), true, 1, 0, 0, xx, xx, xx, 0)
 
 INTRINSIC(group_all, 0, ARR(0), true, 1, 0, 0, xx, xx, xx, 0)
 
+INTRINSIC(group_umin_nonuniform_amd, 1, ARR(1), true, 1, 0, 0, xx, xx, xx, 0)
 /* Used by nir_builder.h to generate loader helpers for the system values. */
 #ifndef DEFINE_SYSTEM_VALUE
 #define DEFINE_SYSTEM_VALUE(name)
