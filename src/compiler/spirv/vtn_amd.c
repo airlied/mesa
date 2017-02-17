@@ -73,7 +73,7 @@ vtn_handle_amd_shader_trinary_minmax_instruction(struct vtn_builder *b, uint32_t
    unsigned num_inputs = count - 5;
    assert(num_inputs == 3);
    nir_ssa_def *src[3] = { NULL, };
-      for (unsigned i = 0; i < num_inputs; i++)
+   for (unsigned i = 0; i < num_inputs; i++)
       src[i] = vtn_ssa_value(b, w[i + 5])->def;
       
    switch ((enum AMDSPVTrinaryMinmax)ext_opcode) {
@@ -120,21 +120,26 @@ vtn_handle_arb_shader_ballot_instruction(struct vtn_builder *b, uint32_t ext_opc
    struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
    val->ssa = vtn_create_ssa_value(b, dest_type);
    fprintf(stderr, "got ballot opcode %d\n", ext_opcode);
-
+   int num_srcs, i;
    switch ((enum ARBSPVShaderBallot)ext_opcode) {
    case BallotARB:
       op = nir_intrinsic_ballot;
+      num_srcs = 1;
       break;
    case ReadInvocationARB:
       op = nir_intrinsic_read_invocation;
+      num_srcs = 2;
       break;
    case ReadFirstInvocationARB:
       op = nir_intrinsic_read_first_invocation;
+      num_srcs = 1;
       break;
    };
 
    nir_intrinsic_instr *intrin = nir_intrinsic_instr_create(b->nb.shader, op);
 
+   for (i = 0; i < num_srcs; i++)
+	   intrin->src[i] = nir_src_for_ssa(vtn_ssa_value(b, w[5 + i])->def);
    nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(dest_type),
 		     glsl_get_bit_size(dest_type), NULL);
    val->ssa->def = &intrin->dest.ssa;

@@ -2582,7 +2582,8 @@ vtn_handle_group(struct vtn_builder *b, SpvOp opcode,
    }
    nir_intrinsic_instr *intrin =
       nir_intrinsic_instr_create(b->shader, intrinsic_op);
-
+   intrin->src[0] = nir_src_for_ssa(vtn_ssa_value(b, w[4])->def);
+   
    nir_ssa_dest_init(&intrin->instr, &intrin->dest, glsl_get_vector_elements(dest_type),
 		     glsl_get_bit_size(dest_type), NULL);
    val->ssa->def = &intrin->dest.ssa;

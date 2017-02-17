@@ -1420,6 +1420,18 @@ static void visit_alu(struct nir_to_llvm_context *ctx, nir_alu_instr *instr)
 		result = emit_intrin_2f_param(ctx, "llvm.minnum",
 		                              to_float_type(ctx, def_type), src[0], src[1]);
 		break;
+	case nir_op_fmin3:
+		result = emit_intrin_2f_param(ctx, "llvm.minnum",
+		                              to_float_type(ctx, def_type), src[0], src[1]);
+		result = emit_intrin_2f_param(ctx, "llvm.minnum",
+					      to_float_type(ctx, def_type), result, src[2]);
+		break;
+	case nir_op_fmax3:
+		result = emit_intrin_2f_param(ctx, "llvm.maxnum",
+		                              to_float_type(ctx, def_type), src[0], src[1]);
+		result = emit_intrin_2f_param(ctx, "llvm.maxnum",
+		                              to_float_type(ctx, def_type), result, src[2]);
+		break;
 	case nir_op_ffma:
 		result = emit_intrin_3f_param(ctx, "llvm.fma",
 		                              to_float_type(ctx, def_type), src[0], src[1], src[2]);
@@ -3067,11 +3079,72 @@ visit_cube_face_coord(struct nir_to_llvm_context *ctx,
 
 static LLVMValueRef
 visit_time(struct nir_to_llvm_context *ctx,
-		     nir_intrinsic_instr *instr)
+	   nir_intrinsic_instr *instr)
 {
 	return ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.s.memrealtime",
 				      ctx->i64, NULL, 0, AC_FUNC_ATTR_READNONE);
 }
+
+static LLVMValueRef
+visit_group_all(struct nir_to_llvm_context *ctx,
+		nir_intrinsic_instr *instr)
+{
+	LLVMValueRef args[3];
+	LLVMValueRef result, exec_mask;
+	args[0] = get_src(ctx, instr->src[0]);
+	args[1] = ctx->i32zero;
+	args[2] = LLVMConstInt(ctx->i32, 33, false);
+
+	result = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.icmp.i64",
+					ctx->i64, args, 3, 0);
+
+	args[0] = ctx->i32zero;
+	exec_mask = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.read_register.i64",
+					   ctx->i64, args, 1, AC_FUNC_ATTR_CONVERGENT);
+
+	result = emit_int_cmp(ctx, LLVMIntEQ, result, exec_mask);
+	return result;
+}
+
+static LLVMValueRef
+visit_group_umin_nonuniform_amd(struct nir_to_llvm_context *ctx,
+				nir_intrinsic_instr *instr)
+{
+	return get_src(ctx, instr->src[0]);
+}
+
+// TODO ballot 
+static LLVMValueRef
+visit_ballot(struct nir_to_llvm_context *ctx,
+	     nir_intrinsic_instr *instr)
+{
+	LLVMValueRef args[2];
+	LLVMValueRef exec_mask, result;
+
+	args[0] = ctx->i32zero;
+	exec_mask = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.read_register.i64",
+					   ctx->i64, args, 1, AC_FUNC_ATTR_CONVERGENT);
+
+	args[0] = LLVMBuildSExt(ctx->builder, get_src(ctx, instr->src[0]), ctx->i64, "");
+	result = LLVMBuildAnd(ctx->builder, args[0], exec_mask, "");
+
+	return result;
+}
+
+static LLVMValueRef
+visit_read_first_invocation(struct nir_to_llvm_context *ctx,
+			    nir_intrinsic_instr *instr)
+{
+	LLVMValueRef result;
+	LLVMValueRef arg;
+
+	arg = get_src(ctx, instr->src[0]);
+	
+	result = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.readfirstlane",
+					ctx->i32, &arg, 1, 0);
+	return result;
+}
+       
 
 static void visit_intrinsic(struct nir_to_llvm_context *ctx,
                             nir_intrinsic_instr *instr)
@@ -3233,6 +3306,18 @@ static void visit_intrinsic(struct nir_to_llvm_context *ctx,
 		break;
 	case nir_intrinsic_time:
 		result = visit_time(ctx, instr);
+		break;
+	case nir_intrinsic_group_all:
+		result = visit_group_all(ctx, instr);
+		break;
+	case nir_intrinsic_ballot:
+		result = visit_ballot(ctx, instr);
+		break;
+	case nir_intrinsic_read_first_invocation:
+		result = visit_read_first_invocation(ctx, instr);
+		break;
+	case nir_intrinsic_group_umin_nonuniform_amd:
+		result = visit_group_umin_nonuniform_amd(ctx, instr);
 		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
