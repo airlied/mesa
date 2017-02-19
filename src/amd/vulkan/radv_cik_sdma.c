@@ -97,23 +97,26 @@ static void
 get_buffer_info(struct radv_cmd_buffer *cmd_buffer,
 		const struct radv_buffer *buffer,
 		const VkBufferImageCopy *region,
-		uint32_t bpp,
+		uint32_t block_width, uint32_t block_height,
 		uint64_t *va_p, uint32_t *pitch, uint32_t *slice_pitch)
 {
 	uint64_t va = radv_buffer_get_va(buffer->bo);
+	uint32_t rowLength = region->bufferRowLength;
+	uint32_t imageHeight = region->bufferImageHeight;
 
 	va += buffer->offset;
 	va += region->bufferOffset;
 
 	*va_p = va;
-	if (region->bufferRowLength)
-		*pitch = region->bufferRowLength / bpp;
-	else
-		*pitch = region->imageExtent.width;
-	if (region->bufferImageHeight)
-		*slice_pitch = *pitch * region->bufferImageHeight;
-	else
-		*slice_pitch = *pitch * region->imageExtent.height;
+
+	if (rowLength == 0)
+		rowLength = region->imageExtent.width;
+
+	if (imageHeight == 0)
+		imageHeight = region->imageExtent.height;
+
+	*pitch = rowLength / block_width;
+	*slice_pitch = *pitch * imageHeight / block_height;
 }
 
 static void
@@ -187,8 +190,8 @@ radv_cik_dma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 	get_image_info(cmd_buffer, image, &region->imageSubresource, &img_va,
 		       &bpp, &pitch, &slice_pitch);
-	get_buffer_info(cmd_buffer, buffer, region, bpp, &buf_va,
-			&linear_pitch, &linear_slice_pitch);
+	get_buffer_info(cmd_buffer, buffer, region, image->surface.blk_w, image->surface.blk_h,
+	                &buf_va, &linear_pitch, &linear_slice_pitch);
 
 	get_bufimage_depth_info(image->type, region, &zoffset, &depth);
 
@@ -228,22 +231,23 @@ radv_cik_dma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t buf_va, img_va;
 	unsigned depth;
 	unsigned zoffset;
-	unsigned pitch, slice_pitch, bpp;
+	unsigned pitch, slice_pitch;
 
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 14);
 	get_image_info(cmd_buffer, image, &region->imageSubresource, &img_va,
-		       &bpp, &pitch, &slice_pitch);
+		       NULL, &pitch, &slice_pitch);
 
 	unsigned pitch_tile_max = pitch / 8 - 1;
 	unsigned slice_tile_max = slice_pitch / 64 - 1;
 
 	unsigned copy_width = DIV_ROUND_UP(region->imageExtent.width, image->surface.blk_w);
+	unsigned copy_height = DIV_ROUND_UP(region->imageExtent.height, image->surface.blk_h);
 	unsigned copy_width_aligned = copy_width;
 	unsigned linear_pitch;
 	unsigned linear_slice_pitch;
 
-	get_buffer_info(cmd_buffer, buffer, region, bpp, &buf_va,
-			&linear_pitch, &linear_slice_pitch);
+	get_buffer_info(cmd_buffer, buffer, region, image->surface.blk_w, image->surface.blk_h,
+	                &buf_va, &linear_pitch, &linear_slice_pitch);
 
 	get_bufimage_depth_info(image->type, region, &zoffset, &depth);
 
@@ -262,10 +266,10 @@ radv_cik_dma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, ((linear_pitch - 1) << 16));
 	radeon_emit(cmd_buffer->cs, linear_slice_pitch - 1);
 	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
-		radeon_emit(cmd_buffer->cs, copy_width_aligned | (region->imageExtent.height << 16));
+		radeon_emit(cmd_buffer->cs, copy_width_aligned | (copy_height << 16));
 		radeon_emit(cmd_buffer->cs, depth);
 	} else {
-		radeon_emit(cmd_buffer->cs, (copy_width_aligned -1) | ((region->imageExtent.height - 1) << 16));
+		radeon_emit(cmd_buffer->cs, (copy_width_aligned - 1) | ((copy_height - 1) << 16));
 		radeon_emit(cmd_buffer->cs, (depth - 1));
 	}
 }
@@ -511,7 +515,6 @@ radv_cik_dma_copy_one_image_tiled_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	unsigned src_pitch, src_slice_pitch, src_zoffset;
 	unsigned dst_pitch, dst_slice_pitch, dst_zoffset;
 	unsigned depth;
-	unsigned bpp;
 	unsigned dst_width = minify_as_blocks(dst_image->info.width,
 					      region->dstSubresource.mipLevel, dst_image->surface.blk_w);
 	unsigned src_width = minify_as_blocks(src_image->info.width,
@@ -523,7 +526,7 @@ radv_cik_dma_copy_one_image_tiled_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 15);
 	get_image_info(cmd_buffer, src_image, &region->srcSubresource, &src_va,
-		       &bpp, &src_pitch, &src_slice_pitch);
+		       NULL, &src_pitch, &src_slice_pitch);
 	get_image_info(cmd_buffer, dst_image, &region->dstSubresource, &dst_va,
 		       NULL, &dst_pitch, &dst_slice_pitch);
 
