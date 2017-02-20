@@ -3121,9 +3121,7 @@ visit_ballot(struct nir_to_llvm_context *ctx,
 	LLVMValueRef args[2];
 	LLVMValueRef exec_mask, result;
 
-	args[0] = ctx->i32zero;
-	exec_mask = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.read_register.i64",
-					   ctx->i64, args, 1, AC_FUNC_ATTR_CONVERGENT);
+	exec_mask = ac_emit_read_execmask64(&ctx->ac);
 
 	args[0] = LLVMBuildSExt(ctx->builder, get_src(ctx, instr->src[0]), ctx->i64, "");
 	result = LLVMBuildAnd(ctx->builder, args[0], exec_mask, "");
