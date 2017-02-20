@@ -3098,19 +3098,58 @@ visit_group_all(struct nir_to_llvm_context *ctx,
 	result = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.icmp.i64",
 					ctx->i64, args, 3, 0);
 
-	args[0] = ctx->i32zero;
-	exec_mask = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.read_register.i64",
-					   ctx->i64, args, 1, AC_FUNC_ATTR_CONVERGENT);
+	exec_mask = ac_emit_read_execmask64(&ctx->ac);
 
 	result = emit_int_cmp(ctx, LLVMIntEQ, result, exec_mask);
 	return result;
 }
 
+/*
+value = initial value
+next = next active thread id or 64 if none
+for (int i =0 ; i < 6; ++i) { // unroll
+   v2 = bpermute(value, next & 63) // not sure what out of bounds behavior is
+   v2 = op(v2, value)
+   if (next < 64)
+      value = v2
+   next = bpermute(next, next) // get the next of the next thread. bounds? unnecessary in last iter
+}
+result = readfirstlane(value)
+*/
 static LLVMValueRef
 visit_group_umin_nonuniform_amd(struct nir_to_llvm_context *ctx,
 				nir_intrinsic_instr *instr)
 {
-	return get_src(ctx, instr->src[0]);
+	LLVMValueRef value = get_src(ctx, instr->src[0]);
+	LLVMValueRef next, result;
+	unsigned i;
+	LLVMValueRef v2;
+	LLVMValueRef args[2];
+
+	next = ctx->i32one;
+	for (i = 0; i < 6; i++) {
+		args[0] = value;
+		args[1] = LLVMBuildAnd(ctx->builder, next, LLVMConstInt(ctx->i32, 63, false), "");
+		v2 = ac_emit_llvm_intrinsic(&ctx->ac,
+					    "llvm.amdgcn.ds.bpermute", ctx->i32,
+					    args, 2, AC_FUNC_ATTR_READNONE);
+
+		v2 = emit_minmax_int(ctx, LLVMIntULT, v2, value);
+
+		args[0] = next;
+		args[1] = next;
+
+		LLVMValueRef sel = LLVMBuildICmp(ctx->builder, LLVMIntULT,
+						 next, LLVMConstInt(ctx->i32, 64, false), "");
+		value = LLVMBuildSelect(ctx->builder, sel, v2, value, "");
+		next = ac_emit_llvm_intrinsic(&ctx->ac,
+					      "llvm.amdgcn.ds.bpermute", ctx->i32,
+					      args, 2, AC_FUNC_ATTR_READNONE);
+	}
+	result = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.readfirstlane",
+					ctx->i32, &value, 1, 0);
+		
+	return result;
 }
 
 // TODO ballot 
