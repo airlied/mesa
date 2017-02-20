@@ -3051,9 +3051,9 @@ visit_cube_face_index(struct nir_to_llvm_context *ctx,
 {
 	LLVMValueRef result;
 	LLVMValueRef in[3];
-
+	LLVMValueRef src0 = to_float(ctx, get_src(ctx, instr->src[0]));
 	for (unsigned chan = 0; chan < 3; chan++)
-		in[chan] = llvm_extract_elem(ctx, get_src(ctx, instr->src[0]), chan);
+		in[chan] = llvm_extract_elem(ctx, src0, chan);
 
 	result = ac_emit_llvm_intrinsic(&ctx->ac,  "llvm.amdgcn.cubeid",
 					ctx->f32, in, 3, AC_FUNC_ATTR_READNONE);
@@ -3066,9 +3066,9 @@ visit_cube_face_coord(struct nir_to_llvm_context *ctx,
 {
 	LLVMValueRef results[2];
 	LLVMValueRef in[3];
-
+	LLVMValueRef src0 = to_float(ctx, get_src(ctx, instr->src[0]));
 	for (unsigned chan = 0; chan < 3; chan++)
-		in[chan] = llvm_extract_elem(ctx, get_src(ctx, instr->src[0]), chan);
+		in[chan] = llvm_extract_elem(ctx, src0, chan);
 	
 	results[0] = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.amdgcn.cubetc",
 					    ctx->f32, in, 3, AC_FUNC_ATTR_READNONE);
