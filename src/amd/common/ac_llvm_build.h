@@ -41,6 +41,7 @@ struct ac_llvm_context {
 	LLVMTypeRef i1;
 	LLVMTypeRef i8;
 	LLVMTypeRef i32;
+	LLVMTypeRef i64;
 	LLVMTypeRef f32;
 	LLVMTypeRef v4i32;
 	LLVMTypeRef v4f32;
@@ -52,6 +53,8 @@ struct ac_llvm_context {
 	unsigned fpmath_md_kind;
 	LLVMValueRef fpmath_md_2p5_ulp;
 	LLVMValueRef empty_md;
+	LLVMValueRef exec_reg_str_md;
+	LLVMValueRef exec_reg_md;
 };
 
 void
@@ -189,6 +192,8 @@ LLVMValueRef ac_emit_imsb(struct ac_llvm_context *ctx,
 LLVMValueRef ac_emit_umsb(struct ac_llvm_context *ctx,
 			  LLVMValueRef arg,
 			  LLVMTypeRef dst_type);
+
+LLVMValueRef ac_emit_read_execmask64(struct ac_llvm_context *ctx);
 
 #ifdef __cplusplus
 }

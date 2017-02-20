@@ -55,6 +55,7 @@ ac_llvm_context_init(struct ac_llvm_context *ctx, LLVMContextRef context)
 	ctx->i1 = LLVMInt1TypeInContext(ctx->context);
 	ctx->i8 = LLVMInt8TypeInContext(ctx->context);
 	ctx->i32 = LLVMIntTypeInContext(ctx->context, 32);
+	ctx->i64 = LLVMIntTypeInContext(ctx->context, 64);
 	ctx->f32 = LLVMFloatTypeInContext(ctx->context);
 	ctx->v4i32 = LLVMVectorType(ctx->i32, 4);
 	ctx->v4f32 = LLVMVectorType(ctx->f32, 4);
@@ -75,6 +76,10 @@ ac_llvm_context_init(struct ac_llvm_context *ctx, LLVMContextRef context)
 							"amdgpu.uniform", 14);
 
 	ctx->empty_md = LLVMMDNodeInContext(ctx->context, NULL, 0);
+
+	ctx->exec_reg_str_md = LLVMMDStringInContext(ctx->context, "exec", 4);
+	args[0] = ctx->exec_reg_str_md;
+	ctx->exec_reg_md = LLVMMDNodeInContext(ctx->context, args, 1);
 }
 
 LLVMValueRef
@@ -812,4 +817,16 @@ ac_emit_umsb(struct ac_llvm_context *ctx,
 			       LLVMBuildICmp(ctx->builder, LLVMIntEQ, arg,
 					     LLVMConstInt(ctx->i32, 0, 0), ""),
 			       LLVMConstInt(ctx->i32, -1, true), msb, "");
+}
+
+LLVMValueRef
+ac_emit_read_execmask64(struct ac_llvm_context *ctx)
+{
+	LLVMValueRef result;
+
+	LLVMValueRef arg = ctx->exec_reg_md;
+	result = ac_emit_llvm_intrinsic(ctx, "llvm.read_register.i64",
+					ctx->i64, &arg, 1, AC_FUNC_ATTR_CONVERGENT);
+
+	return result;
 }
