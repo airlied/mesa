@@ -48,6 +48,7 @@ LLVMTargetMachineRef ac_create_target_machine(enum radeon_family family, bool su
 
 void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes);
 bool ac_is_sgpr_param(LLVMValueRef param);
+void ac_metadata_point_op0_to_itself(LLVMValueRef v);
 
 void
 ac_add_function_attr(LLVMValueRef function,

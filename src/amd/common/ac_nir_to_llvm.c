@@ -3950,6 +3950,23 @@ static void visit_if(struct nir_to_llvm_context *ctx, nir_if *if_stmt)
 	LLVMPositionBuilderAtEnd(ctx->builder, merge_block);
 }
 
+static void set_unroll_metadata(struct nir_to_llvm_context *ctx,
+			       LLVMValueRef br)
+{
+	unsigned kind = LLVMGetMDKindIDInContext(ctx->context, "llvm.loop", 9);
+	LLVMValueRef md_unroll;
+	LLVMValueRef part_arg = LLVMMDStringInContext(ctx->context, "llvm.loop.unroll.count", 22);
+	LLVMValueRef count_arg = LLVMConstInt(ctx->i32, 32, false);
+	LLVMValueRef args[2] = {part_arg, count_arg};
+	LLVMValueRef count = LLVMMDNodeInContext(ctx->context, args, 2);
+
+	LLVMValueRef md_args[] = {NULL, count};
+	md_unroll = LLVMMDNodeInContext(ctx->context, md_args, 2);
+	ac_metadata_point_op0_to_itself(md_unroll);
+
+	LLVMSetMetadata(br, kind, md_unroll);
+}
+
 static void visit_loop(struct nir_to_llvm_context *ctx, nir_loop *loop)
 {
 	LLVMBasicBlockRef continue_parent = ctx->continue_block;
@@ -3964,8 +3981,10 @@ static void visit_loop(struct nir_to_llvm_context *ctx, nir_loop *loop)
 	LLVMPositionBuilderAtEnd(ctx->builder, ctx->continue_block);
 	visit_cf_list(ctx, &loop->body);
 
-	if (LLVMGetInsertBlock(ctx->builder))
-		LLVMBuildBr(ctx->builder, ctx->continue_block);
+	if (LLVMGetInsertBlock(ctx->builder)) {
+		LLVMValueRef loop = LLVMBuildBr(ctx->builder, ctx->continue_block);
+		set_unroll_metadata(ctx, loop);
+	}
 	LLVMPositionBuilderAtEnd(ctx->builder, ctx->break_block);
 
 	ctx->continue_block = continue_parent;
@@ -4827,10 +4846,13 @@ static void ac_llvm_finalize_module(struct nir_to_llvm_context * ctx)
 
 	/* Add some optimization passes */
 	LLVMAddScalarReplAggregatesPass(passmgr);
+	LLVMAddLoopRotatePass(passmgr);
 	LLVMAddLICMPass(passmgr);
 	LLVMAddAggressiveDCEPass(passmgr);
 	LLVMAddCFGSimplificationPass(passmgr);
 	LLVMAddInstructionCombiningPass(passmgr);
+	LLVMAddIndVarSimplifyPass(passmgr);
+	LLVMAddLoopUnrollPass(passmgr);
 
 	/* Run the pass */
 	LLVMInitializeFunctionPassManager(passmgr);

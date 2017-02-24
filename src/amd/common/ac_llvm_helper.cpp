@@ -36,7 +36,9 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/Attributes.h>
+#include <llvm/IR/LLVMContext.h>
 
+using namespace llvm;
 void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes)
 {
    llvm::Argument *A = llvm::unwrap<llvm::Argument>(val);
@@ -52,4 +54,24 @@ bool ac_is_sgpr_param(LLVMValueRef arg)
 	unsigned ArgNo = A->getArgNo();
 	return AS.hasAttribute(ArgNo + 1, llvm::Attribute::ByVal) ||
 	       AS.hasAttribute(ArgNo + 1, llvm::Attribute::InReg);
+}
+
+// MetadataAsValue uses a canonical format which strips the actual MDNode for
+// MDNode with just a single constant value, storing just a ConstantAsMetadata
+// This undoes this canonicalization, reconstructing the MDNode.
+static MDNode *extractMDNode(MetadataAsValue *MAV) {
+	Metadata *MD = MAV->getMetadata();
+	assert((isa<MDNode>(MD) || isa<ConstantAsMetadata>(MD)) &&
+	       "Expected a metadata node or a canonicalized constant");
+
+	if (MDNode *N = dyn_cast<MDNode>(MD))
+		return N;
+	assert(0);
+	return MDNode::get(MAV->getContext(), MD);
+}
+
+void ac_metadata_point_op0_to_itself(LLVMValueRef v)
+{
+	MDNode *node = extractMDNode(unwrap<MetadataAsValue>(v));
+	node->replaceOperandWith(0, node);
 }
