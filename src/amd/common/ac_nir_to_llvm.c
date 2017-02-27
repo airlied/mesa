@@ -1645,8 +1645,11 @@ static LLVMValueRef radv_lower_gather4_integer(struct nir_to_llvm_context *ctx,
 					       const char *intr_name,
 					       unsigned coord_vgpr_index)
 {
+	enum glsl_base_type stype = glsl_get_sampler_result_type(instr->texture->var->type);
 	LLVMValueRef coord = tinfo->args[0];
 	LLVMValueRef half_texel[2];
+	LLVMValueRef compare_cube_wa;
+	LLVMValueRef result;
 	int c;
 
 	//TODO Rect
@@ -1679,6 +1682,8 @@ static LLVMValueRef radv_lower_gather4_integer(struct nir_to_llvm_context *ctx,
 		}
 	}
 
+	LLVMValueRef orig_coords = tinfo->args[0];
+
 	for (c = 0; c < 2; c++) {
 		LLVMValueRef tmp;
 		LLVMValueRef index = LLVMConstInt(ctx->i32, coord_vgpr_index + c, 0);
@@ -1689,9 +1694,76 @@ static LLVMValueRef radv_lower_gather4_integer(struct nir_to_llvm_context *ctx,
 		coord = LLVMBuildInsertElement(ctx->builder, coord, tmp, index, "");
 	}
 
+	/*
+	 * Apparantly cube has issue with integer types that the workaround doesn't solve,
+	 * so this tests if the format is 8_8_8_8 and an integer type do an alternate
+	 * workaround by sampling using a scaled type and converting.
+	 * This is taken from amdgpu-pro shaders.
+	 */
+	/* NOTE this produces some ugly code compared to amdgpu-pro,
+	 * LLVM ends up dumping SGPRs into VGPRs to deal with the compare/select,
+	 * and then reads them back. -pro generates two selects,
+	 * one s_cmp for the descriptor rewriting
+	 * one v_cmp for the coordinate and result changes.
+	 */
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
+		LLVMValueRef tmp, tmp2;
+
+		/* workaround 8/8/8/8 uint/sint cube gather bug */
+		/* first detect it then change to a scaled read and f2i */
+		tmp = LLVMBuildExtractElement(ctx->builder, tinfo->args[1], ctx->i32one, "");
+		tmp2 = tmp;
+
+		/* extract the DATA_FORMAT */
+		LLVMValueRef bfeargs[3];
+		bfeargs[0] = tmp;
+		bfeargs[1] = LLVMConstInt(ctx->i32, 20, false);
+		bfeargs[2] = LLVMConstInt(ctx->i32, 6, false);
+		tmp = ac_emit_llvm_intrinsic(&ctx->ac, "llvm.AMDGPU.bfe.u32", ctx->i32, bfeargs, 3, AC_FUNC_ATTR_READNONE);
+
+		/* is the DATA_FORMAT == 8_8_8_8 */
+		compare_cube_wa = LLVMBuildICmp(ctx->builder, LLVMIntEQ, tmp, LLVMConstInt(ctx->i32, V_008F14_IMG_DATA_FORMAT_8_8_8_8, false), "");
+
+		if (stype == GLSL_TYPE_UINT)
+			/* Create a NUM FORMAT - 0x2 or 0x4 - USCALED or UINT */
+			tmp = LLVMBuildSelect(ctx->builder, compare_cube_wa, LLVMConstInt(ctx->i32, 0x8000000, false),
+					      LLVMConstInt(ctx->i32, 0x10000000, false), "");
+		else
+			/* Create a NUM FORMAT - 0x3 or 0x5 - SSCALED or SINT */
+			tmp = LLVMBuildSelect(ctx->builder, compare_cube_wa, LLVMConstInt(ctx->i32, 0xc000000, false),
+					      LLVMConstInt(ctx->i32, 0x14000000, false), "");
+
+		/* replace the NUM FORMAT in the descriptor */
+		tmp2 = LLVMBuildAnd(ctx->builder, tmp2, LLVMConstInt(ctx->i32, C_008F14_NUM_FORMAT, false), "");
+		tmp2 = LLVMBuildOr(ctx->builder, tmp2, tmp, "");
+
+		tinfo->args[1] = LLVMBuildInsertElement(ctx->builder, tinfo->args[1], tmp2, ctx->i32one, "");
+
+		/* don't modify the coordinates for this case */
+		coord = LLVMBuildSelect(ctx->builder, compare_cube_wa, orig_coords, coord, "");
+	}
 	tinfo->args[0] = coord;
-	return ac_emit_llvm_intrinsic(&ctx->ac, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
+	result = ac_emit_llvm_intrinsic(&ctx->ac, intr_name, tinfo->dst_type, tinfo->args, tinfo->arg_count,
 				   AC_FUNC_ATTR_READNONE | AC_FUNC_ATTR_NOUNWIND);
+
+	if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE) {
+		LLVMValueRef tmp, tmp2;
+
+		/* if the cube workaround is in place, f2i the result. */
+		for (c = 0; c < 4; c++) {
+			tmp = LLVMBuildExtractElement(ctx->builder, result, LLVMConstInt(ctx->i32, c, false), "");
+			if (stype == GLSL_TYPE_UINT)
+				tmp2 = LLVMBuildFPToUI(ctx->builder, tmp, ctx->i32, "");
+			else
+				tmp2 = LLVMBuildFPToSI(ctx->builder, tmp, ctx->i32, "");
+			tmp = LLVMBuildBitCast(ctx->builder, tmp, ctx->i32, "");
+			tmp2 = LLVMBuildBitCast(ctx->builder, tmp2, ctx->i32, "");
+			tmp = LLVMBuildSelect(ctx->builder, compare_cube_wa, tmp2, tmp, "");
+			tmp = LLVMBuildBitCast(ctx->builder, tmp, ctx->f32, "");
+			result = LLVMBuildInsertElement(ctx->builder, result, tmp, LLVMConstInt(ctx->i32, c, false), "");
+		}
+	}
+	return result;
 
 }
 
