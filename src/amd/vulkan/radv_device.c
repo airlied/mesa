@@ -102,6 +102,10 @@ static const VkExtensionProperties instance_extensions[] = {
 		.extensionName = VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
 		.specVersion = 1,
 	},
+	{
+		.extensionName = VK_KHX_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+		.specVersion = 1,
+	},
 };
 
 static const VkExtensionProperties common_device_extensions[] = {
@@ -3306,4 +3310,12 @@ VkResult radv_GetMemoryFdPropertiesKHX(VkDevice _device,
     * Since we only handle opaque handles for now, there are no FD properties.
     */
    return VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX;
+}
+
+VkResult radv_GetSemaphoreFdKHX(VkDevice device,
+				VkSemaphore semaphore,
+				VkExternalSemaphoreHandleTypeFlagsKHX handleType,
+				int *pFd)
+{
+	return VK_SUCCESS;
 }
