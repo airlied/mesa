@@ -2756,3 +2756,11 @@ VkResult radv_GetMemoryFdKHX(VkDevice _device,
 		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 	return VK_SUCCESS;
 }
+
+VkResult radv_GetSemaphoreFdKHX(VkDevice device,
+				VkSemaphore semaphore,
+				VkExternalSemaphoreHandleTypeFlagsKHX handleType,
+				int *pFd)
+{
+	return VK_SUCCESS;
+}
