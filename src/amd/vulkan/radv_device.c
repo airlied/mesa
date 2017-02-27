@@ -2798,3 +2798,11 @@ VkResult radv_GetMemoryFdPropertiesKHX(VkDevice _device,
     */
    return VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX;
 }
+
+VkResult radv_GetSemaphoreFdKHX(VkDevice device,
+				VkSemaphore semaphore,
+				VkExternalSemaphoreHandleTypeFlagsKHX handleType,
+				int *pFd)
+{
+	return VK_SUCCESS;
+}
