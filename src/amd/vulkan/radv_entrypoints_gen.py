@@ -45,6 +45,9 @@ supported_extensions = [
    'VK_KHX_external_memory_capabilities',
    'VK_KHX_external_memory',
    'VK_KHX_external_memory_fd',
+   'VK_KHX_external_semaphore_capabilities',
+   'VK_KHX_external_semaphore',
+   'VK_KHX_external_semaphore_fd'
 ]
 
 # We generate a static hash table for entry point lookup
