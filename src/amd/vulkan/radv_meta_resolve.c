@@ -338,6 +338,7 @@ void radv_CmdResolveImage(
 	struct radv_meta_saved_state saved_state;
 	VkDevice device_h = radv_device_to_handle(device);
 	enum radv_resolve_method resolve_method = RESOLVE_HW;
+
 	/* we can use the hw resolve only for single full resolves */
 	if (region_count == 1) {
 		if (regions[0].srcOffset.x ||

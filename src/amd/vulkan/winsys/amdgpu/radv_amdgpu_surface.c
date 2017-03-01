@@ -408,7 +408,7 @@ static int radv_amdgpu_winsys_surface_init(struct radeon_winsys *_ws,
 	 */
 	AddrSurfInfoIn.flags.dccCompatible = !(surf->flags & RADEON_SURF_Z_OR_SBUFFER) &&
 		!(surf->flags & RADEON_SURF_DISABLE_DCC) &&
-		!compressed && AddrDccIn.numSamples <= 1 &&
+		!compressed &&
 		((surf_info->array_size == 1 && surf_info->depth == 1) ||
 		 last_level == 0);
 

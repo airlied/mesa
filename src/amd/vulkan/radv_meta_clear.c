@@ -887,14 +887,15 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 		                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
 	/* clear cmask buffer */
+	if (iview->image->cmask.size) {
+		radv_fill_buffer(cmd_buffer, iview->image->bo,
+				 iview->image->offset + iview->image->cmask.offset,
+				 iview->image->cmask.size, 0);
+	}
 	if (iview->image->surface.dcc_size) {
 		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->dcc_offset,
 				 iview->image->surface.dcc_size, 0x20202020);
-	} else {
-		radv_fill_buffer(cmd_buffer, iview->image->bo,
-				 iview->image->offset + iview->image->cmask.offset,
-				 iview->image->cmask.size, 0);
 	}
 
 	if (post_flush)

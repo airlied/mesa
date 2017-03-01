@@ -351,6 +351,9 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 
 	radv_meta_save_compute(&saved_state, cmd_buffer, 16);
 
+	if (dest_image->surface.dcc_size) {
+		radv_initialize_dcc(cmd_buffer, dest_image, 0xffffffff);
+	}
 	for (uint32_t r = 0; r < region_count; ++r) {
 		const VkImageResolve *region = &regions[r];
 

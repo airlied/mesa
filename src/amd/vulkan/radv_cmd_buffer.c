@@ -3125,17 +3125,17 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 		radv_handle_depth_image_transition(cmd_buffer, image, src_layout,
 						   dst_layout, range, pending_clears);
 
-	if (image->cmask.size)
-		radv_handle_cmask_image_transition(cmd_buffer, image, src_layout,
-						   dst_layout, src_queue_mask,
-						   dst_queue_mask, range,
-						   pending_clears);
-
 	if (image->surface.dcc_size)
 		radv_handle_dcc_image_transition(cmd_buffer, image, src_layout,
 						 dst_layout, src_queue_mask,
 						 dst_queue_mask, range,
 						 pending_clears);
+	else if (image->cmask.size)
+		radv_handle_cmask_image_transition(cmd_buffer, image, src_layout,
+						   dst_layout, src_queue_mask,
+						   dst_queue_mask, range,
+						   pending_clears);
+
 }
 
 void radv_CmdPipelineBarrier(

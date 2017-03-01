@@ -2731,12 +2731,12 @@ radv_initialise_color_surface(struct radv_device *device,
 		if (iview->image->fmask.size)
 			cb->cb_color_info |= S_028C70_COMPRESSION(1);
 
-	if (iview->image->cmask.size &&
-	    !(device->debug_flags & RADV_DEBUG_NO_FAST_CLEARS))
-		cb->cb_color_info |= S_028C70_FAST_CLEAR(1);
-
 	if (iview->image->surface.dcc_size && level_info->dcc_enabled)
 		cb->cb_color_info |= S_028C70_DCC_ENABLE(1);
+	else if (iview->image->cmask.size &&
+		 !(device->debug_flags & RADV_DEBUG_NO_FAST_CLEARS))
+		cb->cb_color_info |= S_028C70_FAST_CLEAR(1);
+
 
 	if (device->physical_device->rad_info.chip_class >= VI) {
 		unsigned max_uncompressed_block_size = 2;
