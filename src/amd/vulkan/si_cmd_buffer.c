@@ -1112,6 +1112,19 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 	cmd_buffer->state.flush_bits = 0;
 }
 
+void
+si_emit_set_pred(struct radv_cmd_buffer *cmd_buffer, uint64_t va)
+{
+	uint32_t val = 0;
+
+	if (va)
+		val = (((va >> 32) & 0xff) |
+		       PRED_OP(PREDICATION_OP_BOOL64)|
+		       PREDICATION_DRAW_VISIBLE);
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_SET_PREDICATION, 1, 0));
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, val);
+}
 
 /* Set this if you want the 3D engine to wait until CP DMA is done.
  * It should be set on the last CP DMA packet. */

@@ -858,6 +858,22 @@ fail:
 	return res;
 }
 
+static bool dcc_requires_cmask_eliminate(VkClearColorValue *clear_value)
+{
+	static const VkClearColorValue zero = {0};
+	static const VkClearColorValue zero_alpha_1 = { .float32 = { 0.0, 0.0, 0.0, 1.0 } };
+
+	/* all 0 clear color */
+	if (!memcmp(clear_value, &zero, sizeof(*clear_value)))
+	    return false;
+
+	/* 0, 0, 0, 1 - clear color */
+	if (!memcmp(clear_value, &zero_alpha_1, sizeof(*clear_value)))
+	    return false;
+
+	return true;
+}
+
 static bool
 emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		      const VkClearAttachment *clear_att,
@@ -937,6 +953,8 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->dcc_offset,
 				 iview->image->surface.dcc_size, 0x20202020);
+		radv_set_dcc_need_cmask_elim_pred(cmd_buffer, iview->image,
+						  dcc_requires_cmask_eliminate(&clear_value));
 	} else {
 		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->cmask.offset,
