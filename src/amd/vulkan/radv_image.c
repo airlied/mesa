@@ -193,6 +193,7 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 			       const struct radeon_surf_level *base_level_info,
 			       unsigned base_level, unsigned first_level,
 			       unsigned block_width, bool is_stencil,
+			       bool allow_dcc,
 			       uint32_t *state)
 {
 	uint64_t gpu_address = device->ws->buffer_get_va(image->bo) + image->offset;
@@ -212,7 +213,7 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 							     is_stencil));
 	state[4] |= S_008F20_PITCH_GFX6(pitch - 1);
 
-	if (image->surface.dcc_size && image->surface.level[first_level].dcc_enabled) {
+	if (allow_dcc && image->surface.dcc_size && image->surface.level[first_level].dcc_enabled) {
 		state[6] |= S_008F28_COMPRESSION_EN(1);
 		state[7] = (gpu_address +
 			    image->dcc_offset +
@@ -410,7 +411,7 @@ radv_query_opaque_metadata(struct radv_device *device,
 				   desc, NULL);
 
 	si_set_mutable_tex_desc_fields(device, image, &image->surface.level[0], 0, 0,
-				       image->surface.blk_w, false, desc);
+				       image->surface.blk_w, false, false, desc);
 
 	/* Clear the base address and set the relative DCC offset. */
 	desc[0] = 0;
@@ -766,7 +767,7 @@ radv_image_view_init(struct radv_image_view *iview,
 	si_set_mutable_tex_desc_fields(device, image,
 				       is_stencil ? &image->surface.stencil_level[range->baseMipLevel] : &image->surface.level[range->baseMipLevel], range->baseMipLevel,
 				       range->baseMipLevel,
-				       blk_w, is_stencil, iview->descriptor);
+				       blk_w, is_stencil, !(usage_mask & VK_IMAGE_USAGE_STORAGE_BIT), iview->descriptor);
 }
 
 bool radv_layout_has_htile(const struct radv_image *image,
