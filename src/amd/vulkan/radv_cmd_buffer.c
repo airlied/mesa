@@ -1020,6 +1020,30 @@ radv_load_depth_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 }
 
 void
+radv_set_dcc_pred(struct radv_cmd_buffer *cmd_buffer,
+		  struct radv_image *image,
+		  bool value)
+{
+	uint64_t pred_val = value;
+	uint64_t va = cmd_buffer->device->ws->buffer_get_va(image->bo);
+	va += image->offset + image->dcc_pred_offset;
+
+	if (!image->surface.dcc_size)
+		return;
+
+	cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, image->bo, 8);
+
+	radeon_emit(cmd_buffer->cs, PKT3(PKT3_WRITE_DATA, 4, 0));
+	radeon_emit(cmd_buffer->cs, S_370_DST_SEL(V_370_MEM_ASYNC) |
+				    S_370_WR_CONFIRM(1) |
+				    S_370_ENGINE_SEL(V_370_PFP));
+	radeon_emit(cmd_buffer->cs, va);
+	radeon_emit(cmd_buffer->cs, va >> 32);
+	radeon_emit(cmd_buffer->cs, pred_val);
+	radeon_emit(cmd_buffer->cs, pred_val >> 32);
+}
+
+void
 radv_set_color_clear_regs(struct radv_cmd_buffer *cmd_buffer,
 			  struct radv_image *image,
 			  int idx,

@@ -896,6 +896,7 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		radv_fill_buffer(cmd_buffer, iview->image->bo,
 				 iview->image->offset + iview->image->dcc_offset,
 				 iview->image->surface.dcc_size, 0x20202020);
+		radv_set_dcc_pred(cmd_buffer, iview->image, true);
 	}
 
 	if (post_flush)
