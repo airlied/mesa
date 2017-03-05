@@ -4,6 +4,8 @@
 #include "sid.h"
 #include "radv_cs.h"
 
+#define USE_COMPUTE_THRESHOLD 0
+
 static nir_shader *
 build_buffer_fill_shader(struct radv_device *dev)
 {
@@ -413,9 +415,9 @@ void radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 	assert(!(offset & 3));
 	assert(!(size & 3));
 
-	if (size >= 4096)
+	if (size >= USE_COMPUTE_THRESHOLD) {
 		fill_buffer_shader(cmd_buffer, bo, offset, size, value);
-	else if (size) {
+	} else if (size) {
 		uint64_t va = cmd_buffer->device->ws->buffer_get_va(bo);
 		va += offset;
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, bo, 8);
@@ -430,7 +432,7 @@ void radv_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
 		      uint64_t src_offset, uint64_t dst_offset,
 		      uint64_t size)
 {
-	if (size >= 4096 && !(size & 3) && !(src_offset & 3) && !(dst_offset & 3))
+	if (size >= USE_COMPUTE_THRESHOLD && !(size & 3) && !(src_offset & 3) && !(dst_offset & 3))
 		copy_buffer_shader(cmd_buffer, src_bo, dst_bo,
 				   src_offset, dst_offset, size);
 	else if (size) {
@@ -504,9 +506,8 @@ void radv_CmdUpdateBuffer(
 	if (!dataSize)
 		return;
 
-	if (dataSize < 4096) {
+	if (dataSize < USE_COMPUTE_THRESHOLD) {
 		si_emit_cache_flush(cmd_buffer);
-
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo, 8);
 
 		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, words + 4);
