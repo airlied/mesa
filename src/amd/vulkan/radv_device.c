@@ -2739,16 +2739,20 @@ radv_initialise_color_surface(struct radv_device *device,
 
 
 	if (device->physical_device->rad_info.chip_class >= VI) {
-		unsigned max_uncompressed_block_size = 2;
+		unsigned max_compressed_block_size = 0;
+		unsigned independent_64b = 1;
 		if (iview->image->info.samples > 1) {
 			if (iview->image->surface.bpe == 1)
 				max_uncompressed_block_size = 0;
 			else if (iview->image->surface.bpe == 2)
 				max_uncompressed_block_size = 1;
+			max_compressed_block_size = 2;
+			independent_64b = 0;
 		}
 
 		cb->cb_dcc_control = S_028C78_MAX_UNCOMPRESSED_BLOCK_SIZE(max_uncompressed_block_size) |
-			S_028C78_INDEPENDENT_64B_BLOCKS(1);
+			S_028C78_MAX_COMPRESSED_BLOCK_SIZE(max_compressed_block_size) |
+			S_028C78_INDEPENDENT_64B_BLOCKS(independent_64b);
 	}
 
 	/* This must be set for fast clear to work without FMASK. */
