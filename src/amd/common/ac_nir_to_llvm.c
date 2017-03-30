@@ -4570,6 +4570,10 @@ handle_es_outputs_post(struct nir_to_llvm_context *ctx,
 
 		if (param_index > max_output_written)
 			max_output_written = param_index;
+		if (length > 4) {
+			if (param_index + 1 > max_output_written)
+				max_output_written = param_index + 1;
+		}
 
 		for (j = 0; j < length; j++) {
 			LLVMValueRef out_val = LLVMBuildLoad(ctx->builder, out_ptr[j], "");
