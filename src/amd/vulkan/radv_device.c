@@ -1393,15 +1393,11 @@ radv_get_preamble_cs(struct radv_queue *queue,
 		if (needs_tess_rings)
 			add_tess_rings = true;
 	}
-
-	if (add_tess_rings) {
-		tess_factor_ring_size = 32768 * queue->device->physical_device->rad_info.max_se;
-		hs_offchip_param = radv_get_hs_offchip_param(queue->device,
-							     &max_offchip_buffers);
-		tess_offchip_ring_size = max_offchip_buffers *
-			queue->device->tess_offchip_block_dw_size * 4;
-
-	}
+	tess_factor_ring_size = 32768 * queue->device->physical_device->rad_info.max_se;
+	hs_offchip_param = radv_get_hs_offchip_param(queue->device,
+						     &max_offchip_buffers);
+	tess_offchip_ring_size = max_offchip_buffers *
+		queue->device->tess_offchip_block_dw_size * 4;
 
 	if (scratch_size <= queue->scratch_size &&
 	    compute_scratch_size <= queue->compute_scratch_size &&
