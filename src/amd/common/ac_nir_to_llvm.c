@@ -30,7 +30,7 @@
 #include "../vulkan/radv_descriptor_set.h"
 #include "util/bitscan.h"
 #include <llvm-c/Transforms/Scalar.h>
-
+#include "ac_shader_info.h"
 enum radeon_llvm_calling_convention {
 	RADEON_LLVM_AMDGPU_VS = 87,
 	RADEON_LLVM_AMDGPU_GS = 88,
@@ -55,6 +55,7 @@ struct nir_to_llvm_context {
 	struct ac_llvm_context ac;
 	const struct ac_nir_compiler_options *options;
 	struct ac_shader_variant_info *shader_info;
+	struct ac_shader_info ac_shader_info;
 
 	LLVMContextRef context;
 	LLVMModuleRef module;
@@ -679,7 +680,8 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		arg_types[arg_idx++] = ctx->i32; // GS instance id
 		break;
 	case MESA_SHADER_FRAGMENT:
-		arg_types[arg_idx++] = const_array(ctx->f32, 32); /* sample positions */
+		if (ctx->ac_shader_info.ps.needs_sample_positions)
+			arg_types[arg_idx++] = const_array(ctx->f32, 32); /* sample positions */
 		user_sgpr_count = arg_idx;
 		arg_types[arg_idx++] = ctx->i32; /* prim mask */
 		sgpr_count = arg_idx;
@@ -844,9 +846,11 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		ctx->gs_invocation_id = LLVMGetParam(ctx->main_function, arg_idx++);
 		break;
 	case MESA_SHADER_FRAGMENT:
-		set_userdata_location_shader(ctx, AC_UD_PS_SAMPLE_POS, user_sgpr_idx, 2);
-		user_sgpr_idx += 2;
-		ctx->sample_positions = LLVMGetParam(ctx->main_function, arg_idx++);
+		if (ctx->ac_shader_info.ps.needs_sample_positions) {
+			set_userdata_location_shader(ctx, AC_UD_PS_SAMPLE_POS, user_sgpr_idx, 2);
+			user_sgpr_idx += 2;
+			ctx->sample_positions = LLVMGetParam(ctx->main_function, arg_idx++);
+		}
 		ctx->prim_mask = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->persp_sample = LLVMGetParam(ctx->main_function, arg_idx++);
 		ctx->persp_center = LLVMGetParam(ctx->main_function, arg_idx++);
@@ -5692,6 +5696,7 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.context = LLVMContextCreate();
 	ctx.module = LLVMModuleCreateWithNameInContext("shader", ctx.context);
 
+	ac_nir_shader_info_pass(nir, &ctx.ac_shader_info);
 	ac_llvm_context_init(&ctx.ac, ctx.context);
 	ctx.ac.module = ctx.module;
 
