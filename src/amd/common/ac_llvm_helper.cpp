@@ -40,13 +40,21 @@ void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes)
    llvm::Argument *A = llvm::unwrap<llvm::Argument>(val);
    llvm::AttrBuilder B;
    B.addDereferenceableAttr(bytes);
+#if HAVE_LLVM >= 0x0500
+   A->addAttr(llvm::AttributeList::get(A->getContext(), A->getArgNo() + 1,  B));
+#else
    A->addAttr(llvm::AttributeSet::get(A->getContext(), A->getArgNo() + 1,  B));
+#endif
 }
 
 bool ac_is_sgpr_param(LLVMValueRef arg)
 {
 	llvm::Argument *A = llvm::unwrap<llvm::Argument>(arg);
+#if HAVE_LLVM >= 0x0500
+	llvm::AttributeList AS = A->getParent()->getAttributes();
+#else
 	llvm::AttributeSet AS = A->getParent()->getAttributes();
+#endif
 	unsigned ArgNo = A->getArgNo();
 	return AS.hasAttribute(ArgNo + 1, llvm::Attribute::ByVal) ||
 	       AS.hasAttribute(ArgNo + 1, llvm::Attribute::InReg);
