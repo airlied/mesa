@@ -29,6 +29,11 @@ struct ac_nir_compiler_options;
 
 struct ac_shader_info {
 	struct {
+		bool has_vertex_buffers; /* needs vertex buffers and base/start */
+		bool needs_base_vertex_start_instance;
+		bool needs_draw_id;
+	} vs;
+	struct {
 		bool needs_sample_positions;
 	} ps;
 };
