@@ -299,6 +299,7 @@ static void radv_dump_pipeline_stats(struct radv_device *device, struct radv_pip
 	unsigned lds_increment = device->physical_device->rad_info.chip_class >= CIK ? 512 : 256;
 	struct radv_shader_variant *var;
 	struct ac_shader_config *conf;
+	struct ac_shader_variant_info *info;
 	int i;
 	FILE *file = stderr;
 	unsigned max_simd_waves = 10;
@@ -310,7 +311,7 @@ static void radv_dump_pipeline_stats(struct radv_device *device, struct radv_pip
 		var = pipeline->shaders[i];
 
 		conf = &var->config;
-
+		info = &var->info;
 		if (i == MESA_SHADER_FRAGMENT) {
 			lds_per_wave = conf->lds_size * lds_increment +
 				align(var->info.fs.num_interp * 48, lds_increment);
@@ -348,11 +349,13 @@ static void radv_dump_pipeline_stats(struct radv_device *device, struct radv_pip
 			"Code Size: %d bytes\n"
 			"LDS: %d blocks\n"
 			"Scratch: %d bytes per wave\n"
+			"Num user sgprs: %d\n"
 			"Max Waves: %d\n"
 			"********************\n\n\n",
 			conf->num_sgprs, conf->num_vgprs,
 			conf->spilled_sgprs, conf->spilled_vgprs, var->code_size,
 			conf->lds_size, conf->scratch_bytes_per_wave,
+			info->num_user_sgprs,
 			max_simd_waves);
 	}
 }
