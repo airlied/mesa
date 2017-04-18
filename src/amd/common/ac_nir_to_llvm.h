@@ -116,10 +116,13 @@ enum ac_ud_index {
 
 // Match MAX_SETS from radv_descriptor_set.h
 #define AC_UD_MAX_SETS MAX_SETS
+#define AC_UD_MAX_INLINE_PUSH_CONST 8
 
 struct ac_userdata_locations {
 	struct ac_userdata_info descriptor_sets[AC_UD_MAX_SETS];
 	struct ac_userdata_info shader_data[AC_UD_MAX_UD];
+	struct ac_userdata_info inline_push_consts[AC_UD_MAX_INLINE_PUSH_CONST];
+	uint8_t push_const_base;
 };
 
 struct ac_vs_output_info {
@@ -145,6 +148,7 @@ struct ac_shader_variant_info {
 	unsigned num_user_sgprs;
 	unsigned num_input_sgprs;
 	unsigned num_input_vgprs;
+	uint32_t inline_push_const_mask;
 	bool need_indirect_descriptor_sets;
 	union {
 		struct {
