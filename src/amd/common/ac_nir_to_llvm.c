@@ -623,7 +623,8 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 		break;
 	}
 
-	if (ctx->shader_info->info.needs_push_constants)
+	if (ctx->shader_info->info.needs_push_constants ||
+	    ctx->shader_info->info.needs_dynamic_offsets)
 		user_sgpr_info->sgpr_count += 2;
 
 	uint32_t remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
@@ -664,7 +665,8 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		arg_types[arg_idx++] = const_array(const_array(ctx->i8, 1024 * 1024), 32);
 	}
 
-	if (ctx->shader_info->info.needs_push_constants) {
+	if (ctx->shader_info->info.needs_push_constants ||
+	    ctx->shader_info->info.needs_dynamic_offsets) {
 		/* 1 for push constants and dynamic descriptors */
 		array_params_mask |= (1 << arg_idx);
 		arg_types[arg_idx++] = const_array(ctx->i8, 1024 * 1024);
@@ -841,7 +843,8 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		ctx->shader_info->need_indirect_descriptor_sets = true;
 	}
 
-	if (ctx->shader_info->info.needs_push_constants) {
+	if (ctx->shader_info->info.needs_push_constants ||
+	    ctx->shader_info->info.needs_dynamic_offsets) {
 		ctx->push_constants = LLVMGetParam(ctx->main_function, arg_idx++);
 		set_userdata_location_shader(ctx, AC_UD_PUSH_CONSTANTS, user_sgpr_idx, 2);
 		user_sgpr_idx += 2;
