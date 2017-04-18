@@ -67,6 +67,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef descriptor_sets[AC_UD_MAX_SETS];
 	LLVMValueRef ring_offsets;
 	LLVMValueRef push_constants;
+	LLVMValueRef inline_push_constants[AC_UD_MAX_INLINE_PUSH_CONST];
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
@@ -559,6 +560,7 @@ struct user_sgpr_info {
 	bool need_ring_offsets;
 	uint8_t sgpr_count;
 	bool indirect_all_descriptor_sets;
+	uint8_t num_inline_push_consts;
 };
 
 static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
@@ -628,6 +630,18 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 	} else {
 		user_sgpr_info->sgpr_count += util_bitcount(ctx->shader_info->info.desc_set_used_mask) * 2;
 	}
+
+	/* inline push constants */
+
+	if (ctx->shader_info->info.needs_push_constants) {
+		uint32_t remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
+		uint8_t num_push_32bit_consts = ctx->options->layout->push_constant_size / 4;
+
+		if (num_push_32bit_consts < remaining_sgprs) {
+			user_sgpr_info->num_inline_push_consts = num_push_32bit_consts;
+			fprintf(stderr, "can inline all push constants %d\n", num_push_32bit_consts);
+		}
+	}
 }
 
 static void create_function(struct nir_to_llvm_context *ctx)
@@ -663,6 +677,13 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		/* 1 for push constants and dynamic descriptors */
 		array_params_mask |= (1 << arg_idx);
 		arg_types[arg_idx++] = const_array(ctx->i8, 1024 * 1024);
+	}
+
+	if (user_sgpr_info.num_inline_push_consts) {
+		ctx->shader_info->inline_push_const_mask = (1 << user_sgpr_info.num_inline_push_consts) - 1;
+		/* inline push constants */
+		for (unsigned i = 0; i < user_sgpr_info.num_inline_push_consts; i++)
+			arg_types[arg_idx++] = ctx->i32;
 	}
 
 	switch (ctx->stage) {
@@ -842,6 +863,15 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		ctx->push_constants = LLVMGetParam(ctx->main_function, arg_idx++);
 		set_userdata_location_shader(ctx, AC_UD_PUSH_CONSTANTS, user_sgpr_idx, 2);
 		user_sgpr_idx += 2;
+	}
+
+	if (user_sgpr_info.num_inline_push_consts) {
+		/* inline push constants */
+		for (unsigned i = 0; i < user_sgpr_info.num_inline_push_consts; i++) {
+			set_userdata_location(&ctx->shader_info->user_sgprs_locs.inline_push_consts[i], user_sgpr_idx, 1);
+			user_sgpr_idx++;
+			ctx->inline_push_constants[i] = LLVMGetParam(ctx->main_function, arg_idx++);
+		}
 	}
 
 	switch (ctx->stage) {
@@ -2157,9 +2187,22 @@ static LLVMValueRef visit_load_push_constant(struct nir_to_llvm_context *ctx,
                                              nir_intrinsic_instr *instr)
 {
 	LLVMValueRef ptr, addr;
+	LLVMValueRef src0 = get_src(ctx, instr->src[0]);
+	unsigned index = nir_intrinsic_base(instr);
 
-	addr = LLVMConstInt(ctx->i32, nir_intrinsic_base(instr), 0);
-	addr = LLVMBuildAdd(ctx->builder, addr, get_src(ctx, instr->src[0]), "");
+	if (LLVMIsConstant(src0)) {
+		index += LLVMConstIntGetZExtValue(src0);
+		index /= 4;
+
+		uint32_t bits = (1 << instr->num_components) - 1;
+
+		if ((bits << index) & ctx->shader_info->inline_push_const_mask) {
+			return ac_build_gather_values(&ctx->ac, &ctx->inline_push_constants[index], instr->num_components);
+		}
+	}
+
+	addr = LLVMConstInt(ctx->i32, index, 0);
+	addr = LLVMBuildAdd(ctx->builder, addr, src0, "");
 
 	ptr = ac_build_gep0(&ctx->ac, ctx->push_constants, addr);
 	ptr = cast_ptr(ctx, ptr, get_def_type(ctx, &instr->dest.ssa));
