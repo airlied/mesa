@@ -38,6 +38,8 @@ gather_push_constant_info(nir_intrinsic_instr *instr, struct ac_shader_info *inf
 	if (cval) {
 		int base = nir_intrinsic_base(instr);
 		int range = nir_intrinsic_range(instr);
+		if (base < info->min_push_constant_used)
+			info->min_push_constant_used = base;
 		if (base + range > info->max_push_constant_used)
 			info->max_push_constant_used = base + range;
 	}
@@ -131,6 +133,7 @@ ac_nir_shader_info_pass(struct nir_shader *nir,
 	info->needs_push_constants = false;
 	info->needs_dynamic_offsets = false;
 
+	info->min_push_constant_used = -1;
 	if (options->layout) {
 		if (options->layout->push_constant_size &&
 		    options->layout->push_constant_stages & (1 << nir->stage))
