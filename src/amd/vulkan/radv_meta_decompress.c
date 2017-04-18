@@ -28,14 +28,8 @@
 #include "radv_private.h"
 #include "nir/nir_builder.h"
 #include "sid.h"
-/**
- * Vertex attributes used by all pipelines.
- */
-struct vertex_attrs {
-	float position[2]; /**< 3DPRIM_RECTLIST */
-};
 
-/* passthrough vertex shader */
+/* vertex shader that generates vertices */
 static nir_shader *
 build_nir_vs(void)
 {
