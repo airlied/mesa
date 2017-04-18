@@ -42,21 +42,43 @@ build_nir_vs(void)
 	const struct glsl_type *vec4 = glsl_vec4_type();
 
 	nir_builder b;
-	nir_variable *a_position;
 	nir_variable *v_position;
 
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_VERTEX, NULL);
 	b.shader->info->name = ralloc_strdup(b.shader, "meta_fast_clear_vs");
 
-	a_position = nir_variable_create(b.shader, nir_var_shader_in, vec4,
-					 "a_position");
-	a_position->data.location = VERT_ATTRIB_GENERIC0;
+	nir_intrinsic_instr *vertex_id = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_vertex_id_zero_base);
+	nir_ssa_dest_init(&vertex_id->instr, &vertex_id->dest, 1, 32, "vertexid");
+	nir_builder_instr_insert(&b, &vertex_id->instr);
+
+	/* vertex 0 - -1.0, -1.0 */
+	/* vertex 1 - -1.0, 1.0 */
+	/* vertex 2 - 1.0, -1.0 */
+	/* so channel 0 is vertex_id != 2 ? -1.0 : 1.0
+	   channel 1 is vertex id != 1 ? -1.0 : 1.0 */
+
+	nir_ssa_def *c0cmp = nir_ine(&b, &vertex_id->dest.ssa,
+				     nir_imm_int(&b, 2));
+	nir_ssa_def *c1cmp = nir_ine(&b, &vertex_id->dest.ssa,
+				     nir_imm_int(&b, 1));
+
+	nir_ssa_def *comp[4];
+	comp[0] = nir_bcsel(&b, c0cmp,
+			    nir_imm_float(&b, -1.0),
+			    nir_imm_float(&b, 1.0));
+
+	comp[1] = nir_bcsel(&b, c1cmp,
+			    nir_imm_float(&b, -1.0),
+			    nir_imm_float(&b, 1.0));
+	comp[2] = nir_imm_float(&b, 0.0);
+	comp[3] = nir_imm_float(&b, 1.0);
+	nir_ssa_def *outvec = nir_vec(&b, comp, 4);
 
 	v_position = nir_variable_create(b.shader, nir_var_shader_out, vec4,
 					 "gl_Position");
 	v_position->data.location = VARYING_SLOT_POS;
 
-	nir_copy_var(&b, v_position, a_position);
+	nir_store_var(&b, v_position, outvec, 0xf);
 
 	return b.shader;
 }
@@ -154,24 +176,8 @@ create_pipeline(struct radv_device *device,
 
 	const VkPipelineVertexInputStateCreateInfo vi_state = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = (VkVertexInputBindingDescription[]) {
-			{
-				.binding = 0,
-				.stride = sizeof(struct vertex_attrs),
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-			},
-		},
-		.vertexAttributeDescriptionCount = 1,
-		.pVertexAttributeDescriptions = (VkVertexInputAttributeDescription[]) {
-			{
-				/* Position */
-				.location = 0,
-				.binding = 0,
-				.format = VK_FORMAT_R32G32_SFLOAT,
-				.offset = offsetof(struct vertex_attrs, position),
-			},
-		}
+		.vertexBindingDescriptionCount = 0,
+		.vertexAttributeDescriptionCount = 0,
 	};
 
 	const VkPipelineInputAssemblyStateCreateInfo ia_state = {
@@ -364,43 +370,6 @@ emit_fast_clear_flush(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radv_device *device = cmd_buffer->device;
 	VkCommandBuffer cmd_buffer_h = radv_cmd_buffer_to_handle(cmd_buffer);
-	uint32_t offset;
-	const struct vertex_attrs vertex_data[3] = {
-		{
-			.position = {
-				-1.0,
-				-1.0,
-			},
-		},
-		{
-			.position = {
-				-1.0,
-				1.0,
-			},
-		},
-		{
-			.position = {
-				1.0,
-				-1.0,
-			},
-		},
-	};
-
-	radv_cmd_buffer_upload_data(cmd_buffer, sizeof(vertex_data), 16, vertex_data, &offset);
-	struct radv_buffer vertex_buffer = {
-		.device = device,
-		.size = sizeof(vertex_data),
-		.bo = cmd_buffer->upload.upload_bo,
-		.offset = offset,
-	};
-
-	VkBuffer vertex_buffer_h = radv_buffer_to_handle(&vertex_buffer);
-
-	radv_CmdBindVertexBuffers(cmd_buffer_h,
-				  /*firstBinding*/ 0,
-				  /*bindingCount*/ 1,
-				  (VkBuffer[]) { vertex_buffer_h },
-				  (VkDeviceSize[]) { 0 });
 
 	VkPipeline pipeline_h;
 	if (fmask_decompress)
@@ -448,7 +417,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 	assert(cmd_buffer->queue_family_index == RADV_QUEUE_GENERAL);
 	radv_meta_save_pass(&saved_pass_state, cmd_buffer);
-	radv_meta_save_graphics_reset_vport_scissor(&saved_state, cmd_buffer);
+	radv_meta_save_graphics_reset_vport_scissor_novertex(&saved_state, cmd_buffer);
 
 	for (uint32_t layer = 0; layer < layer_count; ++layer) {
 		struct radv_image_view iview;
