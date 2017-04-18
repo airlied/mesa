@@ -62,6 +62,9 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 	case nir_intrinsic_image_size:
 		mark_sampler_desc(instr->variables[0]->var, info);
 		break;
+	case nir_intrinsic_load_push_constant:
+		info->has_indirect_push_constants = nir_src_as_const_value(instr->src[0]) ? false : true;
+		break;
 	default:
 		break;
 	}

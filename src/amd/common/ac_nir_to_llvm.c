@@ -635,12 +635,21 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 
 	if (ctx->shader_info->info.needs_push_constants) {
 		uint32_t remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
-		uint8_t num_push_32bit_consts = ctx->options->layout->push_constant_size / 4;
+		if (!ctx->shader_info->info.has_indirect_push_constants)
+			remaining_sgprs += 2;
+		if (ctx->options->layout->push_constant_size) {
+			uint8_t num_push_32bit_consts = ctx->options->layout->push_constant_size / 4;
 
-		if (num_push_32bit_consts < remaining_sgprs) {
-			user_sgpr_info->num_inline_push_consts = num_push_32bit_consts;
-			fprintf(stderr, "can inline all push constants %d\n", num_push_32bit_consts);
+			if (num_push_32bit_consts < remaining_sgprs) {
+				user_sgpr_info->num_inline_push_consts = num_push_32bit_consts;
+				fprintf(stderr, "can inline all push constants %d\n", num_push_32bit_consts);
+				if (!ctx->shader_info->info.has_indirect_push_constants)
+					ctx->shader_info->info.needs_push_constants = false;
+			}
+			else
+				fprintf(stderr, "can't inline all push constants stage: %d %d, %d\n", ctx->stage, num_push_32bit_consts, remaining_sgprs);
 		}
+
 	}
 }
 
