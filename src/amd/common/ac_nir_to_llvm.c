@@ -69,6 +69,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef descriptor_sets[AC_UD_MAX_SETS];
 	LLVMValueRef ring_offsets;
 	LLVMValueRef push_constants;
+	LLVMValueRef inline_push_constants[AC_UD_MAX_INLINE_PUSH_CONST];
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
@@ -638,6 +639,8 @@ struct user_sgpr_info {
 	bool need_ring_offsets;
 	uint8_t sgpr_count;
 	bool indirect_all_descriptor_sets;
+	uint8_t base_inline_push_consts;
+	uint8_t num_inline_push_consts;
 };
 
 static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
@@ -705,6 +708,36 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 	} else {
 		user_sgpr_info->sgpr_count += util_bitcount(ctx->shader_info->info.desc_set_used_mask) * 2;
 	}
+
+	/* inline push constants */
+
+	if (ctx->shader_info->info.needs_push_constants) {
+		uint32_t remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
+		if (!ctx->shader_info->info.has_indirect_push_constants &&
+		    !ctx->shader_info->info.needs_dynamic_offsets)
+			remaining_sgprs += 2;
+		if (ctx->options->layout->push_constant_size) {
+			uint8_t num_push_32bit_consts = (ctx->shader_info->info.max_push_constant_used - ctx->shader_info->info.min_push_constant_used) / 4;
+			user_sgpr_info->base_inline_push_consts = ctx->shader_info->info.min_push_constant_used / 4;
+			if (num_push_32bit_consts < remaining_sgprs) {
+				user_sgpr_info->num_inline_push_consts = num_push_32bit_consts;
+
+				fprintf(stderr, "can inline all push constants %d, %d\n", user_sgpr_info->base_inline_push_consts, num_push_32bit_consts);
+				if (!ctx->shader_info->info.has_indirect_push_constants)
+					ctx->shader_info->info.needs_push_constants = false;
+			}
+			else {
+				user_sgpr_info->num_inline_push_consts = remaining_sgprs - 2;
+				fprintf(stderr, "can't inline all push constants for stage:%d %d, %d: inlining %d,%d\n", ctx->stage, num_push_32bit_consts, remaining_sgprs, user_sgpr_info->base_inline_push_consts, user_sgpr_info->num_inline_push_consts);
+			}
+
+			if (user_sgpr_info->num_inline_push_consts > AC_UD_MAX_INLINE_PUSH_CONST) {
+				fprintf(stderr, "limiting inline push consts to %d\n", AC_UD_MAX_INLINE_PUSH_CONST);
+				user_sgpr_info->num_inline_push_consts = AC_UD_MAX_INLINE_PUSH_CONST;
+			}
+		}
+
+	}
 }
 
 static void create_function(struct nir_to_llvm_context *ctx)
@@ -736,6 +769,19 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		add_user_sgpr_array_argument(&args, const_array(ctx->i8, 1024 * 1024), &ctx->push_constants);
 	}
 
+	if (ctx->stage == MESA_SHADER_VERTEX) {
+		if (!ctx->is_gs_copy_shader && ctx->shader_info->info.vs.has_vertex_buffers)
+			add_user_sgpr_argument(&args, const_array(ctx->v16i8, 16), &ctx->vertex_buffers); /* vertex buffers */
+	}
+
+	if (user_sgpr_info.num_inline_push_consts) {
+		ctx->shader_info->inline_push_const_mask = (1 << user_sgpr_info.num_inline_push_consts) - 1;
+		ctx->shader_info->inline_push_const_mask <<= user_sgpr_info.base_inline_push_consts;
+		/* inline push constants */
+		for (unsigned i = 0; i < user_sgpr_info.num_inline_push_consts; i++)
+			add_user_sgpr_argument(&args, ctx->i32, &ctx->inline_push_constants[i]);
+	}
+
 	switch (ctx->stage) {
 	case MESA_SHADER_COMPUTE:
 		if (ctx->shader_info->info.cs.grid_components_used)
@@ -746,8 +792,6 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		break;
 	case MESA_SHADER_VERTEX:
 		if (!ctx->is_gs_copy_shader) {
-			if (ctx->shader_info->info.vs.has_vertex_buffers)
-				add_user_sgpr_argument(&args, const_array(ctx->v16i8, 16), &ctx->vertex_buffers); /* vertex buffers */
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->base_vertex); // base vertex
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->start_instance);// start instance
 			if (ctx->shader_info->info.vs.needs_draw_id)
@@ -887,6 +931,19 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		set_userdata_location_shader(ctx, AC_UD_PUSH_CONSTANTS, &user_sgpr_idx, 2);
 	}
 
+	if (ctx->stage == MESA_SHADER_VERTEX) {
+		if (!ctx->is_gs_copy_shader && ctx->shader_info->info.vs.has_vertex_buffers) {
+			set_userdata_location_shader(ctx, AC_UD_VS_VERTEX_BUFFERS, &user_sgpr_idx, 2);
+		}
+	}
+
+	if (user_sgpr_info.num_inline_push_consts) {
+		/* inline push constants */
+		ctx->shader_info->user_sgprs_locs.push_const_base = user_sgpr_info.base_inline_push_consts;
+		for (unsigned i = 0; i < user_sgpr_info.num_inline_push_consts; i++)
+			set_userdata_location(&ctx->shader_info->user_sgprs_locs.inline_push_consts[i], &user_sgpr_idx, 1);
+	}
+
 	switch (ctx->stage) {
 	case MESA_SHADER_COMPUTE:
 		if (ctx->shader_info->info.cs.grid_components_used) {
@@ -895,9 +952,6 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		break;
 	case MESA_SHADER_VERTEX:
 		if (!ctx->is_gs_copy_shader) {
-			if (ctx->shader_info->info.vs.has_vertex_buffers) {
-				set_userdata_location_shader(ctx, AC_UD_VS_VERTEX_BUFFERS, &user_sgpr_idx, 2);
-			}
 			unsigned vs_num = 2;
 			if (ctx->shader_info->info.vs.needs_draw_id)
 				vs_num++;
@@ -2149,9 +2203,24 @@ static LLVMValueRef visit_load_push_constant(struct nir_to_llvm_context *ctx,
                                              nir_intrinsic_instr *instr)
 {
 	LLVMValueRef ptr, addr;
+	LLVMValueRef src0 = get_src(ctx, instr->src[0]);
+	unsigned index = nir_intrinsic_base(instr);
 
-	addr = LLVMConstInt(ctx->i32, nir_intrinsic_base(instr), 0);
-	addr = LLVMBuildAdd(ctx->builder, addr, get_src(ctx, instr->src[0]), "");
+	if (LLVMIsConstant(src0)) {
+		unsigned array_index = index;
+		array_index += LLVMConstIntGetZExtValue(src0);
+		array_index /= 4;
+
+		uint32_t bits = ((1 << instr->num_components) - 1) << array_index;
+
+		if ((bits & ctx->shader_info->inline_push_const_mask) == bits) {
+			array_index -= ctx->shader_info->user_sgprs_locs.push_const_base;
+			return ac_build_gather_values(&ctx->ac, &ctx->inline_push_constants[array_index], instr->num_components);
+		}
+	}
+
+	addr = LLVMConstInt(ctx->i32, index, 0);
+	addr = LLVMBuildAdd(ctx->builder, addr, src0, "");
 
 	ptr = ac_build_gep0(&ctx->ac, ctx->push_constants, addr);
 	ptr = cast_ptr(ctx, ptr, get_def_type(ctx, &instr->dest.ssa));

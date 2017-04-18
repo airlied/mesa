@@ -1495,6 +1495,30 @@ radv_flush_descriptors(struct radv_cmd_buffer *cmd_buffer,
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
+static struct ac_userdata_info *
+radv_lookup_push_const_sgpr(struct radv_pipeline *pipeline,
+			    gl_shader_stage stage,
+			    int idx)
+{
+	idx -= pipeline->shaders[stage]->info.user_sgprs_locs.push_const_base;
+	return &pipeline->shaders[stage]->info.user_sgprs_locs.inline_push_consts[idx];
+}
+
+static void
+radv_emit_one_inline_pushconst(struct radv_cmd_buffer *cmd_buffer,
+			       struct radv_pipeline *pipeline,
+			       gl_shader_stage stage,
+			       int idx, uint32_t value)
+{
+	struct ac_userdata_info *loc = radv_lookup_push_const_sgpr(pipeline, stage, idx);
+	uint32_t base_reg = radv_shader_stage_to_user_data_0(stage, radv_pipeline_has_gs(pipeline), radv_pipeline_has_tess(pipeline));
+	if (loc->sgpr_idx == -1)
+		return;
+	assert(!loc->indirect);
+	radeon_set_sh_reg_seq(cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, 1);
+	radeon_emit(cmd_buffer->cs, value);
+}
+
 static void
 radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 		     struct radv_pipeline *pipeline,
@@ -1516,6 +1540,19 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 	emit_stages = layout->push_constant_stages | layout->dynamic_offset_stages;
 	if (!(stages & emit_stages))
 		return;
+
+	radv_foreach_stage(stage, emit_stages) {
+		if (!pipeline->shaders[stage])
+			continue;
+		uint32_t mask = pipeline->shaders[stage]->info.inline_push_const_mask;
+		while (mask) {
+			int idx = u_bit_scan(&mask);
+			uint32_t value;
+			memcpy(&value, &cmd_buffer->push_constants[idx * 4], sizeof(uint32_t));
+			radv_emit_one_inline_pushconst(cmd_buffer, pipeline, stage,
+						     idx, value);
+		}
+	}
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
 					  16 * layout->dynamic_offset_count,
