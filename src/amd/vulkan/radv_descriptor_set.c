@@ -205,8 +205,8 @@ VkResult radv_CreatePipelineLayout(
 
 	unsigned dynamic_offset_count = 0;
 
-
 	_mesa_sha1_init(&ctx);
+	layout->dynamic_offset_stages = 0;
 	for (uint32_t set = 0; set < pCreateInfo->setLayoutCount; set++) {
 		RADV_FROM_HANDLE(radv_descriptor_set_layout, set_layout,
 				 pCreateInfo->pSetLayouts[set]);
@@ -219,16 +219,19 @@ VkResult radv_CreatePipelineLayout(
 				_mesa_sha1_update(&ctx, radv_immutable_samplers(set_layout, set_layout->binding + b),
 				                  set_layout->binding[b].array_size * 4 * sizeof(uint32_t));
 		}
+		layout->dynamic_offset_stages |= set_layout->dynamic_shader_stages;
 		_mesa_sha1_update(&ctx, set_layout->binding,
 				  sizeof(set_layout->binding[0]) * set_layout->binding_count);
 	}
 
 	layout->dynamic_offset_count = dynamic_offset_count;
 	layout->push_constant_size = 0;
+	layout->push_constant_stages = 0;
 	for (unsigned i = 0; i < pCreateInfo->pushConstantRangeCount; ++i) {
 		const VkPushConstantRange *range = pCreateInfo->pPushConstantRanges + i;
 		layout->push_constant_size = MAX2(layout->push_constant_size,
 						  range->offset + range->size);
+		layout->push_constant_stages |= range->stageFlags;
 	}
 
 	layout->push_constant_size = align(layout->push_constant_size, 16);
