@@ -116,12 +116,17 @@ ac_nir_shader_info_pass(struct nir_shader *nir,
 {
 	struct nir_function *func = (struct nir_function *)exec_list_get_head(&nir->functions);
 
-	info->needs_push_constants = true;
-	if (!options->layout)
-		info->needs_push_constants = false;
-	else if (!options->layout->push_constant_size &&
-		 !options->layout->dynamic_offset_count)
-		info->needs_push_constants = false;
+	info->needs_push_constants = false;
+
+	if (options->layout) {
+		if (options->layout->push_constant_size &&
+		    options->layout->push_constant_stages & (1 << nir->stage))
+			info->needs_push_constants = true;
+
+		if (options->layout->dynamic_offset_count &&
+		    options->layout->dynamic_offset_stages & (1 << nir->stage))
+			info->needs_push_constants = true;
+	}
 
 	nir_foreach_variable(variable, &nir->inputs)
 		gather_info_input_decl(nir, options, variable, info);
