@@ -2740,6 +2740,7 @@ radv_initialise_color_surface(struct radv_device *device,
 
 	if (device->physical_device->rad_info.chip_class >= VI) {
 		unsigned max_compressed_block_size = 0;
+		unsigned max_uncompressed_block_size = 0;
 		unsigned independent_64b = 1;
 		if (iview->image->info.samples > 1) {
 			if (iview->image->surface.bpe == 1)

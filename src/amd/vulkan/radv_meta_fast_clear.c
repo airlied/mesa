@@ -429,7 +429,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 	}
 	for (uint32_t layer = 0; layer < layer_count; ++layer) {
 		struct radv_image_view iview;
-		const uint32_t samples_log2 = ffs(image->samples) - 1;
+		const uint32_t samples_log2 = ffs(image->info.samples) - 1;
 
 		radv_image_view_init(&iview, cmd_buffer->device,
 				     &(VkImageViewCreateInfo) {
@@ -484,7 +484,7 @@ radv_fast_clear_flush_image_inplace(struct radv_cmd_buffer *cmd_buffer,
 
 		emit_fast_clear_flush(cmd_buffer,
 				      &(VkExtent2D) { image->info.width, image->info.height },
-				      image->samples,
+				      image->info.samples,
 				      image->fmask.size > 0, image->surface.dcc_size > 0);
 		radv_CmdEndRenderPass(cmd_buffer_h);
 
