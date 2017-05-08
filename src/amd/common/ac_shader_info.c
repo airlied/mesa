@@ -30,6 +30,20 @@ static void mark_sampler_desc(nir_variable *var, struct ac_shader_info *info)
 }
 
 static void
+gather_push_constant_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
+{
+	nir_const_value *cval = nir_src_as_const_value(instr->src[0]);
+	info->has_indirect_push_constants = cval ? false : true;
+
+	if (cval) {
+		int base = nir_intrinsic_base(instr);
+		int range = nir_intrinsic_range(instr);
+		if (base + range > info->max_push_constant_used)
+			info->max_push_constant_used = base + range;
+	}
+}
+
+static void
 gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 {
 	switch (instr->intrinsic) {
@@ -57,6 +71,9 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 	case nir_intrinsic_image_atomic_comp_swap:
 	case nir_intrinsic_image_size:
 		mark_sampler_desc(instr->variables[0]->var, info);
+		break;
+	case nir_intrinsic_load_push_constant:
+		gather_push_constant_info(instr, info);
 		break;
 	default:
 		break;
