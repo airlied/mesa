@@ -109,65 +109,39 @@ static bool
 gcm_pin_instructions_block(nir_block *block, struct gcm_state *state)
 {
    nir_foreach_instr_safe(instr, block) {
-      switch (instr->type) {
-      case nir_instr_type_alu:
-         switch (nir_instr_as_alu(instr)->op) {
-         case nir_op_fddx:
-         case nir_op_fddy:
-         case nir_op_fddx_fine:
-         case nir_op_fddy_fine:
-         case nir_op_fddx_coarse:
-         case nir_op_fddy_coarse:
-            /* These can only go in uniform control flow; pin them for now */
-            instr->pass_flags = GCM_INSTR_PINNED;
-            break;
-
-         default:
-            instr->pass_flags = 0;
-            break;
-         }
-         break;
-
-      case nir_instr_type_tex:
-         switch (nir_instr_as_tex(instr)->op) {
-         case nir_texop_tex:
-         case nir_texop_txb:
-         case nir_texop_lod:
-            /* These two take implicit derivatives so they need to be pinned */
-            instr->pass_flags = GCM_INSTR_PINNED;
-            break;
-
-         default:
-            instr->pass_flags = 0;
-            break;
-         }
-         break;
-
-      case nir_instr_type_load_const:
-         instr->pass_flags = 0;
-         break;
-
-      case nir_instr_type_intrinsic: {
-         const nir_intrinsic_info *info =
-            &nir_intrinsic_infos[nir_instr_as_intrinsic(instr)->intrinsic];
-
-         if ((info->flags & NIR_INTRINSIC_CAN_ELIMINATE) &&
-             (info->flags & NIR_INTRINSIC_CAN_REORDER)) {
-            instr->pass_flags = 0;
-         } else {
-            instr->pass_flags = GCM_INSTR_PINNED;
-         }
-         break;
-      }
-
-      case nir_instr_type_jump:
-      case nir_instr_type_ssa_undef:
-      case nir_instr_type_phi:
+      if (nir_instr_is_convergent(instr)) {
+         /* pin cross-thread and convergent operations for now */
          instr->pass_flags = GCM_INSTR_PINNED;
-         break;
+      } else {
+         switch (instr->type) {
+         case nir_instr_type_alu:
+         case nir_instr_type_tex:
+         case nir_instr_type_load_const:
+            instr->pass_flags = 0;
+            break;
 
-      default:
-         unreachable("Invalid instruction type in GCM");
+         case nir_instr_type_intrinsic: {
+            const nir_intrinsic_info *info =
+               &nir_intrinsic_infos[nir_instr_as_intrinsic(instr)->intrinsic];
+
+            if ((info->flags & NIR_INTRINSIC_CAN_ELIMINATE) &&
+                (info->flags & NIR_INTRINSIC_CAN_REORDER)) {
+               instr->pass_flags = 0;
+            } else {
+               instr->pass_flags = GCM_INSTR_PINNED;
+            }
+            break;
+         }
+
+         case nir_instr_type_jump:
+         case nir_instr_type_ssa_undef:
+         case nir_instr_type_phi:
+            instr->pass_flags = GCM_INSTR_PINNED;
+            break;
+
+         default:
+            unreachable("Invalid instruction type in GCM");
+         }
       }
 
       if (!(instr->pass_flags & GCM_INSTR_PINNED)) {
