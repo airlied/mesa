@@ -178,6 +178,14 @@ hash_instr(const void *data)
    const nir_instr *instr = data;
    uint32_t hash = _mesa_fnv32_1a_offset_bias;
 
+   /*
+    * In nir_instrs_equal(), we compare the instruction's basic blocks in this
+    * case. See the comment there for the explanation.
+    */
+   if (nir_instr_is_convergent(instr) && !nir_instr_is_uniform_control(instr)) {
+      HASH(hash, instr->block);
+   }
+
    switch (instr->type) {
    case nir_instr_type_alu:
       hash = hash_alu(hash, nir_instr_as_alu(instr));
@@ -255,6 +263,22 @@ nir_instrs_equal(const nir_instr *instr1, const nir_instr *instr2)
 {
    if (instr1->type != instr2->type)
       return false;
+
+   /*
+    * If the instructions are cross-thread, then they must have the same
+    * execution mask, and if they are convergent, then the one being replaced
+    * must have a smaller execution mask. If they are uniform-control, then we
+    * can always replace one invocation with another since every invocation
+    * must already have the same execution mask (the largest possible one).
+    * But not so for non-uniform-control instructions, since different
+    * invocations may be called with different execution masks and therefore
+    * have different results. Conservatively enforce that the instructions are
+    * in the same basic block.
+    */
+   if (nir_instr_is_convergent(instr1) && !nir_instr_is_uniform_control(instr1)) {
+      if (instr1->block != instr2->block)
+         return false;
+   }
 
    switch (instr1->type) {
    case nir_instr_type_alu: {

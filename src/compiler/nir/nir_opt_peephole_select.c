@@ -61,6 +61,17 @@ static bool
 block_check_for_allowed_instrs(nir_block *block, unsigned *count, bool alu_ok)
 {
    nir_foreach_instr(instr, block) {
+      if (nir_instr_is_cross_thread(instr) && !nir_instr_is_convergent(instr)) {
+         /* If the instruction is cross-thread, then we can't execute it
+          * conditionally when we would've executed it unconditionally before,
+          * except when the condition is uniform. If the instruction is
+          * convergent, though, we're already guaranteed that the entire
+          * region is convergent (including the condition) so we can go ahead.
+          *
+          * TODO: allow when the if-condition is uniform
+          */
+         return false;
+      }
       switch (instr->type) {
       case nir_instr_type_intrinsic: {
          nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
