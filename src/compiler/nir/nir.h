@@ -996,6 +996,39 @@ typedef enum {
     * intrinsic are due to the register reads/writes.
     */
    NIR_INTRINSIC_CAN_REORDER = (1 << 1),
+
+   /**
+    * Indicates whether this intrinsic is "convergent". An operation is
+    * convergent if results from one thread depend on results from another
+    * thread, but in such a way that additional threads being enabled doesn't
+    * affect the result of the operation. Examples of convergent operations
+    * include screen-space derivatives, readInvocation() from
+    * ARB_shader_ballot, etc. Note that this is a more precise version of
+    * LLVM's "convergent" attribute, which simply stipulates that control
+    * dependencies cannot be added, since the set of active threads can only be
+    * reduced by adding control dependencies.
+    */
+   NIR_INTRINSIC_CONVERGENT = (1 << 2),
+
+   /**
+    * Indicates whether this intrinsic is "cross-thread". An operation is
+    * cross-thread if results in one thread depend on the set of active threads
+    * when it is executed, as well as possibly the input value of the other
+    * threads, and therefore optimizations cannot change the execution mask
+    * when the operation is called. Examples of cross-thread operations include
+    * the "any" reduction which returns "true" in all threads if any thread
+    * inputs "true", ballotARB() from ARB_shader_ballot, etc. Note that any
+    * cross-thread operation must be convergent.
+    */
+   NIR_INTRINSIC_CROSS_THREAD = (1 << 3),
+
+   /**
+    * Indicates that this intrinsic is guaranteed to always be called in
+    * uniform control flow, that is, control flow with the same execution mask
+    * as when the program started. If an operation is uniform-control, it must
+    * be convergent as well, since the optimizer must maintain the guarantee.
+    */
+   NIR_INTRINSIC_UNIFORM_CONTROL = (1 << 4),
 } nir_intrinsic_semantic_flag;
 
 /**
@@ -1472,6 +1505,99 @@ NIR_DEFINE_CAST(nir_instr_as_phi, nir_instr, nir_phi_instr, instr,
 NIR_DEFINE_CAST(nir_instr_as_parallel_copy, nir_instr,
                 nir_parallel_copy_instr, instr,
                 type, nir_instr_type_parallel_copy)
+
+/*
+ * Helpers to determine if an instruction is cross-thread, convergent, or
+ * uniform-control. See NIR_INTRINSIC_{CONVERGENT|CROSS_THREAD|UNIFORM_CONTROL}
+ * for the definitions.
+ */
+static inline bool
+nir_instr_is_uniform_control(const nir_instr *instr)
+{
+   switch (instr->type) {
+   case nir_instr_type_alu:
+      switch (nir_instr_as_alu(instr)->op) {
+      case nir_op_fddx:
+      case nir_op_fddy:
+      case nir_op_fddx_fine:
+      case nir_op_fddy_fine:
+      case nir_op_fddx_coarse:
+      case nir_op_fddy_coarse:
+         /* Section 8.13.1 (Derivative Functions) of the GLSL 4.50 spec says:
+          *
+          *    "Derivatives are undefined within non-uniform control flow."
+          *
+          * Thus, we can assume they are called in uniform control flow. 
+          */
+         return true;
+
+      default:
+         return false;
+      }
+
+   case nir_instr_type_intrinsic: {
+      nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+      return nir_intrinsic_infos[intrin->intrinsic].flags &
+         NIR_INTRINSIC_UNIFORM_CONTROL;
+   }
+
+   case nir_instr_type_tex:
+         switch (nir_instr_as_tex(instr)->op) {
+         case nir_texop_tex:
+         case nir_texop_txb:
+         case nir_texop_lod:
+            /* These three take implicit derivatives, so they are
+             * uniform-control as well.
+             */
+            return true;
+
+         default:
+            return false;
+         }
+
+   default:
+      return false;
+   }
+}
+
+static inline bool
+nir_instr_is_cross_thread(const nir_instr *instr)
+{
+   switch (instr->type) {
+   case nir_instr_type_intrinsic: {
+      nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+      return nir_intrinsic_infos[intrin->intrinsic].flags &
+         NIR_INTRINSIC_CROSS_THREAD;
+   }
+
+   default:
+      return false;
+   }
+}
+
+static inline bool
+nir_instr_is_convergent(const nir_instr *instr)
+{
+   /* Instructions marked as uniform-control must be convergent, since
+    * optimizations must keep the operation in uniform control flow.
+    */
+   if (nir_instr_is_uniform_control(instr))
+      return true;
+
+   /* Instructions marked as cross-thread must be convergent, since
+    * cross-thread is more conservative than convergent.
+    */
+   if (nir_instr_is_cross_thread(instr))
+      return true;
+
+   if (instr->type == nir_instr_type_intrinsic) {
+      nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+      return nir_intrinsic_infos[intrin->intrinsic].flags &
+         NIR_INTRINSIC_CONVERGENT;
+   }
+
+   return false;
+}
 
 /*
  * Control flow
