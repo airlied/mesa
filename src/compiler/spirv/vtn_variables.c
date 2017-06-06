@@ -1170,6 +1170,34 @@ vtn_get_builtin_location(struct vtn_builder *b,
       *location = SYSTEM_VALUE_VIEW_INDEX;
       set_mode_system_value(mode);
       break;
+   case SpvBuiltInSubgroupSize:
+      *location = SYSTEM_VALUE_SUBGROUP_SIZE;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupLocalInvocationId:
+      *location = SYSTEM_VALUE_SUBGROUP_INVOCATION;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupEqMaskKHR:
+      *location = SYSTEM_VALUE_SUBGROUP_EQ_MASK_32BIT;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupGeMaskKHR:
+      *location = SYSTEM_VALUE_SUBGROUP_GE_MASK_32BIT;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupGtMaskKHR:
+      *location = SYSTEM_VALUE_SUBGROUP_GT_MASK_32BIT;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupLeMaskKHR:
+      *location = SYSTEM_VALUE_SUBGROUP_LE_MASK_32BIT;
+      set_mode_system_value(mode);
+      break;
+   case SpvBuiltInSubgroupLtMaskKHR:
+      *location = SYSTEM_VALUE_SUBGROUP_LT_MASK_32BIT;
+      set_mode_system_value(mode);
+      break;
    default:
       unreachable("unsupported builtin");
    }

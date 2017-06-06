@@ -2603,6 +2603,69 @@ vtn_handle_barrier(struct vtn_builder *b, SpvOp opcode,
    nir_builder_instr_insert(&b->nb, &intrin->instr);
 }
 
+static void
+vtn_handle_subgroup(struct vtn_builder *b, SpvOp opcode,
+                    const uint32_t *w, unsigned count)
+{
+   nir_intrinsic_op intrinsic_op;
+   switch (opcode) {
+   case SpvOpSubgroupBallotKHR:
+      intrinsic_op = nir_intrinsic_ballot;
+      break;
+   case SpvOpSubgroupFirstInvocationKHR:
+      intrinsic_op = nir_intrinsic_read_first_invocation;
+      break;
+   case SpvOpSubgroupReadInvocationKHR:
+      intrinsic_op = nir_intrinsic_read_invocation;
+      break;
+   case SpvOpSubgroupAllKHR:
+      intrinsic_op = nir_intrinsic_vote_all;
+      break;
+   case SpvOpSubgroupAnyKHR:
+      intrinsic_op = nir_intrinsic_vote_any;
+      break;
+   case SpvOpSubgroupAllEqualKHR:
+      intrinsic_op = nir_intrinsic_vote_eq;
+      break;
+   default:
+      unreachable("unknown subgroup instruction");
+      break;
+   }
+
+   nir_intrinsic_instr *intrin =
+      nir_intrinsic_instr_create(b->shader, intrinsic_op);
+
+   intrin->src[0] = nir_src_for_ssa(vtn_ssa_value(b, w[3])->def);
+
+   if (opcode == SpvOpSubgroupReadInvocationKHR) {
+      intrin->src[1] = nir_src_for_ssa(vtn_ssa_value(b, w[4])->def);
+   }
+
+   intrin->num_components = intrin->src[0].ssa->num_components;
+   nir_ssa_dest_init(&intrin->instr, &intrin->dest,
+                     intrin->num_components,
+                     (opcode == SpvOpSubgroupBallotKHR) ? 64 : 32,
+                     NULL);
+   nir_builder_instr_insert(&b->nb, &intrin->instr);
+
+   nir_ssa_def *result = &intrin->dest.ssa;
+
+   if (opcode == SpvOpSubgroupBallotKHR) {
+      /* convert from 64-bit to 4 32-bit components */
+      nir_ssa_def *tmp = nir_unpack_64_2x32(&b->nb, result);
+      nir_ssa_def *zero = nir_imm_int(&b->nb, 0);
+      result = nir_vec4(&b->nb, nir_channel(&b->nb, tmp, 0),
+                        nir_channel(&b->nb, tmp, 1),
+                        zero, zero);
+   }
+
+   struct vtn_value *val = vtn_push_value(b, w[2], vtn_value_type_ssa);
+   const struct glsl_type *result_type =
+      vtn_value(b, w[1], vtn_value_type_type)->type->type;
+   val->ssa = vtn_create_ssa_value(b, result_type);
+   val->ssa->def = result;
+}
+
 static unsigned
 gl_primitive_from_spv_execution_mode(SpvExecutionMode mode)
 {
@@ -2788,6 +2851,13 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
       case SpvCapabilityVariablePointersStorageBuffer:
       case SpvCapabilityVariablePointers:
          spv_check_supported(variable_pointers, cap);
+
+      case SpvCapabilitySubgroupBallotKHR:
+         spv_check_supported(shader_ballot, cap);
+         break;
+
+      case SpvCapabilitySubgroupVoteKHR:
+         spv_check_supported(shader_group_vote, cap);
          break;
 
       default:
@@ -3301,6 +3371,15 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpControlBarrier:
    case SpvOpMemoryBarrier:
       vtn_handle_barrier(b, opcode, w, count);
+      break;
+
+   case SpvOpSubgroupBallotKHR:
+   case SpvOpSubgroupFirstInvocationKHR:
+   case SpvOpSubgroupReadInvocationKHR:
+   case SpvOpSubgroupAllKHR:
+   case SpvOpSubgroupAnyKHR:
+   case SpvOpSubgroupAllEqualKHR:
+      vtn_handle_subgroup(b, opcode, w, count);
       break;
 
    default:
