@@ -374,6 +374,17 @@ typedef enum
    SYSTEM_VALUE_SUBGROUP_GT_MASK,
    SYSTEM_VALUE_SUBGROUP_LE_MASK,
    SYSTEM_VALUE_SUBGROUP_LT_MASK,
+
+   /**
+    * These are the same as system values above, except that they consist of 4
+    * 32-bit components rather than 1 64-bit component. This matches the
+    * semantics of the SPIR-V KHR_shader_ballot extension.
+    */
+   SYSTEM_VALUE_SUBGROUP_EQ_MASK_32BIT,
+   SYSTEM_VALUE_SUBGROUP_GE_MASK_32BIT,
+   SYSTEM_VALUE_SUBGROUP_GT_MASK_32BIT,
+   SYSTEM_VALUE_SUBGROUP_LE_MASK_32BIT,
+   SYSTEM_VALUE_SUBGROUP_LT_MASK_32BIT,
    /*@}*/
 
    /*@}*/
