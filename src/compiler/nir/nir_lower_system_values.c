@@ -110,6 +110,44 @@ convert_block(nir_block *block, nir_builder *b)
          }
          break;
 
+      case SYSTEM_VALUE_SUBGROUP_EQ_MASK_32BIT:
+      case SYSTEM_VALUE_SUBGROUP_GE_MASK_32BIT:
+      case SYSTEM_VALUE_SUBGROUP_GT_MASK_32BIT:
+      case SYSTEM_VALUE_SUBGROUP_LE_MASK_32BIT:
+      case SYSTEM_VALUE_SUBGROUP_LT_MASK_32BIT: {
+         nir_intrinsic_op op;
+         switch (var->data.location) {
+         case SYSTEM_VALUE_SUBGROUP_EQ_MASK_32BIT:
+            op = nir_intrinsic_load_subgroup_eq_mask;
+            break;
+         case SYSTEM_VALUE_SUBGROUP_GE_MASK_32BIT:
+            op = nir_intrinsic_load_subgroup_ge_mask;
+            break;
+         case SYSTEM_VALUE_SUBGROUP_GT_MASK_32BIT:
+            op = nir_intrinsic_load_subgroup_gt_mask;
+            break;
+         case SYSTEM_VALUE_SUBGROUP_LE_MASK_32BIT:
+            op = nir_intrinsic_load_subgroup_le_mask;
+            break;
+         case SYSTEM_VALUE_SUBGROUP_LT_MASK_32BIT:
+            op = nir_intrinsic_load_subgroup_lt_mask;
+            break;
+         default:
+            unreachable("bad intrinsic");
+         }
+         nir_intrinsic_instr *instr = nir_intrinsic_instr_create(b->shader, op);
+         instr->num_components = 1;
+         nir_ssa_dest_init(&instr->instr, &instr->dest, 1, 64, NULL);
+         nir_builder_instr_insert(b, &instr->instr);
+         
+         sysval = nir_unpack_64_2x32(b, &instr->dest.ssa);
+         nir_ssa_def *zero = nir_imm_int(b, 0);
+         sysval = nir_vec4(b, nir_channel(b, sysval, 0),
+                           nir_channel(b, sysval, 1),
+                           zero, zero);
+         break;
+      }
+
       case SYSTEM_VALUE_INSTANCE_INDEX:
          sysval = nir_iadd(b,
                            nir_load_instance_id(b),
