@@ -1335,14 +1335,10 @@ static void
 radv_flush_push_descriptors(struct radv_cmd_buffer *cmd_buffer)
 {
 	struct radv_descriptor_set *set = &cmd_buffer->push_descriptors.set;
-	uint32_t *ptr = NULL;
 
-	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, set->size, 32,
-					  &set->va,
-	                                  (void**) &ptr))
+	if (!radv_cmd_buffer_upload_data(cmd_buffer, set->size, 32,
+					 set->mapped_ptr, &set->va))
 		return;
-
-	memcpy(ptr, set->mapped_ptr, set->size);
 }
 
 static void
