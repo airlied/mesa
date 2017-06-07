@@ -430,18 +430,19 @@ void radv_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
 		      struct radeon_winsys_bo *src_bo,
 		      struct radeon_winsys_bo *dst_bo,
 		      uint64_t src_offset, uint64_t dst_offset,
-		      uint64_t size)
+		      uint64_t size, uint64_t src_va)
 {
 	if (size >= 4096 && !(size & 3) && !(src_offset & 3) && !(dst_offset & 3))
 		copy_buffer_shader(cmd_buffer, src_bo, dst_bo,
 				   src_offset, dst_offset, size);
 	else if (size) {
-		uint64_t src_va = cmd_buffer->device->ws->buffer_get_va(src_bo);
 		uint64_t dst_va = cmd_buffer->device->ws->buffer_get_va(dst_bo);
-		src_va += src_offset;
 		dst_va += dst_offset;
 
-		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, src_bo, 8);
+		if (src_bo) {
+			src_va = cmd_buffer->device->ws->buffer_get_va(src_bo) + src_offset;
+			cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, src_bo, 8);
+		}
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_bo, 8);
 
 		si_cp_dma_buffer_copy(cmd_buffer, src_va, dst_va, size);
@@ -482,7 +483,7 @@ void radv_CmdCopyBuffer(
 		uint64_t copy_size = pRegions[r].size;
 
 		radv_copy_buffer(cmd_buffer, src_buffer->bo, dest_buffer->bo,
-				 src_offset, dest_offset, copy_size);
+				 src_offset, dest_offset, copy_size, 0);
 	}
 }
 
@@ -524,9 +525,9 @@ void radv_CmdUpdateBuffer(
 
 		radv_cmd_buffer_trace_emit(cmd_buffer);
 	} else {
-		uint32_t buf_offset;
-		radv_cmd_buffer_upload_data(cmd_buffer, dataSize, 32, pData, &buf_offset);
-		radv_copy_buffer(cmd_buffer, cmd_buffer->upload.upload_bo, dst_buffer->bo,
-				 buf_offset, dstOffset + dst_buffer->offset, dataSize);
+		uint64_t buf_va;
+		radv_cmd_buffer_upload_data(cmd_buffer, dataSize, 32, pData, &buf_va);
+		radv_copy_buffer(cmd_buffer, NULL, dst_buffer->bo,
+				 0, dstOffset + dst_buffer->offset, dataSize, buf_va);
 	}
 }

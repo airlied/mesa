@@ -791,6 +791,7 @@ struct radv_cmd_buffer_upload {
 	unsigned offset;
 	uint64_t size;
 	struct radeon_winsys_bo *upload_bo;
+	uint64_t va;
 	struct list_head list;
 };
 
@@ -827,7 +828,7 @@ struct radv_cmd_buffer {
 
 	int ring_offsets_idx; /* just used for verification */
 	uint32_t gfx9_fence_offset;
-	struct radeon_winsys_bo *gfx9_fence_bo;
+	uint64_t gfx9_fence_va;
 	uint32_t gfx9_fence_idx;
 };
 
@@ -881,7 +882,7 @@ bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
 			     unsigned alignment,
-			     unsigned *out_offset,
+			     uint64_t *out_va,
 			     void **ptr);
 void
 radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
@@ -890,7 +891,7 @@ radv_cmd_buffer_set_subpass(struct radv_cmd_buffer *cmd_buffer,
 bool
 radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned size, unsigned alignmnet,
-			    const void *data, unsigned *out_offset);
+			    const void *data, uint64_t *out_va);
 void
 radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer);
 void radv_cmd_buffer_clear_subpass(struct radv_cmd_buffer *cmd_buffer);

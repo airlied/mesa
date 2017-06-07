@@ -238,9 +238,8 @@ static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
 		void *fence_ptr;
 		radv_cmd_buffer_upload_alloc(cmd_buffer, 8, 0,
-					     &cmd_buffer->gfx9_fence_offset,
+					     &cmd_buffer->gfx9_fence_va,
 					     &fence_ptr);
-		cmd_buffer->gfx9_fence_bo = cmd_buffer->upload.upload_bo;
 	}
 }
 
@@ -284,6 +283,7 @@ radv_cmd_buffer_resize_upload_buf(struct radv_cmd_buffer *cmd_buffer,
 	cmd_buffer->upload.size = new_size;
 	cmd_buffer->upload.offset = 0;
 	cmd_buffer->upload.map = device->ws->buffer_map(cmd_buffer->upload.upload_bo);
+	cmd_buffer->upload.va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
 
 	if (!cmd_buffer->upload.map) {
 		cmd_buffer->record_fail = true;
@@ -297,7 +297,7 @@ bool
 radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 			     unsigned size,
 			     unsigned alignment,
-			     unsigned *out_offset,
+			     uint64_t *out_va,
 			     void **ptr)
 {
 	uint64_t offset = align(cmd_buffer->upload.offset, alignment);
@@ -307,9 +307,8 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 		offset = 0;
 	}
 
-	*out_offset = offset;
 	*ptr = cmd_buffer->upload.map + offset;
-
+	*out_va = cmd_buffer->upload.va + offset;
 	cmd_buffer->upload.offset = offset + size;
 	return true;
 }
@@ -317,12 +316,12 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer,
 bool
 radv_cmd_buffer_upload_data(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned size, unsigned alignment,
-			    const void *data, unsigned *out_offset)
+			    const void *data, uint64_t *out_va)
 {
 	uint8_t *ptr;
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, size, alignment,
-					  out_offset, (void **)&ptr))
+					  out_va, (void **)&ptr))
 		return false;
 
 	if (ptr)
@@ -1337,15 +1336,11 @@ radv_flush_push_descriptors(struct radv_cmd_buffer *cmd_buffer)
 {
 	struct radv_descriptor_set *set = &cmd_buffer->push_descriptors.set;
 	uint32_t *ptr = NULL;
-	unsigned bo_offset;
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, set->size, 32,
-	                                  &bo_offset,
+					  &set->va,
 	                                  (void**) &ptr))
 		return;
-
-	set->va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
-	set->va += bo_offset;
 
 	memcpy(ptr, set->mapped_ptr, set->size);
 }
@@ -1354,11 +1349,11 @@ static void
 radv_flush_indirect_descriptor_sets(struct radv_cmd_buffer *cmd_buffer)
 {
 	uint32_t size = MAX_SETS * 2 * 4;
-	uint32_t offset;
 	void *ptr;
+	uint64_t va;
 	
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, size,
-					  256, &offset, &ptr))
+					  256, &va, &ptr))
 		return;
 
 	for (unsigned i = 0; i < MAX_SETS; i++) {
@@ -1370,9 +1365,6 @@ radv_flush_indirect_descriptor_sets(struct radv_cmd_buffer *cmd_buffer)
 		uptr[0] = set_va & 0xffffffff;
 		uptr[1] = set_va >> 32;
 	}
-
-	uint64_t va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
-	va += offset;
 
 	if (cmd_buffer->state.pipeline) {
 		if (cmd_buffer->state.pipeline->shaders[MESA_SHADER_VERTEX])
@@ -1442,7 +1434,6 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 		     VkShaderStageFlags stages)
 {
 	struct radv_pipeline_layout *layout = pipeline->layout;
-	unsigned offset;
 	void *ptr;
 	uint64_t va;
 
@@ -1452,15 +1443,12 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
 					  16 * layout->dynamic_offset_count,
-					  256, &offset, &ptr))
+					  256, &va, &ptr))
 		return;
 
 	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
 	memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
 	       16 * layout->dynamic_offset_count);
-
-	va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
-	va += offset;
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws,
 	                                                   cmd_buffer->cs, MESA_SHADER_STAGES * 4);
@@ -1511,7 +1499,6 @@ radv_cmd_buffer_update_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
 	if ((cmd_buffer->state.pipeline != cmd_buffer->state.emitted_pipeline || cmd_buffer->state.vb_dirty) &&
 	    cmd_buffer->state.pipeline->num_vertex_attribs &&
 	    cmd_buffer->state.pipeline->shaders[MESA_SHADER_VERTEX]->info.info.vs.has_vertex_buffers) {
-		unsigned vb_offset;
 		void *vb_ptr;
 		uint32_t i = 0;
 		uint32_t num_attribs = cmd_buffer->state.pipeline->num_vertex_attribs;
@@ -1519,7 +1506,7 @@ radv_cmd_buffer_update_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
 
 		/* allocate some descriptor state for vertex buffers */
 		radv_cmd_buffer_upload_alloc(cmd_buffer, num_attribs * 16, 256,
-					     &vb_offset, &vb_ptr);
+					     &va, &vb_ptr);
 
 		for (i = 0; i < num_attribs; i++) {
 			uint32_t *desc = &((uint32_t *)vb_ptr)[i * 4];
@@ -1527,23 +1514,21 @@ radv_cmd_buffer_update_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
 			int vb = cmd_buffer->state.pipeline->va_binding[i];
 			struct radv_buffer *buffer = cmd_buffer->state.vertex_bindings[vb].buffer;
 			uint32_t stride = cmd_buffer->state.pipeline->binding_stride[vb];
+			uint64_t buf_va;
 
 			device->ws->cs_add_buffer(cmd_buffer->cs, buffer->bo, 8);
-			va = device->ws->buffer_get_va(buffer->bo);
+			buf_va = device->ws->buffer_get_va(buffer->bo);
 
 			offset = cmd_buffer->state.vertex_bindings[vb].offset + cmd_buffer->state.pipeline->va_offset[i];
-			va += offset + buffer->offset;
-			desc[0] = va;
-			desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
+			buf_va += offset + buffer->offset;
+			desc[0] = buf_va;
+			desc[1] = S_008F04_BASE_ADDRESS_HI(buf_va >> 32) | S_008F04_STRIDE(stride);
 			if (cmd_buffer->device->physical_device->rad_info.chip_class <= CIK && stride)
 				desc[2] = (buffer->size - offset - cmd_buffer->state.pipeline->va_format_size[i]) / stride + 1;
 			else
 				desc[2] = buffer->size - offset;
 			desc[3] = cmd_buffer->state.pipeline->va_rsrc_word3[i];
 		}
-
-		va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
-		va += vb_offset;
 
 		radv_emit_userdata_address(cmd_buffer, cmd_buffer->state.pipeline, MESA_SHADER_VERTEX,
 					   AC_UD_VS_VERTEX_BUFFERS, va);
@@ -2078,7 +2063,6 @@ void radv_meta_push_descriptor_set(
 {
 	RADV_FROM_HANDLE(radv_pipeline_layout, layout, _layout);
 	struct radv_descriptor_set *push_set = &cmd_buffer->meta_push_descriptors;
-	unsigned bo_offset;
 
 	assert(layout->set[set].layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR);
 
@@ -2086,12 +2070,9 @@ void radv_meta_push_descriptor_set(
 	push_set->layout = layout->set[set].layout;
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, push_set->size, 32,
-	                                  &bo_offset,
+	                                  &push_set->va,
 	                                  (void**) &push_set->mapped_ptr))
 		return;
-
-	push_set->va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);
-	push_set->va += bo_offset;
 
 	radv_update_descriptor_sets(cmd_buffer->device, cmd_buffer,
 	                            radv_descriptor_set_to_handle(push_set),
