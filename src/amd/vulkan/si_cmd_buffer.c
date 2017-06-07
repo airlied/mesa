@@ -700,6 +700,17 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 
 	multi_instances_smaller_than_primgroup = indirect_draw || instance_less_than_primgroup_size;
 
+	if (cmd_buffer->state.ia_set_once &&
+	    cmd_buffer->state.last_draw_instanced == instanced_draw &&
+	    cmd_buffer->state.last_draw_indirect == indirect_draw &&
+	    cmd_buffer->state.last_multi_instances_smaller_than_primgroup == multi_instances_smaller_than_primgroup)
+		return cmd_buffer->state.last_ia_multi_vgt_param;
+
+	cmd_buffer->state.ia_set_once = true;
+	cmd_buffer->state.last_draw_instanced = instanced_draw;
+	cmd_buffer->state.last_draw_indirect = indirect_draw;
+	cmd_buffer->state.last_multi_instances_smaller_than_primgroup = multi_instances_smaller_than_primgroup;
+
 	ia_switch_on_eoi = cmd_buffer->state.pipeline->graphics.tess_ia_switch_on_eoi;
 	partial_vs_wave = cmd_buffer->state.pipeline->graphics.tess_partial_vs_wave;
 	partial_es_wave = cmd_buffer->state.pipeline->graphics.partial_es_wave;

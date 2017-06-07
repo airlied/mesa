@@ -775,6 +775,8 @@ struct radv_cmd_state {
 	uint32_t                                      descriptors_dirty;
 	uint32_t                                      trace_id;
 	uint32_t                                      last_ia_multi_vgt_param;
+	bool last_draw_instanced, last_draw_indirect, last_multi_instances_smaller_than_primgroup, ia_set_once;
+	
 };
 
 struct radv_cmd_pool {

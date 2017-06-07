@@ -225,7 +225,7 @@ static void  radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 	cmd_buffer->gsvs_ring_size_needed = 0;
 	cmd_buffer->tess_rings_needed = false;
 	cmd_buffer->sample_positions_needed = false;
-
+	cmd_buffer->state.ia_set_once = false;
 	if (cmd_buffer->upload.upload_bo)
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs,
 						      cmd_buffer->upload.upload_bo, 8);
@@ -2279,7 +2279,7 @@ void radv_CmdBindPipeline(
 
 		cmd_buffer->state.dirty |= RADV_CMD_DIRTY_PIPELINE;
 		cmd_buffer->push_constant_stages |= pipeline->active_stages;
-
+		cmd_buffer->state.ia_set_once = false;
 		/* Apply the dynamic state from the pipeline */
 		cmd_buffer->state.dirty |= pipeline->dynamic_state_mask;
 		radv_dynamic_state_copy(&cmd_buffer->state.dynamic,
@@ -2482,6 +2482,7 @@ void radv_CmdExecuteCommands(
 		primary->state.dirty |= RADV_CMD_DIRTY_DYNAMIC_ALL;
 		primary->state.last_primitive_reset_en = -1;
 		primary->state.last_primitive_reset_index = 0;
+		primary->state.ia_set_once = false;
 		radv_mark_descriptor_sets_dirty(primary);
 	}
 }
