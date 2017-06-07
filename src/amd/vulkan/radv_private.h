@@ -510,6 +510,8 @@ struct radv_device {
 	struct radv_instance *                       instance;
 	struct radeon_winsys *ws;
 
+	enum chip_class chip_class;
+	enum radeon_family family;
 	struct radv_meta_state                       meta_state;
 
 	struct radv_queue *queues[RADV_MAX_QUEUE_FAMILIES];
@@ -550,12 +552,12 @@ struct radv_device {
 
 static inline enum radeon_family radv_device_get_family(struct radv_device *device)
 {
-	return device->physical_device->rad_info.family;
+	return device->family;
 }
 
 static inline enum chip_class radv_device_get_chip_class(struct radv_device *device)
 {
-	return device->physical_device->rad_info.chip_class;
+	return device->chip_class;
 }
 
 struct radv_device_memory {

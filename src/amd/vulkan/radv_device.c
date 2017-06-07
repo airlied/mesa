@@ -1003,6 +1003,8 @@ VkResult radv_CreateDevice(
 	device->debug_flags = device->instance->debug_flags;
 
 	device->ws = physical_device->ws;
+	device->chip_class = physical_device->rad_info.chip_class;
+	device->family = physical_device->rad_info.family;
 	if (pAllocator)
 		device->alloc = *pAllocator;
 	else
