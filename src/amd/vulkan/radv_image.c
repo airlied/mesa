@@ -112,7 +112,7 @@ radv_init_surface(struct radv_device *device,
 	                           VK_IMAGE_USAGE_STORAGE_BIT)) ||
 	    (pCreateInfo->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) ||
             (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR) ||
-            device->physical_device->rad_info.chip_class < VI ||
+            radv_device_get_chip_class(device) < VI ||
             create_info->scanout || (device->debug_flags & RADV_DEBUG_NO_DCC) ||
             !radv_is_colorbuffer_format_supported(pCreateInfo->format, &blendable))
 		surface->flags |= RADEON_SURF_DISABLE_DCC;
@@ -198,7 +198,7 @@ si_set_mutable_tex_desc_fields(struct radv_device *device,
 	uint64_t gpu_address = device->ws->buffer_get_va(image->bo) + image->offset;
 	uint64_t va = gpu_address;
 	unsigned pitch = base_level_info->nblk_x * block_width;
-	enum chip_class chip_class = device->physical_device->rad_info.chip_class;
+	enum chip_class chip_class = radv_device_get_chip_class(device);
 	uint64_t meta_va = 0;
 	if (chip_class >= GFX9) {
 		if (is_stencil)
@@ -394,7 +394,7 @@ si_make_texture_descriptor(struct radv_device *device,
 	state[6] = 0;
 	state[7] = 0;
 
-	if (device->physical_device->rad_info.chip_class >= GFX9) {
+	if (radv_device_get_chip_class(device) >= GFX9) {
 		unsigned bc_swizzle = gfx9_border_color_swizzle(desc->swizzle);
 
 		/* Depth is the the last accessible layer on Gfx9.
@@ -422,7 +422,7 @@ si_make_texture_descriptor(struct radv_device *device,
 		/* The last dword is unused by hw. The shader uses it to clear
 		 * bits in the first dword of sampler state.
 		 */
-		if (device->physical_device->rad_info.chip_class <= CIK && image->info.samples <= 1) {
+		if (radv_device_get_chip_class(device) <= CIK && image->info.samples <= 1) {
 			if (first_level == last_level)
 				state[7] = C_008F30_MAX_ANISO_RATIO;
 			else
@@ -438,7 +438,7 @@ si_make_texture_descriptor(struct radv_device *device,
 
 		va = gpu_address + image->offset + image->fmask.offset;
 
-		if (device->physical_device->rad_info.chip_class >= GFX9) {
+		if (radv_device_get_chip_class(device) >= GFX9) {
 			fmask_format = V_008F14_IMG_DATA_FORMAT_FMASK;
 			switch (image->info.samples) {
 			case 2:
@@ -487,7 +487,7 @@ si_make_texture_descriptor(struct radv_device *device,
 		fmask_state[6] = 0;
 		fmask_state[7] = 0;
 
-		if (device->physical_device->rad_info.chip_class >= GFX9) {
+		if (radv_device_get_chip_class(device) >= GFX9) {
 			fmask_state[3] |= S_008F1C_SW_MODE(image->surface.u.gfx9.fmask.swizzle_mode);
 			fmask_state[4] |= S_008F20_DEPTH(last_layer) |
 					  S_008F20_PITCH_GFX9(image->surface.u.gfx9.fmask.epitch);
@@ -560,7 +560,7 @@ radv_init_metadata(struct radv_device *device,
 
 	memset(metadata, 0, sizeof(*metadata));
 
-	if (device->physical_device->rad_info.chip_class >= GFX9) {
+	if (radv_device_get_chip_class(device) >= GFX9) {
 		metadata->u.gfx9.swizzle_mode = surface->u.gfx9.surf.swizzle_mode;
 	} else {
 		metadata->u.legacy.microtile = surface->u.legacy.level[0].mode >= RADEON_SURF_MODE_1D ?
@@ -591,7 +591,7 @@ radv_image_get_fmask_info(struct radv_device *device,
 	struct ac_surf_info info = image->info;
 	memset(out, 0, sizeof(*out));
 
-	if (device->physical_device->rad_info.chip_class >= GFX9) {
+	if (radv_device_get_chip_class(device) >= GFX9) {
 		out->alignment = image->surface.u.gfx9.fmask_alignment;
 		out->size = image->surface.u.gfx9.fmask_size;
 		return;
@@ -654,7 +654,7 @@ radv_image_get_cmask_info(struct radv_device *device,
 	unsigned num_pipes = device->physical_device->rad_info.num_tile_pipes;
 	unsigned cl_width, cl_height;
 
-	if (device->physical_device->rad_info.chip_class >= GFX9) {
+	if (radv_device_get_chip_class(device) >= GFX9) {
 		out->alignment = image->surface.u.gfx9.cmask_alignment;
 		out->size = image->surface.u.gfx9.cmask_size;
 		return;

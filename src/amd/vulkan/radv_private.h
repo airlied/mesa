@@ -548,6 +548,16 @@ struct radv_device {
 	struct radv_pipeline_cache *                mem_cache;
 };
 
+static inline enum radeon_family radv_device_get_family(struct radv_device *device)
+{
+	return device->physical_device->rad_info.family;
+}
+
+static inline enum chip_class radv_device_get_chip_class(struct radv_device *device)
+{
+	return device->physical_device->rad_info.chip_class;
+}
+
 struct radv_device_memory {
 	struct radeon_winsys_bo                      *bo;
 	/* for dedicated allocations */

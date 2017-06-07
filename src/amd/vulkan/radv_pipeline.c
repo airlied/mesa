@@ -310,7 +310,7 @@ static const char *radv_get_shader_name(struct radv_shader_variant *var,
 }
 static void radv_dump_pipeline_stats(struct radv_device *device, struct radv_pipeline *pipeline)
 {
-	unsigned lds_increment = device->physical_device->rad_info.chip_class >= CIK ? 512 : 256;
+	unsigned lds_increment = radv_device_get_chip_class(device) >= CIK ? 512 : 256;
 	struct radv_shader_variant *var;
 	struct ac_shader_config *conf;
 	int i;
@@ -331,7 +331,7 @@ static void radv_dump_pipeline_stats(struct radv_device *device, struct radv_pip
 		}
 
 		if (conf->num_sgprs) {
-			if (device->physical_device->rad_info.chip_class >= VI)
+			if (radv_device_get_chip_class(device) >= VI)
 				max_simd_waves = MIN2(max_simd_waves, 800 / conf->num_sgprs);
 			else
 				max_simd_waves = MIN2(max_simd_waves, 512 / conf->num_sgprs);
@@ -446,7 +446,7 @@ static struct radv_shader_variant *radv_shader_variant_create(struct radv_device
 							      bool dump)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
-	enum radeon_family chip_family = device->physical_device->rad_info.family;
+	enum radeon_family chip_family = radv_device_get_family(device);
 	LLVMTargetMachineRef tm;
 	if (!variant)
 		return NULL;
@@ -460,7 +460,7 @@ static struct radv_shader_variant *radv_shader_variant_create(struct radv_device
 
 	options.unsafe_math = !!(device->debug_flags & RADV_DEBUG_UNSAFE_MATH);
 	options.family = chip_family;
-	options.chip_class = device->physical_device->rad_info.chip_class;
+	options.chip_class = radv_device_get_chip_class(device);
 	options.supports_spill = device->llvm_supports_spill;
 	tm = ac_create_target_machine(chip_family, options.supports_spill);
 	ac_compile_nir_shader(tm, &binary, &variant->config,
@@ -491,7 +491,7 @@ radv_pipeline_create_gs_copy_shader(struct radv_pipeline *pipeline,
 				    bool dump_shader)
 {
 	struct radv_shader_variant *variant = calloc(1, sizeof(struct radv_shader_variant));
-	enum radeon_family chip_family = pipeline->device->physical_device->rad_info.family;
+	enum radeon_family chip_family = radv_device_get_family(pipeline->device);
 	LLVMTargetMachineRef tm;
 	if (!variant)
 		return NULL;
@@ -499,7 +499,7 @@ radv_pipeline_create_gs_copy_shader(struct radv_pipeline *pipeline,
 	struct ac_nir_compiler_options options = {0};
 	struct ac_shader_binary binary;
 	options.family = chip_family;
-	options.chip_class = pipeline->device->physical_device->rad_info.chip_class;
+	options.chip_class = radv_device_get_chip_class(pipeline->device);
 	options.supports_spill = pipeline->device->llvm_supports_spill;
 	tm = ac_create_target_machine(chip_family, options.supports_spill);
 	ac_create_gs_copy_shader(tm, nir, &binary, &variant->config, &variant->info, &options, dump_shader);
@@ -1332,7 +1332,7 @@ radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
 		S_028A4C_MULTI_SHADER_ENGINE_PRIM_DISCARD_ENABLE(1) |
 		EG_S_028A4C_FORCE_EOV_CNTDWN_ENABLE(1) |
 		EG_S_028A4C_FORCE_EOV_REZ_ENABLE(1);
-	ms->pa_sc_mode_cntl_0 = S_028A48_ALTERNATE_RBS_PER_TILE(pipeline->device->physical_device->rad_info.chip_class >= GFX9);
+	ms->pa_sc_mode_cntl_0 = S_028A48_ALTERNATE_RBS_PER_TILE(radv_device_get_chip_class(pipeline->device) >= GFX9);
 
 	if (ms->num_samples > 1) {
 		unsigned log_samples = util_logbase2(ms->num_samples);
@@ -1666,9 +1666,9 @@ static void si_multiwave_lds_size_workaround(struct radv_device *device,
 	 *   Make sure we have at least 4k of LDS in use to avoid the bug.
 	 *   It applies to workgroup sizes of more than one wavefront.
 	 */
-	if (device->physical_device->rad_info.family == CHIP_BONAIRE ||
-	    device->physical_device->rad_info.family == CHIP_KABINI ||
-	    device->physical_device->rad_info.family == CHIP_MULLINS)
+	if (radv_device_get_family(device) == CHIP_BONAIRE ||
+	    radv_device_get_family(device) == CHIP_KABINI ||
+	    radv_device_get_family(device) == CHIP_MULLINS)
 		*lds_size = MAX2(*lds_size, 8);
 }
 
@@ -1714,7 +1714,7 @@ calculate_tess_state(struct radv_pipeline *pipeline,
 	/* Make sure that the data fits in LDS. This assumes the shaders only
 	 * use LDS for the inputs and outputs.
 	 */
-	hardware_lds_size = pipeline->device->physical_device->rad_info.chip_class >= CIK ? 65536 : 32768;
+	hardware_lds_size = radv_device_get_chip_class(pipeline->device) >= CIK ? 65536 : 32768;
 	num_patches = MIN2(num_patches, hardware_lds_size / (input_patch_size + output_patch_size));
 
 	/* Make sure the output data fits in the offchip buffer */
@@ -1728,7 +1728,7 @@ calculate_tess_state(struct radv_pipeline *pipeline,
 	num_patches = MIN2(num_patches, 40);
 
 	/* SI bug workaround - limit LS-HS threadgroups to only one wave. */
-	if (pipeline->device->physical_device->rad_info.chip_class == SI) {
+	if (radv_device_get_chip_class(pipeline->device) == SI) {
 		unsigned one_wave = 64 / MAX2(num_tcs_input_cp, num_tcs_output_cp);
 		num_patches = MIN2(num_patches, one_wave);
 	}
@@ -1738,7 +1738,7 @@ calculate_tess_state(struct radv_pipeline *pipeline,
 
 	lds_size = output_patch0_offset + output_patch_size * num_patches;
 
-	if (pipeline->device->physical_device->rad_info.chip_class >= CIK) {
+	if (radv_device_get_chip_class(pipeline->device) >= CIK) {
 		assert(lds_size <= 65536);
 		lds_size = align(lds_size, 512) / 512;
 	} else {
@@ -1803,8 +1803,8 @@ calculate_tess_state(struct radv_pipeline *pipeline,
 		topology = V_028B6C_OUTPUT_TRIANGLE_CCW;
 
 	if (pipeline->device->has_distributed_tess) {
-		if (pipeline->device->physical_device->rad_info.family == CHIP_FIJI ||
-		    pipeline->device->physical_device->rad_info.family >= CHIP_POLARIS10)
+		if (radv_device_get_family(pipeline->device) == CHIP_FIJI ||
+		    radv_device_get_family(pipeline->device) >= CHIP_POLARIS10)
 			distribution_mode = V_028B6C_DISTRIBUTION_MODE_TRAPEZOIDS;
 		else
 			distribution_mode = V_028B6C_DISTRIBUTION_MODE_DONUTS;
@@ -2185,7 +2185,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 			S_028B54_GS_EN(1) |
 			S_028B54_VS_EN(V_028B54_VS_STAGE_COPY_SHADER);
 
-	if (device->physical_device->rad_info.chip_class >= GFX9)
+	if (radv_device_get_chip_class(device) >= GFX9)
 		stages |= S_028B54_MAX_PRIMGRP_IN_WAVE(2);
 
 	pipeline->graphics.vgt_shader_stages_en = stages;
@@ -2211,14 +2211,14 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	/* WD_SWITCH_ON_EOP has no effect on GPUs with less than
 	 * 4 shader engines. Set 1 to pass the assertion below.
 	 * The other cases are hardware requirements. */
-	if (pipeline->device->physical_device->rad_info.chip_class >= CIK) {
+	if (radv_device_get_chip_class(pipeline->device) >= CIK) {
 		if (pipeline->device->physical_device->rad_info.max_se < 4 ||
 		    pipeline->graphics.prim == V_008958_DI_PT_POLYGON ||
 		    pipeline->graphics.prim == V_008958_DI_PT_LINELOOP ||
 		    pipeline->graphics.prim == V_008958_DI_PT_TRIFAN ||
 		    pipeline->graphics.prim == V_008958_DI_PT_TRISTRIP_ADJ ||
 		    (pipeline->graphics.prim_restart_enable &&
-		     (pipeline->device->physical_device->rad_info.family < CHIP_POLARIS10 ||
+		     (radv_device_get_family(pipeline->device) < CHIP_POLARIS10 ||
 		      (pipeline->graphics.prim != V_008958_DI_PT_POINTLIST &&
 		       pipeline->graphics.prim != V_008958_DI_PT_LINESTRIP &&
 		       pipeline->graphics.prim != V_008958_DI_PT_TRISTRIP))))
@@ -2232,23 +2232,23 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 			pipeline->graphics.tess_ia_switch_on_eoi = true;
 
 		/* Bug with tessellation and GS on Bonaire and older 2 SE chips. */
-		if ((pipeline->device->physical_device->rad_info.family == CHIP_TAHITI ||
-		     pipeline->device->physical_device->rad_info.family == CHIP_PITCAIRN ||
-		     pipeline->device->physical_device->rad_info.family == CHIP_BONAIRE) &&
+		if ((radv_device_get_family(pipeline->device) == CHIP_TAHITI ||
+		     radv_device_get_family(pipeline->device) == CHIP_PITCAIRN ||
+		     radv_device_get_family(pipeline->device) == CHIP_BONAIRE) &&
 		    radv_pipeline_has_gs(pipeline))
 			pipeline->graphics.tess_partial_vs_wave = true;
 
 		/* Needed for 028B6C_DISTRIBUTION_MODE != 0 */
 		if (pipeline->device->has_distributed_tess) {
 			if (radv_pipeline_has_gs(pipeline)) {
-				if (pipeline->device->physical_device->rad_info.chip_class <= VI)
+				if (radv_device_get_chip_class(pipeline->device) <= VI)
 					pipeline->graphics.partial_es_wave = true;
 
-				if (pipeline->device->physical_device->rad_info.family == CHIP_TONGA ||
-				    pipeline->device->physical_device->rad_info.family == CHIP_FIJI ||
-				    pipeline->device->physical_device->rad_info.family == CHIP_POLARIS10 ||
-				    pipeline->device->physical_device->rad_info.family == CHIP_POLARIS11 ||
-				    pipeline->device->physical_device->rad_info.family == CHIP_POLARIS12)
+				if (radv_device_get_family(pipeline->device) == CHIP_TONGA ||
+				    radv_device_get_family(pipeline->device) == CHIP_FIJI ||
+				    radv_device_get_family(pipeline->device) == CHIP_POLARIS10 ||
+				    radv_device_get_family(pipeline->device) == CHIP_POLARIS11 ||
+				    radv_device_get_family(pipeline->device) == CHIP_POLARIS12)
 					pipeline->graphics.tess_partial_vs_wave = true;
 			} else {
 				pipeline->graphics.tess_partial_vs_wave = true;

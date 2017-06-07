@@ -678,8 +678,8 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 			  bool instanced_draw, bool indirect_draw,
 			  uint32_t draw_vertex_count)
 {
-	enum chip_class chip_class = cmd_buffer->device->physical_device->rad_info.chip_class;
-	enum radeon_family family = cmd_buffer->device->physical_device->rad_info.family;
+	enum chip_class chip_class = radv_device_get_chip_class(cmd_buffer->device);
+	enum radeon_family family = radv_device_get_family(cmd_buffer->device);
 	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
 	unsigned max_primgroup_in_wave = 2;
 	/* SWITCH_ON_EOP(0) is always preferable. */
@@ -1057,7 +1057,7 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 	if (!cmd_buffer->state.flush_bits)
 		return;
 
-	enum chip_class chip_class = cmd_buffer->device->physical_device->rad_info.chip_class;
+	enum chip_class chip_class = radv_device_get_chip_class(cmd_buffer->device);
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 128);
 
 	uint32_t *ptr = NULL;
@@ -1067,7 +1067,7 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 		ptr = &cmd_buffer->gfx9_fence_idx;
 	}
 	si_cs_emit_cache_flush(cmd_buffer->cs,
-	                       cmd_buffer->device->physical_device->rad_info.chip_class,
+	                       radv_device_get_chip_class(cmd_buffer->device),
 			       ptr, va,
 	                       radv_cmd_buffer_uses_mec(cmd_buffer),
 	                       cmd_buffer->state.flush_bits);
@@ -1095,7 +1095,7 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 /* The max number of bytes that can be copied per packet. */
 static inline unsigned cp_dma_max_byte_count(struct radv_cmd_buffer *cmd_buffer)
 {
-	unsigned max = cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9 ?
+	unsigned max = radv_device_get_chip_class(cmd_buffer->device) >= GFX9 ?
 			       S_414_BYTE_COUNT_GFX9(~0u) :
 			       S_414_BYTE_COUNT_GFX6(~0u);
 
@@ -1118,7 +1118,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 	assert(size <= cp_dma_max_byte_count(cmd_buffer));
 
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
-	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9)
+	if (radv_device_get_chip_class(cmd_buffer->device) >= GFX9)
 		command |= S_414_BYTE_COUNT_GFX9(size);
 	else
 		command |= S_414_BYTE_COUNT_GFX6(size);
@@ -1127,7 +1127,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 	if (flags & CP_DMA_SYNC)
 		header |= S_411_CP_SYNC(1);
 	else {
-		if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9)
+		if (radv_device_get_chip_class(cmd_buffer->device) >= GFX9)
 			command |= S_414_DISABLE_WR_CONFIRM_GFX9(1);
 		else
 			command |= S_414_DISABLE_WR_CONFIRM_GFX6(1);
@@ -1137,7 +1137,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 		command |= S_414_RAW_WAIT(1);
 
 	/* Src and dst flags. */
-	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9 &&
+	if (radv_device_get_chip_class(cmd_buffer->device) >= GFX9 &&
 	    !(flags & CP_DMA_CLEAR) &&
 	    src_va == dst_va)
 		header |= S_411_DSL_SEL(V_411_NOWHERE); /* prefetch only */
@@ -1149,7 +1149,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 	else if (flags & CP_DMA_USE_L2)
 		header |= S_411_SRC_SEL(V_411_SRC_ADDR_TC_L2);
 
-	if (cmd_buffer->device->physical_device->rad_info.chip_class >= CIK) {
+	if (radv_device_get_chip_class(cmd_buffer->device) >= CIK) {
 		radeon_emit(cs, PKT3(PKT3_DMA_DATA, 5, 0));
 		radeon_emit(cs, header);
 		radeon_emit(cs, src_va);		/* SRC_ADDR_LO [31:0] */
@@ -1234,8 +1234,8 @@ void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t skipped_size = 0, realign_size = 0;
 
 
-	if (cmd_buffer->device->physical_device->rad_info.family <= CHIP_CARRIZO ||
-	    cmd_buffer->device->physical_device->rad_info.family == CHIP_STONEY) {
+	if (radv_device_get_family(cmd_buffer->device) <= CHIP_CARRIZO ||
+	    radv_device_get_family(cmd_buffer->device) == CHIP_STONEY) {
 		/* If the size is not aligned, we must add a dummy copy at the end
 		 * just to align the internal counter. Otherwise, the DMA engine
 		 * would slow down by an order of magnitude for following copies.
