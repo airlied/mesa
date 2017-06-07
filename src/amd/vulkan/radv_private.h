@@ -1059,6 +1059,7 @@ struct radv_pipeline {
 	uint32_t va_offset[MAX_VERTEX_ATTRIBS];
 	uint32_t num_vertex_attribs;
 	uint32_t                                     binding_stride[MAX_VBS];
+	uint32_t user_data_regs[MESA_SHADER_STAGES];
 
 	union {
 		struct {
@@ -1110,7 +1111,6 @@ static inline bool radv_pipeline_has_tess(struct radv_pipeline *pipeline)
 	return pipeline->shaders[MESA_SHADER_TESS_EVAL] ? true : false;
 }
 
-uint32_t radv_shader_stage_to_user_data_0(gl_shader_stage stage, bool has_gs, bool has_tess);
 struct ac_userdata_info *radv_lookup_user_sgpr(struct radv_pipeline *pipeline,
 					       gl_shader_stage stage,
 					       int idx);

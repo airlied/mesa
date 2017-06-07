@@ -1960,6 +1960,33 @@ static void calculate_ps_inputs(struct radv_pipeline *pipeline)
 	pipeline->graphics.ps_input_cntl_num = ps_offset;
 }
 
+static uint32_t
+shader_stage_to_user_data_0(gl_shader_stage stage, bool has_gs, bool has_tess)
+{
+	switch (stage) {
+	case MESA_SHADER_FRAGMENT:
+		return R_00B030_SPI_SHADER_USER_DATA_PS_0;
+	case MESA_SHADER_VERTEX:
+		if (has_tess)
+			return R_00B530_SPI_SHADER_USER_DATA_LS_0;
+		else
+			return has_gs ? R_00B330_SPI_SHADER_USER_DATA_ES_0 : R_00B130_SPI_SHADER_USER_DATA_VS_0;
+	case MESA_SHADER_GEOMETRY:
+		return R_00B230_SPI_SHADER_USER_DATA_GS_0;
+	case MESA_SHADER_COMPUTE:
+		return R_00B900_COMPUTE_USER_DATA_0;
+	case MESA_SHADER_TESS_CTRL:
+		return R_00B430_SPI_SHADER_USER_DATA_HS_0;
+	case MESA_SHADER_TESS_EVAL:
+		if (has_gs)
+			return R_00B330_SPI_SHADER_USER_DATA_ES_0;
+		else
+			return R_00B130_SPI_SHADER_USER_DATA_VS_0;
+	default:
+		unreachable("unknown shader");
+	}
+}
+
 #define SI_GS_PER_ES 128
 
 VkResult
@@ -2268,10 +2295,16 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		pipeline->binding_stride[desc->binding] = desc->stride;
 	}
 
+	for (uint32_t i = 0; i < MESA_SHADER_STAGES; i++) {
+		pipeline->user_data_regs[i] = shader_stage_to_user_data_0(i,
+									  radv_pipeline_has_gs(pipeline),
+									  radv_pipeline_has_tess(pipeline));
+	}
+	
 	struct ac_userdata_info *loc = radv_lookup_user_sgpr(pipeline, MESA_SHADER_VERTEX,
 							     AC_UD_VS_BASE_VERTEX_START_INSTANCE);
 	if (loc->sgpr_idx != -1) {
-		pipeline->graphics.vtx_base_sgpr = radv_shader_stage_to_user_data_0(MESA_SHADER_VERTEX, radv_pipeline_has_gs(pipeline), radv_pipeline_has_tess(pipeline));
+		pipeline->graphics.vtx_base_sgpr = pipeline->user_data_regs[MESA_SHADER_VERTEX];
 		pipeline->graphics.vtx_base_sgpr += loc->sgpr_idx * 4;
 		if (pipeline->shaders[MESA_SHADER_VERTEX]->info.info.vs.needs_draw_id)
 			pipeline->graphics.vtx_emit_num = 3;
@@ -2375,7 +2408,7 @@ static VkResult radv_compute_pipeline_create(
 
 
 	pipeline->need_indirect_descriptor_sets |= pipeline->shaders[MESA_SHADER_COMPUTE]->info.need_indirect_descriptor_sets;
-
+	pipeline->user_data_regs[MESA_SHADER_COMPUTE] = shader_stage_to_user_data_0(MESA_SHADER_COMPUTE, false, false);
 	struct ac_userdata_info *loc = radv_lookup_user_sgpr(pipeline,
 							     MESA_SHADER_COMPUTE, AC_UD_CS_GRID_SIZE);
 	if (loc->sgpr_idx != -1) {
