@@ -1079,8 +1079,14 @@ struct radv_pipeline {
 			uint32_t vgt_shader_stages_en;
 			uint32_t vtx_base_sgpr;
 			uint8_t vtx_emit_num;
+			uint8_t primgroup_size;
 			struct radv_prim_vertex_count prim_vertex_count;
  			bool can_use_guardband;
+			bool gs_partial_es_wave;
+			bool cik_wd_switch_on_eop;
+			bool tess_ia_switch_on_eoi;
+			bool tess_partial_vs_wave;
+			bool partial_es_wave;
 		} graphics;
 	};
 

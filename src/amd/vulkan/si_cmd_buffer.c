@@ -681,8 +681,6 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 	enum chip_class chip_class = cmd_buffer->device->physical_device->rad_info.chip_class;
 	enum radeon_family family = cmd_buffer->device->physical_device->rad_info.family;
 	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
-	unsigned prim = cmd_buffer->state.pipeline->graphics.prim;
-	unsigned primgroup_size = 128; /* recommended without a GS */
 	unsigned max_primgroup_in_wave = 2;
 	/* SWITCH_ON_EOP(0) is always preferable. */
 	bool wd_switch_on_eop = false;
@@ -693,10 +691,7 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 	uint32_t num_prims = 0;
 	bool multi_instances_smaller_than_primgroup;
 	bool instance_less_than_primgroup_size = false;
-	if (radv_pipeline_has_tess(cmd_buffer->state.pipeline))
-		primgroup_size = cmd_buffer->state.pipeline->graphics.tess.num_patches;
-	else if (radv_pipeline_has_gs(cmd_buffer->state.pipeline))
-		primgroup_size = 64;  /* recommended with a GS */
+	uint32_t primgroup_size = cmd_buffer->state.pipeline->graphics.primgroup_size;
 
 	if (instanced_draw || radv_pipeline_has_gs(cmd_buffer->state.pipeline)) {
 		num_prims = radv_prims_for_vertices(&cmd_buffer->state.pipeline->graphics.prim_vertex_count, draw_vertex_count);
@@ -704,54 +699,13 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 	}
 
 	multi_instances_smaller_than_primgroup = indirect_draw || instance_less_than_primgroup_size;
-	if (radv_pipeline_has_tess(cmd_buffer->state.pipeline)) {
-		/* SWITCH_ON_EOI must be set if PrimID is used. */
-		if (cmd_buffer->state.pipeline->shaders[MESA_SHADER_TESS_CTRL]->info.tcs.uses_prim_id ||
-		    cmd_buffer->state.pipeline->shaders[MESA_SHADER_TESS_EVAL]->info.tes.uses_prim_id)
-			ia_switch_on_eoi = true;
 
-		/* Bug with tessellation and GS on Bonaire and older 2 SE chips. */
-		if ((family == CHIP_TAHITI ||
-		     family == CHIP_PITCAIRN ||
-		     family == CHIP_BONAIRE) &&
-		    radv_pipeline_has_gs(cmd_buffer->state.pipeline))
-			partial_vs_wave = true;
-
-		/* Needed for 028B6C_DISTRIBUTION_MODE != 0 */
-		if (cmd_buffer->device->has_distributed_tess) {
-			if (radv_pipeline_has_gs(cmd_buffer->state.pipeline)) {
-				if (chip_class <= VI)
-					partial_es_wave = true;
-
-				if (family == CHIP_TONGA ||
-				    family == CHIP_FIJI ||
-				    family == CHIP_POLARIS10 ||
-				    family == CHIP_POLARIS11 ||
-				    family == CHIP_POLARIS12)
-					partial_vs_wave = true;
-			} else {
-				partial_vs_wave = true;
-			}
-		}
-	}
-	/* TODO linestipple */
+	ia_switch_on_eoi = cmd_buffer->state.pipeline->graphics.tess_ia_switch_on_eoi;
+	partial_vs_wave = cmd_buffer->state.pipeline->graphics.tess_partial_vs_wave;
+	partial_es_wave = cmd_buffer->state.pipeline->graphics.partial_es_wave;
+	wd_switch_on_eop = cmd_buffer->state.pipeline->graphics.cik_wd_switch_on_eop;
 
 	if (chip_class >= CIK) {
-		/* WD_SWITCH_ON_EOP has no effect on GPUs with less than
-		 * 4 shader engines. Set 1 to pass the assertion below.
-		 * The other cases are hardware requirements. */
-		if (info->max_se < 4 ||
-		    prim == V_008958_DI_PT_POLYGON ||
-		    prim == V_008958_DI_PT_LINELOOP ||
-		    prim == V_008958_DI_PT_TRIFAN ||
-		    prim == V_008958_DI_PT_TRISTRIP_ADJ ||
-		    (cmd_buffer->state.pipeline->graphics.prim_restart_enable &&
-		     (family < CHIP_POLARIS10 ||
-		      (prim != V_008958_DI_PT_POINTLIST &&
-		      prim != V_008958_DI_PT_LINESTRIP &&
-		       prim != V_008958_DI_PT_TRISTRIP))))
-			wd_switch_on_eop = true;
-
 		/* Hawaii hangs if instancing is enabled and WD_SWITCH_ON_EOP is 0.
 		 * We don't know that for indirect drawing, so treat it as
 		 * always problematic. */
@@ -793,10 +747,6 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 		partial_es_wave = true;
 
 	if (radv_pipeline_has_gs(cmd_buffer->state.pipeline)) {
-		/* GS requirement. */
-		if (SI_GS_PER_ES / primgroup_size >= cmd_buffer->device->gs_table_depth - 3)
-			partial_es_wave = true;
-
 		/* Hw bug with single-primitive instances and SWITCH_ON_EOI
 		 * on multi-SE chips. */
 		if (info->max_se >= 2 && ia_switch_on_eoi &&
