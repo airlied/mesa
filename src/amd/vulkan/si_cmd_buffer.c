@@ -690,16 +690,20 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 	bool ia_switch_on_eoi = false;
 	bool partial_vs_wave = false;
 	bool partial_es_wave = false;
-	uint32_t num_prims = radv_prims_for_vertices(&cmd_buffer->state.pipeline->graphics.prim_vertex_count, draw_vertex_count);
+	uint32_t num_prims = 0;
 	bool multi_instances_smaller_than_primgroup;
-
+	bool instance_less_than_primgroup_size = false;
 	if (radv_pipeline_has_tess(cmd_buffer->state.pipeline))
 		primgroup_size = cmd_buffer->state.pipeline->graphics.tess.num_patches;
 	else if (radv_pipeline_has_gs(cmd_buffer->state.pipeline))
 		primgroup_size = 64;  /* recommended with a GS */
 
-	multi_instances_smaller_than_primgroup = indirect_draw || (instanced_draw &&
-								   num_prims < primgroup_size);
+	if (instanced_draw || radv_pipeline_has_gs(cmd_buffer->state.pipeline)) {
+		num_prims = radv_prims_for_vertices(&cmd_buffer->state.pipeline->graphics.prim_vertex_count, draw_vertex_count);
+		instance_less_than_primgroup_size = num_prims < primgroup_size;
+	}
+
+	multi_instances_smaller_than_primgroup = indirect_draw || instance_less_than_primgroup_size;
 	if (radv_pipeline_has_tess(cmd_buffer->state.pipeline)) {
 		/* SWITCH_ON_EOI must be set if PrimID is used. */
 		if (cmd_buffer->state.pipeline->shaders[MESA_SHADER_TESS_CTRL]->info.tcs.uses_prim_id ||
