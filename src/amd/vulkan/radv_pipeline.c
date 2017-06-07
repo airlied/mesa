@@ -2375,6 +2375,12 @@ static VkResult radv_compute_pipeline_create(
 
 
 	pipeline->need_indirect_descriptor_sets |= pipeline->shaders[MESA_SHADER_COMPUTE]->info.need_indirect_descriptor_sets;
+
+	struct ac_userdata_info *loc = radv_lookup_user_sgpr(pipeline,
+							     MESA_SHADER_COMPUTE, AC_UD_CS_GRID_SIZE);
+	if (loc->sgpr_idx != -1) {
+		pipeline->compute.cs_grid_size_sgpr = R_00B900_COMPUTE_USER_DATA_0 + loc->sgpr_idx * 4;
+	}
 	result = radv_pipeline_scratch_init(device, pipeline);
 	if (result != VK_SUCCESS) {
 		radv_pipeline_destroy(device, pipeline, pAllocator);

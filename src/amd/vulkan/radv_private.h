@@ -1090,6 +1090,10 @@ struct radv_pipeline {
 			bool tess_partial_vs_wave;
 			bool partial_es_wave;
 		} graphics;
+
+		struct {
+			uint32_t cs_grid_size_sgpr;
+		} compute;
 	};
 
 	unsigned max_waves;
