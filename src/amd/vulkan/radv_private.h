@@ -763,6 +763,7 @@ struct radv_cmd_state {
 	uint32_t                                      vb_dirty;
 	radv_cmd_dirty_mask_t                         dirty;
 	bool                                          push_descriptors_dirty;
+	int8_t                                        last_primitive_reset_en;
 
 	struct radv_pipeline *                        pipeline;
 	struct radv_pipeline *                        emitted_pipeline;
@@ -779,7 +780,6 @@ struct radv_cmd_state {
 	uint32_t                                     index_type;
 	uint64_t                                     index_va;
 	uint32_t                                     max_index_count;
-	int32_t                                      last_primitive_reset_en;
 	uint32_t                                     last_primitive_reset_index;
 	enum radv_cmd_flush_bits                     flush_bits;
 	unsigned                                     active_occlusion_queries;

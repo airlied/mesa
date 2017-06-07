@@ -1463,7 +1463,7 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 static void radv_emit_primitive_reset_state(struct radv_cmd_buffer *cmd_buffer,
 					    bool indexed_draw)
 {
-	int32_t primitive_reset_en = indexed_draw && cmd_buffer->state.pipeline->graphics.prim_restart_enable;
+	int8_t primitive_reset_en = indexed_draw && cmd_buffer->state.pipeline->graphics.prim_restart_enable;
 
 	if (primitive_reset_en != cmd_buffer->state.last_primitive_reset_en) {
 		cmd_buffer->state.last_primitive_reset_en = primitive_reset_en;
