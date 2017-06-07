@@ -4289,6 +4289,55 @@ static void visit_intrinsic(struct ac_nir_context *ctx,
 	case nir_intrinsic_load_patch_vertices_in:
 		result = LLVMConstInt(ctx->ac.i32, ctx->nctx->options->key.tcs.input_vertices, false);
 		break;
+	case nir_intrinsic_ballot:
+		result = ac_build_ballot(&ctx->ac, get_src(ctx, instr->src[0]));
+		break;
+	case nir_intrinsic_read_first_invocation: {
+		LLVMValueRef src0 = get_src(ctx, instr->src[0]);
+		ac_build_optimization_barrier(&ctx->ac, &src0);
+	        LLVMValueRef srcs[1] = { src0 };
+		result = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.readfirstlane",
+					    ctx->ac.i32, srcs, 1,
+					    AC_FUNC_ATTR_NOUNWIND |
+					    AC_FUNC_ATTR_READNONE |
+					    AC_FUNC_ATTR_CONVERGENT);
+		break;
+        }
+	case nir_intrinsic_read_invocation: {
+		LLVMValueRef src0 = get_src(ctx, instr->src[0]);
+		ac_build_optimization_barrier(&ctx->ac, &src0);
+	        LLVMValueRef srcs[2] = { src0, get_src(ctx, instr->src[1]) };
+		result = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.readlane",
+					    ctx->ac.i32, srcs, 2,
+					    AC_FUNC_ATTR_NOUNWIND |
+					    AC_FUNC_ATTR_READNONE |
+					    AC_FUNC_ATTR_CONVERGENT);
+		break;
+        }
+	case nir_intrinsic_load_subgroup_invocation:
+		result = ac_get_thread_id(&ctx->ac);
+		break;
+	case nir_intrinsic_load_subgroup_size:
+		result = LLVMConstInt(ctx->ac.i32, 64, 0);
+		break;
+	case nir_intrinsic_vote_all:
+		result = LLVMBuildSExt(ctx->ac.builder,
+				       ac_build_vote_all(&ctx->ac,
+							 get_src(ctx, instr->src[0])),
+				       ctx->ac.i32, "");
+		break;
+	case nir_intrinsic_vote_any:
+		result = LLVMBuildSExt(ctx->ac.builder,
+				       ac_build_vote_any(&ctx->ac,
+							 get_src(ctx, instr->src[0])),
+				       ctx->ac.i32, "");
+		break;
+	case nir_intrinsic_vote_eq:
+		result = LLVMBuildSExt(ctx->ac.builder,
+				       ac_build_vote_eq(&ctx->ac,
+							 get_src(ctx, instr->src[0])),
+				       ctx->ac.i32, "");
+		break;
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
 		nir_print_instr(&instr->instr, stderr);

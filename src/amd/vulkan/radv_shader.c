@@ -206,6 +206,8 @@ radv_shader_compile_to_nir(struct radv_device *device,
 			.int64 = true,
 			.multiview = true,
 			.variable_pointers = true,
+			.shader_ballot = true,
+			.shader_group_vote = true,
 		};
 		entry_point = spirv_to_nir(spirv, module->size / 4,
 					   spec_entries, num_spec_entries,

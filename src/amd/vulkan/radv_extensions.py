@@ -81,6 +81,8 @@ EXTENSIONS = [
     Extension('VK_EXT_global_priority',                   1, 'device->rad_info.has_ctx_priority'),
     Extension('VK_AMD_draw_indirect_count',               1, True),
     Extension('VK_AMD_rasterization_order',               1, 'device->rad_info.chip_class >= VI && device->rad_info.max_se >= 2'),
+    Extension('VK_EXT_shader_subgroup_ballot',            1, True),
+    Extension('VK_EXT_shader_subgroup_vote',              1, True),
 ]
 
 class VkVersion:
