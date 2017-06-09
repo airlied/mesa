@@ -6396,10 +6396,10 @@ st_translate_program(
    /* Declare misc input registers
     */
    {
-      GLbitfield sysInputs = proginfo->info.system_values_read;
+      GLbitfield64 sysInputs = proginfo->info.system_values_read;
 
       for (i = 0; sysInputs; i++) {
-         if (sysInputs & (1 << i)) {
+         if (sysInputs & BITFIELD64_BIT(i)) {
             unsigned semName = _mesa_sysval_to_semantic(i);
 
             t->systemValues[i] = ureg_DECL_system_value(ureg, semName, 0);
@@ -6430,7 +6430,7 @@ st_translate_program(
                emit_wpos(st_context(ctx), t, proginfo, ureg,
                          program->wpos_transform_const);
 
-            sysInputs &= ~(1 << i);
+            sysInputs &= ~BITFIELD64_BIT(i);
          }
       }
    }
@@ -6714,7 +6714,8 @@ get_mesa_program_tgsi(struct gl_context *ctx,
    /* This must be done before the uniform storage is associated. */
    if (shader->Stage == MESA_SHADER_FRAGMENT &&
        (prog->info.inputs_read & VARYING_BIT_POS ||
-        prog->info.system_values_read & (1 << SYSTEM_VALUE_FRAG_COORD))) {
+        prog->info.system_values_read &
+        BITFIELD64_BIT(SYSTEM_VALUE_FRAG_COORD))) {
       static const gl_state_index wposTransformState[STATE_LENGTH] = {
          STATE_INTERNAL, STATE_FB_WPOS_Y_TRANSFORM
       };

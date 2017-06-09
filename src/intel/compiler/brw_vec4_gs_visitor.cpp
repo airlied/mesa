@@ -653,7 +653,8 @@ brw_compile_gs(const struct brw_compiler *compiler, void *log_data,
       shader->info.clip_distance_array_size;
 
    prog_data->include_primitive_id =
-      (shader->info.system_values_read & (1 << SYSTEM_VALUE_PRIMITIVE_ID)) != 0;
+      (shader->info.system_values_read &
+       (1ull << SYSTEM_VALUE_PRIMITIVE_ID)) != 0;
 
    prog_data->invocations = shader->info.gs.invocations;
 
