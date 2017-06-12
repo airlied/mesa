@@ -34,6 +34,8 @@ struct ac_shader_info {
 	uint8_t min_push_constant_used;
 	uint8_t max_push_constant_used;
 	uint32_t desc_set_used_mask;
+	uint32_t inline_possible_buffer_desc_set0_mask;
+	uint32_t inline_possible_buffer_desc_set0_dyn_mask;
 	struct {
 		bool has_vertex_buffers; /* needs vertex buffers and base/start */
 		bool needs_draw_id;
