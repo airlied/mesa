@@ -46,7 +46,9 @@ gather_push_constant_info(nir_intrinsic_instr *instr, struct ac_shader_info *inf
 }
 
 static void
-gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
+gather_intrinsic_info(nir_intrinsic_instr *instr,
+		      const struct ac_nir_compiler_options *options,
+		      struct ac_shader_info *info)
 {
 	switch (instr->intrinsic) {
 	case nir_intrinsic_interp_var_at_sample:
@@ -58,9 +60,27 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 	case nir_intrinsic_load_num_work_groups:
 		info->cs.grid_components_used = instr->num_components;
 		break;
-	case nir_intrinsic_vulkan_resource_index:
-		info->desc_set_used_mask |= (1 << nir_intrinsic_desc_set(instr));
+	case nir_intrinsic_vulkan_resource_index: {
+		unsigned set = nir_intrinsic_desc_set(instr);
+
+		info->desc_set_used_mask |= (1 << set);
+		if (options->layout && set == 0) {
+			struct radv_pipeline_layout *pipeline_layout = options->layout;
+			struct radv_descriptor_set_layout *layout = pipeline_layout->set[set].layout;
+			unsigned binding = nir_intrinsic_binding(instr);
+
+			if ((layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR) &&
+			    (layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
+			     layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER))
+				info->inline_possible_buffer_desc_set0_mask |= (1 << binding);
+			if (layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+			    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) {
+				info->inline_possible_buffer_desc_set0_mask |= (1 << binding);
+				info->inline_possible_buffer_desc_set0_dyn_mask |= (1 << binding);
+			}
+		}
 		break;
+	}
 	case nir_intrinsic_image_load:
 	case nir_intrinsic_image_store:
 	case nir_intrinsic_image_atomic_add:
@@ -92,12 +112,14 @@ gather_tex_info(nir_tex_instr *instr, struct ac_shader_info *info)
 }
 
 static void
-gather_info_block(nir_block *block, struct ac_shader_info *info)
+gather_info_block(nir_block *block,
+		  const struct ac_nir_compiler_options *options,
+		  struct ac_shader_info *info)
 {
 	nir_foreach_instr(instr, block) {
 		switch (instr->type) {
 		case nir_instr_type_intrinsic:
-			gather_intrinsic_info(nir_instr_as_intrinsic(instr), info);
+			gather_intrinsic_info(nir_instr_as_intrinsic(instr), options, info);
 			break;
 		case nir_instr_type_tex:
 			gather_tex_info(nir_instr_as_tex(instr), info);
@@ -148,6 +170,6 @@ ac_nir_shader_info_pass(struct nir_shader *nir,
 		gather_info_input_decl(nir, options, variable, info);
 
 	nir_foreach_block(block, func->impl) {
-		gather_info_block(block, info);
+		gather_info_block(block, options, info);
 	}
 }
