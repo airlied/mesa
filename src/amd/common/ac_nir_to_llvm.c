@@ -252,6 +252,14 @@ static void set_llvm_calling_convention(LLVMValueRef func,
 	LLVMSetFunctionCallConv(func, calling_conv);
 }
 
+struct user_sgpr_info {
+	bool need_ring_offsets;
+	uint8_t sgpr_count;
+	bool indirect_all_descriptor_sets;
+	uint8_t base_inline_push_consts;
+	uint8_t num_inline_push_consts;
+};
+
 #define MAX_ARGS 23
 struct arg_info {
 	LLVMTypeRef types[MAX_ARGS];
@@ -633,14 +641,6 @@ static void declare_tess_lds(struct nir_to_llvm_context *ctx)
 				     LLVMPointerType(LLVMArrayType(ctx->i32, lds_size / 4), LOCAL_ADDR_SPACE),
 		"tess_lds");
 }
-
-struct user_sgpr_info {
-	bool need_ring_offsets;
-	uint8_t sgpr_count;
-	bool indirect_all_descriptor_sets;
-	uint8_t base_inline_push_consts;
-	uint8_t num_inline_push_consts;
-};
 
 static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 				struct user_sgpr_info *user_sgpr_info)
