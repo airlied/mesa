@@ -70,6 +70,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef ring_offsets;
 	LLVMValueRef push_constants;
 	LLVMValueRef inline_push_constants[AC_UD_MAX_INLINE_PUSH_CONST];
+	LLVMValueRef inline_desc_set[AC_UD_MAX_INLINE_BUFFER_DESC];
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids;
 	LLVMValueRef local_invocation_ids;
@@ -174,6 +175,9 @@ struct nir_to_llvm_context {
 	unsigned tes_primitive_mode;
 	uint64_t tess_outputs_written;
 	uint64_t tess_patch_outputs_written;
+	int desc_index[AC_UD_MAX_INLINE_BUFFER_DESC];
+	bool desc_index_dyn[AC_UD_MAX_INLINE_BUFFER_DESC];
+	uint8_t num_inline_desc;
 };
 
 static LLVMValueRef get_sampler_desc(struct nir_to_llvm_context *ctx,
@@ -259,6 +263,10 @@ struct user_sgpr_info {
 	bool indirect_all_descriptor_sets;
 	uint8_t base_inline_push_consts;
 	uint8_t num_inline_push_consts;
+	uint8_t num_inline_desc;
+	uint8_t inline_buffer_desc_sgpr_offset;
+	bool inline_desc_set0_dyn[AC_UD_MAX_INLINE_BUFFER_DESC];
+	uint8_t inline_desc_set0[AC_UD_MAX_INLINE_BUFFER_DESC];
 };
 
 #define MAX_ARGS 23
@@ -319,6 +327,25 @@ add_user_sgpr_array_argument(struct arg_info *info,
 {
 	info->array_params_mask |= (1 << info->count);
 	add_user_sgpr_argument(info, type, param_ptr);
+}
+
+static void add_desc_inline(struct nir_to_llvm_context *ctx,
+			    struct user_sgpr_info *uinfo,
+			    struct arg_info *info)
+{
+	unsigned spill_base = ctx->options->supports_spill ? 2 : 0;
+	int pad_args = uinfo->inline_buffer_desc_sgpr_offset - (info->num_user_sgprs_used + spill_base);
+	if (!uinfo->inline_buffer_desc_sgpr_offset)
+		return;
+	for (unsigned i = 0; i < pad_args; i++)
+		add_user_sgpr_argument(info, ctx->i32, NULL);
+
+	ctx->num_inline_desc = uinfo->num_inline_desc;
+	for (unsigned i = 0; i < uinfo->num_inline_desc; i++) {
+		ctx->desc_index[i] = uinfo->inline_desc_set0[i];
+		ctx->desc_index_dyn[i] = uinfo->inline_desc_set0_dyn[i];
+		add_user_sgpr_argument(info, ctx->v4i32, &ctx->inline_desc_set[i]);
+	}
 }
 
 static void assign_arguments(LLVMValueRef main_function,
@@ -635,6 +662,30 @@ static void set_userdata_location_indirect(struct ac_userdata_info *ud_info, uin
 	ud_info->indirect_offset = indirect_offset;
 }
 
+static void set_userdata_desc_inline(struct nir_to_llvm_context *ctx,
+				     struct user_sgpr_info *uinfo,
+				     uint8_t *user_sgpr_idx)
+{
+	if (uinfo->inline_buffer_desc_sgpr_offset) {
+		int idx;
+		struct radv_pipeline_layout *pipeline_layout = ctx->options->layout;
+		struct radv_descriptor_set_layout *layout = pipeline_layout->set[0].layout;
+
+		for (unsigned i = 0; i < uinfo->num_inline_desc; i++) {
+			if (ctx->desc_index_dyn[i])
+				idx = pipeline_layout->set[0].dynamic_offset_start +
+					layout->binding[ctx->desc_index[i]].dynamic_offset_offset;
+			else
+				idx = layout->binding[ctx->desc_index[i]].buffer_offset;
+			ctx->shader_info->user_sgprs_locs.inline_buffer_desc_idx[i] = idx;
+			ctx->shader_info->user_sgprs_locs.inline_buffer_desc_dyn[i] = ctx->desc_index_dyn[i];
+			*user_sgpr_idx = uinfo->inline_buffer_desc_sgpr_offset + (i * 4);
+			set_userdata_location(&ctx->shader_info->user_sgprs_locs.inline_desc[i], user_sgpr_idx, 4);
+		}
+		ctx->shader_info->num_inline_buffer_desc = uinfo->num_inline_desc;
+	}
+}
+
 static void declare_tess_lds(struct nir_to_llvm_context *ctx)
 {
 	unsigned lds_size = ctx->options->chip_class >= CIK ? 65536 : 32768;
@@ -738,6 +789,38 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 		}
 
 	}
+
+	/* try and inline 1-3 buffer descriptor */
+	remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
+	if (ctx->shader_info->info.inline_possible_buffer_desc_set0_mask) {
+		int num_desc_inline = 0;
+		/* take 4 aligned user sgprs - 4-8, 8-12, 12-16 */
+		if (remaining_sgprs >= 12) {
+			num_desc_inline = 3;
+			user_sgpr_info->inline_buffer_desc_sgpr_offset = 4;
+		} else if (remaining_sgprs >= 8) {
+			num_desc_inline = 2;
+			user_sgpr_info->inline_buffer_desc_sgpr_offset = 8;
+		} else if (remaining_sgprs >= 4) {
+			num_desc_inline = 1;
+			user_sgpr_info->inline_buffer_desc_sgpr_offset = 12;
+		}
+		user_sgpr_info->num_inline_desc = MIN2(util_bitcount(ctx->shader_info->info.inline_possible_buffer_desc_set0_mask), num_desc_inline);
+
+		uint32_t mymask = ctx->shader_info->info.inline_possible_buffer_desc_set0_mask;
+		for (unsigned i = 0; i < user_sgpr_info->num_inline_desc; i++) {
+			int idx = u_bit_scan(&mymask);
+			if (user_sgpr_info->inline_buffer_desc_sgpr_offset) {
+				user_sgpr_info->sgpr_count = user_sgpr_info->inline_buffer_desc_sgpr_offset + (4 * i);
+				user_sgpr_info->inline_desc_set0[i] = idx;
+				if (ctx->shader_info->info.inline_possible_buffer_desc_set0_dyn_mask & (1 << idx))
+					user_sgpr_info->inline_desc_set0_dyn[i] = true;
+			}
+		}
+		user_sgpr_info->sgpr_count = user_sgpr_info->inline_buffer_desc_sgpr_offset + 4;
+	}
+
+
 }
 
 static void create_function(struct nir_to_llvm_context *ctx)
@@ -786,6 +869,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 	case MESA_SHADER_COMPUTE:
 		if (ctx->shader_info->info.cs.grid_components_used)
 			add_user_sgpr_argument(&args, LLVMVectorType(ctx->i32, ctx->shader_info->info.cs.grid_components_used), &ctx->num_work_groups); /* grid size */
+		add_desc_inline(ctx, &user_sgpr_info, &args);
 		add_sgpr_argument(&args, LLVMVectorType(ctx->i32, 3), &ctx->workgroup_ids);
 		add_sgpr_argument(&args, ctx->i32, &ctx->tg_size);
 		add_vgpr_argument(&args, LLVMVectorType(ctx->i32, 3), &ctx->local_invocation_ids);
@@ -801,6 +885,8 @@ static void create_function(struct nir_to_llvm_context *ctx)
 			add_sgpr_argument(&args, ctx->i32, &ctx->es2gs_offset); // es2gs offset
 		else if (ctx->options->key.vs.as_ls)
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->ls_out_layout); // ls out layout
+		add_desc_inline(ctx, &user_sgpr_info, &args);
+
 		add_vgpr_argument(&args, ctx->i32, &ctx->vertex_id); // vertex id
 		if (!ctx->is_gs_copy_shader) {
 			add_vgpr_argument(&args, ctx->i32, &ctx->rel_auto_id); // rel auto id
@@ -850,6 +936,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 	case MESA_SHADER_FRAGMENT:
 		if (ctx->shader_info->info.ps.needs_sample_positions)
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->sample_pos_offset); /* sample position offset */
+		add_desc_inline(ctx, &user_sgpr_info, &args);
 		add_sgpr_argument(&args, ctx->i32, &ctx->prim_mask); /* prim mask */
 		add_vgpr_argument(&args, ctx->v2i32, &ctx->persp_sample); /* persp sample */
 		add_vgpr_argument(&args, ctx->v2i32, &ctx->persp_center); /* persp center */
@@ -949,6 +1036,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		if (ctx->shader_info->info.cs.grid_components_used) {
 			set_userdata_location_shader(ctx, AC_UD_CS_GRID_SIZE, &user_sgpr_idx, ctx->shader_info->info.cs.grid_components_used);
 		}
+		set_userdata_desc_inline(ctx, &user_sgpr_info, &user_sgpr_idx);
 		break;
 	case MESA_SHADER_VERTEX:
 		if (!ctx->is_gs_copy_shader) {
@@ -961,6 +1049,8 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		if (ctx->options->key.vs.as_ls) {
 			set_userdata_location_shader(ctx, AC_UD_VS_LS_TCS_IN_LAYOUT, &user_sgpr_idx, 1);
 		}
+
+		set_userdata_desc_inline(ctx, &user_sgpr_info, &user_sgpr_idx);
 		if (ctx->options->key.vs.as_ls)
 			declare_tess_lds(ctx);
 		break;
@@ -978,6 +1068,7 @@ static void create_function(struct nir_to_llvm_context *ctx)
 		if (ctx->shader_info->info.ps.needs_sample_positions) {
 			set_userdata_location_shader(ctx, AC_UD_PS_SAMPLE_POS_OFFSET, &user_sgpr_idx, 1);
 		}
+		set_userdata_desc_inline(ctx, &user_sgpr_info, &user_sgpr_idx);
 		break;
 	default:
 		unreachable("Shader stage not implemented");
@@ -2177,6 +2268,17 @@ static LLVMValueRef visit_vulkan_resource_index(struct nir_to_llvm_context *ctx,
 	struct radv_descriptor_set_layout *layout = pipeline_layout->set[desc_set].layout;
 	unsigned base_offset = layout->binding[binding].offset;
 	LLVMValueRef offset, stride;
+
+	if (layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
+	    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
+	    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+	    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) {
+		for (unsigned i = 0; i < ctx->num_inline_desc; i++) {
+			if (binding == ctx->desc_index[i]) {
+				return ctx->inline_desc_set[i];
+			}
+		}
+	}
 
 	if (layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
 	    layout->binding[binding].type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) {
@@ -5973,11 +6075,14 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.ac.builder = ctx.builder;
 	ctx.stage = nir->stage;
 	ctx.max_workgroup_size = ac_nir_get_max_workgroup_size(ctx.options->chip_class, nir);
-
 	for (i = 0; i < AC_UD_MAX_SETS; i++)
 		shader_info->user_sgprs_locs.descriptor_sets[i].sgpr_idx = -1;
 	for (i = 0; i < AC_UD_MAX_UD; i++)
 		shader_info->user_sgprs_locs.shader_data[i].sgpr_idx = -1;
+	for (i = 0; i < AC_UD_MAX_INLINE_BUFFER_DESC; i++) {
+		ctx.desc_index[i] = -1;
+		shader_info->user_sgprs_locs.inline_desc[i].sgpr_idx = -1;
+	}
 
 	create_function(&ctx);
 
@@ -6310,6 +6415,8 @@ void ac_create_gs_copy_shader(LLVMTargetMachineRef tm,
 	ctx.builder = LLVMCreateBuilderInContext(ctx.context);
 	ctx.ac.builder = ctx.builder;
 	ctx.stage = MESA_SHADER_VERTEX;
+	for (unsigned i = 0; i < AC_UD_MAX_INLINE_BUFFER_DESC; i++)
+		ctx.desc_index[i] = -1;
 
 	create_function(&ctx);
 
