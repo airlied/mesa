@@ -1461,6 +1461,35 @@ radv_flush_indirect_descriptor_sets(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static void
+radv_emit_one_inline_buffer_desc(struct radv_cmd_buffer *cmd_buffer,
+				 struct radv_pipeline *pipeline,
+				 gl_shader_stage stage,
+				 int idx, uint32_t *values)
+{
+	struct ac_userdata_info *loc = &pipeline->shaders[stage]->info.user_sgprs_locs.inline_desc[idx];
+	uint32_t base_reg = radv_shader_stage_to_user_data_0(stage, radv_pipeline_has_gs(pipeline), radv_pipeline_has_tess(pipeline));
+	if (loc->sgpr_idx == -1)
+		return;
+	assert(!loc->indirect);
+
+	radeon_set_sh_reg_seq(cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, 4);
+	radeon_emit_array(cmd_buffer->cs, values, 4);
+}
+
+static void
+radv_flush_inline_desc(struct radv_cmd_buffer *cmd_buffer,
+		       struct radv_pipeline *pipeline, gl_shader_stage stage, uint32_t *ptr, bool dyn)
+{
+	for (unsigned i = 0; i < pipeline->shaders[stage]->info.num_inline_buffer_desc; i++) {
+		uint32_t idx = pipeline->shaders[stage]->info.user_sgprs_locs.inline_buffer_desc_idx[i];
+		if (pipeline->shaders[stage]->info.user_sgprs_locs.inline_buffer_desc_dyn[i] == dyn) {
+			radv_emit_one_inline_buffer_desc(cmd_buffer, pipeline, stage, i,
+							 &ptr[idx * 4]);
+		}
+	}
+}
+
+static void
 radv_flush_descriptors(struct radv_cmd_buffer *cmd_buffer,
 		       VkShaderStageFlags stages)
 {
@@ -1481,6 +1510,21 @@ radv_flush_descriptors(struct radv_cmd_buffer *cmd_buffer,
 	                                                   cmd_buffer->cs,
 	                                                   MAX_SETS * MESA_SHADER_STAGES * 4);
 
+	if (cmd_buffer->state.descriptors_dirty && cmd_buffer->state.descriptors[0]) {
+		struct radv_descriptor_set *set = cmd_buffer->state.descriptors[0];
+		if (cmd_buffer->state.pipeline) {
+			radv_foreach_stage(stage, stages) {
+				if (!cmd_buffer->state.pipeline->shaders[stage])
+					continue;
+				radv_flush_inline_desc(cmd_buffer, cmd_buffer->state.pipeline,
+						       stage, set->mapped_ptr, false);
+			}
+		}
+		if (cmd_buffer->state.compute_pipeline && (stages & VK_SHADER_STAGE_COMPUTE_BIT)) {
+			radv_flush_inline_desc(cmd_buffer, cmd_buffer->state.compute_pipeline,
+					       MESA_SHADER_COMPUTE, set->mapped_ptr, false);
+		}
+	}
 	for (i = 0; i < MAX_SETS; i++) {
 		if (!(cmd_buffer->state.descriptors_dirty & (1u << i)))
 			continue;
@@ -1552,6 +1596,13 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 			radv_emit_one_inline_pushconst(cmd_buffer, pipeline, stage,
 						     idx, value);
 		}
+	}
+
+	radv_foreach_stage(stage, emit_stages) {
+		if (!pipeline->shaders[stage])
+			continue;
+		radv_flush_inline_desc(cmd_buffer, pipeline,
+				       stage, cmd_buffer->dynamic_buffers, true);
 	}
 
 	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
