@@ -719,8 +719,8 @@ emit_fast_htile_clear(struct radv_cmd_buffer *cmd_buffer,
 
 	/* Don't do stencil clears till we have figured out if the clear words are
 	 * correct. */
-	if (vk_format_aspects(iview->image->vk_format) & VK_IMAGE_ASPECT_STENCIL_BIT)
-		goto fail;
+	//	if (vk_format_aspects(iview->image->vk_format) & VK_IMAGE_ASPECT_STENCIL_BIT)
+	//		goto fail;
 
 	if (clear_value.depth == 1.0)
 		clear_word = 0xfffffff0;
