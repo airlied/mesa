@@ -816,6 +816,7 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 }
 
 void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
+				bool predicated,
 				enum chip_class chip_class,
 				bool is_mec,
 				unsigned event, unsigned event_flags,
@@ -830,7 +831,7 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 	unsigned is_gfx8_mec = is_mec && chip_class < GFX9;
 
 	if (chip_class >= GFX9 || is_gfx8_mec) {
-		radeon_emit(cs, PKT3(PKT3_RELEASE_MEM, is_gfx8_mec ? 5 : 6, 0));
+		radeon_emit(cs, PKT3(PKT3_RELEASE_MEM, is_gfx8_mec ? 5 : 6, predicated));
 		radeon_emit(cs, op);
 		radeon_emit(cs, EOP_DATA_SEL(data_sel));
 		radeon_emit(cs, va);            /* address lo */
@@ -846,7 +847,7 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 			 * (and optional cache flushes executed) before the timestamp
 			 * is written.
 			 */
-			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, 0));
+			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, predicated));
 			radeon_emit(cs, op);
 			radeon_emit(cs, va);
 			radeon_emit(cs, ((va >> 32) & 0xffff) | EOP_DATA_SEL(data_sel));
@@ -854,7 +855,7 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 			radeon_emit(cs, 0); /* unused */
 		}
 
-		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, 0));
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, predicated));
 		radeon_emit(cs, op);
 		radeon_emit(cs, va);
 		radeon_emit(cs, ((va >> 32) & 0xffff) | EOP_DATA_SEL(data_sel));
@@ -865,10 +866,11 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 
 void
 si_emit_wait_fence(struct radeon_winsys_cs *cs,
+		   bool predicated,
 		   uint64_t va, uint32_t ref,
 		   uint32_t mask)
 {
-	radeon_emit(cs, PKT3(PKT3_WAIT_REG_MEM, 5, 0));
+	radeon_emit(cs, PKT3(PKT3_WAIT_REG_MEM, 5, predicated));
 	radeon_emit(cs, WAIT_REG_MEM_EQUAL | WAIT_REG_MEM_MEM_SPACE(1));
 	radeon_emit(cs, va);
 	radeon_emit(cs, va >> 32);
@@ -879,12 +881,14 @@ si_emit_wait_fence(struct radeon_winsys_cs *cs,
 
 static void
 si_emit_acquire_mem(struct radeon_winsys_cs *cs,
-                    bool is_mec, bool is_gfx9,
+                    bool is_mec,
+		    bool predicated,
+		    bool is_gfx9,
                     unsigned cp_coher_cntl)
 {
 	if (is_mec || is_gfx9) {
 		uint32_t hi_val = is_gfx9 ? 0xffffff : 0xff;
-		radeon_emit(cs, PKT3(PKT3_ACQUIRE_MEM, 5, 0) |
+		radeon_emit(cs, PKT3(PKT3_ACQUIRE_MEM, 5, predicated) |
 		                            PKT3_SHADER_TYPE_S(is_mec));
 		radeon_emit(cs, cp_coher_cntl);   /* CP_COHER_CNTL */
 		radeon_emit(cs, 0xffffffff);      /* CP_COHER_SIZE */
@@ -894,7 +898,7 @@ si_emit_acquire_mem(struct radeon_winsys_cs *cs,
 		radeon_emit(cs, 0x0000000A);      /* POLL_INTERVAL */
 	} else {
 		/* ACQUIRE_MEM is only required on a compute ring. */
-		radeon_emit(cs, PKT3(PKT3_SURFACE_SYNC, 3, 0));
+		radeon_emit(cs, PKT3(PKT3_SURFACE_SYNC, 3, predicated));
 		radeon_emit(cs, cp_coher_cntl);   /* CP_COHER_CNTL */
 		radeon_emit(cs, 0xffffffff);      /* CP_COHER_SIZE */
 		radeon_emit(cs, 0);               /* CP_COHER_BASE */
@@ -904,6 +908,7 @@ si_emit_acquire_mem(struct radeon_winsys_cs *cs,
 
 void
 si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
+		       bool predicated,
                        enum chip_class chip_class,
 		       uint32_t *flush_cnt,
 		       uint64_t flush_va,
@@ -934,6 +939,7 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 			/* Necessary for DCC */
 			if (chip_class >= VI) {
 				si_cs_emit_write_event_eop(cs,
+							   predicated,
 							   chip_class,
 							   is_mec,
 							   V_028A90_FLUSH_AND_INV_CB_DATA_TS,
@@ -947,27 +953,27 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 	}
 
 	if (flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_CB_META) {
-		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 		radeon_emit(cs, EVENT_TYPE(V_028A90_FLUSH_AND_INV_CB_META) | EVENT_INDEX(0));
 	}
 
 	if (flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_DB_META) {
-		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 		radeon_emit(cs, EVENT_TYPE(V_028A90_FLUSH_AND_INV_DB_META) | EVENT_INDEX(0));
 	}
 
 	if (!flush_cb_db) {
 		if (flush_bits & RADV_CMD_FLAG_PS_PARTIAL_FLUSH) {
-			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 			radeon_emit(cs, EVENT_TYPE(V_028A90_PS_PARTIAL_FLUSH) | EVENT_INDEX(4));
 		} else if (flush_bits & RADV_CMD_FLAG_VS_PARTIAL_FLUSH) {
-			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 			radeon_emit(cs, EVENT_TYPE(V_028A90_VS_PARTIAL_FLUSH) | EVENT_INDEX(4));
 		}
 	}
 
 	if (flush_bits & RADV_CMD_FLAG_CS_PARTIAL_FLUSH) {
-		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 		radeon_emit(cs, EVENT_TYPE(V_028A90_CS_PARTIAL_FLUSH) | EVENT_INDEX(4));
 	}
 
@@ -1014,14 +1020,14 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 		assert(flush_cnt);
 		uint32_t old_fence = (*flush_cnt)++;
 
-		si_cs_emit_write_event_eop(cs, chip_class, false, cb_db_event, tc_flags, 1,
+		si_cs_emit_write_event_eop(cs, predicated, chip_class, false, cb_db_event, tc_flags, 1,
 					   flush_va, old_fence, *flush_cnt);
-		si_emit_wait_fence(cs, flush_va, *flush_cnt, 0xffffffff);
+		si_emit_wait_fence(cs, predicated, flush_va, *flush_cnt, 0xffffffff);
 	}
 
 	/* VGT state sync */
 	if (flush_bits & RADV_CMD_FLAG_VGT_FLUSH) {
-		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, predicated));
 		radeon_emit(cs, EVENT_TYPE(V_028A90_VGT_FLUSH) | EVENT_INDEX(0));
 	}
 
@@ -1034,13 +1040,13 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 			    RADV_CMD_FLAG_INV_GLOBAL_L2 |
 			    RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2))) &&
 	    !is_mec) {
-		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, predicated));
 		radeon_emit(cs, 0);
 	}
 
 	if ((flush_bits & RADV_CMD_FLAG_INV_GLOBAL_L2) ||
 	    (chip_class <= CIK && (flush_bits & RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2))) {
-		si_emit_acquire_mem(cs, is_mec, chip_class >= GFX9,
+		si_emit_acquire_mem(cs, is_mec, predicated, chip_class >= GFX9,
 				    cp_coher_cntl |
 				    S_0085F0_TC_ACTION_ENA(1) |
 				    S_0085F0_TCL1_ACTION_ENA(1) |
@@ -1054,14 +1060,16 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 			 *
 			 * WB doesn't work without NC.
 			 */
-			si_emit_acquire_mem(cs, is_mec, chip_class >= GFX9,
+			si_emit_acquire_mem(cs, is_mec, predicated,
+					    chip_class >= GFX9,
 					    cp_coher_cntl |
 					    S_0301F0_TC_WB_ACTION_ENA(1) |
 					    S_0301F0_TC_NC_ACTION_ENA(1));
 			cp_coher_cntl = 0;
 		}
 		if (flush_bits & RADV_CMD_FLAG_INV_VMEM_L1) {
-			si_emit_acquire_mem(cs, is_mec, chip_class >= GFX9,
+			si_emit_acquire_mem(cs, is_mec,
+					    predicated, chip_class >= GFX9,
 					    cp_coher_cntl |
 					    S_0085F0_TCL1_ACTION_ENA(1));
 			cp_coher_cntl = 0;
@@ -1072,7 +1080,7 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 	 * Therefore, it should be last. Done in PFP.
 	 */
 	if (cp_coher_cntl)
-		si_emit_acquire_mem(cs, is_mec, chip_class >= GFX9, cp_coher_cntl);
+		si_emit_acquire_mem(cs, is_mec, predicated, chip_class >= GFX9, cp_coher_cntl);
 }
 
 void
@@ -1102,6 +1110,7 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 		ptr = &cmd_buffer->gfx9_fence_idx;
 	}
 	si_cs_emit_cache_flush(cmd_buffer->cs,
+			       cmd_buffer->state.predicating,
 	                       cmd_buffer->device->physical_device->rad_info.chip_class,
 			       ptr, va,
 	                       radv_cmd_buffer_uses_mec(cmd_buffer),
