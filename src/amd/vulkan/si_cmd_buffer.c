@@ -1207,7 +1207,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 		header |= S_411_SRC_SEL(V_411_SRC_ADDR_TC_L2);
 
 	if (cmd_buffer->device->physical_device->rad_info.chip_class >= CIK) {
-		radeon_emit(cs, PKT3(PKT3_DMA_DATA, 5, 0));
+		radeon_emit(cs, PKT3(PKT3_DMA_DATA, 5, cmd_buffer->state.predicating));
 		radeon_emit(cs, header);
 		radeon_emit(cs, src_va);		/* SRC_ADDR_LO [31:0] */
 		radeon_emit(cs, src_va >> 32);		/* SRC_ADDR_HI [31:0] */
@@ -1217,7 +1217,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 	} else {
 		assert(!(flags & CP_DMA_USE_L2));
 		header |= S_411_SRC_ADDR_HI(src_va >> 32);
-		radeon_emit(cs, PKT3(PKT3_CP_DMA, 4, 0));
+		radeon_emit(cs, PKT3(PKT3_CP_DMA, 4, cmd_buffer->state.predicating));
 		radeon_emit(cs, src_va);			/* SRC_ADDR_LO [31:0] */
 		radeon_emit(cs, header);			/* SRC_ADDR_HI [15:0] + flags. */
 		radeon_emit(cs, dst_va);			/* DST_ADDR_LO [31:0] */
@@ -1231,7 +1231,7 @@ static void si_emit_cp_dma(struct radv_cmd_buffer *cmd_buffer,
 	 * should precede it.
 	 */
 	if ((flags & CP_DMA_SYNC) && cmd_buffer->queue_family_index == RADV_QUEUE_GENERAL) {
-		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+		radeon_emit(cs, PKT3(PKT3_PFP_SYNC_ME, 0, cmd_buffer->state.predicating));
 		radeon_emit(cs, 0);
 	}
 
