@@ -3296,7 +3296,14 @@ static void radv_handle_dcc_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					     const VkImageSubresourceRange *range,
 					     VkImageAspectFlags pending_clears)
 {
-	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+	if (dst_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+	    (pending_clears & vk_format_aspects(image->vk_format)) == vk_format_aspects(image->vk_format) &&
+	    cmd_buffer->state.render_area.offset.x == 0 && cmd_buffer->state.render_area.offset.y == 0 &&
+	    cmd_buffer->state.render_area.extent.width == image->info.width &&
+	    cmd_buffer->state.render_area.extent.height == image->info.height) {
+		/* The clear will initialize dcc */
+		return;
+	} else if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
 		radv_initialize_dcc(cmd_buffer, image, 0x20202020u);
 	} else if (radv_layout_can_fast_clear(image, src_layout, src_queue_mask) &&
 		   !radv_layout_can_fast_clear(image, dst_layout, dst_queue_mask)) {
