@@ -3205,7 +3205,7 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 					       VkImageAspectFlags pending_clears)
 {
 	if (dst_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-	    (pending_clears & vk_format_aspects(image->vk_format)) == vk_format_aspects(image->vk_format) &&
+	    (pending_clears & vk_format_aspects(image->vk_format)) == VK_IMAGE_ASPECT_DEPTH_BIT &&
 	    cmd_buffer->state.render_area.offset.x == 0 && cmd_buffer->state.render_area.offset.y == 0 &&
 	    cmd_buffer->state.render_area.extent.width == image->info.width &&
 	    cmd_buffer->state.render_area.extent.height == image->info.height) {
