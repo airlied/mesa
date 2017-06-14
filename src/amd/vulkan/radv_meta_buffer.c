@@ -507,7 +507,7 @@ void radv_CmdUpdateBuffer(
 		return;
 
 	if (dataSize < 4096) {
-		si_emit_cache_flush(cmd_buffer);
+		si_emit_cache_flush(cmd_buffer, RADV_CP_DMA_DIRTY);
 
 		cmd_buffer->device->ws->cs_add_buffer(cmd_buffer->cs, dst_buffer->bo, 8);
 
