@@ -748,6 +748,13 @@ struct radv_attachment_state {
 	VkImageLayout                                current_layout;
 };
 
+enum dirty_bits {
+	RADV_GRAPHICS_DIRTY = 1 << 0,
+	RADV_COMPUTE_DIRTY = 1 << 1,
+	RADV_CP_DMA_DIRTY = 1 << 2,
+	RADV_ALL_DIRTY = 0xf,
+};
+
 struct radv_cmd_state {
 	uint32_t                                      vb_dirty;
 	radv_cmd_dirty_mask_t                         dirty;
@@ -777,6 +784,7 @@ struct radv_cmd_state {
 	uint32_t                                      trace_id;
 	uint32_t                                      last_ia_multi_vgt_param;
 	bool predicating;
+	enum dirty_bits dirty_bits;
 };
 
 struct radv_cmd_pool {
@@ -868,7 +876,8 @@ void si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 			    uint32_t *fence_ptr, uint64_t va,
 			    bool is_mec,
 			    enum radv_cmd_flush_bits flush_bits);
-void si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer);
+void si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer,
+			 enum dirty_bits next_op_dirty);
 void si_emit_set_pred(struct radv_cmd_buffer *cmd_buffer, uint64_t va);
 void si_cp_dma_buffer_copy(struct radv_cmd_buffer *cmd_buffer,
 			   uint64_t src_va, uint64_t dest_va,
