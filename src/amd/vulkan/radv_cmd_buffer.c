@@ -1749,7 +1749,7 @@ radv_cmd_buffer_flush_state(struct radv_cmd_buffer *cmd_buffer,
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 
-	si_emit_cache_flush(cmd_buffer);
+	si_emit_cache_flush(cmd_buffer, RADV_GRAPHICS_DIRTY);
 }
 
 static void radv_stage_flush(struct radv_cmd_buffer *cmd_buffer,
@@ -2326,7 +2326,7 @@ VkResult radv_EndCommandBuffer(
 	RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
 
 	if (cmd_buffer->queue_family_index != RADV_QUEUE_TRANSFER)
-		si_emit_cache_flush(cmd_buffer);
+		si_emit_cache_flush(cmd_buffer, 0);
 
 	if (!cmd_buffer->device->ws->cs_finalize(cmd_buffer->cs) ||
 	    cmd_buffer->record_fail)
@@ -2582,7 +2582,7 @@ void radv_CmdExecuteCommands(
 	RADV_FROM_HANDLE(radv_cmd_buffer, primary, commandBuffer);
 
 	/* Emit pending flushes on primary prior to executing secondary */
-	si_emit_cache_flush(primary);
+	si_emit_cache_flush(primary, RADV_ALL_DIRTY);
 
 	for (uint32_t i = 0; i < commandBufferCount; i++) {
 		RADV_FROM_HANDLE(radv_cmd_buffer, secondary, pCmdBuffers[i]);
@@ -2993,7 +2993,7 @@ radv_flush_compute_state(struct radv_cmd_buffer *cmd_buffer)
 	radv_flush_descriptors(cmd_buffer, VK_SHADER_STAGE_COMPUTE_BIT);
 	radv_flush_constants(cmd_buffer, cmd_buffer->state.compute_pipeline,
 			     VK_SHADER_STAGE_COMPUTE_BIT);
-	si_emit_cache_flush(cmd_buffer);
+	si_emit_cache_flush(cmd_buffer, RADV_COMPUTE_DIRTY);
 }
 
 void radv_CmdDispatch(
