@@ -440,6 +440,8 @@ static void radv_fill_shader_variant(struct radv_device *device,
 static struct radv_shader_variant *radv_shader_variant_create(struct radv_device *device,
 							      struct nir_shader *shader,
 							      struct radv_pipeline_layout *layout,
+							      int num_vertex_descs,
+							      struct radv_vertex_descriptor *vertex_descs,
 							      const union ac_shader_variant_key *key,
 							      void** code_out,
 							      unsigned *code_size_out,
@@ -453,6 +455,8 @@ static struct radv_shader_variant *radv_shader_variant_create(struct radv_device
 
 	struct ac_nir_compiler_options options = {0};
 	options.layout = layout;
+	options.num_vertex_desc = num_vertex_descs;
+	options.vertex_desc = vertex_descs;
 	if (key)
 		options.key = *key;
 
@@ -529,6 +533,8 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 		      gl_shader_stage stage,
 		      const VkSpecializationInfo *spec_info,
 		      struct radv_pipeline_layout *layout,
+		      int num_vertex_descs,
+		      struct radv_vertex_descriptor *vertex_descs,
 		      const union ac_shader_variant_key *key)
 {
 	unsigned char sha1[20];
@@ -573,7 +579,8 @@ radv_pipeline_compile(struct radv_pipeline *pipeline,
 
 	if (!variant) {
 		variant = radv_shader_variant_create(pipeline->device, nir,
-						     layout, key, &code,
+						     layout, num_vertex_descs,
+						     vertex_descs, key, &code,
 						     &code_size, dump);
 	}
 
@@ -696,7 +703,7 @@ radv_tess_pipeline_compile(struct radv_pipeline *pipeline,
 				     tcs_nir->info.tess.tcs_vertices_out);
 
 	tes_variant = radv_shader_variant_create(pipeline->device, tes_nir,
-						 layout, &tes_key, &tes_code,
+						 layout, 0, NULL, &tes_key, &tes_code,
 						 &tes_code_size, dump);
 
 	tcs_key = radv_compute_tcs_key(tes_nir->info.tess.primitive_mode, input_vertices);
@@ -708,7 +715,7 @@ radv_tess_pipeline_compile(struct radv_pipeline *pipeline,
 	radv_hash_shader(tcs_sha1, tcs_module, tcs_entrypoint, tcs_spec_info, layout, &tcs_key, 0);
 
 	tcs_variant = radv_shader_variant_create(pipeline->device, tcs_nir,
-						 layout, &tcs_key, &tcs_code,
+						 layout, 0, NULL, &tcs_key, &tcs_code,
 						 &tcs_code_size, dump);
 
 	if (!tes_module->nir)
@@ -1994,7 +2001,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 {
 	struct radv_shader_module fs_m = {0};
 	VkResult result;
-
+	struct radv_vertex_descriptor *vertex_descs = NULL;
 	if (alloc == NULL)
 		alloc = &device->alloc;
 
@@ -2032,12 +2039,34 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 					       stage ? stage->pName : "main",
 					       MESA_SHADER_FRAGMENT,
 					       stage ? stage->pSpecializationInfo : NULL,
-					       pipeline->layout, &key);
+					       pipeline->layout, 0, NULL, &key);
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_FRAGMENT);
 	}
 
 	if (fs_m.nir)
 		ralloc_free(fs_m.nir);
+
+	const VkPipelineVertexInputStateCreateInfo *vi_info =
+		pCreateInfo->pVertexInputState;
+	if (vi_info->vertexAttributeDescriptionCount) {
+		vertex_descs = malloc(vi_info->vertexAttributeDescriptionCount * sizeof(struct radv_vertex_descriptor));
+		if (!vertex_descs)
+			return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+		for (unsigned i = 0; i < vi_info->vertexAttributeDescriptionCount; i++) {
+			const VkVertexInputAttributeDescription *desc =
+				&vi_info->pVertexAttributeDescriptions[i];
+			struct radv_vertex_descriptor *radv_desc =
+				&vertex_descs[i];
+
+			radv_desc->location = desc->location;
+			radv_desc->binding = desc->binding;
+			radv_desc->offset = desc->offset;
+			const struct vk_format_description *format_desc = vk_format_description(desc->format);
+			radv_desc->num_components = format_desc->nr_channels;
+		}
+	}
+	pipeline->num_bindings = vi_info->vertexBindingDescriptionCount;
 
 	if (modules[MESA_SHADER_VERTEX]) {
 		bool as_es = false;
@@ -2056,11 +2085,12 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 					       pStages[MESA_SHADER_VERTEX]->pName,
 					       MESA_SHADER_VERTEX,
 					       pStages[MESA_SHADER_VERTEX]->pSpecializationInfo,
-					       pipeline->layout, &key);
+					       pipeline->layout, vi_info->vertexAttributeDescriptionCount, vertex_descs, &key);
 
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_VERTEX);
 	}
 
+	free(vertex_descs);
 	if (modules[MESA_SHADER_GEOMETRY]) {
 		union ac_shader_variant_key key = radv_compute_vs_key(pCreateInfo, false, false, false);
 
@@ -2069,7 +2099,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 					       pStages[MESA_SHADER_GEOMETRY]->pName,
 					       MESA_SHADER_GEOMETRY,
 					       pStages[MESA_SHADER_GEOMETRY]->pSpecializationInfo,
-					       pipeline->layout, &key);
+					       pipeline->layout, 0, NULL, &key);
 
 		pipeline->active_stages |= mesa_to_vk_shader_stage(MESA_SHADER_GEOMETRY);
 	}
@@ -2197,33 +2227,6 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 		calculate_tess_state(pipeline, pCreateInfo);
 	}
 
-	const VkPipelineVertexInputStateCreateInfo *vi_info =
-		pCreateInfo->pVertexInputState;
-	for (uint32_t i = 0; i < vi_info->vertexAttributeDescriptionCount; i++) {
-		const VkVertexInputAttributeDescription *desc =
-			&vi_info->pVertexAttributeDescriptions[i];
-		unsigned loc = desc->location;
-		const struct vk_format_description *format_desc;
-		int first_non_void;
-		uint32_t num_format, data_format;
-		format_desc = vk_format_description(desc->format);
-		first_non_void = vk_format_get_first_non_void_channel(desc->format);
-
-		num_format = radv_translate_buffer_numformat(format_desc, first_non_void);
-		data_format = radv_translate_buffer_dataformat(format_desc, first_non_void);
-
-		pipeline->va_rsrc_word3[loc] = S_008F0C_DST_SEL_X(si_map_swizzle(format_desc->swizzle[0])) |
-			S_008F0C_DST_SEL_Y(si_map_swizzle(format_desc->swizzle[1])) |
-			S_008F0C_DST_SEL_Z(si_map_swizzle(format_desc->swizzle[2])) |
-			S_008F0C_DST_SEL_W(si_map_swizzle(format_desc->swizzle[3])) |
-			S_008F0C_NUM_FORMAT(num_format) |
-			S_008F0C_DATA_FORMAT(data_format);
-		pipeline->va_format_size[loc] = format_desc->block.bits / 8;
-		pipeline->va_offset[loc] = desc->offset;
-		pipeline->va_binding[loc] = desc->binding;
-		pipeline->num_vertex_attribs = MAX2(pipeline->num_vertex_attribs, loc + 1);
-	}
-
 	for (uint32_t i = 0; i < vi_info->vertexBindingDescriptionCount; i++) {
 		const VkVertexInputBindingDescription *desc =
 			&vi_info->pVertexBindingDescriptions[i];
@@ -2334,7 +2337,7 @@ static VkResult radv_compute_pipeline_create(
 				       pCreateInfo->stage.pName,
 				       MESA_SHADER_COMPUTE,
 				       pCreateInfo->stage.pSpecializationInfo,
-				       pipeline->layout, NULL);
+				       pipeline->layout, 0, NULL, NULL);
 
 
 	pipeline->need_indirect_descriptor_sets |= pipeline->shaders[MESA_SHADER_COMPUTE]->info.need_indirect_descriptor_sets;

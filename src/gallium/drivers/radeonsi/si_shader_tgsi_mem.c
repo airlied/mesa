@@ -1750,6 +1750,7 @@ static void build_tex_intrinsic(const struct lp_build_tgsi_action *action,
 		emit_data->output[emit_data->chan] =
 			ac_build_buffer_load_format(&ctx->ac,
 						    emit_data->args[0],
+						    4,
 						    emit_data->args[2],
 						    emit_data->args[1],
 						    true);
