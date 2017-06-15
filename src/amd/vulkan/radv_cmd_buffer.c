@@ -1666,37 +1666,42 @@ radv_cmd_buffer_update_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
 	struct radv_device *device = cmd_buffer->device;
 
 	if ((cmd_buffer->state.pipeline != cmd_buffer->state.emitted_pipeline || cmd_buffer->state.vb_dirty) &&
-	    cmd_buffer->state.pipeline->num_vertex_attribs &&
+	    cmd_buffer->state.pipeline->num_bindings &&
 	    cmd_buffer->state.pipeline->shaders[MESA_SHADER_VERTEX]->info.info.vs.has_vertex_buffers) {
 		unsigned vb_offset;
 		void *vb_ptr;
 		uint32_t i = 0;
-		uint32_t num_attribs = cmd_buffer->state.pipeline->num_vertex_attribs;
+		uint32_t num_bindings = cmd_buffer->state.pipeline->num_bindings;
 		uint64_t va;
 
 		/* allocate some descriptor state for vertex buffers */
-		radv_cmd_buffer_upload_alloc(cmd_buffer, num_attribs * 16, 256,
+		radv_cmd_buffer_upload_alloc(cmd_buffer, cmd_buffer->state.pipeline->num_bindings * 16, 256,
 					     &vb_offset, &vb_ptr);
 
-		for (i = 0; i < num_attribs; i++) {
+		for (i = 0; i < num_bindings; i++) {
 			uint32_t *desc = &((uint32_t *)vb_ptr)[i * 4];
+			struct radv_buffer *buffer = cmd_buffer->state.vertex_bindings[i].buffer;
+			uint32_t stride = cmd_buffer->state.pipeline->binding_stride[i];
 			uint32_t offset;
-			int vb = cmd_buffer->state.pipeline->va_binding[i];
-			struct radv_buffer *buffer = cmd_buffer->state.vertex_bindings[vb].buffer;
-			uint32_t stride = cmd_buffer->state.pipeline->binding_stride[vb];
+			if (!buffer) {
+				continue;
+			}
 
 			device->ws->cs_add_buffer(cmd_buffer->cs, buffer->bo, 8);
 			va = device->ws->buffer_get_va(buffer->bo);
-
-			offset = cmd_buffer->state.vertex_bindings[vb].offset + cmd_buffer->state.pipeline->va_offset[i];
+			offset = cmd_buffer->state.vertex_bindings[i].offset;
 			va += offset + buffer->offset;
 			desc[0] = va;
 			desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
-			if (cmd_buffer->device->physical_device->rad_info.chip_class <= CIK && stride)
-				desc[2] = (buffer->size - offset - cmd_buffer->state.pipeline->va_format_size[i]) / stride + 1;
-			else
-				desc[2] = buffer->size - offset;
-			desc[3] = cmd_buffer->state.pipeline->va_rsrc_word3[i];
+			desc[2] = buffer->size - offset;
+			desc[3] = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) |
+				S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
+				S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) |
+				S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W)|
+				S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_FLOAT) |
+				S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
+			fprintf(stderr, "desc: %08x %08x %08x %08x\n",
+				desc[0], desc[1], desc[2], desc[3]);
 		}
 
 		va = device->ws->buffer_get_va(cmd_buffer->upload.upload_bo);

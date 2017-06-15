@@ -94,4 +94,13 @@ radv_immutable_samplers(const struct radv_descriptor_set_layout *set,
                         const struct radv_descriptor_set_binding_layout *binding) {
 	return (const uint32_t*)((const char*)set + binding->immutable_samplers_offset);
 }
+
+struct radv_vertex_descriptor {
+	uint32_t location;
+	uint32_t binding;
+	uint32_t offset;
+	int num_components;
+//	VkFormat format;
+};
+
 #endif /* RADV_DESCRIPTOR_SET_H */

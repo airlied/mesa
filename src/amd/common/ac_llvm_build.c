@@ -706,6 +706,7 @@ ac_build_buffer_load(struct ac_llvm_context *ctx,
 
 LLVMValueRef ac_build_buffer_load_format(struct ac_llvm_context *ctx,
 					 LLVMValueRef rsrc,
+					 int num_channels,
 					 LLVMValueRef vindex,
 					 LLVMValueRef voffset,
 					 bool can_speculate)
@@ -717,15 +718,22 @@ LLVMValueRef ac_build_buffer_load_format(struct ac_llvm_context *ctx,
 		LLVMConstInt(ctx->i1, 0, 0), /* glc */
 		LLVMConstInt(ctx->i1, 0, 0), /* slc */
 	};
+	char name[256];
+	LLVMValueRef results[4];
 
-	return ac_build_intrinsic(ctx,
-				  "llvm.amdgcn.buffer.load.format.v4f32",
-				  ctx->v4f32, args, ARRAY_SIZE(args),
-				  /* READNONE means writes can't affect it, while
-				   * READONLY means that writes can affect it. */
-				  can_speculate && HAVE_LLVM >= 0x0400 ?
-					  AC_FUNC_ATTR_READNONE :
-					  AC_FUNC_ATTR_READONLY);
+	for (int i = 0; i < num_channels; i++) {
+		results[i] = ac_build_intrinsic(ctx,
+						"llvm.amdgcn.buffer.load.format.f32",
+						ctx->f32, args, ARRAY_SIZE(args),
+						/* READNONE means writes can't affect it, while
+						 * READONLY means that writes can affect it. */
+						can_speculate && HAVE_LLVM >= 0x0400 ?
+						AC_FUNC_ATTR_READNONE :
+						AC_FUNC_ATTR_READONLY);
+		args[2] = LLVMBuildAdd(ctx->builder, args[2],
+				       LLVMConstInt(ctx->i32, 4, false), "");
+	}
+	return ac_build_gather_values(ctx, results, num_channels);
 }
 
 /**
