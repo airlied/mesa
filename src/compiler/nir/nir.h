@@ -1086,6 +1086,12 @@ typedef enum {
     */
    NIR_INTRINSIC_INTERP_MODE = 9,
 
+   /*
+    * Constant mask, invocation, swizzle, etc. used for a subgroup operation.
+    * The precise meaning depends on the intrinsic.
+    */
+   NIR_INTRINSIC_SUBGROUP_DATA = 10,
+
    NIR_INTRINSIC_NUM_INDEX_FLAGS,
 
 } nir_intrinsic_index_flag;
@@ -1154,6 +1160,7 @@ INTRINSIC_IDX_ACCESSORS(desc_set, DESC_SET, unsigned)
 INTRINSIC_IDX_ACCESSORS(binding, BINDING, unsigned)
 INTRINSIC_IDX_ACCESSORS(component, COMPONENT, unsigned)
 INTRINSIC_IDX_ACCESSORS(interp_mode, INTERP_MODE, unsigned)
+INTRINSIC_IDX_ACCESSORS(subgroup_data, SUBGROUP_DATA, unsigned)
 
 /**
  * \group texture information

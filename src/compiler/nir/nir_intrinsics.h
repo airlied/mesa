@@ -93,11 +93,23 @@ INTRINSIC(get_buffer_size, 1, ARR(1), true, 1, 0, 0, xx, xx, xx,
  * the comment for NIR_INTRINSIC_CONVERGENT in nir.h for details.
  */
 #define CONVERGENT(name, num_srcs, src0_components, src1_components, \
-                   dest_components) \
-   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+                   src2_components, dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components, \
+                                 src2_components), \
              true, dest_components, 0, 0, xx, xx, xx, \
              NIR_INTRINSIC_CAN_REORDER | NIR_INTRINSIC_CAN_ELIMINATE | \
              NIR_INTRINSIC_CONVERGENT)
+
+/*
+ * Similar to CONVERGENT, except optimizations can assume that the intrinsic is
+ * only called in uniform control flow.
+ */
+#define UNIFORM_CONTROL(name, num_srcs, src0_components, src1_components, \
+                        dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+             true, dest_components, 0, 0, xx, xx, xx, \
+             NIR_INTRINSIC_CAN_REORDER | NIR_INTRINSIC_CAN_ELIMINATE | \
+             NIR_INTRINSIC_UNIFORM_CONTROL)
 
 BARRIER(barrier)
 BARRIER(discard)
@@ -126,7 +138,7 @@ INTRINSIC(shader_clock, 0, ARR(0), true, 2, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_
  * GLSL functions from ARB_shader_ballot.
  */
 CROSS_THREAD(ballot, 1, 1, 0, 1)
-CONVERGENT(read_invocation, 2, 0, 1, 0)
+CONVERGENT(read_invocation, 2, 0, 1, 0, 0)
 CROSS_THREAD(read_first_invocation, 1, 0, 0, 0)
 
 /*
@@ -147,6 +159,105 @@ INTRINSIC(discard_if, 1, ARR(1), false, 0, 0, 0, xx, xx, xx, 0)
 CROSS_THREAD(vote_any, 1, 1, 0, 1)
 CROSS_THREAD(vote_all, 1, 1, 0, 1)
 CROSS_THREAD(vote_eq,  1, 1, 0, 1)
+
+/* AMD_shader_ballot intrinsics */
+
+/*
+ * This is like CROSS_THREAD for instructions that communicate across an entire
+ * workgroup, instead of just the subgroup.
+ */
+
+#define CROSS_SUBGROUP(name, num_srcs, src0_components, src1_components, \
+                       dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+             true, dest_components, 0, 0, xx, xx, xx, \
+             NIR_INTRINSIC_CAN_ELIMINATE)
+
+#define CROSS_SUBGROUP_UNIFORM(name, num_srcs, src0_components, \
+                               src1_components, dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+             true, dest_components, 0, 0, xx, xx, xx, \
+             NIR_INTRINSIC_CAN_ELIMINATE | NIR_INTRINSIC_UNIFORM_CONTROL)
+
+#define REDUCE_OP(name, postfix) \
+   UNIFORM_CONTROL(subgroup_##name##postfix, 1, 0, 0, 0) \
+   CROSS_SUBGROUP(subgroup_##name##postfix##_nonuniform, 1, 0, 0, 0) \
+   CROSS_SUBGROUP_UNIFORM(group_##name##postfix, 1, 0, 0, 0) \
+   CROSS_SUBGROUP(group_##name##postfix##_nonuniform, 1, 0, 0, 0) \
+
+#define GROUP_SUBGROUP_REDUCE(name) \
+   REDUCE_OP(name, ) \
+   REDUCE_OP(name, _inclusive_scan) \
+   REDUCE_OP(name, _exclusive_scan)
+      
+GROUP_SUBGROUP_REDUCE(iadd)
+GROUP_SUBGROUP_REDUCE(fadd)
+GROUP_SUBGROUP_REDUCE(fmin)
+GROUP_SUBGROUP_REDUCE(umin)
+GROUP_SUBGROUP_REDUCE(imin)
+GROUP_SUBGROUP_REDUCE(fmax)
+GROUP_SUBGROUP_REDUCE(umax)
+GROUP_SUBGROUP_REDUCE(imax)
+
+#undef GROUP_SUBGROUP_REDUCE
+#undef REDUCE_OP
+
+/* Analogous to vote_any and vote_all, but works across an entire workgroup.
+ * Also, this version can only be called in uniform control flow.
+ */
+CROSS_SUBGROUP_UNIFORM(group_any, 1, 1, 0, 1)
+CROSS_SUBGROUP_UNIFORM(group_all, 1, 1, 0, 1)
+
+/* Similarly, this is analogous to read_invocation but works across an entire
+ * workgroup and can only be called in uniform control flow. Unlike
+ * read_invocation, the second argument is a 3-dimensional local ID instead of
+ * a simple linear index.
+ */
+CROSS_SUBGROUP_UNIFORM(group_broadcast, 2, 1, 3, 1)
+
+#define CROSS_THREAD_WITH_DATA(name, src_components, dest_components) \
+   INTRINSIC(name, 1, ARR(src_components), \
+             true, dest_components, 0, 1, SUBGROUP_DATA, xx, xx, \
+             NIR_INTRINSIC_CAN_REORDER | NIR_INTRINSIC_CAN_ELIMINATE | \
+             NIR_INTRINSIC_CROSS_THREAD)
+
+/* The index is is interpreted as a swizzle value, with bits [2*i:2*i+1]
+ * giving the lane within the quad that should be stored in the i'th lane of
+ * the quad. Inactive lanes return 0. That is, the computation is:
+ *
+ * for (i = 0; i < SubgroupSize; i++) {
+ *    for (j = 0; j < 4; j++) {
+ *       out[i + j] = is_active[i + swizzle[2*j:2*j+1]] ? in[i + swizzle[2*j:2*j+1]] : 0;
+ *    }
+ * }
+ */
+CROSS_THREAD_WITH_DATA(quad_swizzle_amd, 0, 0)
+
+/*
+ * Implements AMD's swizzle-masked intrinsic. The mask is interpreted as 3
+ * 5-bit integers. Implements the following, taken from AMD_shader_ballot:
+ *
+ * for (i = 0; i < SubgroupSize; i++) {
+ *    j = (((i & 0x1f) & data[0:4]) | data[5:9]) ^ data[10:14];
+ *    j |= i & 0x20;
+ *    out[i] = is_active[j] ? in[j] : 0;
+ */
+CROSS_THREAD_WITH_DATA(masked_swizzle_amd, 0, 0)
+
+/*
+ * The opposite of read_invocation - return the first argument, except for the
+ * second argument in the invocation given by the third argument. The second
+ * and third arguments must be dynamically uniform within the subgroup.
+ */
+CONVERGENT(write_invocation, 3, 0, 0, 1, 0)
+
+/*
+ * Implements the AMD mbcnt instruction. Returns:
+ *
+ * bitCount(gl_SubgroupLtMask & src0)
+ */
+INTRINSIC(mbcnt_amd, 1, ARR(1), true, 1, 0, 0, xx, xx, xx,
+          NIR_INTRINSIC_CAN_ELIMINATE | NIR_INTRINSIC_CAN_REORDER)
 
 /**
  * Basic Geometry Shader intrinsics.
@@ -386,6 +497,13 @@ SYSTEM_VALUE(blend_const_color_b_float, 1, 0, xx, xx, xx)
 SYSTEM_VALUE(blend_const_color_a_float, 1, 0, xx, xx, xx)
 SYSTEM_VALUE(blend_const_color_rgba8888_unorm, 1, 0, xx, xx, xx)
 SYSTEM_VALUE(blend_const_color_aaaa8888_unorm, 1, 0, xx, xx, xx)
+
+#define CROSS_THREAD_UNIFORM(name, dest_components, src_components) \
+   INTRINSIC(name, 1, ARR(src_components), true, dest_components, 0, 0, \
+             xx, xx, xx, \
+             NIR_INTRINSIC_CAN_ELIMINATE | NIR_INTRINSIC_CAN_REORDER | \
+             NIR_INTRINSIC_CROSS_THREAD | NIR_INTRINSIC_CONVERGENT)
+
 
 /**
  * Barycentric coordinate intrinsics.
