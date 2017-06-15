@@ -1069,11 +1069,7 @@ struct radv_pipeline {
 	struct radv_shader_variant *gs_copy_shader;
 	VkShaderStageFlags                           active_stages;
 
-	uint32_t va_rsrc_word3[MAX_VERTEX_ATTRIBS];
-	uint32_t va_format_size[MAX_VERTEX_ATTRIBS];
-	uint32_t va_binding[MAX_VERTEX_ATTRIBS];
-	uint32_t va_offset[MAX_VERTEX_ATTRIBS];
-	uint32_t num_vertex_attribs;
+	uint32_t num_bindings;
 	uint32_t                                     binding_stride[MAX_VBS];
 
 	union {
