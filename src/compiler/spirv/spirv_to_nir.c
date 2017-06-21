@@ -261,6 +261,11 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
       struct vtn_value *val = vtn_push_value(b, w[1], vtn_value_type_extension);
       if (strcmp((const char *)&w[2], "GLSL.std.450") == 0) {
          val->ext_handler = vtn_handle_glsl450_instruction;
+      } else if (strcmp((const char *)&w[2], "SPV_AMD_shader_ballot") == 0) {
+         if (!(b->ext && b->ext->amd_shader_ballot)) {
+            vtn_warn("Unsupported extension SPV_AMD_shader_ballot");
+         }
+         val->ext_handler = vtn_handle_amd_ballot_ext;
       } else {
          unreachable("Unsupported extension");
       }
@@ -2815,7 +2820,6 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
       case SpvCapabilityImageReadWrite:
       case SpvCapabilityImageMipmap:
       case SpvCapabilityPipes:
-      case SpvCapabilityGroups:
       case SpvCapabilityDeviceEnqueue:
       case SpvCapabilityLiteralSampler:
       case SpvCapabilityGenericPointer:
@@ -2858,6 +2862,10 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
 
       case SpvCapabilitySubgroupVoteKHR:
          spv_check_supported(shader_group_vote, cap);
+         break;
+
+      case SpvCapabilityGroups:
+         spv_check_supported(groups, cap);
          break;
 
       default:
@@ -3380,6 +3388,28 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpSubgroupAnyKHR:
    case SpvOpSubgroupAllEqualKHR:
       vtn_handle_subgroup(b, opcode, w, count);
+      break;
+
+   case SpvOpGroupAny:
+   case SpvOpGroupAll:
+   case SpvOpGroupBroadcast:
+   case SpvOpGroupIAdd:
+   case SpvOpGroupFAdd:
+   case SpvOpGroupFMin:
+   case SpvOpGroupUMin:
+   case SpvOpGroupSMin:
+   case SpvOpGroupFMax:
+   case SpvOpGroupUMax:
+   case SpvOpGroupSMax:
+   case SpvOpGroupIAddNonUniformAMD:
+   case SpvOpGroupFAddNonUniformAMD:
+   case SpvOpGroupFMinNonUniformAMD:
+   case SpvOpGroupUMinNonUniformAMD:
+   case SpvOpGroupSMinNonUniformAMD:
+   case SpvOpGroupFMaxNonUniformAMD:
+   case SpvOpGroupUMaxNonUniformAMD:
+   case SpvOpGroupSMaxNonUniformAMD:
+      vtn_handle_group(b, opcode, w, count);
       break;
 
    default:

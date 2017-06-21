@@ -630,6 +630,15 @@ void vtn_handle_alu(struct vtn_builder *b, SpvOp opcode,
 bool vtn_handle_glsl450_instruction(struct vtn_builder *b, uint32_t ext_opcode,
                                     const uint32_t *words, unsigned count);
 
+/* Handle instructions under the Group capability, including ones added by
+ * SPV_AMD_shader_ballot for non-uniform reductions.
+ */
+void vtn_handle_group(struct vtn_builder *b, SpvOp opcode,
+                      const uint32_t *words, unsigned count);
+
+bool vtn_handle_amd_ballot_ext(struct vtn_builder *b, uint32_t ext_opcode,
+                               const uint32_t *words, unsigned count);
+
 static inline uint64_t
 vtn_u64_literal(const uint32_t *w)
 {
