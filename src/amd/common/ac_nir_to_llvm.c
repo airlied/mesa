@@ -402,6 +402,10 @@ create_llvm_function(LLVMContextRef ctx, LLVMModuleRef module,
 						     max_workgroup_size);
 	}
 	if (unsafe_math) {
+		LLVMAddTargetDependentFunctionAttr(main_function,
+						   "no-signed-zeros-fp-math",
+						   "true");
+
 		/* These were copied from some LLVM test. */
 		LLVMAddTargetDependentFunctionAttr(main_function,
 						   "less-precise-fpmad",
