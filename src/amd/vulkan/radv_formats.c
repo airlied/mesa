@@ -969,6 +969,13 @@ bool radv_format_pack_clear_color(VkFormat format,
 		clear_vals[0] = fui(value->float32[0]);
 		clear_vals[1] = fui(value->float32[1]);
 		break;
+	case VK_FORMAT_R32G32B32A32_SFLOAT:
+		if (value->float32[0] != value->float32[1] ||
+		    value->float32[0] != value->float32[2])
+			return false;
+		clear_vals[0] = fui(value->float32[0]);
+		clear_vals[1] = fui(value->float32[3]);
+		break;
 	case VK_FORMAT_R32_SFLOAT:
 		clear_vals[1] = 0;
 		clear_vals[0] = fui(value->float32[0]);
