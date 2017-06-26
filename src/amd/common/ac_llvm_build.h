@@ -148,7 +148,6 @@ ac_build_buffer_load(struct ac_llvm_context *ctx,
 
 LLVMValueRef ac_build_buffer_load_format(struct ac_llvm_context *ctx,
 					 LLVMValueRef rsrc,
-					 int num_chnanels,
 					 LLVMValueRef vindex,
 					 LLVMValueRef voffset,
 					 bool can_speculate);

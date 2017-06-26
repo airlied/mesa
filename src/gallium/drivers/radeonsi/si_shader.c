@@ -403,7 +403,7 @@ static void declare_input_vs(
 	for (unsigned i = 0; i < num_fetches; i++) {
 		LLVMValueRef voffset = LLVMConstInt(ctx->i32, fetch_stride * i, 0);
 
-		input[i] = ac_build_buffer_load_format(&ctx->ac, t_list, 4,
+		input[i] = ac_build_buffer_load_format(&ctx->ac, t_list,
 						       vertex_index, voffset,
 						       true);
 	}

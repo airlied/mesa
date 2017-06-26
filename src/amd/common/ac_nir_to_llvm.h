@@ -68,8 +68,6 @@ union ac_shader_variant_key {
 
 struct ac_nir_compiler_options {
 	struct radv_pipeline_layout *layout;
-	struct radv_vertex_descriptor *vertex_desc;
-	int num_vertex_desc;
 	union ac_shader_variant_key key;
 	bool unsafe_math;
 	bool supports_spill;

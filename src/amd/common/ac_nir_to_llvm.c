@@ -2203,7 +2203,6 @@ static LLVMValueRef build_tex_intrinsic(struct nir_to_llvm_context *ctx,
 	if (instr->sampler_dim == GLSL_SAMPLER_DIM_BUF) {
 		return ac_build_buffer_load_format(&ctx->ac,
 						   args->resource,
-						   4,
 						   args->addr,
 						   LLVMConstInt(ctx->i32, 0, false),
 						   true);
@@ -4857,21 +4856,8 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 	int index = variable->data.location - VERT_ATTRIB_GENERIC0;
 	int idx = variable->data.location;
 	unsigned attrib_count = glsl_count_attribute_slots(variable->type, true);
-	struct radv_vertex_descriptor *desc = NULL;
 
 	variable->data.driver_location = idx * 4;
-
-	for (unsigned i = 0; i < ctx->options->num_vertex_desc; i++) {
-		if (ctx->options->vertex_desc[i].location == index) {
-			desc = &ctx->options->vertex_desc[i];
-			fprintf(stderr, "desc %d %d %d\n", i, index, desc->offset);
-			break;
-		}
-	}
-	assert(desc);
-
-	t_offset = LLVMConstInt(ctx->i32, desc->binding, false);
-	t_list = ac_build_indexed_load_const(&ctx->ac, t_list_ptr, t_offset);
 
 	if (ctx->options->key.vs.instance_rate_inputs & (1u << index)) {
 		buffer_index = LLVMBuildAdd(ctx->builder, ctx->instance_id,
@@ -4883,24 +4869,20 @@ handle_vs_input_decl(struct nir_to_llvm_context *ctx,
 					    ctx->base_vertex, "");
 
 	for (unsigned i = 0; i < attrib_count; ++i, ++idx) {
+		t_offset = LLVMConstInt(ctx->i32, index + i, false);
+
+		t_list = ac_build_indexed_load_const(&ctx->ac, t_list_ptr, t_offset);
+
 		input = ac_build_buffer_load_format(&ctx->ac, t_list,
-						    desc->num_components,
 						    buffer_index,
-						    LLVMConstInt(ctx->i32, desc->offset, false),
+						    LLVMConstInt(ctx->i32, 0, false),
 						    true);
 
-		unsigned chan;
-		for (chan = 0; chan < desc->num_components; chan++) {
+		for (unsigned chan = 0; chan < 4; chan++) {
 			LLVMValueRef llvm_chan = LLVMConstInt(ctx->i32, chan, false);
 			ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)] =
 				to_integer(ctx, LLVMBuildExtractElement(ctx->builder,
 							input, llvm_chan, ""));
-		}
-		for (chan = desc->num_components; chan < 3; chan++) {
-			ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)] = ctx->i32zero;
-		}
-		if (chan < 4) {
-			ctx->inputs[radeon_llvm_reg_index_soa(idx, chan)] = to_integer(ctx, ctx->f32one);
 		}
 	}
 }
