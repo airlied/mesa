@@ -905,7 +905,6 @@ si_emit_acquire_mem(struct radeon_winsys_cs *cs,
 		radeon_emit(cs, 0);               /* CP_COHER_BASE_HI */
 		radeon_emit(cs, 0x0000000A);      /* POLL_INTERVAL */
 	} else {
-	  assert(cp_coher_cntl);
 		/* ACQUIRE_MEM is only required on a compute ring. */
 		radeon_emit(cs, PKT3(PKT3_SURFACE_SYNC, 3, predicated));
 		radeon_emit(cs, cp_coher_cntl);   /* CP_COHER_CNTL */
@@ -1093,11 +1092,10 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 }
 
 void
-si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer, enum dirty_bits next_op_dirty)
+si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 {
 	bool is_compute = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
-	enum radv_cmd_flush_bits bits;
-	enum dirty_bits dirty_bits;
+
 	if (is_compute)
 		cmd_buffer->state.flush_bits &= ~(RADV_CMD_FLAG_FLUSH_AND_INV_CB |
 	                                          RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
@@ -1119,31 +1117,16 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer, enum dirty_bits next_op_
 		va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->gfx9_fence_bo) + cmd_buffer->gfx9_fence_offset;
 		ptr = &cmd_buffer->gfx9_fence_idx;
 	}
-
-	bits = cmd_buffer->state.flush_bits;
-	dirty_bits = cmd_buffer->state.dirty_bits & ~next_op_dirty;
-
-	if (!(dirty_bits & RADV_GRAPHICS_DIRTY)) {
-		bits &= ~(RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-			  RADV_CMD_FLAG_FLUSH_AND_INV_CB_META);
-		bits &= ~(RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-			  RADV_CMD_FLAG_FLUSH_AND_INV_DB_META);
-		bits &= ~(RADV_CMD_FLAG_PS_PARTIAL_FLUSH);
-	}
-	if (!(dirty_bits & RADV_COMPUTE_DIRTY)) {
-		bits &= ~RADV_CMD_FLAG_CS_PARTIAL_FLUSH;
-	}
-
 	si_cs_emit_cache_flush(cmd_buffer->cs,
 			       cmd_buffer->state.predicating,
 	                       cmd_buffer->device->physical_device->rad_info.chip_class,
 			       ptr, va,
 	                       radv_cmd_buffer_uses_mec(cmd_buffer),
-	                       bits);
+	                       cmd_buffer->state.flush_bits);
+
 
 	radv_cmd_buffer_trace_emit(cmd_buffer);
 	cmd_buffer->state.flush_bits = 0;
-	cmd_buffer->state.dirty_bits = next_op_dirty;
 }
 
 void
@@ -1281,7 +1264,7 @@ static void si_cp_dma_prepare(struct radv_cmd_buffer *cmd_buffer, uint64_t byte_
 	 * Also wait for the previous CP DMA operations.
 	 */
 	if (cmd_buffer->state.flush_bits) {
-		si_emit_cache_flush(cmd_buffer, RADV_CP_DMA_DIRTY);
+		si_emit_cache_flush(cmd_buffer);
 		*flags |= CP_DMA_RAW_WAIT;
 	}
 
