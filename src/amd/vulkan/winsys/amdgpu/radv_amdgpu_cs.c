@@ -67,6 +67,8 @@ struct radv_amdgpu_cs {
 	struct radeon_winsys_bo     **virtual_buffers;
 	uint8_t                     *virtual_buffer_priorities;
 	int                         *virtual_buffer_hash_table;
+
+        amdgpu_bo_list_handle prealloc_bo_list;
 };
 
 static inline struct radv_amdgpu_cs *
@@ -213,7 +215,6 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 		cs->ib_size_ptr = &cs->ib.size;
 		cs->ib.size = 0;
 
-		ws->cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 	} else {
 		cs->base.buf = malloc(16384);
 		cs->base.max_dw = 4096;
@@ -277,6 +278,8 @@ static void radv_amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 
 	cs->old_ib_buffers[cs->num_old_ib_buffers++] = cs->ib_buffer;
 
+	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
+
 	cs->ib_buffer = cs->ws->base.buffer_create(&cs->ws->base, ib_size, 0,
 						   RADEON_DOMAIN_GTT,
 						   RADEON_FLAG_CPU_ACCESS);
@@ -295,7 +298,6 @@ static void radv_amdgpu_cs_grow(struct radeon_winsys_cs *_cs, size_t min_size)
 		cs->ib_buffer = cs->old_ib_buffers[--cs->num_old_ib_buffers];
 	}
 
-	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 
 	cs->base.buf[cs->base.cdw++] = PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0);
 	cs->base.buf[cs->base.cdw++] = radv_amdgpu_winsys_bo(cs->ib_buffer)->va;
@@ -346,8 +348,6 @@ static void radv_amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	cs->num_virtual_buffers = 0;
 
 	if (cs->ws->use_ib_bos) {
-		cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
-
 		for (unsigned i = 0; i < cs->num_old_ib_buffers; ++i)
 			cs->ws->base.buffer_destroy(cs->old_ib_buffers[i]);
 
