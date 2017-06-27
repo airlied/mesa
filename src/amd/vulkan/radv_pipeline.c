@@ -412,9 +412,9 @@ static void radv_fill_shader_variant(struct radv_device *device,
 		break;
 	case MESA_SHADER_COMPUTE:
 		variant->rsrc2 |=
-			S_00B84C_TGID_X_EN(1) | S_00B84C_TGID_Y_EN(1) |
-			S_00B84C_TGID_Z_EN(1) | S_00B84C_TIDIG_COMP_CNT(2) |
-			S_00B84C_TG_SIZE_EN(1) |
+			S_00B84C_TGID_X_EN(1) /* | S_00B84C_TGID_Y_EN(1) |
+						 S_00B84C_TGID_Z_EN(1) */| S_00B84C_TIDIG_COMP_CNT(2) /*|
+			S_00B84C_TG_SIZE_EN(1)*/ |
 			S_00B84C_LDS_SIZE(variant->config.lds_size);
 		break;
 	default:
@@ -1278,7 +1278,7 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 
 	raster->spi_interp_control =
 		S_0286D4_FLAT_SHADE_ENA(1) |
-		S_0286D4_PNT_SPRITE_ENA(1) |
+		S_0286D4_PNT_SPRITE_ENA(0) |
 		S_0286D4_PNT_SPRITE_OVRD_X(V_0286D4_SPI_PNT_SPRITE_SEL_S) |
 		S_0286D4_PNT_SPRITE_OVRD_Y(V_0286D4_SPI_PNT_SPRITE_SEL_T) |
 		S_0286D4_PNT_SPRITE_OVRD_Z(V_0286D4_SPI_PNT_SPRITE_SEL_0) |
@@ -1286,7 +1286,7 @@ radv_pipeline_init_raster_state(struct radv_pipeline *pipeline,
 		S_0286D4_PNT_SPRITE_TOP_1(0); // vulkan is top to bottom - 1.0 at bottom
 
 
-	raster->pa_cl_clip_cntl = S_028810_PS_UCP_MODE(3) |
+	raster->pa_cl_clip_cntl = S_028810_PS_UCP_MODE(0) |
 		S_028810_DX_CLIP_SPACE_DEF(1) | // vulkan uses DX conventions.
 		S_028810_ZCLIP_NEAR_DISABLE(vkraster->depthClampEnable ? 1 : 0) |
 		S_028810_ZCLIP_FAR_DISABLE(vkraster->depthClampEnable ? 1 : 0) |
@@ -1334,7 +1334,9 @@ radv_pipeline_init_multisample_state(struct radv_pipeline *pipeline,
 	ms->pa_sc_line_cntl = S_028BDC_DX10_DIAMOND_TEST_ENA(1);
 	ms->pa_sc_aa_config = 0;
 	ms->db_eqaa = S_028804_HIGH_QUALITY_INTERSECTIONS(1) |
-		S_028804_STATIC_ANCHOR_ASSOCIATIONS(1);
+		S_028804_STATIC_ANCHOR_ASSOCIATIONS(1) |
+	  S_028804_INCOHERENT_EQAA_READS(1) |
+	  S_028804_INTERPOLATE_COMP_Z(1);
 	ms->pa_sc_mode_cntl_1 =
 		S_028A4C_WALK_FENCE_ENABLE(1) | //TODO linear dst fixes
 		S_028A4C_WALK_FENCE_SIZE(num_tile_pipes == 2 ? 2 : 3) |

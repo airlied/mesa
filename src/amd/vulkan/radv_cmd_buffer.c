@@ -898,12 +898,15 @@ radv_emit_graphics_pipeline(struct radv_cmd_buffer *cmd_buffer,
 	radv_emit_fragment_shader(cmd_buffer, pipeline);
 	polaris_set_vgt_vertex_reuse(cmd_buffer, pipeline);
 
+	radeon_set_sh_reg(cmd_buffer->cs, R_00B118_SPI_SHADER_PGM_RSRC3_VS, S_00B118_CU_EN(0x9b00));
+	radeon_set_sh_reg(cmd_buffer->cs, R_00B01C_SPI_SHADER_PGM_RSRC3_PS, S_00B01C_CU_EN(0x7600));
+	radeon_set_sh_reg(cmd_buffer->cs, R_00B11C_SPI_SHADER_LATE_ALLOC_VS, S_00B11C_LIMIT(19));
 	cmd_buffer->scratch_size_needed =
 	                          MAX2(cmd_buffer->scratch_size_needed,
 	                               pipeline->max_waves * pipeline->scratch_bytes_per_wave);
 
 	radeon_set_context_reg(cmd_buffer->cs, R_0286E8_SPI_TMPRING_SIZE,
-			       S_0286E8_WAVES(pipeline->max_waves) |
+			       S_0286E8_WAVES(112) |
 			       S_0286E8_WAVESIZE(pipeline->scratch_bytes_per_wave >> 10));
 
 	if (!cmd_buffer->state.emitted_pipeline ||
@@ -2805,7 +2808,7 @@ void radv_CmdDrawIndexed(
 					   2, cmd_buffer->state.index_type);
 	} else {
 		radeon_emit(cmd_buffer->cs, PKT3(PKT3_INDEX_TYPE, 0, 0));
-		radeon_emit(cmd_buffer->cs, cmd_buffer->state.index_type);
+		radeon_emit(cmd_buffer->cs, cmd_buffer->state.index_type | S_028A7C_MTYPE(3));
 	}
 
 	assert(cmd_buffer->state.pipeline->graphics.vtx_base_sgpr);
@@ -3032,7 +3035,7 @@ void radv_CmdDispatch(
 	radeon_emit(cmd_buffer->cs, x);
 	radeon_emit(cmd_buffer->cs, y);
 	radeon_emit(cmd_buffer->cs, z);
-	radeon_emit(cmd_buffer->cs, 1);
+	radeon_emit(cmd_buffer->cs, 0x45);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 	radv_cmd_buffer_trace_emit(cmd_buffer);

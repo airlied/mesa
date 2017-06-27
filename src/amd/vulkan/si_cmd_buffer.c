@@ -455,6 +455,8 @@ si_emit_config(struct radv_physical_device *physical_device,
 	if (physical_device->has_rbplus)
 		radeon_set_context_reg(cs, R_028C40_PA_SC_SHADER_CONTROL, 0);
 
+	radeon_set_context_reg(cs, R_028830_PA_SU_SMALL_PRIM_FILTER_CNTL, 0);
+
 	if (physical_device->rad_info.chip_class >= GFX9) {
 		unsigned num_se = physical_device->rad_info.max_se;
 		unsigned pc_lines = 0;
@@ -935,24 +937,25 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 
 	if (chip_class <= VI) {
 		if (flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_CB) {
-			cp_coher_cntl |= S_0085F0_CB_ACTION_ENA(1) |
-				S_0085F0_CB0_DEST_BASE_ENA(1) |
-				S_0085F0_CB1_DEST_BASE_ENA(1) |
-				S_0085F0_CB2_DEST_BASE_ENA(1) |
-				S_0085F0_CB3_DEST_BASE_ENA(1) |
-				S_0085F0_CB4_DEST_BASE_ENA(1) |
-				S_0085F0_CB5_DEST_BASE_ENA(1) |
-				S_0085F0_CB6_DEST_BASE_ENA(1) |
-				S_0085F0_CB7_DEST_BASE_ENA(1);
-
 			/* Necessary for DCC */
 			if (chip_class >= VI) {
 				si_cs_emit_write_event_eop(cs,
 							   predicated,
 							   chip_class,
 							   is_mec,
-							   V_028A90_FLUSH_AND_INV_CB_DATA_TS,
+							   V_028A90_CACHE_FLUSH_AND_INV_TS_EVENT,
+							   //							   V_028A90_FLUSH_AND_INV_CB_DATA_TS,
 							   0, 0, 0, 0, 0);
+			} else {
+				cp_coher_cntl |= S_0085F0_CB_ACTION_ENA(1) |
+					S_0085F0_CB0_DEST_BASE_ENA(1) |
+					S_0085F0_CB1_DEST_BASE_ENA(1) |
+					S_0085F0_CB2_DEST_BASE_ENA(1) |
+					S_0085F0_CB3_DEST_BASE_ENA(1) |
+					S_0085F0_CB4_DEST_BASE_ENA(1) |
+					S_0085F0_CB5_DEST_BASE_ENA(1) |
+					S_0085F0_CB6_DEST_BASE_ENA(1) |
+					S_0085F0_CB7_DEST_BASE_ENA(1);
 			}
 		}
 		if (flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_DB) {

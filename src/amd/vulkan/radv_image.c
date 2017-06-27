@@ -102,6 +102,7 @@ radv_init_surface(struct radv_device *device,
 	if (is_depth) {
 		surface->flags |= RADEON_SURF_ZBUFFER;
 		if (!(pCreateInfo->usage & VK_IMAGE_USAGE_STORAGE_BIT) &&
+		    (pCreateInfo->usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
 		    !(pCreateInfo->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
 		    pCreateInfo->tiling != VK_IMAGE_TILING_LINEAR &&
 		    pCreateInfo->mipLevels <= 1 &&

@@ -133,7 +133,7 @@ create_pipeline(struct radv_device *device,
 	};
 	const VkPipelineRasterizationStateCreateInfo rs_state = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.depthClampEnable = false,
+		.depthClampEnable = true,
 		.rasterizerDiscardEnable = false,
 		.polygonMode = VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_NONE,

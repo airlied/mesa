@@ -723,7 +723,7 @@ emit_fast_htile_clear(struct radv_cmd_buffer *cmd_buffer,
 	//		goto fail;
 
 	if (clear_value.depth == 1.0)
-		clear_word = 0xfffffff0;
+		clear_word = 0xfffc0300;
 	else if (clear_value.depth == 0.0)
 		clear_word = 0;
 	else
@@ -879,7 +879,7 @@ static void vi_get_fast_clear_parameters(VkFormat format,
 	int i;
 	*can_avoid_fast_clear_elim = false;
 
-	*reset_value = 0x20202020U;
+	*reset_value = 0;//0x20202020U;
 
 	const struct vk_format_description *desc = vk_format_description(format);
 	if (format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 ||
