@@ -209,6 +209,10 @@ radv_shader_compile_to_nir(struct radv_device *device,
 			.variable_pointers = true,
 			.shader_ballot = true,
 			.shader_group_vote = true,
+#if HAVE_LLVM >= 0x600
+			.amd_shader_ballot = true,
+			.groups = true,
+#endif
 		};
 		entry_point = spirv_to_nir(spirv, module->size / 4,
 					   spec_entries, num_spec_entries,

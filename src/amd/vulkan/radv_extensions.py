@@ -83,6 +83,7 @@ EXTENSIONS = [
     Extension('VK_AMD_rasterization_order',               1, 'device->rad_info.chip_class >= VI && device->rad_info.max_se >= 2'),
     Extension('VK_EXT_shader_subgroup_ballot',            1, True),
     Extension('VK_EXT_shader_subgroup_vote',              1, True),
+    Extension('VK_AMD_shader_ballot',                     1, 'device->rad_info.chip_class >= VI && HAVE_LLVM >= 0x600'),
 ]
 
 class VkVersion:
