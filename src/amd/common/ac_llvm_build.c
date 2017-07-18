@@ -364,6 +364,709 @@ ac_build_vote_eq(struct ac_llvm_context *ctx, LLVMValueRef value)
 	return LLVMBuildOr(ctx->builder, all, none, "");
 }
 
+LLVMValueRef ac_reduce_iadd(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildAdd(ctx->builder, lhs, rhs, "");
+}
+
+LLVMValueRef ac_reduce_fadd(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildFAdd(ctx->builder, lhs, rhs, "");
+}
+
+LLVMValueRef ac_reduce_fmin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	char name[32], type[8];
+	ac_build_type_name_for_intr(LLVMTypeOf(lhs), type, sizeof(type));
+	snprintf(name, sizeof(name), "llvm.minnum.%s", type);
+	return ac_build_intrinsic(ctx, name, LLVMTypeOf(lhs),
+				  (LLVMValueRef []) { lhs, rhs }, 2,
+				  AC_FUNC_ATTR_NOUNWIND | AC_FUNC_ATTR_READNONE);
+}
+
+LLVMValueRef ac_reduce_fmax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	char name[32], type[8];
+	ac_build_type_name_for_intr(LLVMTypeOf(lhs), type, sizeof(type));
+	snprintf(name, sizeof(name), "llvm.maxnum.%s", type);
+	return ac_build_intrinsic(ctx, name, LLVMTypeOf(lhs),
+				  (LLVMValueRef []) { lhs, rhs }, 2,
+				  AC_FUNC_ATTR_NOUNWIND | AC_FUNC_ATTR_READNONE);
+}
+
+LLVMValueRef ac_reduce_imin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, LLVMIntSLT,
+					     lhs, rhs, ""),
+			       lhs, rhs, "");
+}
+
+LLVMValueRef ac_reduce_imax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, LLVMIntSGT,
+					     lhs, rhs, ""),
+			       lhs, rhs, "");
+}
+
+LLVMValueRef ac_reduce_umin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, LLVMIntULT,
+					     lhs, rhs, ""),
+			       lhs, rhs, "");
+}
+
+LLVMValueRef ac_reduce_umax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs)
+{
+	return LLVMBuildSelect(ctx->builder,
+			       LLVMBuildICmp(ctx->builder, LLVMIntUGT,
+					     lhs, rhs, ""),
+			       lhs, rhs, "");
+}
+
+enum dpp_ctrl {
+	_dpp_quad_perm = 0x000,
+	_dpp_row_sl = 0x100,
+	_dpp_row_sr = 0x110,
+	_dpp_row_rr = 0x120,
+	dpp_wf_sl1 = 0x130,
+	dpp_wf_rl1 = 0x134,
+	dpp_wf_sr1 = 0x138,
+	dpp_wf_rr1 = 0x13C,
+	dpp_row_mirror = 0x140,
+	dpp_row_half_mirror = 0x141,
+	dpp_row_bcast15 = 0x142,
+	dpp_row_bcast31 = 0x143
+};
+
+static inline enum dpp_ctrl
+dpp_quad_perm(unsigned lane0, unsigned lane1, unsigned lane2, unsigned lane3)
+{
+	assert(lane0 < 4 && lane1 < 4 && lane2 < 4 && lane3 < 4);
+	return _dpp_quad_perm | lane0 | (lane1 << 2) | (lane2 << 4) | (lane3 << 6);
+}
+
+static inline enum dpp_ctrl
+dpp_row_sl(unsigned amount)
+{
+	assert(amount > 0 && amount < 16);
+	return _dpp_row_sl | amount;
+}
+
+static inline enum dpp_ctrl
+dpp_row_sr(unsigned amount)
+{
+	assert(amount > 0 && amount < 16);
+	return _dpp_row_sr | amount;
+}
+
+static LLVMValueRef
+_ac_build_dpp(struct ac_llvm_context *ctx, LLVMValueRef old, LLVMValueRef src,
+	      enum dpp_ctrl dpp_ctrl, unsigned row_mask, unsigned bank_mask,
+	      bool bound_ctrl)
+{
+	return ac_build_intrinsic(ctx, "llvm.amdgcn.update.dpp.i32",
+				  LLVMTypeOf(old), (LLVMValueRef[]) {
+					old, src,
+					LLVMConstInt(ctx->i32, dpp_ctrl, 0),
+					LLVMConstInt(ctx->i32, row_mask, 0),
+					LLVMConstInt(ctx->i32, bank_mask, 0),
+					LLVMConstInt(ctx->i1, bound_ctrl, 0) },
+				  6, AC_FUNC_ATTR_NOUNWIND | AC_FUNC_ATTR_READNONE |
+				     AC_FUNC_ATTR_CONVERGENT);
+}
+
+static LLVMValueRef
+ac_build_dpp(struct ac_llvm_context *ctx, LLVMValueRef old, LLVMValueRef src,
+	     enum dpp_ctrl dpp_ctrl, unsigned row_mask, unsigned bank_mask,
+	     bool bound_ctrl)
+{
+	LLVMTypeRef src_type = LLVMTypeOf(src);
+	src = ac_to_integer(ctx, src);
+	old = ac_to_integer(ctx, old);
+	unsigned bits = LLVMGetIntTypeWidth(LLVMTypeOf(src));
+	LLVMValueRef ret;
+	if (bits == 32) {
+		ret = _ac_build_dpp(ctx, old, src, dpp_ctrl, row_mask,
+				    bank_mask, bound_ctrl);
+	} else {
+		assert(bits % 32 == 0);
+		LLVMTypeRef vec_type = LLVMVectorType(ctx->i32, bits / 32);
+		LLVMValueRef src_vector =
+			LLVMBuildBitCast(ctx->builder, src, vec_type, "");
+		LLVMValueRef old_vector =
+			LLVMBuildBitCast(ctx->builder, old, vec_type, "");
+		ret = LLVMGetUndef(vec_type);
+		for (unsigned i = 0; i < bits / 32; i++) {
+			src = LLVMBuildExtractElement(ctx->builder, src_vector,
+						      LLVMConstInt(ctx->i32, i,
+								   0), "");
+			old = LLVMBuildExtractElement(ctx->builder, old_vector,
+						      LLVMConstInt(ctx->i32, i,
+								   0), "");
+			LLVMValueRef ret_comp = _ac_build_dpp(ctx, old, src,
+							      dpp_ctrl,
+							      row_mask,
+							      bank_mask,
+							      bound_ctrl);
+			ret = LLVMBuildInsertElement(ctx->builder, ret,
+						     ret_comp,
+						     LLVMConstInt(ctx->i32, i,
+								  0), "");
+		}
+	}
+	return LLVMBuildBitCast(ctx->builder, ret, src_type, "");
+}
+
+static LLVMValueRef
+_ac_build_readlane(struct ac_llvm_context *ctx, LLVMValueRef src,
+		   LLVMValueRef lane)
+{
+	return ac_build_intrinsic(ctx, "llvm.amdgcn.readlane",
+				   LLVMTypeOf(src), (LLVMValueRef []) {
+					src, lane },
+				   2, AC_FUNC_ATTR_NOUNWIND |
+				   AC_FUNC_ATTR_READNONE |
+				   AC_FUNC_ATTR_CONVERGENT);
+}
+
+static LLVMValueRef
+ac_build_readlane(struct ac_llvm_context *ctx, LLVMValueRef src,
+		  LLVMValueRef lane)
+{
+	LLVMTypeRef src_type = LLVMTypeOf(src);
+	src = ac_to_integer(ctx, src);
+	unsigned bits = LLVMGetIntTypeWidth(LLVMTypeOf(src));
+	LLVMValueRef ret;
+	if (bits == 32) {
+		ret = _ac_build_readlane(ctx, src, lane);
+	} else {
+		assert(bits % 32 == 0);
+		LLVMTypeRef vec_type = LLVMVectorType(ctx->i32, bits / 32);
+		LLVMValueRef src_vector =
+			LLVMBuildBitCast(ctx->builder, src, vec_type, "");
+		ret = LLVMGetUndef(vec_type);
+		for (unsigned i = 0; i < bits / 32; i++) {
+			src = LLVMBuildExtractElement(ctx->builder, src_vector,
+						      LLVMConstInt(ctx->i32, i,
+								   0), "");
+			LLVMValueRef ret_comp = _ac_build_readlane(ctx, src,
+								   lane);
+			ret = LLVMBuildInsertElement(ctx->builder, ret,
+						     ret_comp,
+						     LLVMConstInt(ctx->i32, i,
+								  0), "");
+		}
+	}
+	return LLVMBuildBitCast(ctx->builder, ret, src_type, "");
+}
+
+static LLVMValueRef
+_ac_build_ds_swizzle(struct ac_llvm_context *ctx, LLVMValueRef src,
+		     unsigned mask)
+{
+	return ac_build_intrinsic(ctx, "llvm.amdgcn.ds.swizzle",
+				   LLVMTypeOf(src), (LLVMValueRef []) {
+					src, LLVMConstInt(ctx->i32, mask, 0) },
+				   2, AC_FUNC_ATTR_NOUNWIND |
+				   AC_FUNC_ATTR_READNONE |
+				   AC_FUNC_ATTR_CONVERGENT);
+}
+
+static LLVMValueRef
+ac_build_ds_swizzle(struct ac_llvm_context *ctx, LLVMValueRef src,
+		    unsigned mask)
+{
+	LLVMTypeRef src_type = LLVMTypeOf(src);
+	src = ac_to_integer(ctx, src);
+	unsigned bits = LLVMGetIntTypeWidth(LLVMTypeOf(src));
+	LLVMValueRef ret;
+	if (bits == 32) {
+		ret = _ac_build_ds_swizzle(ctx, src, mask);
+	} else {
+		assert(bits % 32 == 0);
+		LLVMTypeRef vec_type = LLVMVectorType(ctx->i32, bits / 32);
+		LLVMValueRef src_vector =
+			LLVMBuildBitCast(ctx->builder, src, vec_type, "");
+		ret = LLVMGetUndef(vec_type);
+		for (unsigned i = 0; i < bits / 32; i++) {
+			src = LLVMBuildExtractElement(ctx->builder, src_vector,
+						      LLVMConstInt(ctx->i32, i,
+								   0), "");
+			LLVMValueRef ret_comp = _ac_build_ds_swizzle(ctx, src,
+								     mask);
+			ret = LLVMBuildInsertElement(ctx->builder, ret,
+						     ret_comp,
+						     LLVMConstInt(ctx->i32, i,
+								  0), "");
+		}
+	}
+	return LLVMBuildBitCast(ctx->builder, ret, src_type, "");
+}
+
+static LLVMValueRef
+ac_build_set_inactive(struct ac_llvm_context *ctx, LLVMValueRef src,
+		      LLVMValueRef inactive)
+{
+	char name[32], type[8];
+	LLVMTypeRef src_type = LLVMTypeOf(src);
+	src = ac_to_integer(ctx, src);
+	inactive = ac_to_integer(ctx, inactive);
+	ac_build_type_name_for_intr(LLVMTypeOf(src), type, sizeof(type));
+	snprintf(name, sizeof(name), "llvm.amdgcn.set.inactive.%s", type);
+	LLVMValueRef ret =
+		ac_build_intrinsic(ctx, name,
+				   LLVMTypeOf(src), (LLVMValueRef []) {
+					src, inactive }, 2,
+				   AC_FUNC_ATTR_NOUNWIND | AC_FUNC_ATTR_READNONE |
+				   AC_FUNC_ATTR_CONVERGENT);
+	return LLVMBuildBitCast(ctx->builder, ret, src_type, "");
+}
+
+static LLVMValueRef
+ac_build_wwm(struct ac_llvm_context *ctx, LLVMValueRef src)
+{
+	char name[32], type[8];
+	ac_build_type_name_for_intr(LLVMTypeOf(src), type, sizeof(type));
+	snprintf(name, sizeof(name), "llvm.amdgcn.wwm.%s", type);
+	return ac_build_intrinsic(ctx, name, LLVMTypeOf(src),
+				  (LLVMValueRef []) { src }, 1,
+				  AC_FUNC_ATTR_NOUNWIND | AC_FUNC_ATTR_READNONE);
+}
+
+LLVMValueRef
+ac_build_subgroup_inclusive_scan(struct ac_llvm_context *ctx,
+				 LLVMValueRef src,
+				 ac_reduce_op reduce,
+				 LLVMValueRef identity)
+{
+	/* See http://gpuopen.com/amd-gcn-assembly-cross-lane-operations/
+	 *
+	 * Note that each dpp/reduce pair is supposed to be compiled down to
+	 * one instruction by LLVM, at least for 32-bit values.
+	 *
+	 * TODO: use @llvm.amdgcn.ds.swizzle on SI and CI
+	 */
+	LLVMValueRef value = src;
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, src,
+				    dpp_row_sr(1), 0xf, 0xf, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, src,
+				    dpp_row_sr(2), 0xf, 0xf, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, src,
+				    dpp_row_sr(3), 0xf, 0xf, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, value,
+				    dpp_row_sr(4), 0xf, 0xe, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, value,
+				    dpp_row_sr(8), 0xf, 0xc, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, value,
+				    dpp_row_bcast15, 0xa, 0xf, false));
+	value = reduce(ctx, value,
+		       ac_build_dpp(ctx, identity, value,
+				    dpp_row_bcast31, 0xc, 0xf, false));
+	return value;
+}
+
+LLVMValueRef
+ac_build_subgroup_inclusive_scan_nonuniform(struct ac_llvm_context *ctx, 
+					    LLVMValueRef value,
+					    ac_reduce_op reduce,
+					    LLVMValueRef identity)
+{
+	ac_build_optimization_barrier(ctx, &value);
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	return ac_build_wwm(ctx, value);
+}
+
+
+LLVMValueRef
+ac_build_subgroup_reduce(struct ac_llvm_context *ctx, LLVMValueRef value,
+			 ac_reduce_op reduce, LLVMValueRef identity)
+{
+
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	value = ac_build_readlane(ctx, value, LLVMConstInt(ctx->i32, 63, 0));
+	return ac_build_wwm(ctx, value);
+}
+
+LLVMValueRef
+ac_build_subgroup_reduce_nonuniform(struct ac_llvm_context *ctx,
+				    LLVMValueRef value,
+				    ac_reduce_op reduce,
+				    LLVMValueRef identity)
+{
+	ac_build_optimization_barrier(ctx, &value);
+	return ac_build_subgroup_reduce(ctx, value, reduce, identity);
+}
+
+LLVMValueRef
+ac_build_subgroup_exclusive_scan(struct ac_llvm_context *ctx,
+				 LLVMValueRef value,
+				 ac_reduce_op reduce,
+				 LLVMValueRef identity)
+{
+	value = ac_build_dpp(ctx, identity, value, dpp_wf_sr1, 0xf, 0xf, false);
+	return ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+}
+
+LLVMValueRef
+ac_build_subgroup_exclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+					    LLVMValueRef value,
+					    ac_reduce_op reduce,
+					    LLVMValueRef identity)
+{
+	ac_build_optimization_barrier(ctx, &value);
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_exclusive_scan(ctx, value, reduce, identity);
+	return ac_build_wwm(ctx, value);
+}
+
+LLVMValueRef
+ac_build_swizzle_quad(struct ac_llvm_context *ctx, LLVMValueRef src,
+		      unsigned swizzle_mask)
+{
+	ac_build_optimization_barrier(ctx, &src);
+	/* TODO: use @llvm.amdgcn.ds.swizzle on SI and CI */
+	return ac_build_dpp(ctx, LLVMGetUndef(LLVMTypeOf(src)), src,
+			    dpp_quad_perm(swizzle_mask & 0x3,
+					  (swizzle_mask >> 2) & 0x3,
+					  (swizzle_mask >> 4) & 0x3,
+					  (swizzle_mask >> 6) & 0x3),
+			    0xf, 0xf, /*bound_ctrl:0*/ true);
+}
+
+LLVMValueRef
+ac_build_swizzle_masked(struct ac_llvm_context *ctx, LLVMValueRef src,
+			unsigned swizzle_mask)
+{
+	ac_build_optimization_barrier(ctx, &src);
+	/* TODO: For some special mask values, we could use DPP instead on VI+.
+	 * We might be able to use DPP entirely, but it would be a little
+	 * tricky.
+	 */
+	return ac_build_ds_swizzle(ctx, src, swizzle_mask);
+}
+
+LLVMValueRef
+ac_build_writelane(struct ac_llvm_context *ctx, LLVMValueRef src,
+		   LLVMValueRef write, LLVMValueRef lane)
+{
+	/* TODO: Use the actual instruction when LLVM adds an intrinsic for it.
+	 */
+	LLVMValueRef pred = LLVMBuildICmp(ctx->builder, LLVMIntEQ, lane,
+					  ac_get_thread_id(ctx), "");
+	return LLVMBuildSelect(ctx->builder, pred, write, src, "");
+}
+
+LLVMValueRef
+ac_build_mbcnt(struct ac_llvm_context *ctx, LLVMValueRef mask)
+{
+	LLVMValueRef mask_vec = LLVMBuildBitCast(ctx->builder, mask,
+						 LLVMVectorType(ctx->i32, 2),
+						 "");
+	LLVMValueRef mask_lo = LLVMBuildExtractElement(ctx->builder, mask_vec,
+						       ctx->i32_0, "");
+	LLVMValueRef mask_hi = LLVMBuildExtractElement(ctx->builder, mask_vec,
+						       ctx->i32_1, "");
+	LLVMValueRef val =
+		ac_build_intrinsic(ctx, "llvm.amdgcn.mbcnt.lo", ctx->i32,
+				   (LLVMValueRef []) { mask_lo, ctx->i32_0 },
+				   2, AC_FUNC_ATTR_READNONE);
+	val = ac_build_intrinsic(ctx, "llvm.amdgcn.mbcnt.hi", ctx->i32,
+				 (LLVMValueRef []) { mask_hi, val },
+				 2, AC_FUNC_ATTR_READNONE);
+	return val;
+}
+
+/* return true for exactly one thread in the subgroup/wavefront */
+
+static LLVMValueRef
+ac_build_subgroup_elect(struct ac_llvm_context *ctx)
+{
+	LLVMValueRef active_set = ac_build_ballot(ctx, ctx->i32_1);
+	/* mbcnt(EXEC) returns the number of active threads with ID less than
+	 * ours, so the lowest thread will return 0.
+	 */
+	LLVMValueRef active_tid = ac_build_mbcnt(ctx, active_set);
+	return LLVMBuildICmp(ctx->builder, LLVMIntEQ, active_tid, ctx->i32_0,
+			     "");
+}
+
+static LLVMValueRef
+ac_build_subgroup_elect_uniform(struct ac_llvm_context *ctx)
+{
+	return LLVMBuildICmp(ctx->builder, LLVMIntEQ, ac_get_thread_id(ctx),
+			     ctx->i32_0, "");
+}
+
+#define LOCAL_ADDR_SPACE 3
+
+static LLVMValueRef
+get_shared_temp(struct ac_llvm_context *ctx,
+		LLVMTypeRef type,
+		unsigned max_workgroup_size)
+{
+	/* TODO only make one variable and share it */
+	return LLVMAddGlobalInAddressSpace(
+		ctx->module,
+		LLVMArrayType(type, DIV_ROUND_UP(max_workgroup_size, 64)),
+		"reduce_temp", LOCAL_ADDR_SPACE);
+}
+
+/* given an array of values, emit code to reduce them to a single value using a
+ * given operator.  Note that this isn't cross-thread at all; it's just normal
+ * LLVM code.
+ */
+static LLVMValueRef
+reduce_array(struct ac_llvm_context *ctx, LLVMValueRef array,
+	     ac_reduce_op reduce)
+{
+	unsigned size = LLVMGetArrayLength(LLVMTypeOf(array));
+	assert(size > 0);
+	if (size == 1)
+		return LLVMBuildExtractValue(ctx->builder, array, 0, "");
+
+	LLVMTypeRef elem_type = LLVMGetElementType(LLVMTypeOf(array));
+
+	unsigned left_size = size / 2;
+	LLVMValueRef left = LLVMGetUndef(LLVMArrayType(elem_type, left_size));
+	for (unsigned i = 0; i < left_size; i++) {
+		LLVMValueRef val = LLVMBuildExtractValue(ctx->builder, array,
+							 i, "");
+		left = LLVMBuildInsertValue(ctx->builder, left, val, i, "");
+	}
+	left = reduce_array(ctx, left, reduce);
+
+	unsigned right_size = size - left_size;
+	LLVMValueRef right = LLVMGetUndef(LLVMArrayType(elem_type, right_size));
+	for (unsigned i = 0; i < right_size; i++) {
+		LLVMValueRef val = LLVMBuildExtractValue(ctx->builder, array,
+							 i + left_size, "");
+		right = LLVMBuildInsertValue(ctx->builder, right, val, i, "");
+	}
+	right = reduce_array(ctx, right, reduce);
+
+	return reduce(ctx, left, right);
+}
+
+static LLVMValueRef
+_ac_build_group_reduce(struct ac_llvm_context *ctx,
+		       LLVMValueRef value, ac_reduce_op reduce,
+		       LLVMValueRef identity, bool exclusive_scan,
+		       bool uniform,
+		       unsigned max_workgroup_size,
+		       LLVMValueRef wavefront_id)
+{
+	if (max_workgroup_size <= 64) {
+		if (exclusive_scan)
+			return identity;
+		else
+			return value;
+	}
+
+	/* Allocate some temporary storage, one value for each wavefront. */
+	LLVMValueRef shared = get_shared_temp(ctx, LLVMTypeOf(value),
+					      max_workgroup_size);
+	
+	LLVMValueRef func =
+		LLVMGetBasicBlockParent(LLVMGetInsertBlock(ctx->builder));
+	LLVMBasicBlockRef if_block =
+		LLVMAppendBasicBlockInContext(ctx->context, func, "");
+	LLVMBasicBlockRef merge_block =
+		LLVMAppendBasicBlockInContext(ctx->context, func, "");
+
+	/* gather the subgroup-reduced values from each buffer into shared */
+
+	LLVMBuildCondBr(ctx->builder,
+			(uniform ? ac_build_subgroup_elect_uniform :
+			 ac_build_subgroup_elect)(ctx),
+			if_block, merge_block);
+	/* if (subgroup_elect()) */
+	{
+		LLVMPositionBuilderAtEnd(ctx->builder, if_block);
+		LLVMValueRef ptr = ac_build_gep0(ctx, shared, wavefront_id);
+		LLVMBuildStore(ctx->builder, value, ptr);
+		LLVMBuildBr(ctx->builder, merge_block);
+	}
+
+	LLVMPositionBuilderAtEnd(ctx->builder, merge_block);
+
+	ac_build_intrinsic(ctx, "llvm.amdgcn.s.barrier", ctx->voidt, NULL, 0,
+			   AC_FUNC_ATTR_CONVERGENT);
+
+	/* For each wavefront, load every other wavefront's values from the
+	 * previous stage.
+	 */
+	LLVMValueRef array = LLVMBuildLoad(ctx->builder, shared, "");
+
+	if (exclusive_scan) {
+		/* mask out values from wavefronts greater than or equal to
+		 * ours, to implement exclusive scan
+		 */
+		for (unsigned i = 0; 64 * i < max_workgroup_size; i++) {
+			LLVMValueRef wf_value =
+				LLVMBuildExtractValue(ctx->builder, array, i,
+						      "");
+			LLVMValueRef pred =
+				LLVMBuildICmp(ctx->builder, LLVMIntULT,
+					      LLVMConstInt(ctx->i32, i, 0),
+					      wavefront_id,
+					      "");
+			wf_value = LLVMBuildSelect(ctx->builder, pred,
+						   wf_value, identity, "");
+			array = LLVMBuildInsertValue(ctx->builder, array,
+						     wf_value, i, "");
+		}
+	}
+
+	/* finally, manually reduce the values from each wavefront without any
+	 * cross-thread tricks.
+	 */
+	return reduce_array(ctx, array, reduce);
+}
+
+LLVMValueRef
+ac_build_group_reduce(struct ac_llvm_context *ctx,
+		      LLVMValueRef value, ac_reduce_op reduce,
+		      LLVMValueRef identity,
+		      unsigned max_workgroup_size,
+		      LLVMValueRef wavefront_id)
+{
+	value = ac_build_subgroup_reduce(ctx, value, reduce, identity);
+	return _ac_build_group_reduce(ctx, value, reduce, identity, false,
+				      true, max_workgroup_size, wavefront_id);
+}
+
+LLVMValueRef
+ac_build_group_reduce_nonuniform(struct ac_llvm_context *ctx,
+				 LLVMValueRef value, ac_reduce_op reduce,
+				 LLVMValueRef identity,
+				 unsigned max_workgroup_size,
+				 LLVMValueRef wavefront_id)
+{
+	value = ac_build_subgroup_reduce_nonuniform(ctx, value, reduce,
+						    identity);
+	return _ac_build_group_reduce(ctx, value, reduce, identity, false,
+				      false, max_workgroup_size, wavefront_id);
+}
+
+LLVMValueRef
+ac_build_group_exclusive_scan(struct ac_llvm_context *ctx,
+			      LLVMValueRef value, ac_reduce_op reduce,
+			      LLVMValueRef identity,
+			      unsigned max_workgroup_size,
+			      LLVMValueRef wavefront_id)
+{
+	/* Do the exclusive scan per-wavefront, and at the same time calculate
+	 * the fully-reduced value for doing the overall exclusive scan.
+	 */
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	LLVMValueRef reduced = ac_build_readlane(ctx, value,
+						 LLVMConstInt(ctx->i32, 63,
+							      0));
+	value = ac_build_dpp(ctx, identity, value, dpp_wf_sr1, 0xf, 0xf,
+			     false);
+	reduced = ac_build_wwm(ctx, reduced);
+	value = ac_build_wwm(ctx, value);
+	reduced = _ac_build_group_reduce(ctx, reduced, reduce, identity, true,
+					 true, max_workgroup_size,
+					 wavefront_id);
+	return reduce(ctx, value, reduced);
+}
+
+LLVMValueRef
+ac_build_group_exclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+					 LLVMValueRef value,
+					 ac_reduce_op reduce,
+					 LLVMValueRef identity,
+					 unsigned max_workgroup_size,
+					 LLVMValueRef wavefront_id)
+{
+	ac_build_optimization_barrier(ctx, &value);
+	/* Do the exclusive scan per-wavefront, and at the same time calculate
+	 * the fully-reduced value for doing the overall exclusive scan.
+	 */
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	LLVMValueRef reduced = ac_build_readlane(ctx, value,
+						 LLVMConstInt(ctx->i32, 63,
+							      0));
+	value = ac_build_dpp(ctx, identity, value, dpp_wf_sr1, 0xf, 0xf,
+			     false);
+	reduced = ac_build_wwm(ctx, reduced);
+	value = ac_build_wwm(ctx, value);
+	reduced = _ac_build_group_reduce(ctx, reduced, reduce, identity, true,
+					 false, max_workgroup_size,
+					 wavefront_id);
+	return reduce(ctx, value, reduced);
+}
+
+LLVMValueRef
+ac_build_group_inclusive_scan(struct ac_llvm_context *ctx,
+			      LLVMValueRef value, ac_reduce_op reduce,
+			      LLVMValueRef identity,
+			      unsigned max_workgroup_size,
+			      LLVMValueRef wavefront_id)
+{
+	/* Do the inclusive scan per-wavefront, and at the same time calculate
+	 * the fully-reduced value for doing the overall exclusive scan.
+	 */
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	LLVMValueRef reduced = ac_build_readlane(ctx, value,
+						 LLVMConstInt(ctx->i32, 63,
+							      0));
+	reduced = ac_build_wwm(ctx, reduced);
+	value = ac_build_wwm(ctx, value);
+	reduced = _ac_build_group_reduce(ctx, reduced, reduce, identity, true,
+					 true, max_workgroup_size,
+					 wavefront_id);
+	return reduce(ctx, value, reduced);
+}
+
+LLVMValueRef
+ac_build_group_inclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+					 LLVMValueRef value,
+					 ac_reduce_op reduce,
+					 LLVMValueRef identity,
+					 unsigned max_workgroup_size,
+					 LLVMValueRef wavefront_id)
+{
+	ac_build_optimization_barrier(ctx, &value);
+	/* Do the inclusive scan per-wavefront, and at the same time calculate
+	 * the fully-reduced value for doing the overall exclusive scan.
+	 */
+	value = ac_build_set_inactive(ctx, value, identity);
+	value = ac_build_subgroup_inclusive_scan(ctx, value, reduce, identity);
+	LLVMValueRef reduced = ac_build_readlane(ctx, value,
+						 LLVMConstInt(ctx->i32, 63,
+							      0));
+	reduced = ac_build_wwm(ctx, reduced);
+	value = ac_build_wwm(ctx, value);
+	reduced = _ac_build_group_reduce(ctx, reduced, reduce, identity, true,
+					 false, max_workgroup_size,
+					 wavefront_id);
+	return reduce(ctx, value, reduced);
+}
+
 LLVMValueRef
 ac_build_gather_values_extended(struct ac_llvm_context *ctx,
 				LLVMValueRef *values,

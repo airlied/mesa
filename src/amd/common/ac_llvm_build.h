@@ -93,6 +93,19 @@ ac_build_phi(struct ac_llvm_context *ctx, LLVMTypeRef type,
 void ac_build_optimization_barrier(struct ac_llvm_context *ctx,
 				   LLVMValueRef *pvgpr);
 
+LLVMValueRef
+ac_build_swizzle_quad(struct ac_llvm_context *ctx, LLVMValueRef src,
+		      unsigned swizzle_mask);
+
+LLVMValueRef
+ac_build_swizzle_masked(struct ac_llvm_context *ctx, LLVMValueRef src,
+			unsigned swizzle_mask);
+
+LLVMValueRef ac_build_writelane(struct ac_llvm_context *ctx, LLVMValueRef src,
+				LLVMValueRef write, LLVMValueRef lane);
+
+LLVMValueRef ac_build_mbcnt(struct ac_llvm_context *ctx, LLVMValueRef mask);
+
 LLVMValueRef ac_build_ballot(struct ac_llvm_context *ctx, LLVMValueRef value);
 
 LLVMValueRef ac_build_vote_all(struct ac_llvm_context *ctx, LLVMValueRef value);
@@ -100,6 +113,108 @@ LLVMValueRef ac_build_vote_all(struct ac_llvm_context *ctx, LLVMValueRef value);
 LLVMValueRef ac_build_vote_any(struct ac_llvm_context *ctx, LLVMValueRef value);
 
 LLVMValueRef ac_build_vote_eq(struct ac_llvm_context *ctx, LLVMValueRef value);
+
+typedef LLVMValueRef (*ac_reduce_op)(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+				     LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_iadd(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_fadd(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_fmin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_fmax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			   LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_imax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_umax(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_fmin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_imin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_reduce_umin(struct ac_llvm_context *ctx, LLVMValueRef lhs,
+			    LLVMValueRef rhs);
+
+LLVMValueRef ac_build_subgroup_reduce(struct ac_llvm_context *ctx,
+				      LLVMValueRef value,
+				      ac_reduce_op reduce,
+				      LLVMValueRef identity);
+
+LLVMValueRef ac_build_subgroup_inclusive_scan(struct ac_llvm_context *ctx,
+					      LLVMValueRef value,
+					      ac_reduce_op reduce,
+					      LLVMValueRef identity);
+
+LLVMValueRef ac_build_subgroup_exclusive_scan(struct ac_llvm_context *ctx,
+					      LLVMValueRef value,
+					      ac_reduce_op reduce,
+					      LLVMValueRef identity);
+
+LLVMValueRef ac_build_subgroup_reduce_nonuniform(struct ac_llvm_context *ctx,
+						 LLVMValueRef value,
+						 ac_reduce_op reduce,
+						 LLVMValueRef identity);
+
+LLVMValueRef ac_build_subgroup_inclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+							 LLVMValueRef value,
+							 ac_reduce_op reduce,
+							 LLVMValueRef identity);
+
+LLVMValueRef ac_build_subgroup_exclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+							 LLVMValueRef value,
+							 ac_reduce_op reduce,
+							 LLVMValueRef identity);
+
+LLVMValueRef ac_build_group_reduce(struct ac_llvm_context *ctx,
+				   LLVMValueRef value,
+				   ac_reduce_op reduce,
+				   LLVMValueRef identity,
+				   unsigned max_workgroup_size,
+				   LLVMValueRef wavefront_id);
+
+LLVMValueRef ac_build_group_inclusive_scan(struct ac_llvm_context *ctx,
+					   LLVMValueRef value,
+					   ac_reduce_op reduce,
+					   LLVMValueRef identity,
+					   unsigned max_workgroup_size,
+					   LLVMValueRef wavefront_id);
+
+LLVMValueRef ac_build_group_exclusive_scan(struct ac_llvm_context *ctx,
+					   LLVMValueRef value,
+					   ac_reduce_op reduce,
+					   LLVMValueRef identity,
+					   unsigned max_workgroup_size,
+					   LLVMValueRef wavefront_id);
+
+LLVMValueRef ac_build_group_reduce_nonuniform(struct ac_llvm_context *ctx,
+					      LLVMValueRef value,
+					      ac_reduce_op reduce,
+					      LLVMValueRef identity,
+					      unsigned max_workgroup_size,
+					      LLVMValueRef wavefront_id);
+
+LLVMValueRef ac_build_group_inclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+						      LLVMValueRef value,
+						      ac_reduce_op reduce,
+						      LLVMValueRef identity,
+						      unsigned max_workgroup_size,
+						      LLVMValueRef wavefront_id);
+
+LLVMValueRef ac_build_group_exclusive_scan_nonuniform(struct ac_llvm_context *ctx,
+						      LLVMValueRef value,
+						      ac_reduce_op reduce,
+						      LLVMValueRef identity,
+						      unsigned max_workgroup_size,
+						      LLVMValueRef wavefront_id);
 
 LLVMValueRef
 ac_build_gather_values_extended(struct ac_llvm_context *ctx,
