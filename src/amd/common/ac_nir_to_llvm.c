@@ -4338,6 +4338,78 @@ static void visit_intrinsic(struct ac_nir_context *ctx,
 							 get_src(ctx, instr->src[0])),
 				       ctx->ac.i32, "");
 		break;
+
+#define __REDUCE(op, identity, type, nir_suffix, reduce_type) \
+	case nir_intrinsic_subgroup_##op##nir_suffix: { \
+		LLVMValueRef src = ac_to_##type(&ctx->ac, \
+						get_src(ctx, instr->src[0])); \
+		LLVMTypeRef src_type = LLVMTypeOf(src); \
+		result = ac_build_subgroup_##reduce_type( \
+			&ctx->ac, src, \
+			ac_reduce_##op, identity); \
+		break; \
+	} \
+	case nir_intrinsic_group_##op##nir_suffix: { \
+		LLVMValueRef src = ac_to_##type(&ctx->ac, \
+						get_src(ctx, instr->src[0])); \
+		LLVMTypeRef src_type = LLVMTypeOf(src); \
+		LLVMValueRef wavefront_id = \
+			LLVMBuildLShr(ctx->ac.builder, \
+				      visit_load_local_invocation_index(ctx->nctx), \
+				      LLVMConstInt(ctx->ac.i32, 6, 0), ""); \
+		result = ac_build_group_##reduce_type( \
+			&ctx->ac, src, \
+			ac_reduce_##op, identity, \
+			ctx->nctx->max_workgroup_size, \
+			wavefront_id); \
+		break; \
+	} \
+
+#define REDUCE(op, identity, type) \
+	__REDUCE(op, identity, type, , reduce) \
+	__REDUCE(op, identity, type, _inclusive_scan, inclusive_scan) \
+	__REDUCE(op, identity, type, _exclusive_scan, exclusive_scan) \
+	__REDUCE(op, identity, type, _nonuniform, reduce_nonuniform) \
+	__REDUCE(op, identity, type, _inclusive_scan_nonuniform, \
+		 inclusive_scan_nonuniform) \
+	__REDUCE(op, identity, type, _exclusive_scan_nonuniform, \
+		 exclusive_scan_nonuniform) \
+
+	REDUCE(fadd, LLVMConstReal(src_type, 0), float)
+	REDUCE(iadd, LLVMConstInt(src_type, 0, 0), integer)
+	REDUCE(fmin, LLVMConstReal(src_type, INFINITY), float)
+	REDUCE(imin, LLVMConstInt(src_type, LLVMGetIntTypeWidth(src_type) == 64
+				  ? INT64_MAX : INT32_MAX, 0), integer)
+	REDUCE(umin, LLVMConstInt(src_type, LLVMGetIntTypeWidth(src_type) == 64
+				  ? UINT64_MAX : UINT32_MAX, 0), integer)
+	REDUCE(fmax, LLVMConstReal(src_type, -INFINITY), float)
+	REDUCE(imax, LLVMConstInt(src_type, LLVMGetIntTypeWidth(src_type) == 64
+				  ? INT64_MIN : INT32_MIN, 0), integer)
+	REDUCE(umax, LLVMConstInt(src_type, 0, 0), integer)
+
+	case nir_intrinsic_quad_swizzle_amd:
+		result = ac_build_swizzle_quad(&ctx->ac,
+					       get_src(ctx, instr->src[0]),
+					       instr->const_index[0]);
+		break;
+
+	case nir_intrinsic_masked_swizzle_amd:
+		result = ac_build_swizzle_masked(&ctx->ac,
+						 get_src(ctx, instr->src[0]),
+						 instr->const_index[0]);
+		break;
+
+	case nir_intrinsic_write_invocation:
+		result = ac_build_writelane(&ctx->ac,
+					    get_src(ctx, instr->src[0]),
+					    get_src(ctx, instr->src[1]),
+					    get_src(ctx, instr->src[2]));
+		break;
+
+	case nir_intrinsic_mbcnt_amd:
+		result = ac_build_mbcnt(&ctx->ac, get_src(ctx, instr->src[0]));
+		break;
+
 	default:
 		fprintf(stderr, "Unknown intrinsic: ");
 		nir_print_instr(&instr->instr, stderr);
