@@ -637,6 +637,7 @@ struct radv_buffer {
 	VkBufferUsageFlags                           usage;
 	VkBufferCreateFlags                          flags;
 
+	bool shareable;
 	/* Set when bound */
 	struct radeon_winsys_bo *                      bo;
 	VkDeviceSize                                 offset;
