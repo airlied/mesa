@@ -76,6 +76,29 @@ INTRINSIC(get_buffer_size, 1, ARR(1), true, 1, 0, 0, xx, xx, xx,
  */
 #define BARRIER(name) INTRINSIC(name, 0, ARR(0), false, 0, 0, 0, xx, xx, xx, 0)
 
+/*
+ * A cross-thread instrinsic is similar to an ALU instruction, except it has a
+ * few more restrictions placed on it because it does cross-thread
+ * communication. See the comment for NIR_INTRINSIC_CROSS_THREAD in nir.h for
+ * details.
+ */
+#define CROSS_THREAD(name, num_srcs, src0_components, src1_components, \
+                     dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+             true, dest_components, 0, 0, xx, xx, xx, \
+             NIR_INTRINSIC_CAN_REORDER | NIR_INTRINSIC_CAN_ELIMINATE | \
+             NIR_INTRINSIC_CROSS_THREAD)
+/*
+ * Similar to CROSS_THREAD, except it has slightly more relaxed semantics. See
+ * the comment for NIR_INTRINSIC_CONVERGENT in nir.h for details.
+ */
+#define CONVERGENT(name, num_srcs, src0_components, src1_components, \
+                   dest_components) \
+   INTRINSIC(name, num_srcs, ARR(src0_components, src1_components), \
+             true, dest_components, 0, 0, xx, xx, xx, \
+             NIR_INTRINSIC_CAN_REORDER | NIR_INTRINSIC_CAN_ELIMINATE | \
+             NIR_INTRINSIC_CONVERGENT)
+
 BARRIER(barrier)
 BARRIER(discard)
 
@@ -102,9 +125,9 @@ INTRINSIC(shader_clock, 0, ARR(0), true, 2, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_
  *
  * GLSL functions from ARB_shader_ballot.
  */
-INTRINSIC(ballot, 1, ARR(1), true, 1, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
-INTRINSIC(read_invocation, 2, ARR(0, 1), true, 0, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
-INTRINSIC(read_first_invocation, 1, ARR(0), true, 0, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
+CROSS_THREAD(ballot, 1, 1, 0, 1)
+CONVERGENT(read_invocation, 2, 0, 1, 0)
+CROSS_THREAD(read_first_invocation, 1, 0, 0, 0)
 
 /*
  * Memory barrier with semantics analogous to the compute shader
@@ -121,9 +144,9 @@ BARRIER(memory_barrier_shared)
 INTRINSIC(discard_if, 1, ARR(1), false, 0, 0, 0, xx, xx, xx, 0)
 
 /** ARB_shader_group_vote intrinsics */
-INTRINSIC(vote_any, 1, ARR(1), true, 1, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
-INTRINSIC(vote_all, 1, ARR(1), true, 1, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
-INTRINSIC(vote_eq,  1, ARR(1), true, 1, 0, 0, xx, xx, xx, NIR_INTRINSIC_CAN_ELIMINATE)
+CROSS_THREAD(vote_any, 1, 1, 0, 1)
+CROSS_THREAD(vote_all, 1, 1, 0, 1)
+CROSS_THREAD(vote_eq,  1, 1, 0, 1)
 
 /**
  * Basic Geometry Shader intrinsics.
