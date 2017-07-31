@@ -64,7 +64,9 @@ static const struct nir_shader_compiler_options nir_options = {
 	.lower_extract_byte = true,
 	.lower_extract_word = true,
 	.lower_ffma = true,
-	.max_unroll_iterations = 32
+	.max_unroll_iterations = 32,
+	.lower_subgroup_masks = true,
+	.max_subgroup_size = 64,
 };
 
 VkResult radv_CreateShaderModule(
@@ -122,6 +124,7 @@ radv_optimize_nir(struct nir_shader *shader)
 		NIR_PASS_V(shader, nir_lower_64bit_pack);
                 NIR_PASS_V(shader, nir_lower_alu_to_scalar);
                 NIR_PASS_V(shader, nir_lower_phis_to_scalar);
+		NIR_PASS_V(shader, nir_opt_intrinsics);
 
                 NIR_PASS(progress, shader, nir_copy_prop);
                 NIR_PASS(progress, shader, nir_opt_remove_phis);
