@@ -93,6 +93,30 @@ nir_lower_cross_thread_to_scalar_impl(nir_function_impl *impl)
          switch (intrin->intrinsic) {
          case nir_intrinsic_read_invocation:
          case nir_intrinsic_read_first_invocation:
+         case nir_intrinsic_write_invocation:
+         case nir_intrinsic_quad_swizzle_amd:
+         case nir_intrinsic_masked_swizzle_amd:
+#define GROUP(name) \
+         case nir_intrinsic_group_##name: \
+         case nir_intrinsic_group_##name##_nonuniform: \
+         case nir_intrinsic_subgroup_##name: \
+         case nir_intrinsic_subgroup_##name##_nonuniform: \
+         case nir_intrinsic_group_##name##_inclusive_scan: \
+         case nir_intrinsic_group_##name##_inclusive_scan_nonuniform: \
+         case nir_intrinsic_subgroup_##name##_inclusive_scan: \
+         case nir_intrinsic_subgroup_##name##_inclusive_scan_nonuniform: \
+         case nir_intrinsic_group_##name##_exclusive_scan: \
+         case nir_intrinsic_group_##name##_exclusive_scan_nonuniform: \
+         case nir_intrinsic_subgroup_##name##_exclusive_scan: \
+         case nir_intrinsic_subgroup_##name##_exclusive_scan_nonuniform:
+GROUP(fadd)
+GROUP(iadd)
+GROUP(fmin)
+GROUP(imin)
+GROUP(umin)
+GROUP(fmax)
+GROUP(imax)
+GROUP(umax)
             lower_to_scalar(&b, intrin);
             progress = true;
             break;
