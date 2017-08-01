@@ -216,6 +216,7 @@ NIR_FILES = \
 	nir/nir_lower_clip.c \
 	nir/nir_lower_clip_cull_distance_arrays.c \
 	nir/nir_lower_constant_initializers.c \
+	nir/nir_lower_cross_thread_to_scalar.c \
 	nir/nir_lower_double_ops.c \
 	nir/nir_lower_drawpixels.c \
 	nir/nir_lower_global_vars_to_local.c \
@@ -232,7 +233,6 @@ NIR_FILES = \
 	nir/nir_lower_passthrough_edgeflags.c \
 	nir/nir_lower_patch_vertices.c \
 	nir/nir_lower_phis_to_scalar.c \
-	nir/nir_lower_read_invocation_to_scalar.c \
 	nir/nir_lower_regs_to_ssa.c \
 	nir/nir_lower_returns.c \
 	nir/nir_lower_samplers.c \

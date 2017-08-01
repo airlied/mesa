@@ -620,7 +620,7 @@ brw_preprocess_nir(const struct brw_compiler *compiler, nir_shader *nir)
 
    OPT(nir_lower_tex, &tex_options);
    OPT(nir_normalize_cubemap_coords);
-   OPT(nir_lower_read_invocation_to_scalar);
+   OPT(nir_lower_cross_thread_to_scalar);
 
    OPT(nir_lower_global_vars_to_local);
 

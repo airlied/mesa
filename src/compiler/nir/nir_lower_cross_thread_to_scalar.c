@@ -24,18 +24,20 @@
 #include "nir.h"
 #include "nir_builder.h"
 
-/** @file nir_lower_read_invocation_to_scalar.c
+/** @file nir_lower_cross_thread_to_scalar.c
  *
- * Replaces nir_intrinsic_read_invocation/nir_intrinsic_read_first_invocation
- * operations with num_components != 1 with individual per-channel operations.
+ * Replaces certain cross-thread intrinsics with num_components != 1 with
+ * individual per-channel operations. So far, the operations supported are:
+ *
+ * - read_invocation
+ * - read_first_invocation
  */
 
 static void
-lower_read_invocation_to_scalar(nir_builder *b, nir_intrinsic_instr *intrin)
+lower_to_scalar(nir_builder *b, nir_intrinsic_instr *intrin)
 {
    b->cursor = nir_before_instr(&intrin->instr);
 
-   nir_ssa_def *value = nir_ssa_for_src(b, intrin->src[0], intrin->num_components);
    nir_ssa_def *reads[4];
 
    for (unsigned i = 0; i < intrin->num_components; i++) {
@@ -44,12 +46,21 @@ lower_read_invocation_to_scalar(nir_builder *b, nir_intrinsic_instr *intrin)
       nir_ssa_dest_init(&chan_intrin->instr, &chan_intrin->dest,
                         1, intrin->dest.ssa.bit_size, NULL);
       chan_intrin->num_components = 1;
+      const nir_intrinsic_info *info = &nir_intrinsic_infos[intrin->intrinsic];
 
-      /* value */
-      chan_intrin->src[0] = nir_src_for_ssa(nir_channel(b, value, i));
-      /* invocation */
-      if (intrin->intrinsic == nir_intrinsic_read_invocation)
-         nir_src_copy(&chan_intrin->src[1], &intrin->src[1], chan_intrin);
+      for (unsigned src = 0; src < info->num_srcs; src++) {
+         if (info->src_components[src] != 0) {
+            nir_src_copy(&chan_intrin->src[src], &intrin->src[src],
+                         chan_intrin);
+         } else {
+            nir_ssa_def *value = nir_ssa_for_src(b, intrin->src[src],
+                                                 intrin->num_components);
+            chan_intrin->src[src] = nir_src_for_ssa(nir_channel(b, value, i));
+         }
+      }
+
+      for (unsigned idx = 0; idx < info->num_indices; idx++)
+         chan_intrin->const_index[idx] = intrin->const_index[idx];
 
       nir_builder_instr_insert(b, &chan_intrin->instr);
 
@@ -63,7 +74,7 @@ lower_read_invocation_to_scalar(nir_builder *b, nir_intrinsic_instr *intrin)
 }
 
 static bool
-nir_lower_read_invocation_to_scalar_impl(nir_function_impl *impl)
+nir_lower_cross_thread_to_scalar_impl(nir_function_impl *impl)
 {
    bool progress = false;
    nir_builder b;
@@ -82,7 +93,7 @@ nir_lower_read_invocation_to_scalar_impl(nir_function_impl *impl)
          switch (intrin->intrinsic) {
          case nir_intrinsic_read_invocation:
          case nir_intrinsic_read_first_invocation:
-            lower_read_invocation_to_scalar(&b, intrin);
+            lower_to_scalar(&b, intrin);
             progress = true;
             break;
          default:
@@ -99,13 +110,13 @@ nir_lower_read_invocation_to_scalar_impl(nir_function_impl *impl)
 }
 
 bool
-nir_lower_read_invocation_to_scalar(nir_shader *shader)
+nir_lower_cross_thread_to_scalar(nir_shader *shader)
 {
    bool progress = false;
 
    nir_foreach_function(function, shader) {
       if (function->impl)
-         progress |= nir_lower_read_invocation_to_scalar_impl(function->impl);
+         progress |= nir_lower_cross_thread_to_scalar_impl(function->impl);
    }
 
    return progress;

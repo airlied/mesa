@@ -2585,7 +2585,7 @@ void nir_lower_alpha_test(nir_shader *shader, enum compare_func func,
                           bool alpha_to_one);
 bool nir_lower_alu_to_scalar(nir_shader *shader);
 bool nir_lower_load_const_to_scalar(nir_shader *shader);
-bool nir_lower_read_invocation_to_scalar(nir_shader *shader);
+bool nir_lower_cross_thread_to_scalar(nir_shader *shader);
 bool nir_lower_phis_to_scalar(nir_shader *shader);
 void nir_lower_io_to_scalar(nir_shader *shader, nir_variable_mode mask);
 void nir_lower_io_to_scalar_early(nir_shader *shader, nir_variable_mode mask);
