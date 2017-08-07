@@ -295,6 +295,7 @@ radv_shader_compile_to_nir(struct radv_device *device,
 	nir_lower_var_copies(nir);
 	nir_lower_global_vars_to_local(nir);
 	nir_remove_dead_variables(nir, nir_var_local);
+	nir_lower_group_reduce(nir);
 	radv_optimize_nir(nir);
 
 	if (device->instance->debug_flags & RADV_DEBUG_DUMP_SHADERS)
