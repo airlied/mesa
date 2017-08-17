@@ -3244,7 +3244,8 @@ static LLVMValueRef adjust_sample_index_using_fmask(struct ac_llvm_context *ctx,
 }
 
 static LLVMValueRef get_image_coords(struct ac_nir_context *ctx,
-				     const nir_intrinsic_instr *instr)
+				     const nir_intrinsic_instr *instr,
+				     LLVMValueRef desc)
 {
 	const struct glsl_type *type = instr->variables[0]->var->type;
 	if(instr->variables[0]->deref.child)
@@ -3323,6 +3324,23 @@ static LLVMValueRef get_image_coords(struct ac_nir_context *ctx,
 			count++;
 		}
 
+		if (ctx->abi->chip_class >= GFX9 && dim == GLSL_SAMPLER_DIM_2D && !is_array) {
+			/* The hw can't bind a slice of a 3D image as a 2D
+			 * image, because it ignores BASE_ARRAY if the target
+			 * is 3D. The workaround is to read BASE_ARRAY and set
+			 * it as the 3rd address operand for all 2D images.
+			 */
+			LLVMValueRef first_layer, const5, mask;
+
+			const5 = LLVMConstInt(ctx->ac.i32, 5, 0);
+			mask = LLVMConstInt(ctx->ac.i32, S_008F24_BASE_ARRAY(~0), 0);
+			first_layer = LLVMBuildExtractElement(ctx->ac.builder, desc, const5, "");
+			first_layer = LLVMBuildAnd(ctx->ac.builder, first_layer, mask, "");
+
+			coords[2] = first_layer;
+			count++;
+		}
+
 		if (is_ms) {
 			coords[count] = sample_index;
 			count++;
@@ -3372,9 +3390,9 @@ static LLVMValueRef visit_image_load(struct ac_nir_context *ctx,
 		LLVMValueRef da = is_da ? i1true : i1false;
 		LLVMValueRef glc = i1false;
 		LLVMValueRef slc = i1false;
-
-		params[0] = get_image_coords(ctx, instr);
-		params[1] = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE, true, false);
+		LLVMValueRef desc = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE, true, false);
+		params[0] = get_image_coords(ctx, instr, desc);
+		params[1] = desc;
 		params[2] = LLVMConstInt(ctx->ac.i32, 15, false); /* dmask */
 		if (HAVE_LLVM <= 0x0309) {
 			params[3] = i1false;  /* r128 */
@@ -3431,9 +3449,10 @@ static void visit_image_store(struct ac_nir_context *ctx,
 		LLVMValueRef da = is_da ? i1true : i1false;
 		LLVMValueRef slc = i1false;
 
+		LLVMValueRef desc = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE, true, true);
 		params[0] = ac_to_float(&ctx->ac, get_src(ctx, instr->src[2]));
-		params[1] = get_image_coords(ctx, instr); /* coords */
-		params[2] = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE, true, true);
+		params[1] = get_image_coords(ctx, instr, desc); /* coords */
+		params[2] = desc;
 		params[3] = LLVMConstInt(ctx->ac.i32, 15, false); /* dmask */
 		if (HAVE_LLVM <= 0x0309) {
 			params[4] = i1false;  /* r128 */
@@ -3522,10 +3541,10 @@ static LLVMValueRef visit_image_atomic(struct ac_nir_context *ctx,
 
 		bool da = glsl_sampler_type_is_array(type) ||
 		          glsl_get_sampler_dim(type) == GLSL_SAMPLER_DIM_CUBE;
-
-		LLVMValueRef coords = params[param_count++] = get_image_coords(ctx, instr);
-		params[param_count++] = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE,
-							 true, true);
+		LLVMValueRef desc = get_sampler_desc(ctx, instr->variables[0], AC_DESC_IMAGE,
+						     true, true);
+		LLVMValueRef coords = params[param_count++] = get_image_coords(ctx, instr, desc);
+		params[param_count++] = desc;
 		params[param_count++] = i1false; /* r128 */
 		params[param_count++] = da ? i1true : i1false;      /* da */
 		params[param_count++] = i1false;  /* slc */
