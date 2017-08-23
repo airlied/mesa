@@ -223,28 +223,40 @@ si_emit_config(struct radv_physical_device *physical_device,
 	unsigned num_rb = MIN2(physical_device->rad_info.num_render_backends, 16);
 	unsigned rb_mask = physical_device->rad_info.enabled_rb_mask;
 	unsigned raster_config, raster_config_1;
+	bool has_clear_state = physical_device->has_clear_state;
 	int i;
+
+	assert(has_clear_state || physical_device->rad_info.chip_class == SI);
 
 	radeon_emit(cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
 	radeon_emit(cs, CONTEXT_CONTROL_LOAD_ENABLE(1));
 	radeon_emit(cs, CONTEXT_CONTROL_SHADOW_ENABLE(1));
 
+	if (has_clear_state) {
+		radeon_emit(cs, PKT3(PKT3_CLEAR_STATE, 0, 0));
+		radeon_emit(cs, 0);
+	}
+
 	radeon_set_context_reg(cs, R_028A18_VGT_HOS_MAX_TESS_LEVEL, fui(64));
-	radeon_set_context_reg(cs, R_028A1C_VGT_HOS_MIN_TESS_LEVEL, fui(0));
+	if (!has_clear_state)
+		radeon_set_context_reg(cs, R_028A1C_VGT_HOS_MIN_TESS_LEVEL, fui(0));
 
 	/* FIXME calculate these values somehow ??? */
-	radeon_set_context_reg(cs, R_028A54_VGT_GS_PER_ES, SI_GS_PER_ES);
-	radeon_set_context_reg(cs, R_028A58_VGT_ES_PER_GS, 0x40);
-	radeon_set_context_reg(cs, R_028A5C_VGT_GS_PER_VS, 0x2);
+	if (physical_device->rad_info.chip_class <= VI) {
+		radeon_set_context_reg(cs, R_028A54_VGT_GS_PER_ES, SI_GS_PER_ES);
+		radeon_set_context_reg(cs, R_028A58_VGT_ES_PER_GS, 0x40);
+	}
 
-	radeon_set_context_reg(cs, R_028A8C_VGT_PRIMITIVEID_RESET, 0x0);
-	radeon_set_context_reg(cs, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
+	if (!has_clear_state) {
+		radeon_set_context_reg(cs, R_028A5C_VGT_GS_PER_VS, 0x2);
+		radeon_set_context_reg(cs, R_028A8C_VGT_PRIMITIVEID_RESET, 0x0);
+		radeon_set_context_reg(cs, R_028B98_VGT_STRMOUT_BUFFER_CONFIG, 0x0);
+	}
 
-	radeon_set_context_reg(cs, R_028B98_VGT_STRMOUT_BUFFER_CONFIG, 0x0);
 	radeon_set_context_reg(cs, R_028AA0_VGT_INSTANCE_STEP_RATE_0, 1);
-	if (physical_device->rad_info.chip_class >= GFX9)
-		radeon_set_context_reg(cs, R_028AB4_VGT_REUSE_OFF, 0);
-	radeon_set_context_reg(cs, R_028AB8_VGT_VTX_CNT_EN, 0x0);
+
+	if (!has_clear_state)
+		radeon_set_context_reg(cs, R_028AB8_VGT_VTX_CNT_EN, 0x0);
 	if (physical_device->rad_info.chip_class < CIK)
 		radeon_set_config_reg(cs, R_008A14_PA_CL_ENHANCE, S_008A14_NUM_CLIP_SEQ(3) |
 				      S_008A14_CLIP_VTX_REORDER_ENA(1));
@@ -252,11 +264,14 @@ si_emit_config(struct radv_physical_device *physical_device,
 	radeon_set_context_reg(cs, R_028BD4_PA_SC_CENTROID_PRIORITY_0, 0x76543210);
 	radeon_set_context_reg(cs, R_028BD8_PA_SC_CENTROID_PRIORITY_1, 0xfedcba98);
 
-	radeon_set_context_reg(cs, R_02882C_PA_SU_PRIM_FILTER_CNTL, 0);
+	if (!has_clear_state)
+		radeon_set_context_reg(cs, R_02882C_PA_SU_PRIM_FILTER_CNTL, 0);
 
-	for (i = 0; i < 16; i++) {
-		radeon_set_context_reg(cs, R_0282D0_PA_SC_VPORT_ZMIN_0 + i*8, 0);
-		radeon_set_context_reg(cs, R_0282D4_PA_SC_VPORT_ZMAX_0 + i*8, fui(1.0));
+	if (!has_clear_state) {
+		for (i = 0; i < 16; i++) {
+			radeon_set_context_reg(cs, R_0282D0_PA_SC_VPORT_ZMIN_0 + i*8, 0);
+			radeon_set_context_reg(cs, R_0282D4_PA_SC_VPORT_ZMAX_0 + i*8, fui(1.0));
+		}
 	}
 
 	switch (physical_device->rad_info.family) {
@@ -355,26 +370,40 @@ si_emit_config(struct radv_physical_device *physical_device,
 		}
 	}
 
-	radeon_set_context_reg(cs, R_028204_PA_SC_WINDOW_SCISSOR_TL, S_028204_WINDOW_OFFSET_DISABLE(1));
-	radeon_set_context_reg(cs, R_028240_PA_SC_GENERIC_SCISSOR_TL, S_028240_WINDOW_OFFSET_DISABLE(1));
-	radeon_set_context_reg(cs, R_028244_PA_SC_GENERIC_SCISSOR_BR,
-			       S_028244_BR_X(16384) | S_028244_BR_Y(16384));
-	radeon_set_context_reg(cs, R_028030_PA_SC_SCREEN_SCISSOR_TL, 0);
-	radeon_set_context_reg(cs, R_028034_PA_SC_SCREEN_SCISSOR_BR,
-			       S_028034_BR_X(16384) | S_028034_BR_Y(16384));
+	/* CLEAR_STATE doesn't clear these correctly on certain generations.
+	 * I don't know why. Deduced by trial and error.
+	 */
+	if (physical_device->rad_info.chip_class <= CIK) {
+		radeon_set_context_reg(cs, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
+		radeon_set_context_reg(cs, R_028204_PA_SC_WINDOW_SCISSOR_TL, S_028204_WINDOW_OFFSET_DISABLE(1));
+		radeon_set_context_reg(cs, R_028240_PA_SC_GENERIC_SCISSOR_TL, S_028240_WINDOW_OFFSET_DISABLE(1));
+		radeon_set_context_reg(cs, R_028244_PA_SC_GENERIC_SCISSOR_BR,
+				       S_028244_BR_X(16384) | S_028244_BR_Y(16384));
+		radeon_set_context_reg(cs, R_028030_PA_SC_SCREEN_SCISSOR_TL, 0);
+		radeon_set_context_reg(cs, R_028034_PA_SC_SCREEN_SCISSOR_BR,
+				       S_028034_BR_X(16384) | S_028034_BR_Y(16384));
+	}
 
-	radeon_set_context_reg(cs, R_02820C_PA_SC_CLIPRECT_RULE, 0xFFFF);
-	radeon_set_context_reg(cs, R_028230_PA_SC_EDGERULE, 0xAAAAAAAA);
-	/* PA_SU_HARDWARE_SCREEN_OFFSET must be 0 due to hw bug on SI */
-	radeon_set_context_reg(cs, R_028234_PA_SU_HARDWARE_SCREEN_OFFSET, 0);
-	radeon_set_context_reg(cs, R_028820_PA_CL_NANINF_CNTL, 0);
+	if (!has_clear_state) {
+		radeon_set_context_reg(cs, R_02820C_PA_SC_CLIPRECT_RULE, 0xFFFF);
+		radeon_set_context_reg(cs, R_028230_PA_SC_EDGERULE,
+				       S_028230_ER_TRI(0xA) |
+				       S_028230_ER_POINT(0xA) |
+				       S_028230_ER_RECT(0xA) |
+				       /* Required by DX10_DIAMOND_TEST_ENA: */
+				       S_028230_ER_LINE_LR(0x1A) |
+				       S_028230_ER_LINE_RL(0x26) |
+				       S_028230_ER_LINE_TB(0xA) |
+				       S_028230_ER_LINE_BT(0xA));
+		/* PA_SU_HARDWARE_SCREEN_OFFSET must be 0 due to hw bug on SI */
+		radeon_set_context_reg(cs, R_028234_PA_SU_HARDWARE_SCREEN_OFFSET, 0);
+		radeon_set_context_reg(cs, R_028820_PA_CL_NANINF_CNTL, 0);
 
-	radeon_set_context_reg(cs, R_028AC0_DB_SRESULTS_COMPARE_STATE0, 0x0);
-	radeon_set_context_reg(cs, R_028AC4_DB_SRESULTS_COMPARE_STATE1, 0x0);
-	radeon_set_context_reg(cs, R_028AC8_DB_PRELOAD_CONTROL, 0x0);
-	radeon_set_context_reg(cs, R_02800C_DB_RENDER_OVERRIDE,
-			       S_02800C_FORCE_HIS_ENABLE0(V_02800C_FORCE_DISABLE) |
-			       S_02800C_FORCE_HIS_ENABLE1(V_02800C_FORCE_DISABLE));
+		radeon_set_context_reg(cs, R_028AC0_DB_SRESULTS_COMPARE_STATE0, 0x0);
+		radeon_set_context_reg(cs, R_028AC4_DB_SRESULTS_COMPARE_STATE1, 0x0);
+		radeon_set_context_reg(cs, R_028AC8_DB_PRELOAD_CONTROL, 0x0);
+		radeon_set_context_reg(cs, R_02800C_DB_RENDER_OVERRIDE, 0);
+	}
 
 	if (physical_device->rad_info.chip_class >= GFX9) {
 		radeon_set_uconfig_reg(cs, R_030920_VGT_MAX_VTX_INDX, ~0);
@@ -446,13 +475,10 @@ si_emit_config(struct radv_physical_device *physical_device,
 
 		radeon_set_context_reg(cs, R_028B50_VGT_TESS_DISTRIBUTION,
 				       vgt_tess_distribution);
-	} else {
+	} else if (!has_clear_state) {
 		radeon_set_context_reg(cs, R_028C58_VGT_VERTEX_REUSE_BLOCK_CNTL, 14);
 		radeon_set_context_reg(cs, R_028C5C_VGT_OUT_DEALLOC_CNTL, 16);
 	}
-
-	if (physical_device->has_rbplus)
-		radeon_set_context_reg(cs, R_028C40_PA_SC_SHADER_CONTROL, 0);
 
 	if (physical_device->rad_info.chip_class >= GFX9) {
 		unsigned num_se = physical_device->rad_info.max_se;
@@ -471,10 +497,6 @@ si_emit_config(struct radv_physical_device *physical_device,
 
 		radeon_set_context_reg(cs, R_028060_DB_DFSM_CONTROL,
 				       S_028060_PUNCHOUT_MODE(V_028060_FORCE_OFF));
-		radeon_set_context_reg(cs, R_028064_DB_RENDER_FILTER, 0);
-		/* TODO: We can use this to disable RBs for rendering to GART: */
-		radeon_set_context_reg(cs, R_02835C_PA_SC_TILE_STEERING_OVERRIDE, 0);
-		radeon_set_context_reg(cs, R_02883C_PA_SU_OVER_RASTERIZATION_CNTL, 0);
 		/* TODO: Enable the binner: */
 		radeon_set_context_reg(cs, R_028C44_PA_SC_BINNER_CNTL_0,
 				       S_028C44_BINNING_MODE(V_028C44_DISABLE_BINNING_USE_LEGACY_SC) |
