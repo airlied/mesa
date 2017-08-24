@@ -1830,18 +1830,14 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer,
 			flush_bits |= RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2;
 			break;
 		case VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT:
-			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-			              RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 			break;
 		case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT:
-			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-			              RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 			break;
 		case VK_ACCESS_TRANSFER_WRITE_BIT:
 			flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-			              RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
 			              RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-			              RADV_CMD_FLAG_FLUSH_AND_INV_DB_META |
 			              RADV_CMD_FLAG_INV_GLOBAL_L2;
 			break;
 		default:
@@ -1877,13 +1873,11 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer,
 			/* TODO: change to image && when the image gets passed
 			 * through from the subpass. */
 			if (!image || (image->usage & VK_IMAGE_USAGE_STORAGE_BIT))
-				flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-				              RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+				flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 			break;
 		case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT:
 			if (!image || (image->usage & VK_IMAGE_USAGE_STORAGE_BIT))
-				flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-				              RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+				flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 			break;
 		default:
 			break;
@@ -3332,13 +3326,11 @@ static void radv_initialize_htile(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t offset = image->offset + image->htile_offset +
 	                  image->surface.htile_slice_size * range->baseArrayLayer;
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-	                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 
 	radv_fill_buffer(cmd_buffer, image->bo, offset, size, clear_word);
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META |
-	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2;
 }
@@ -3373,27 +3365,23 @@ static void radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffe
 		local_range.baseMipLevel = 0;
 		local_range.levelCount = 1;
 
-		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-		                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 
 		radv_decompress_depth_image_inplace(cmd_buffer, image, &local_range);
 
-		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-		                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 	}
 }
 
 void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
 			   struct radv_image *image, uint32_t value)
 {
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 
 	radv_fill_buffer(cmd_buffer, image->bo, image->offset + image->cmask.offset,
 			 image->cmask.size, value);
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
-	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2;
 }
@@ -3422,14 +3410,12 @@ void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
 			 struct radv_image *image, uint32_t value)
 {
 
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 
 	radv_fill_buffer(cmd_buffer, image->bo, image->offset + image->dcc_offset,
 			 image->surface.dcc_size, value);
 
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-	                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
 	                                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
 	                                RADV_CMD_FLAG_INV_VMEM_L1 |
 	                                RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2;
@@ -3641,7 +3627,8 @@ void radv_CmdWaitEvents(VkCommandBuffer commandBuffer,
 	}
 
 	/* TODO: figure out how to do memory barriers without waiting */
-	cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER |
+	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+					RADV_CMD_FLAG_FLUSH_AND_INV_DB |		
 					RADV_CMD_FLAG_INV_GLOBAL_L2 |
 					RADV_CMD_FLAG_INV_VMEM_L1 |
 					RADV_CMD_FLAG_INV_SMEM_L1;

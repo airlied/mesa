@@ -677,8 +677,6 @@ enum radv_cmd_flush_bits {
 	/* Same as above, but only writes back and doesn't invalidate */
 	RADV_CMD_FLAG_WRITEBACK_GLOBAL_L2 = 1 << 4,
 	/* Framebuffer caches */
-	RADV_CMD_FLAG_FLUSH_AND_INV_CB_META = 1 << 5,
-	RADV_CMD_FLAG_FLUSH_AND_INV_DB_META = 1 << 6,
 	RADV_CMD_FLAG_FLUSH_AND_INV_DB = 1 << 7,
 	RADV_CMD_FLAG_FLUSH_AND_INV_CB = 1 << 8,
 	/* Engine synchronization. */
@@ -686,11 +684,6 @@ enum radv_cmd_flush_bits {
 	RADV_CMD_FLAG_PS_PARTIAL_FLUSH = 1 << 10,
 	RADV_CMD_FLAG_CS_PARTIAL_FLUSH = 1 << 11,
 	RADV_CMD_FLAG_VGT_FLUSH        = 1 << 12,
-
-	RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER = (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-					      RADV_CMD_FLAG_FLUSH_AND_INV_CB_META |
-					      RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-					      RADV_CMD_FLAG_FLUSH_AND_INV_DB_META)
 };
 
 struct radv_vertex_binding {

@@ -729,7 +729,7 @@ static void radv_query_shader(struct radv_cmd_buffer *cmd_buffer,
 	                                RADV_CMD_FLAG_INV_VMEM_L1;
 
 	if (flags & VK_QUERY_RESULT_WAIT_BIT)
-		cmd_buffer->state.flush_bits |= RADV_CMD_FLUSH_AND_INV_FRAMEBUFFER;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB | RADV_CMD_FLAG_FLUSH_AND_INV_CB;
 
 	radv_unaligned_dispatch(cmd_buffer, count, 1, 1);
 

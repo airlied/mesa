@@ -732,12 +732,10 @@ emit_fast_htile_clear(struct radv_cmd_buffer *cmd_buffer,
 		clear_word = clear_value.depth ? 0xfffffff0 : 0;
 
 	if (pre_flush) {
-		cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-						 RADV_CMD_FLAG_FLUSH_AND_INV_DB_META) & ~ *pre_flush;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB & ~ *pre_flush;
 		*pre_flush |= cmd_buffer->state.flush_bits;
 	} else
-		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB |
-		                                RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 
 	radv_fill_buffer(cmd_buffer, iview->image->bo,
 	                 iview->image->offset + iview->image->htile_offset,
@@ -1018,12 +1016,11 @@ emit_fast_color_clear(struct radv_cmd_buffer *cmd_buffer,
 		goto fail;
 
 	if (pre_flush) {
-		cmd_buffer->state.flush_bits |= (RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-						 RADV_CMD_FLAG_FLUSH_AND_INV_CB_META) & ~ *pre_flush;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB & ~ *pre_flush;
 		*pre_flush |= cmd_buffer->state.flush_bits;
 	} else
-		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
-		                                RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+		cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
+
 	/* clear cmask buffer */
 	if (iview->image->surface.dcc_size) {
 		uint32_t reset_value;
