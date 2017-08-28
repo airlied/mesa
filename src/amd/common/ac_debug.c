@@ -57,6 +57,7 @@ struct ac_ib_parser {
 	uint32_t *ib;
 	unsigned num_dw;
 	int trace_id;
+	uint32_t trace_buffer_id;
 	enum chip_class chip_class;
 	ac_debug_addr_callback addr_callback;
 	void *addr_callback_data;
@@ -404,16 +405,22 @@ static void ac_parse_packet3(FILE *f, uint32_t header, struct ac_ib_parser *ib)
 	case PKT3_NOP:
 		if (header == 0xffff1000) {
 			count = -1; /* One dword NOP. */
-		} else if (count == 0 && ib->cur_dw < ib->num_dw &&
+		} else if ((count == 0 || count == 1) && ib->cur_dw < ib->num_dw &&
 			   AC_IS_TRACE_POINT(ib->ib[ib->cur_dw])) {
 			unsigned packet_id = AC_GET_TRACE_POINT_ID(ib->ib[ib->cur_dw]);
-
+			unsigned buffer_id = 0;
+			if (count == 1)
+				buffer_id = ib->ib[ib->cur_dw + 1];
 			print_spaces(f, INDENT_PKT);
-			fprintf(f, COLOR_RED "Trace point ID: %u\n", packet_id);
+			fprintf(f, COLOR_RED "Trace point ID: %u %x\n", packet_id, buffer_id);
 
 			if (ib->trace_id == -1)
 				break; /* tracing was disabled */
 
+			if (count == 1) {
+				if (buffer_id != ib->trace_buffer_id)
+					break; /* doesn't match this buffer */
+			}
 			print_spaces(f, INDENT_PKT);
 			if (packet_id < ib->trace_id)
 				fprintf(f, COLOR_RED
@@ -526,6 +533,7 @@ static void format_ib_output(FILE *f, char *out)
  * \param addr_callback_data user data for addr_callback
  */
 void ac_parse_ib_chunk(FILE *f, uint32_t *ib_ptr, int num_dw, int trace_id,
+                       uint32_t trace_buffer_id,
                        enum chip_class chip_class,
                        ac_debug_addr_callback addr_callback, void *addr_callback_data)
 {
@@ -533,6 +541,7 @@ void ac_parse_ib_chunk(FILE *f, uint32_t *ib_ptr, int num_dw, int trace_id,
 	ib.ib = ib_ptr;
 	ib.num_dw = num_dw;
 	ib.trace_id = trace_id;
+	ib.trace_buffer_id = trace_buffer_id;
 	ib.chip_class = chip_class;
 	ib.addr_callback = addr_callback;
 	ib.addr_callback_data = addr_callback_data;
@@ -564,17 +573,18 @@ void ac_parse_ib_chunk(FILE *f, uint32_t *ib_ptr, int num_dw, int trace_id,
  * \param chip_class	chip class
  * \param trace_id	the last trace ID that is known to have been reached
  *			and executed by the CP, typically read from a buffer
+ * \param trace_buffer_id Unique IB to identify secondary command buffers.
  * \param addr_callback Get a mapped pointer of the IB at a given address. Can
  *                      be NULL.
  * \param addr_callback_data user data for addr_callback
  */
-void ac_parse_ib(FILE *f, uint32_t *ib, int num_dw, int trace_id,
+void ac_parse_ib(FILE *f, uint32_t *ib, int num_dw, int trace_id, uint32_t trace_buffer_id,
 		 const char *name, enum chip_class chip_class,
 		 ac_debug_addr_callback addr_callback, void *addr_callback_data)
 {
 	fprintf(f, "------------------ %s begin ------------------\n", name);
 
-	ac_parse_ib_chunk(f, ib, num_dw, trace_id, chip_class, addr_callback,
+	ac_parse_ib_chunk(f, ib, num_dw, trace_id, trace_buffer_id, chip_class, addr_callback,
 			  addr_callback_data);
 
 	fprintf(f, "------------------- %s end -------------------\n\n", name);

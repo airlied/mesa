@@ -1388,8 +1388,8 @@ static void radv_dump_trace(struct radv_device *device,
 		return;
 	}
 
-	fprintf(f, "Trace ID: %x\n", *device->trace_id_ptr);
-	device->ws->cs_dump(cs, f, *device->trace_id_ptr);
+	fprintf(f, "Trace ID: %x %x\n", device->trace_id_ptr[0], device->trace_id_ptr[1]);
+	device->ws->cs_dump(cs, f, *device->trace_id_ptr, device->trace_id_ptr[1]);
 	fclose(f);
 }
 

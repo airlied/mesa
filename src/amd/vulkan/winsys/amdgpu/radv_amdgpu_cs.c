@@ -67,6 +67,8 @@ struct radv_amdgpu_cs {
 	struct radeon_winsys_bo     **virtual_buffers;
 	uint8_t                     *virtual_buffer_priorities;
 	int                         *virtual_buffer_hash_table;
+	int num_secondary;
+	struct radv_amdgpu_cs **secondaries;
 };
 
 static inline struct radv_amdgpu_cs *
@@ -173,6 +175,7 @@ static void radv_amdgpu_cs_destroy(struct radeon_winsys_cs *rcs)
 	free(cs->virtual_buffer_hash_table);
 	free(cs->handles);
 	free(cs->priorities);
+	free(cs->secondaries);
 	free(cs);
 }
 
@@ -353,6 +356,9 @@ static void radv_amdgpu_cs_reset(struct radeon_winsys_cs *_cs)
 	cs->num_buffers = 0;
 	cs->num_virtual_buffers = 0;
 
+	free(cs->secondaries);
+	cs->secondaries = NULL;
+	cs->num_secondary = 0;
 	if (cs->ws->use_ib_bos) {
 		cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer, 8);
 
@@ -498,6 +504,12 @@ static void radv_amdgpu_cs_execute_secondary(struct radeon_winsys_cs *_parent,
 		parent->base.buf[parent->base.cdw++] = child->ib.ib_mc_address;
 		parent->base.buf[parent->base.cdw++] = child->ib.ib_mc_address >> 32;
 		parent->base.buf[parent->base.cdw++] = child->ib.size;
+
+		
+		parent->secondaries = realloc(parent->secondaries,
+					      sizeof(struct radv_amdgpu_cs *) * parent->num_secondary + 1);
+		parent->secondaries[parent->num_secondary] = child;
+		parent->num_secondary++;
 	} else {
 		if (parent->base.cdw + child->base.cdw > parent->base.max_dw)
 			radv_amdgpu_cs_grow(&parent->base, child->base.cdw);
@@ -959,6 +971,20 @@ static void *radv_amdgpu_winsys_get_cpu_addr(void *_cs, uint64_t addr)
 
 	if (!cs->ib_buffer)
 		return NULL;
+
+	for (unsigned i = 0; i < cs->num_secondary; ++i) {
+		struct radv_amdgpu_cs *child = cs->secondaries[i];
+		for (unsigned j = 0; j <= child->num_old_ib_buffers; ++j) {
+			struct radv_amdgpu_winsys_bo *bo;
+
+			bo = (struct radv_amdgpu_winsys_bo*)
+				(j == child->num_old_ib_buffers ? child->ib_buffer : child->old_ib_buffers[j]);
+			if (addr >= bo->va && addr - bo->va < bo->size) {
+				if (amdgpu_bo_cpu_map(bo->bo, &ret) == 0)
+					return (char *)ret + (addr - bo->va);
+			}
+		}
+	}
 	for (unsigned i = 0; i <= cs->num_old_ib_buffers; ++i) {
 		struct radv_amdgpu_winsys_bo *bo;
 
@@ -974,7 +1000,7 @@ static void *radv_amdgpu_winsys_get_cpu_addr(void *_cs, uint64_t addr)
 
 static void radv_amdgpu_winsys_cs_dump(struct radeon_winsys_cs *_cs,
                                        FILE* file,
-                                       uint32_t trace_id)
+                                       uint32_t trace_id, uint32_t trace_buffer_id)
 {
 	struct radv_amdgpu_cs *cs = (struct radv_amdgpu_cs *)_cs;
 	void *ib = cs->base.buf;
@@ -985,7 +1011,8 @@ static void radv_amdgpu_winsys_cs_dump(struct radeon_winsys_cs *_cs,
 		num_dw = cs->ib.size;
 	}
 	assert(ib);
-	ac_parse_ib(file, ib, num_dw, trace_id, "main IB", cs->ws->info.chip_class,
+	ac_parse_ib(file, ib, num_dw, trace_id, trace_buffer_id,
+		    "main IB", cs->ws->info.chip_class,
 		    radv_amdgpu_winsys_get_cpu_addr, cs);
 }
 

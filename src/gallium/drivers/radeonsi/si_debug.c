@@ -301,7 +301,7 @@ static void si_parse_current_ib(FILE *f, struct radeon_winsys_cs *cs,
 		if (begin < chunk->cdw) {
 			ac_parse_ib_chunk(f, chunk->buf + begin,
 					  MIN2(end, chunk->cdw) - begin,
-					  last_trace_id, chip_class, NULL, NULL);
+					  last_trace_id, 0, chip_class, NULL, NULL);
 		}
 
 		if (end <= chunk->cdw)
@@ -317,7 +317,7 @@ static void si_parse_current_ib(FILE *f, struct radeon_winsys_cs *cs,
 
 	assert(end <= cs->current.cdw);
 
-	ac_parse_ib_chunk(f, cs->current.buf + begin, end - begin, last_trace_id,
+	ac_parse_ib_chunk(f, cs->current.buf + begin, end - begin, last_trace_id, 0,
 			  chip_class, NULL, NULL);
 
 	fprintf(f, "------------------- %s end (dw = %u) -------------------\n\n",
@@ -346,20 +346,20 @@ static void si_log_chunk_type_cs_print(void *data, FILE *f)
 		if (chunk->gfx_begin == 0) {
 			if (ctx->init_config)
 				ac_parse_ib(f, ctx->init_config->pm4, ctx->init_config->ndw,
-					    -1, "IB2: Init config", ctx->b.chip_class,
+					    -1, 0, "IB2: Init config", ctx->b.chip_class,
 					    NULL, NULL);
 
 			if (ctx->init_config_gs_rings)
 				ac_parse_ib(f, ctx->init_config_gs_rings->pm4,
 					    ctx->init_config_gs_rings->ndw,
-					    -1, "IB2: Init GS rings", ctx->b.chip_class,
+					    -1, 0, "IB2: Init GS rings", ctx->b.chip_class,
 					    NULL, NULL);
 		}
 
 		if (scs->flushed) {
 			ac_parse_ib(f, scs->gfx.ib + chunk->gfx_begin,
 				    chunk->gfx_end - chunk->gfx_begin,
-				    last_trace_id, "IB", ctx->b.chip_class,
+				    last_trace_id, 0, "IB", ctx->b.chip_class,
 				    NULL, NULL);
 		} else {
 			si_parse_current_ib(f, ctx->b.gfx.cs, chunk->gfx_begin,

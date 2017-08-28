@@ -32,7 +32,7 @@
 #include "gfx9d.h"
 #include "vk_format.h"
 #include "radv_meta.h"
-
+#include "util/u_atomic.h"
 #include "ac_debug.h"
 
 static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
@@ -153,6 +153,10 @@ static VkResult radv_create_cmd_buffer(
 	cmd_buffer->device = device;
 	cmd_buffer->pool = pool;
 	cmd_buffer->level = level;
+
+	if (level == VK_COMMAND_BUFFER_LEVEL_SECONDARY && device->trace_bo) {
+		cmd_buffer->secondary_trace_id = p_atomic_inc_return(&device->cmd_buffer_trace_counter);
+	}
 
 	if (pool) {
 		list_addtail(&cmd_buffer->pool_link, &pool->cmd_buffers);
@@ -346,15 +350,19 @@ void radv_cmd_buffer_trace_emit(struct radv_cmd_buffer *cmd_buffer)
 
 	++cmd_buffer->state.trace_id;
 	device->ws->cs_add_buffer(cs, device->trace_bo, 8);
-	radeon_emit(cs, PKT3(PKT3_WRITE_DATA, 3, 0));
+	radeon_emit(cs, PKT3(PKT3_WRITE_DATA, 4, 0));
 	radeon_emit(cs, S_370_DST_SEL(V_370_MEM_ASYNC) |
 		    S_370_WR_CONFIRM(1) |
 		    S_370_ENGINE_SEL(V_370_ME));
 	radeon_emit(cs, va);
 	radeon_emit(cs, va >> 32);
 	radeon_emit(cs, cmd_buffer->state.trace_id);
-	radeon_emit(cs, PKT3(PKT3_NOP, 0, 0));
+	radeon_emit(cs, cmd_buffer->secondary_trace_id);
+
+	bool secondary = cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+	radeon_emit(cs, PKT3(PKT3_NOP, secondary ? 1 : 0, 0));
 	radeon_emit(cs, AC_ENCODE_TRACE_POINT(cmd_buffer->state.trace_id));
+	radeon_emit(cs, cmd_buffer->secondary_trace_id);
 }
 
 static void

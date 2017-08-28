@@ -39,10 +39,10 @@ typedef void *(*ac_debug_addr_callback)(void *data, uint64_t addr);
 
 void ac_dump_reg(FILE *file, unsigned offset, uint32_t value,
 		 uint32_t field_mask);
-void ac_parse_ib_chunk(FILE *f, uint32_t *ib, int num_dw, int trace_id,
+void ac_parse_ib_chunk(FILE *f, uint32_t *ib, int num_dw, int trace_id, uint32_t trace_buffer_id,
 		       enum chip_class chip_class,
 		       ac_debug_addr_callback addr_callback, void *addr_callback_data);
-void ac_parse_ib(FILE *f, uint32_t *ib, int num_dw, int trace_id,
+void ac_parse_ib(FILE *f, uint32_t *ib, int num_dw, int trace_id, uint32_t trace_buffer_id,
 		 const char *name, enum chip_class chip_class,
 		 ac_debug_addr_callback addr_callback, void *addr_callback_data);
 

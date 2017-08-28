@@ -556,6 +556,9 @@ struct radv_device {
 	uint32_t fmask_mrt_offset_counter;
 	struct list_head shader_slabs;
 	mtx_t shader_slab_mutex;
+
+	/* atomic allocated per cmd buffer for unique trace counters */
+	uint32_t cmd_buffer_trace_counter;
 };
 
 struct radv_device_memory {
@@ -839,6 +842,7 @@ struct radv_cmd_buffer {
 	uint32_t gfx9_fence_offset;
 	struct radeon_winsys_bo *gfx9_fence_bo;
 	uint32_t gfx9_fence_idx;
+	uint32_t secondary_trace_id;
 };
 
 struct radv_image;
