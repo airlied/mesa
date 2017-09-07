@@ -241,6 +241,16 @@ radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
 		cmd_buffer->gfx9_fence_bo = cmd_buffer->upload.upload_bo;
 	}
 
+	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK ||
+	    cmd_buffer->device->physical_device->rad_info.chip_class == VI ||
+	    cmd_buffer->device->physical_device->rad_info.chip_class == GFX9) {
+		void *fence_ptr;
+
+		radv_cmd_buffer_upload_alloc(cmd_buffer, 16 * cmd_buffer->device->physical_device->rad_info.num_render_backends, 0,
+					     &cmd_buffer->eop_wa_offset,
+					     &fence_ptr);
+		cmd_buffer->eop_wa_bo = cmd_buffer->upload.upload_bo;
+	}
 	return cmd_buffer->record_result;
 }
 
@@ -3550,20 +3560,22 @@ static void write_event(struct radv_cmd_buffer *cmd_buffer,
 {
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(event->bo);
-
+	uint64_t eop_wa_va = 0;
 	cmd_buffer->device->ws->cs_add_buffer(cs, event->bo, 8);
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 18);
 
 	/* TODO: this is overkill. Probably should figure something out from
 	 * the stage mask. */
+	if (cmd_buffer->eop_wa_bo)
+		eop_wa_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->eop_wa_bo) + cmd_buffer->eop_wa_offset;
 
 	si_cs_emit_write_event_eop(cs,
 				   cmd_buffer->state.predicating,
 				   cmd_buffer->device->physical_device->rad_info.chip_class,
 				   false,
 				   EVENT_TYPE_BOTTOM_OF_PIPE_TS, 0,
-				   1, va, 2, value);
+				   1, va, eop_wa_va, 2, value);
 
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }

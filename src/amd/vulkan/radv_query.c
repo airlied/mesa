@@ -1119,10 +1119,14 @@ void radv_CmdEndQuery(
 	RADV_FROM_HANDLE(radv_query_pool, pool, queryPool);
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(pool->bo);
+	uint64_t eop_wa_va = 0;
 	uint64_t avail_va = va + pool->availability_offset + 4 * query;
 	va += pool->stride * query;
 
 	cmd_buffer->device->ws->cs_add_buffer(cs, pool->bo, 8);
+
+	if (cmd_buffer->eop_wa_bo)
+		eop_wa_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->eop_wa_bo) + cmd_buffer->eop_wa_offset;
 
 	switch (pool->type) {
 	case VK_QUERY_TYPE_OCCLUSION:
@@ -1153,7 +1157,7 @@ void radv_CmdEndQuery(
 					   cmd_buffer->device->physical_device->rad_info.chip_class,
 					   false,
 					   EVENT_TYPE_BOTTOM_OF_PIPE_TS, 0,
-					   1, avail_va, 0, 1);
+					   1, avail_va, eop_wa_va, 0, 1);
 		break;
 	default:
 		unreachable("ending unhandled query type");
@@ -1173,11 +1177,13 @@ void radv_CmdWriteTimestamp(
 	uint64_t va = cmd_buffer->device->ws->buffer_get_va(pool->bo);
 	uint64_t avail_va = va + pool->availability_offset + 4 * query;
 	uint64_t query_va = va + pool->stride * query;
-
+	uint64_t eop_wa_va = 0;
 	cmd_buffer->device->ws->cs_add_buffer(cs, pool->bo, 5);
 
 	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 28);
 
+	if (cmd_buffer->eop_wa_bo)
+		eop_wa_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->eop_wa_bo) + cmd_buffer->eop_wa_offset;
 	switch(pipelineStage) {
 	case VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT:
 		radeon_emit(cs, PKT3(PKT3_COPY_DATA, 4, 0));
@@ -1203,13 +1209,13 @@ void radv_CmdWriteTimestamp(
 					   cmd_buffer->device->physical_device->rad_info.chip_class,
 					   mec,
 					   V_028A90_BOTTOM_OF_PIPE_TS, 0,
-					   3, query_va, 0, 0);
+					   3, query_va, eop_wa_va, 0, 0);
 		si_cs_emit_write_event_eop(cs,
 					   false,
 					   cmd_buffer->device->physical_device->rad_info.chip_class,
 					   mec,
 					   V_028A90_BOTTOM_OF_PIPE_TS, 0,
-					   1, avail_va, 0, 1);
+					   1, avail_va, eop_wa_va, 0, 1);
 		break;
 	}
 

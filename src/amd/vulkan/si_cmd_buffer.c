@@ -776,6 +776,7 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 				unsigned event, unsigned event_flags,
 				unsigned data_sel,
 				uint64_t va,
+				uint64_t eop_wa_va,
 				uint32_t old_fence,
 				uint32_t new_fence)
 {
@@ -783,11 +784,26 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 		EVENT_INDEX(5) |
 		event_flags;
 	unsigned is_gfx8_mec = is_mec && chip_class < GFX9;
+	unsigned sel = EOP_DATA_SEL(data_sel);
+
+	/* Wait for write confirmation before writing data, but don't send
+	 * an interrupt. */
+	if (data_sel != EOP_DATA_SEL_DISCARD)
+		sel |= EOP_INT_SEL(EOP_INT_SEL_SEND_DATA_AFTER_WR_CONFIRM);
+
+	if (chip_class == GFX9 &&
+	    (event == EVENT_TYPE_BOTTOM_OF_PIPE_TS)) {
+		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 2, predicated));
+		radeon_emit(cs, EVENT_TYPE(EVENT_TYPE_ZPASS_DONE) |
+			    EVENT_INDEX(1));
+		radeon_emit(cs, eop_wa_va);
+		radeon_emit(cs, eop_wa_va >> 32);
+	}
 
 	if (chip_class >= GFX9 || is_gfx8_mec) {
 		radeon_emit(cs, PKT3(PKT3_RELEASE_MEM, is_gfx8_mec ? 5 : 6, predicated));
 		radeon_emit(cs, op);
-		radeon_emit(cs, EOP_DATA_SEL(data_sel));
+		radeon_emit(cs, sel);
 		radeon_emit(cs, va);            /* address lo */
 		radeon_emit(cs, va >> 32);      /* address hi */
 		radeon_emit(cs, new_fence);     /* immediate data lo */
@@ -803,16 +819,16 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 			 */
 			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, predicated));
 			radeon_emit(cs, op);
-			radeon_emit(cs, va);
-			radeon_emit(cs, ((va >> 32) & 0xffff) | EOP_DATA_SEL(data_sel));
-			radeon_emit(cs, old_fence); /* immediate data */
+			radeon_emit(cs, eop_wa_va);
+			radeon_emit(cs, ((eop_wa_va >> 32) & 0xffff) | sel);
+			radeon_emit(cs, 0); /* immediate data */
 			radeon_emit(cs, 0); /* unused */
 		}
 
 		radeon_emit(cs, PKT3(PKT3_EVENT_WRITE_EOP, 4, predicated));
 		radeon_emit(cs, op);
 		radeon_emit(cs, va);
-		radeon_emit(cs, ((va >> 32) & 0xffff) | EOP_DATA_SEL(data_sel));
+		radeon_emit(cs, ((va >> 32) & 0xffff) | sel);
 		radeon_emit(cs, new_fence); /* immediate data */
 		radeon_emit(cs, 0); /* unused */
 	}
@@ -866,6 +882,7 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
                        enum chip_class chip_class,
 		       uint32_t *flush_cnt,
 		       uint64_t flush_va,
+		       uint64_t eop_wa_va,
                        bool is_mec,
                        enum radv_cmd_flush_bits flush_bits)
 {
@@ -897,7 +914,7 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 							   chip_class,
 							   is_mec,
 							   V_028A90_FLUSH_AND_INV_CB_DATA_TS,
-							   0, 0, 0, 0, 0);
+							   0, 0, 0, eop_wa_va, 0, 0);
 			}
 		}
 		if (flush_bits & RADV_CMD_FLAG_FLUSH_AND_INV_DB) {
@@ -975,7 +992,7 @@ si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 		uint32_t old_fence = (*flush_cnt)++;
 
 		si_cs_emit_write_event_eop(cs, predicated, chip_class, false, cb_db_event, tc_flags, 1,
-					   flush_va, old_fence, *flush_cnt);
+					   flush_va, eop_wa_va, old_fence, *flush_cnt);
 		si_emit_wait_fence(cs, predicated, flush_va, *flush_cnt, 0xffffffff);
 	}
 
@@ -1058,15 +1075,19 @@ si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer)
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 128);
 
 	uint32_t *ptr = NULL;
-	uint64_t va = 0;
+	uint64_t va = 0, eop_wa_va = 0;
 	if (chip_class == GFX9) {
 		va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->gfx9_fence_bo) + cmd_buffer->gfx9_fence_offset;
 		ptr = &cmd_buffer->gfx9_fence_idx;
 	}
+
+	if (cmd_buffer->eop_wa_bo)
+		eop_wa_va = cmd_buffer->device->ws->buffer_get_va(cmd_buffer->eop_wa_bo) + cmd_buffer->eop_wa_offset;
+
 	si_cs_emit_cache_flush(cmd_buffer->cs,
 			       cmd_buffer->state.predicating,
 	                       cmd_buffer->device->physical_device->rad_info.chip_class,
-			       ptr, va,
+			       ptr, va, eop_wa_va,
 	                       radv_cmd_buffer_uses_mec(cmd_buffer),
 	                       cmd_buffer->state.flush_bits);
 

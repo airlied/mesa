@@ -844,6 +844,9 @@ struct radv_cmd_buffer {
 	uint32_t gfx9_fence_offset;
 	struct radeon_winsys_bo *gfx9_fence_bo;
 	uint32_t gfx9_fence_idx;
+
+	uint32_t eop_wa_offset;
+	struct radeon_winsys_bo *eop_wa_bo;
 };
 
 struct radv_image;
@@ -870,6 +873,7 @@ void si_cs_emit_write_event_eop(struct radeon_winsys_cs *cs,
 				unsigned event, unsigned event_flags,
 				unsigned data_sel,
 				uint64_t va,
+				uint64_t eop_wa_va,
 				uint32_t old_fence,
 				uint32_t new_fence);
 
@@ -880,7 +884,9 @@ void si_emit_wait_fence(struct radeon_winsys_cs *cs,
 void si_cs_emit_cache_flush(struct radeon_winsys_cs *cs,
 			    bool predicated,
 			    enum chip_class chip_class,
-			    uint32_t *fence_ptr, uint64_t va,
+			    uint32_t *fence_ptr,
+			    uint64_t flush_va,
+			    uint64_t eop_wa_va,
 			    bool is_mec,
 			    enum radv_cmd_flush_bits flush_bits);
 void si_emit_cache_flush(struct radv_cmd_buffer *cmd_buffer);
