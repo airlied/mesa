@@ -2021,6 +2021,20 @@ static void visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
 		break;
 	}
 
+	case nir_op_fmin3:
+		result = emit_intrin_2f_param(&ctx->ac, "llvm.minnum",
+                                             ac_to_float_type(&ctx->ac, def_type), src[0], src[1]);
+		result = emit_intrin_2f_param(&ctx->ac, "llvm.minnum",
+					      ac_to_float_type(&ctx->ac, def_type), result, src[2]);
+               break;
+      case nir_op_fmax3:
+	      result = emit_intrin_2f_param(&ctx->ac, "llvm.maxnum",
+					    ac_to_float_type(&ctx->ac, def_type), src[0], src[1]);
+              result = emit_intrin_2f_param(&ctx->ac, "llvm.maxnum",
+					    ac_to_float_type(&ctx->ac, def_type), result, src[2]);
+               break;
+
+
 	default:
 		fprintf(stderr, "Unknown NIR alu instr: ");
 		nir_print_instr(&instr->instr, stderr);

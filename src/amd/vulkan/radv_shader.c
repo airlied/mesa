@@ -213,6 +213,8 @@ radv_shader_compile_to_nir(struct radv_device *device,
 			.amd_shader_ballot = true,
 			.groups = true,
 #endif
+			.amd_gcn_shader = true,
+			.amd_shader_trinary_minmax = true,
 		};
 		entry_point = spirv_to_nir(spirv, module->size / 4,
 					   spec_entries, num_spec_entries,
