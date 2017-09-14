@@ -388,7 +388,7 @@ radv_cmd_buffer_after_draw(struct radv_cmd_buffer *cmd_buffer)
 
 		si_cs_emit_cache_flush(cmd_buffer->cs, false,
 				       cmd_buffer->device->physical_device->rad_info.chip_class,
-				       NULL, 0,
+				       NULL, 0, 0,
 				       radv_cmd_buffer_uses_mec(cmd_buffer),
 				       flags);
 	}
