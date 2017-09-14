@@ -298,7 +298,7 @@ static unsigned radv_tex_dim(VkImageType image_type, VkImageViewType view_type,
 		else
 			return nr_layers > 1 ? V_008F1C_SQ_RSRC_IMG_2D_ARRAY : V_008F1C_SQ_RSRC_IMG_2D;
 	case VK_IMAGE_TYPE_3D:
-		if (view_type == VK_IMAGE_VIEW_TYPE_3D)
+		if (gfx9 || view_type == VK_IMAGE_VIEW_TYPE_3D)
 			return V_008F1C_SQ_RSRC_IMG_3D;
 		else
 			return V_008F1C_SQ_RSRC_IMG_2D_ARRAY;
