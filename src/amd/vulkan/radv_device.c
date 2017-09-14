@@ -3016,9 +3016,8 @@ radv_initialise_color_surface(struct radv_device *device,
 	cb->cb_dcc_base = va >> 8;
 	cb->cb_dcc_base |= iview->image->surface.tile_swizzle;
 
-	uint32_t max_slice = radv_surface_layer_count(iview);
 	cb->cb_color_view = S_028C6C_SLICE_START(iview->base_layer) |
-		S_028C6C_SLICE_MAX(iview->base_layer + max_slice - 1);
+		S_028C6C_SLICE_MAX(iview->base_layer + iview->layer_count - 1);
 
 	if (iview->image->info.samples > 1) {
 		unsigned log_samples = util_logbase2(iview->image->info.samples);
@@ -3166,9 +3165,8 @@ radv_initialise_ds_surface(struct radv_device *device,
 	stencil_format = iview->image->surface.has_stencil ?
 		V_028044_STENCIL_8 : V_028044_STENCIL_INVALID;
 
-	uint32_t max_slice = radv_surface_layer_count(iview);
 	ds->db_depth_view = S_028008_SLICE_START(iview->base_layer) |
-		S_028008_SLICE_MAX(iview->base_layer + max_slice - 1);
+		S_028008_SLICE_MAX(iview->base_layer + iview->layer_count - 1);
 
 	ds->db_htile_data_base = 0;
 	ds->db_htile_surface = 0;
