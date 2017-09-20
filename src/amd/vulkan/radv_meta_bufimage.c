@@ -47,7 +47,7 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 	b.shader->info.cs.local_size[1] = 16;
 	b.shader->info.cs.local_size[2] = 1;
 	nir_variable *input_img = nir_variable_create(b.shader, nir_var_uniform,
-						      sampler_type, "s_tex");
+						      sampler_type, "s_img");
 	input_img->data.descriptor_set = 0;
 	input_img->data.binding = 0;
 
@@ -85,21 +85,17 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 
 	nir_ssa_def *img_coord = nir_iadd(&b, global_id, &offset->dest.ssa);
 
-	nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
-	tex->sampler_dim = GLSL_SAMPLER_DIM_2D;
-	tex->op = nir_texop_txf;
-	tex->src[0].src_type = nir_tex_src_coord;
-	tex->src[0].src = nir_src_for_ssa(nir_channels(&b, img_coord, 0x3));
-	tex->src[1].src_type = nir_tex_src_lod;
-	tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, 0));
-	tex->dest_type = nir_type_float;
-	tex->is_array = false;
-	tex->coord_components = 2;
-	tex->texture = nir_deref_var_create(tex, input_img);
-	tex->sampler = NULL;
-
-	nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
-	nir_builder_instr_insert(&b, &tex->instr);
+	nir_intrinsic_instr *iload = nir_intrinsic_instr_create(b.shader, nir_intrinsic_image_load);
+	iload->variables[0] = nir_deref_var_create(iload, input_img);
+	nir_ssa_def *hackyvec[4];
+	hackyvec[0] = nir_channel(&b, img_coord, 0);
+	hackyvec[1] = nir_channel(&b, img_coord, 1);
+	hackyvec[2] = nir_imm_int(&b, 0);
+	hackyvec[3] = nir_imm_int(&b, 0);
+	iload->src[0] = nir_src_for_ssa(nir_vec(&b, hackyvec, 4));
+	iload->src[1] = nir_src_for_ssa(nir_imm_int(&b, 0));
+	nir_ssa_dest_init(&iload->instr, &iload->dest, 4, 32, "imgin");
+	nir_builder_instr_insert(&b, &iload->instr);
 
 	nir_ssa_def *pos_x = nir_channel(&b, global_id, 0);
 	nir_ssa_def *pos_y = nir_channel(&b, global_id, 1);
@@ -109,7 +105,7 @@ build_nir_itob_compute_shader(struct radv_device *dev)
 
 	nir_ssa_def *coord = nir_vec4(&b, tmp, tmp, tmp, tmp);
 
-	nir_ssa_def *outval = &tex->dest.ssa;
+	nir_ssa_def *outval = &iload->dest.ssa;
 	nir_intrinsic_instr *store = nir_intrinsic_instr_create(b.shader, nir_intrinsic_image_store);
 	store->src[0] = nir_src_for_ssa(coord);
 	store->src[1] = nir_src_for_ssa(nir_ssa_undef(&b, 1, 32));
