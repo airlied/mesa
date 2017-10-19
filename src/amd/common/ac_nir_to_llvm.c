@@ -838,22 +838,58 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		add_vgpr_argument(&args, ctx->i32, &ctx->tes_patch_id); // tes patch id
 		break;
 	case MESA_SHADER_GEOMETRY:
-		radv_define_common_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_info, &args, &desc_sets);
-		radv_define_vs_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &args);
-		add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_ring_stride); // gsvs stride
-		add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_num_entries); // gsvs num entires
-		if (ctx->shader_info->info.needs_multiview_view_index)
-			add_user_sgpr_argument(&args, ctx->i32, &ctx->view_index);
-		add_sgpr_argument(&args, ctx->i32, &ctx->gs2vs_offset); // gs2vs offset
-	        add_sgpr_argument(&args, ctx->i32, &ctx->gs_wave_id); // wave id
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[0]); // vtx0
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[1]); // vtx1
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_prim_id); // prim id
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[2]);
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[3]);
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[4]);
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[5]);
-		add_vgpr_argument(&args, ctx->i32, &ctx->gs_invocation_id);
+		if (has_previous_stage) {
+			// First 6 system regs
+			add_sgpr_argument(&args, ctx->i32, &ctx->gs2vs_offset); // tess factor offset
+			add_sgpr_argument(&args, ctx->i32, &ctx->merged_wave_info); // merged wave info
+			add_sgpr_argument(&args, ctx->i32, &ctx->oc_lds); // param oc lds
+
+			add_sgpr_argument(&args, ctx->i32, NULL); // scratch offset
+			add_sgpr_argument(&args, ctx->i32, NULL); // unknown
+			add_sgpr_argument(&args, ctx->i32, NULL); // unknown
+
+			radv_define_common_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_info, &args, &desc_sets);
+			radv_define_vs_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &args);
+			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_ring_stride); // gsvs stride
+			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_num_entries); // gsvs num entires
+			if (ctx->shader_info->info.needs_multiview_view_index)
+				add_user_sgpr_argument(&args, ctx->i32, &ctx->view_index);
+
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[0]); // vtx01
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[2]); // vtx23
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_prim_id); // prim id
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_invocation_id);
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[4]);
+
+			if (previous_stage == MESA_SHADER_VERTEX) {
+				add_vgpr_argument(&args, ctx->i32, &ctx->abi.vertex_id); // vertex id
+				add_vgpr_argument(&args, ctx->i32, &ctx->rel_auto_id); // rel auto id
+				add_vgpr_argument(&args, ctx->i32, &ctx->vs_prim_id); // vs prim id
+				add_vgpr_argument(&args, ctx->i32, &ctx->abi.instance_id); // instance id
+			} else {
+				add_vgpr_argument(&args, ctx->f32, &ctx->tes_u); // tes_u
+				add_vgpr_argument(&args, ctx->f32, &ctx->tes_v); // tes_v
+				add_vgpr_argument(&args, ctx->i32, &ctx->tes_rel_patch_id); // tes rel patch id
+				add_vgpr_argument(&args, ctx->i32, &ctx->tes_patch_id); // tes patch id
+			}
+		} else {
+			radv_define_common_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_info, &args, &desc_sets);
+			radv_define_vs_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &args);
+			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_ring_stride); // gsvs stride
+			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_num_entries); // gsvs num entires
+			if (ctx->shader_info->info.needs_multiview_view_index)
+				add_user_sgpr_argument(&args, ctx->i32, &ctx->view_index);
+			add_sgpr_argument(&args, ctx->i32, &ctx->gs2vs_offset); // gs2vs offset
+			add_sgpr_argument(&args, ctx->i32, &ctx->gs_wave_id); // wave id
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[0]); // vtx0
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[1]); // vtx1
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_prim_id); // prim id
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[2]);
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[3]);
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[4]);
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_vtx_offset[5]);
+			add_vgpr_argument(&args, ctx->i32, &ctx->gs_invocation_id);
+		}
 		break;
 	case MESA_SHADER_FRAGMENT:
 		radv_define_common_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_info, &args, &desc_sets);
