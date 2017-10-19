@@ -6494,6 +6494,8 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 	ctx.abi.load_ssbo = radv_load_ssbo;
 	ctx.abi.load_sampler_desc = radv_get_sampler_desc;
 
+	if (ctx.options->chip_class >= GFX9 && ctx.stage == MESA_SHADER_VERTEX && ctx.options->key.vs.as_ls)
+		ac_init_exec_full_mask(&ctx.ac);
 	for(int i = 0; i < shader_count; ++i) {
 		ctx.stage = shaders[i]->stage;
 		ctx.output_mask = 0;
