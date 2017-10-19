@@ -758,7 +758,6 @@ radv_emit_tess_shaders(struct radv_cmd_buffer *cmd_buffer,
 	if (!radv_pipeline_has_tess(pipeline))
 		return;
 
-	abort();
 	struct radv_shader_variant *tes, *tcs;
 
 	tcs = pipeline->shaders[MESA_SHADER_TESS_CTRL];

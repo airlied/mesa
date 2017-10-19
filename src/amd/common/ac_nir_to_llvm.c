@@ -6035,11 +6035,6 @@ write_tess_factors(struct nir_to_llvm_context *ctx)
 		}
 	}
 
-	for (i = 0; i < 4; i++) {
-		inner[i] = LLVMConstReal(ctx->f32, 1.0);
-		outer[i] = LLVMConstReal(ctx->f32, 1.0);
-	}
-
 	/* Convert the outputs to vectors for stores. */
 	vec0 = ac_build_gather_values(&ctx->ac, out, MIN2(stride, 4));
 	vec1 = NULL;
