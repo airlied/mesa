@@ -6486,8 +6486,8 @@ static void prepare_gs_input_vgprs(struct nir_to_llvm_context *ctx)
 	}
 
 	ctx->gs_wave_id = ac_build_bfe(&ctx->ac, ctx->merged_wave_info,
-	                               LLVMConstInt(ctx->ac.i32, 24, false),
-	                               LLVMConstInt(ctx->ac.i32, 4, false), false);
+	                               LLVMConstInt(ctx->ac.i32, 16, false),
+	                               LLVMConstInt(ctx->ac.i32, 8, false), false);
 }
 
 void ac_nir_translate(struct ac_llvm_context *ac, struct ac_shader_abi *abi,
