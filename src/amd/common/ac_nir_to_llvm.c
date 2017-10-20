@@ -849,7 +849,10 @@ static void create_function(struct nir_to_llvm_context *ctx,
 			add_sgpr_argument(&args, ctx->i32, NULL); // unknown
 
 			radv_define_common_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_info, &args, &desc_sets);
-			radv_define_vs_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &args);
+			if (previous_stage == MESA_SHADER_TESS_EVAL)
+				add_user_sgpr_argument(&args, ctx->i32, &ctx->tcs_offchip_layout); // tcs offchip layout
+			else
+				radv_define_vs_user_sgprs_phase1(ctx, stage, has_previous_stage, previous_stage, &args);
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_ring_stride); // gsvs stride
 			add_user_sgpr_argument(&args, ctx->i32, &ctx->gsvs_num_entries); // gsvs num entires
 			if (ctx->shader_info->info.needs_multiview_view_index)
@@ -985,7 +988,10 @@ static void create_function(struct nir_to_llvm_context *ctx,
 			set_userdata_location_shader(ctx, AC_UD_VIEW_INDEX, &user_sgpr_idx, 1);
 		break;
 	case MESA_SHADER_GEOMETRY:
-		radv_define_vs_user_sgprs_phase2(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_idx);
+		if (has_previous_stage && previous_stage == MESA_SHADER_VERTEX)
+			radv_define_vs_user_sgprs_phase2(ctx, stage, has_previous_stage, previous_stage, &user_sgpr_idx);
+		else
+			set_userdata_location_shader(ctx, AC_UD_TES_OFFCHIP_LAYOUT, &user_sgpr_idx, 1);
 		set_userdata_location_shader(ctx, AC_UD_GS_VS_RING_STRIDE_ENTRIES, &user_sgpr_idx, 2);
 		if (ctx->view_index)
 			set_userdata_location_shader(ctx, AC_UD_VIEW_INDEX, &user_sgpr_idx, 1);
