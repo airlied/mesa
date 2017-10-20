@@ -1290,9 +1290,13 @@ calculate_gs_ring_sizes(struct radv_pipeline *pipeline)
 	/* The maximum size is 63.999 MB per SE. */
 	unsigned max_size = ((unsigned)(63.999 * 1024 * 1024) & ~255) * num_se;
 	struct ac_shader_variant_info *gs_info = &pipeline->shaders[MESA_SHADER_GEOMETRY]->info;
-	struct ac_es_output_info *es_info = radv_pipeline_has_tess(pipeline) ?
-		&pipeline->shaders[MESA_SHADER_TESS_EVAL]->info.tes.es_info :
-		&pipeline->shaders[MESA_SHADER_VERTEX]->info.vs.es_info;
+	struct ac_es_output_info *es_info;
+	if (pipeline->device->physical_device->rad_info.chip_class >= GFX9) 
+		es_info = radv_pipeline_has_tess(pipeline) ? &gs_info->tes.es_info : &gs_info->vs.es_info;
+	else
+		es_info = radv_pipeline_has_tess(pipeline) ?
+			&pipeline->shaders[MESA_SHADER_TESS_EVAL]->info.tes.es_info :
+			&pipeline->shaders[MESA_SHADER_VERTEX]->info.vs.es_info;
 
 	/* Calculate the minimum size. */
 	unsigned min_esgs_ring_size = align(es_info->esgs_itemsize * gs_vertex_reuse *
