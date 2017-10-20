@@ -1340,6 +1340,14 @@ radv_get_vertex_shader(struct radv_pipeline *pipeline)
 	return pipeline->shaders[MESA_SHADER_GEOMETRY];
 }
 
+static struct radv_shader_variant *
+radv_get_tess_eval_shader(struct radv_pipeline *pipeline)
+{
+	if (pipeline->shaders[MESA_SHADER_TESS_EVAL])
+		return pipeline->shaders[MESA_SHADER_TESS_EVAL];
+	return pipeline->shaders[MESA_SHADER_GEOMETRY];
+}
+
 static void
 calculate_tess_state(struct radv_pipeline *pipeline,
 		     const VkGraphicsPipelineCreateInfo *pCreateInfo)
@@ -1432,7 +1440,7 @@ calculate_tess_state(struct radv_pipeline *pipeline,
 	tess->num_patches = num_patches;
 	tess->num_tcs_input_cp = num_tcs_input_cp;
 
-	struct radv_shader_variant *tes = pipeline->shaders[MESA_SHADER_TESS_EVAL];
+	struct radv_shader_variant *tes = radv_get_tess_eval_shader(pipeline);
 	unsigned type = 0, partitioning = 0, topology = 0, distribution_mode = 0;
 
 	switch (tes->info.tes.primitive_mode) {
@@ -2087,7 +2095,7 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 	if (radv_pipeline_has_tess(pipeline)) {
 		/* SWITCH_ON_EOI must be set if PrimID is used. */
 		if (pipeline->shaders[MESA_SHADER_TESS_CTRL]->info.tcs.uses_prim_id ||
-		    pipeline->shaders[MESA_SHADER_TESS_EVAL]->info.tes.uses_prim_id)
+		    radv_get_tess_eval_shader(pipeline)->info.tes.uses_prim_id)
 			pipeline->graphics.ia_switch_on_eoi = true;
 	}
 
