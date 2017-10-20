@@ -2163,7 +2163,9 @@ radv_pipeline_init(struct radv_pipeline *pipeline,
 
 	pipeline->graphics.vtx_reuse_depth = 30;
 	if (radv_pipeline_has_tess(pipeline) &&
-	    pipeline->shaders[MESA_SHADER_TESS_EVAL]->info.tes.spacing == TESS_SPACING_FRACTIONAL_ODD) {
+	    (pipeline->shaders[MESA_SHADER_TESS_EVAL] ?
+	     pipeline->shaders[MESA_SHADER_TESS_EVAL] :
+	     pipeline->shaders[MESA_SHADER_GEOMETRY])->info.tes.spacing == TESS_SPACING_FRACTIONAL_ODD) {
 		pipeline->graphics.vtx_reuse_depth = 14;
 	}
 
