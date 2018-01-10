@@ -1672,6 +1672,15 @@ radv_get_preamble_cs(struct radv_queue *queue,
 			queue->device->ws->buffer_unmap(descriptor_bo);
 		}
 
+		if ((i == 0 || i == 1) && queue->queue_family_index == 0) {
+			uint64_t va = radv_buffer_get_va(queue->device->gfx_init);
+			radv_cs_add_buffer(queue->device->ws, cs, queue->device->gfx_init, 8);
+			radeon_emit(cs, PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0));
+			radeon_emit(cs, va);
+			radeon_emit(cs, va >> 32);
+			radeon_emit(cs, queue->device->gfx_init_size_dw & 0xffff);
+		}
+
 		if (esgs_ring_bo || gsvs_ring_bo || tess_factor_ring_bo || tess_offchip_ring_bo) {
 			radeon_emit(cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
 			radeon_emit(cs, EVENT_TYPE(V_028A90_VS_PARTIAL_FLUSH) | EVENT_INDEX(4));

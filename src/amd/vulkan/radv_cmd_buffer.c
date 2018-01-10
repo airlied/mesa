@@ -2323,7 +2323,7 @@ VkResult radv_BeginCommandBuffer(
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY) {
 		switch (cmd_buffer->queue_family_index) {
 		case RADV_QUEUE_GENERAL:
-			emit_gfx_buffer_state(cmd_buffer);
+//			emit_gfx_buffer_state(cmd_buffer);
 			break;
 		case RADV_QUEUE_COMPUTE:
 			si_init_compute(cmd_buffer);
