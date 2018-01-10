@@ -1807,6 +1807,27 @@ radv_flush_descriptors(struct radv_cmd_buffer *cmd_buffer,
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }
 
+static struct ac_userdata_info *
+radv_lookup_push_const_sgpr(struct radv_shader_variant *shader,
+			    int idx)
+{
+	idx -= shader->info.user_sgprs_locs.push_const_base;
+	return &shader->info.user_sgprs_locs.inline_push_consts[idx];
+}
+
+static void
+radv_emit_inline_pushconsts(struct radv_cmd_buffer *cmd_buffer,
+			    struct radv_shader_variant *shader,
+			    unsigned base_reg,
+			    int idx, int count, uint32_t *values)
+{
+	struct ac_userdata_info *loc = radv_lookup_push_const_sgpr(shader, idx);
+	assert (loc->sgpr_idx == -1);
+	assert (!loc->indirect);
+	radeon_set_sh_reg_seq(cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, count);
+	radeon_emit_array(cmd_buffer->cs, values, count);
+}
+
 static void
 radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 		     struct radv_pipeline *pipeline,
@@ -1816,36 +1837,55 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 	unsigned offset;
 	void *ptr;
 	uint64_t va;
+	bool need_push_constants = false;
 
 	stages &= cmd_buffer->push_constant_stages;
 	if (!stages ||
 	    (!layout->push_constant_size && !layout->dynamic_offset_count))
 		return;
 
-	if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
-					  16 * layout->dynamic_offset_count,
-					  256, &offset, &ptr))
-		return;
-
-	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
-	if (layout->dynamic_offset_count) {
-		memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
-		       16 * layout->dynamic_offset_count);
-	}
-
-	va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
-	va += offset;
-
-	MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws,
-	                                                   cmd_buffer->cs, MESA_SHADER_STAGES * 4);
-
 	radv_foreach_stage(stage, stages) {
-		if (pipeline->shaders[stage]) {
-			radv_emit_userdata_address(cmd_buffer, pipeline, stage,
-						   AC_UD_PUSH_CONSTANTS, va);
+		if (!pipeline->shaders[stage])
+			continue;
+
+		need_push_constants |= pipeline->shaders[stage]->info.info.loads_push_constants;
+		need_push_constants |= pipeline->shaders[stage]->info.info.loads_dynamic_offsets;
+
+		uint32_t mask = pipeline->shaders[stage]->info.inline_push_const_mask;
+		uint32_t base_reg = pipeline->user_data_0[stage];
+		while (mask) {
+			int start, count;
+			u_bit_scan_consecutive_range(&mask, &start, &count);
+			radv_emit_inline_pushconsts(cmd_buffer, pipeline->shaders[stage], base_reg,
+						    start, count, (uint32_t *)&cmd_buffer->push_constants[start * 4]);
 		}
 	}
 
+	if (need_push_constants) {
+		if (!radv_cmd_buffer_upload_alloc(cmd_buffer, layout->push_constant_size +
+						  16 * layout->dynamic_offset_count,
+						  256, &offset, &ptr))
+			return;
+
+		memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
+		if (layout->dynamic_offset_count) {
+			memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
+			       16 * layout->dynamic_offset_count);
+		}
+
+		va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
+		va += offset;
+
+		MAYBE_UNUSED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws,
+								   cmd_buffer->cs, MESA_SHADER_STAGES * 4);
+
+		radv_foreach_stage(stage, stages) {
+			if (pipeline->shaders[stage]) {
+				radv_emit_userdata_address(cmd_buffer, pipeline, stage,
+							   AC_UD_PUSH_CONSTANTS, va);
+			}
+		}
+	}
 	cmd_buffer->push_constant_stages &= ~stages;
 	assert(cmd_buffer->cs->cdw <= cdw_max);
 }

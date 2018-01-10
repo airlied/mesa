@@ -92,6 +92,7 @@ struct nir_to_llvm_context {
 	LLVMValueRef descriptor_sets[AC_UD_MAX_SETS];
 	LLVMValueRef ring_offsets;
 	LLVMValueRef push_constants;
+	LLVMValueRef inline_push_consts[AC_UD_MAX_INLINE_PUSH_CONST];
 	LLVMValueRef view_index;
 	LLVMValueRef num_work_groups;
 	LLVMValueRef workgroup_ids[3];
@@ -243,7 +244,7 @@ static void set_llvm_calling_convention(LLVMValueRef func,
 	LLVMSetFunctionCallConv(func, calling_conv);
 }
 
-#define MAX_ARGS 23
+#define MAX_ARGS 32
 struct arg_info {
 	LLVMTypeRef types[MAX_ARGS];
 	LLVMValueRef *assign[MAX_ARGS];
@@ -538,6 +539,8 @@ struct user_sgpr_info {
 	bool need_ring_offsets;
 	uint8_t sgpr_count;
 	bool indirect_all_descriptor_sets;
+	uint8_t base_inline_push_consts;
+	uint8_t num_inline_push_consts;
 };
 
 static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
@@ -609,8 +612,45 @@ static void allocate_user_sgprs(struct nir_to_llvm_context *ctx,
 	} else {
 		user_sgpr_info->sgpr_count += util_bitcount(ctx->shader_info->info.desc_set_used_mask) * 2;
 	}
+
+	if (ctx->shader_info->info.loads_push_constants) {
+		uint32_t remaining_sgprs = 16 - user_sgpr_info->sgpr_count;
+		if (!ctx->shader_info->info.has_indirect_push_constants &&
+		    !ctx->shader_info->info.loads_dynamic_offsets)
+			remaining_sgprs += 2;
+
+		if (ctx->options->layout->push_constant_size) {
+			uint8_t num_32bit_push_consts = (ctx->shader_info->info.max_push_constant_used -
+							 ctx->shader_info->info.min_push_constant_used) / 4;
+			user_sgpr_info->base_inline_push_consts = ctx->shader_info->info.min_push_constant_used / 4;
+
+			if (num_32bit_push_consts < remaining_sgprs) {
+				user_sgpr_info->num_inline_push_consts = num_32bit_push_consts;
+				if (!ctx->shader_info->info.has_indirect_push_constants)
+					ctx->shader_info->info.loads_push_constants = false;
+			} else {
+				user_sgpr_info->num_inline_push_consts = remaining_sgprs;
+			}
+
+			if (user_sgpr_info->num_inline_push_consts > AC_UD_MAX_INLINE_PUSH_CONST)
+				user_sgpr_info->num_inline_push_consts = AC_UD_MAX_INLINE_PUSH_CONST;
+		}
+	}
 }
 
+static void
+declare_inline_push_consts(struct nir_to_llvm_context *ctx,
+			   gl_shader_stage stage,
+			   const struct user_sgpr_info *user_sgpr_info,
+			   struct arg_info *args)
+{
+	ctx->shader_info->inline_push_const_mask = (1 << user_sgpr_info->num_inline_push_consts) - 1;
+	ctx->shader_info->inline_push_const_mask <<= user_sgpr_info->base_inline_push_consts;
+
+	for (unsigned i = 0; i < user_sgpr_info->num_inline_push_consts; i++)
+		add_arg(args, ARG_SGPR, ctx->ac.i32, &ctx->inline_push_consts[i]);
+
+}
 static void
 declare_global_input_sgprs(struct nir_to_llvm_context *ctx,
 			   gl_shader_stage stage,
@@ -644,6 +684,9 @@ declare_global_input_sgprs(struct nir_to_llvm_context *ctx,
 		/* 1 for push constants and dynamic descriptors */
 		add_array_arg(args, type, &ctx->push_constants);
 	}
+
+	if (!((stage == MESA_SHADER_VERTEX) || (has_previous_stage && previous_stage == MESA_SHADER_VERTEX)))
+		declare_inline_push_consts(ctx, stage, user_sgpr_info, args);
 }
 
 static void
@@ -651,6 +694,7 @@ declare_vs_specific_input_sgprs(struct nir_to_llvm_context *ctx,
 				gl_shader_stage stage,
 				bool has_previous_stage,
 				gl_shader_stage previous_stage,
+				const struct user_sgpr_info *user_sgpr_info,
 				struct arg_info *args)
 {
 	if (!ctx->is_gs_copy_shader &&
@@ -660,6 +704,7 @@ declare_vs_specific_input_sgprs(struct nir_to_llvm_context *ctx,
 			add_arg(args, ARG_SGPR, const_array(ctx->ac.v4i32, 16),
 				&ctx->vertex_buffers);
 		}
+		declare_inline_push_consts(ctx, stage, user_sgpr_info, args);
 		add_arg(args, ARG_SGPR, ctx->ac.i32, &ctx->abi.base_vertex);
 		add_arg(args, ARG_SGPR, ctx->ac.i32, &ctx->abi.start_instance);
 		if (ctx->shader_info->info.vs.needs_draw_id) {
@@ -691,6 +736,16 @@ declare_tes_input_vgprs(struct nir_to_llvm_context *ctx, struct arg_info *args)
 	add_arg(args, ARG_VGPR, ctx->ac.f32, &ctx->tes_v);
 	add_arg(args, ARG_VGPR, ctx->ac.i32, &ctx->tes_rel_patch_id);
 	add_arg(args, ARG_VGPR, ctx->ac.i32, &ctx->abi.tes_patch_id);
+}
+
+static void
+set_inline_pushconst_locs(struct nir_to_llvm_context *ctx,
+			  const struct user_sgpr_info *user_sgpr_info,
+			  uint8_t *user_sgpr_idx)
+{
+	ctx->shader_info->user_sgprs_locs.push_const_base = user_sgpr_info->base_inline_push_consts;
+	for (unsigned i = 0; i < user_sgpr_info->num_inline_push_consts; i++)
+		set_loc(&ctx->shader_info->user_sgprs_locs.inline_push_consts[i], user_sgpr_idx, 1, 0);
 }
 
 static void
@@ -734,12 +789,17 @@ set_global_input_locs(struct nir_to_llvm_context *ctx, gl_shader_stage stage,
 	if (ctx->shader_info->info.loads_push_constants) {
 		set_loc_shader(ctx, AC_UD_PUSH_CONSTANTS, user_sgpr_idx, 2);
 	}
+
+
+	if (!((stage == MESA_SHADER_VERTEX) || (has_previous_stage && previous_stage == MESA_SHADER_VERTEX)))
+		set_inline_pushconst_locs(ctx, user_sgpr_info, user_sgpr_idx);
 }
 
 static void
 set_vs_specific_input_locs(struct nir_to_llvm_context *ctx,
 			   gl_shader_stage stage, bool has_previous_stage,
 			   gl_shader_stage previous_stage,
+			   const struct user_sgpr_info *user_sgpr_info,
 			   uint8_t *user_sgpr_idx)
 {
 	if (!ctx->is_gs_copy_shader &&
@@ -750,6 +810,7 @@ set_vs_specific_input_locs(struct nir_to_llvm_context *ctx,
 				       user_sgpr_idx, 2);
 		}
 
+		set_inline_pushconst_locs(ctx, user_sgpr_info, user_sgpr_idx);
 		unsigned vs_num = 2;
 		if (ctx->shader_info->info.vs.needs_draw_id)
 			vs_num++;
@@ -805,7 +866,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 					   previous_stage, &user_sgpr_info,
 					   &args, &desc_sets);
 		declare_vs_specific_input_sgprs(ctx, stage, has_previous_stage,
-						previous_stage, &args);
+						previous_stage, &user_sgpr_info, &args);
 
 		if (ctx->shader_info->info.needs_multiview_view_index || (!ctx->options->key.vs.as_es && !ctx->options->key.vs.as_ls && ctx->options->key.has_multiview_view_index))
 			add_arg(&args, ARG_SGPR, ctx->ac.i32, &ctx->view_index);
@@ -838,7 +899,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 						   &desc_sets);
 			declare_vs_specific_input_sgprs(ctx, stage,
 							has_previous_stage,
-							previous_stage, &args);
+							previous_stage, &user_sgpr_info, &args);
 
 			add_arg(&args, ARG_SGPR, ctx->ac.i32,
 				&ctx->ls_out_layout);
@@ -934,7 +995,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 			} else {
 				declare_vs_specific_input_sgprs(ctx, stage,
 								has_previous_stage,
-								previous_stage,
+								previous_stage, &user_sgpr_info,
 								&args);
 			}
 
@@ -1076,7 +1137,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		break;
 	case MESA_SHADER_VERTEX:
 		set_vs_specific_input_locs(ctx, stage, has_previous_stage,
-					   previous_stage, &user_sgpr_idx);
+					   previous_stage, &user_sgpr_info, &user_sgpr_idx);
 		if (ctx->view_index)
 			set_loc_shader(ctx, AC_UD_VIEW_INDEX, &user_sgpr_idx, 1);
 		if (ctx->options->key.vs.as_ls) {
@@ -1088,7 +1149,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 		break;
 	case MESA_SHADER_TESS_CTRL:
 		set_vs_specific_input_locs(ctx, stage, has_previous_stage,
-					   previous_stage, &user_sgpr_idx);
+					   previous_stage, &user_sgpr_info, &user_sgpr_idx);
 		if (has_previous_stage)
 			set_loc_shader(ctx, AC_UD_VS_LS_TCS_IN_LAYOUT,
 				       &user_sgpr_idx, 1);
@@ -1108,6 +1169,7 @@ static void create_function(struct nir_to_llvm_context *ctx,
 				set_vs_specific_input_locs(ctx, stage,
 							   has_previous_stage,
 							   previous_stage,
+							   &user_sgpr_info,
 							   &user_sgpr_idx);
 			else
 				set_loc_shader(ctx, AC_UD_TES_OFFCHIP_LAYOUT,
@@ -2357,9 +2419,24 @@ static LLVMValueRef visit_load_push_constant(struct nir_to_llvm_context *ctx,
                                              nir_intrinsic_instr *instr)
 {
 	LLVMValueRef ptr, addr;
+	LLVMValueRef src0 = get_src(ctx->nir, instr->src[0]);
+	unsigned index = nir_intrinsic_base(instr);
 
-	addr = LLVMConstInt(ctx->ac.i32, nir_intrinsic_base(instr), 0);
-	addr = LLVMBuildAdd(ctx->builder, addr, get_src(ctx->nir, instr->src[0]), "");
+	if (LLVMIsConstant(src0)) {
+		unsigned array_index = index;
+		array_index += LLVMConstIntGetZExtValue(src0);
+		array_index /= 4;
+
+		uint32_t bits = ((1 << instr->num_components) - 1) << array_index;
+
+		if ((bits & ctx->shader_info->inline_push_const_mask) == bits) {
+			array_index -= ctx->shader_info->user_sgprs_locs.push_const_base;
+			return ac_build_gather_values(&ctx->ac, &ctx->inline_push_consts[array_index], instr->num_components);
+		}
+	}
+
+	addr = LLVMConstInt(ctx->ac.i32, index, 0);
+	addr = LLVMBuildAdd(ctx->builder, addr, src0, "");
 
 	ptr = ac_build_gep0(&ctx->ac, ctx->push_constants, addr);
 	ptr = cast_ptr(ctx, ptr, get_def_type(ctx->nir, &instr->dest.ssa));
