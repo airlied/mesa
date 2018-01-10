@@ -32,6 +32,7 @@ struct ac_shader_info {
 	uint8_t min_push_constant_used;
 	uint8_t max_push_constant_used;
 	bool has_indirect_push_constants;
+	bool loads_dynamic_offsets;
 	bool loads_push_constants;
 	bool needs_multiview_view_index;
 	bool uses_invocation_id;
