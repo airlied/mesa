@@ -6649,6 +6649,8 @@ LLVMModuleRef ac_translate_nir_to_llvm(LLVMTargetMachineRef tm,
 
 	memset(shader_info, 0, sizeof(*shader_info));
 
+	ac_nir_shader_info_init(&shader_info->info);
+
 	for(int i = 0; i < shader_count; ++i)
 		ac_nir_shader_info_pass(shaders[i], options, &shader_info->info);
 
