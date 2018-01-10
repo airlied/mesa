@@ -30,6 +30,22 @@ static void mark_sampler_desc(nir_variable *var, struct ac_shader_info *info)
 }
 
 static void
+gather_push_constant_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
+{
+	nir_const_value *cval = nir_src_as_const_value(instr->src[0]);
+	info->has_indirect_push_constants |= cval ? false : true;
+
+	int base = nir_intrinsic_base(instr);
+	int range = nir_intrinsic_range(instr);
+	if (base + range > info->max_push_constant_used)
+		info->max_push_constant_used = base + range;
+	if (base < info->min_push_constant_used)
+		info->min_push_constant_used = base;
+
+	info->loads_push_constants = true;
+}
+
+static void
 gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 {
 	switch (instr->intrinsic) {
@@ -77,7 +93,7 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, struct ac_shader_info *info)
 		info->uses_prim_id = true;
 		break;
 	case nir_intrinsic_load_push_constant:
-		info->loads_push_constants = true;
+		gather_push_constant_info(instr, info);
 		break;
 	case nir_intrinsic_vulkan_resource_index:
 		info->desc_set_used_mask |= (1 << nir_intrinsic_desc_set(instr));
@@ -151,11 +167,18 @@ gather_info_input_decl(nir_shader *nir,
 }
 
 void
+ac_nir_shader_info_init(struct ac_shader_info *info)
+{
+	info->min_push_constant_used = -1;
+}
+
+void
 ac_nir_shader_info_pass(struct nir_shader *nir,
 			const struct ac_nir_compiler_options *options,
 			struct ac_shader_info *info)
 {
 	struct nir_function *func = (struct nir_function *)exec_list_get_head(&nir->functions);
+
 
 	if (options->layout->dynamic_offset_count)
 		info->loads_push_constants = true;

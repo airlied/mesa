@@ -28,8 +28,11 @@ struct nir_shader;
 struct ac_nir_compiler_options;
 
 struct ac_shader_info {
-	bool loads_push_constants;
 	uint32_t desc_set_used_mask;
+	uint8_t min_push_constant_used;
+	uint8_t max_push_constant_used;
+	bool has_indirect_push_constants;
+	bool loads_push_constants;
 	bool needs_multiview_view_index;
 	bool uses_invocation_id;
 	bool uses_prim_id;
@@ -59,4 +62,6 @@ ac_nir_shader_info_pass(struct nir_shader *nir,
 			const struct ac_nir_compiler_options *options,
 			struct ac_shader_info *info);
 
+void
+ac_nir_shader_info_init(struct ac_shader_info *info);
 #endif
