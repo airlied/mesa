@@ -732,29 +732,22 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 			  bool instanced_draw, bool indirect_draw,
 			  uint32_t draw_vertex_count)
 {
-	enum chip_class chip_class = cmd_buffer->device->physical_device->rad_info.chip_class;
-	enum radeon_family family = cmd_buffer->device->physical_device->rad_info.family;
 	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
+	enum chip_class chip_class = info->chip_class;
 	const unsigned max_primgroup_in_wave = 2;
 	/* SWITCH_ON_EOP(0) is always preferable. */
 	bool wd_switch_on_eop = false;
 	bool ia_switch_on_eop = false;
-	bool ia_switch_on_eoi = false;
-	bool partial_vs_wave = false;
-	bool partial_es_wave = cmd_buffer->state.pipeline->graphics.partial_es_wave;
-	bool multi_instances_smaller_than_primgroup;
-
-	multi_instances_smaller_than_primgroup = indirect_draw;
-	if (!multi_instances_smaller_than_primgroup && instanced_draw) {
-		uint32_t num_prims = radv_prims_for_vertices(&cmd_buffer->state.pipeline->graphics.prim_vertex_count, draw_vertex_count);
-		if (num_prims < cmd_buffer->state.pipeline->graphics.primgroup_size)
-			multi_instances_smaller_than_primgroup = true;
-	}
+	bool ia_switch_on_eoi;
+	bool partial_vs_wave;
+	bool partial_es_wave;
 
 	ia_switch_on_eoi = cmd_buffer->state.pipeline->graphics.ia_switch_on_eoi;
 	partial_vs_wave = cmd_buffer->state.pipeline->graphics.partial_vs_wave;
-
+	partial_es_wave = cmd_buffer->state.pipeline->graphics.partial_es_wave;
 	if (chip_class >= CIK) {
+		enum radeon_family family = info->family;
+
 		wd_switch_on_eop = cmd_buffer->state.pipeline->graphics.wd_switch_on_eop;
 
 		/* Hawaii hangs if instancing is enabled and WD_SWITCH_ON_EOP is 0.
@@ -770,9 +763,17 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 		 * This is needed for good VS wave utilization.
 		 */
 		if (chip_class <= VI &&
-		    info->max_se == 4 &&
-		    multi_instances_smaller_than_primgroup)
-			wd_switch_on_eop = true;
+		    info->max_se == 4) {
+			bool multi_instances_smaller_than_primgroup = indirect_draw;
+			if (!multi_instances_smaller_than_primgroup && instanced_draw) {
+				uint32_t num_prims = radv_prims_for_vertices(&cmd_buffer->state.pipeline->graphics.prim_vertex_count, draw_vertex_count);
+				if (num_prims < cmd_buffer->state.pipeline->graphics.primgroup_size)
+					multi_instances_smaller_than_primgroup = true;
+			}
+
+			if (multi_instances_smaller_than_primgroup)
+				wd_switch_on_eop = true;
+		}
 
 		/* Required on CIK and later. */
 		if (info->max_se > 2 && !wd_switch_on_eop)
@@ -799,6 +800,7 @@ si_get_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer,
 		partial_es_wave = true;
 
 	if (radv_pipeline_has_gs(cmd_buffer->state.pipeline)) {
+		enum radeon_family family = info->family;
 		/* GS hw bug with single-primitive instances and SWITCH_ON_EOI.
 		 * The hw doc says all multi-SE chips are affected, but amdgpu-pro Vulkan
 		 * only applies it to Hawaii. Do what amdgpu-pro Vulkan does.
