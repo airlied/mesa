@@ -1236,24 +1236,24 @@ struct radv_pipeline {
 			unsigned gs_out;
 			uint32_t vgt_gs_mode;
 			bool vgt_primitiveid_en;
-			bool prim_restart_enable;
-			bool partial_es_wave;
 			uint8_t primgroup_size;
 			unsigned esgs_ring_size;
 			unsigned gsvs_ring_size;
-			uint32_t ps_input_cntl[32];
-			uint32_t ps_input_cntl_num;
 			uint32_t vgt_shader_stages_en;
 			uint32_t vtx_base_sgpr;
 			uint32_t base_ia_multi_vgt_param;
 			bool wd_switch_on_eop;
 			bool ia_switch_on_eoi;
 			bool partial_vs_wave;
+			bool partial_es_wave;
+			bool prim_restart_enable;
 			uint8_t vtx_emit_num;
 			uint32_t vtx_reuse_depth;
 			struct radv_prim_vertex_count prim_vertex_count;
  			bool can_use_guardband;
 			uint32_t pa_sc_cliprect_rule;
+			uint32_t ps_input_cntl_num;
+			uint32_t ps_input_cntl[32];
 		} graphics;
 	};
 

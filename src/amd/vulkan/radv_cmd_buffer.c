@@ -1828,8 +1828,10 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer,
 		return;
 
 	memcpy(ptr, cmd_buffer->push_constants, layout->push_constant_size);
-	memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
-	       16 * layout->dynamic_offset_count);
+	if (layout->dynamic_offset_count) {
+		memcpy((char*)ptr + layout->push_constant_size, cmd_buffer->dynamic_buffers,
+		       16 * layout->dynamic_offset_count);
+	}
 
 	va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
 	va += offset;
