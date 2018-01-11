@@ -33,6 +33,7 @@
 #include "radv_amdgpu_bo.h"
 #include "sid.h"
 
+#include "util/hash_table.h"
 
 enum {
 	VIRTUAL_BUFFER_HASH_TABLE_SIZE = 1024
@@ -584,6 +585,9 @@ static int radv_amdgpu_create_bo_list(struct radv_amdgpu_winsys *ws,
 			priorities[0] = 8;
 		}
 
+		struct hash_table *ht = _mesa_hash_table_create(NULL, _mesa_hash_pointer,
+								_mesa_key_pointer_equal);
+
 		for (unsigned i = 0; i < count + !!extra_cs; ++i) {
 			struct radv_amdgpu_cs *cs;
 
@@ -595,50 +599,39 @@ static int radv_amdgpu_create_bo_list(struct radv_amdgpu_winsys *ws,
 			if (!cs->num_buffers)
 				continue;
 
-			if (unique_bo_count == 0) {
-				memcpy(handles, cs->handles, cs->num_buffers * sizeof(amdgpu_bo_handle));
-				memcpy(priorities, cs->priorities, cs->num_buffers * sizeof(uint8_t));
-				unique_bo_count = cs->num_buffers;
-				continue;
-			}
-			int unique_bo_so_far = unique_bo_count;
 			for (unsigned j = 0; j < cs->num_buffers; ++j) {
-				bool found = false;
-				for (unsigned k = 0; k < unique_bo_so_far; ++k) {
-					if (handles[k] == cs->handles[j]) {
-						found = true;
-						priorities[k] = MAX2(priorities[k],
-								     cs->priorities[j]);
-						break;
-					}
-				}
-				if (!found) {
+				struct hash_entry *entry = _mesa_hash_table_search(ht, (void *)cs->handles[j]);
+				if (!entry) {
+					_mesa_hash_table_insert(ht, (void *)cs->handles[j], (void *)(uintptr_t)unique_bo_count);
 					handles[unique_bo_count] = cs->handles[j];
 					priorities[unique_bo_count] = cs->priorities[j];
 					++unique_bo_count;
+				} else {
+					int bo_idx = (uint32_t)(unsigned long)entry->data;
+					priorities[bo_idx] = MAX2(priorities[bo_idx],
+								  cs->priorities[j]);
 				}
 			}
 			for (unsigned j = 0; j < cs->num_virtual_buffers; ++j) {
 				struct radv_amdgpu_winsys_bo *virtual_bo = radv_amdgpu_winsys_bo(cs->virtual_buffers[j]);
 				for(unsigned k = 0; k < virtual_bo->bo_count; ++k) {
 					struct radv_amdgpu_winsys_bo *bo = virtual_bo->bos[k];
-					bool found = false;
-					for (unsigned m = 0; m < unique_bo_count; ++m) {
-						if (handles[m] == bo->bo) {
-							found = true;
-							priorities[m] = MAX2(priorities[m],
-									cs->virtual_buffer_priorities[j]);
-							break;
-						}
-					}
-					if (!found) {
+
+					struct hash_entry *entry = _mesa_hash_table_search(ht, (void *)bo->bo);
+					if (!entry) {
+						_mesa_hash_table_insert(ht, (void *)bo->bo, (void *)(uintptr_t)unique_bo_count);
 						handles[unique_bo_count] = bo->bo;
 						priorities[unique_bo_count] = cs->virtual_buffer_priorities[j];
 						++unique_bo_count;
+					} else {
+						int bo_idx = (uint32_t)(unsigned long)entry->data;
+						priorities[bo_idx] = MAX2(priorities[bo_idx],
+									  cs->virtual_buffer_priorities[j]);
 					}
 				}
 			}
 		}
+		_mesa_hash_table_destroy(ht, NULL);
 
 		if (unique_bo_count > 0) {
 			r = amdgpu_bo_list_create(ws->dev, unique_bo_count, handles,
