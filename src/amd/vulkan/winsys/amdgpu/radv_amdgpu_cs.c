@@ -58,6 +58,7 @@ struct radv_amdgpu_cs {
 	unsigned                    *ib_size_ptr;
 	bool                        failed;
 	bool                        is_chained;
+	bool                        empty_padded;
 
 	int                         buffer_hash_table[1024];
 	unsigned                    hw_ip;
@@ -326,6 +327,8 @@ static bool radv_amdgpu_cs_finalize(struct radeon_winsys_cs *_cs)
 	struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
 
 	if (cs->ws->use_ib_bos) {
+
+		cs->empty_padded = cs->base.cdw == 0;
 		while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
 			cs->base.buf[cs->base.cdw++] = 0xffff1000;
 
@@ -681,17 +684,25 @@ static int radv_amdgpu_winsys_cs_submit_chained(struct radeon_winsys_ctx *_ctx,
 	amdgpu_bo_list_handle bo_list;
 	struct amdgpu_cs_request request = {0};
 	struct amdgpu_cs_ib_info ibs[2];
-
+	int skip_count = 0;
 	for (unsigned i = cs_count; i--;) {
 		struct radv_amdgpu_cs *cs = radv_amdgpu_cs(cs_array[i]);
-
+		int next_idx = 1;
 		if (cs->is_chained) {
 			*cs->ib_size_ptr -= 4;
 			cs->is_chained = false;
 		}
 
-		if (i + 1 < cs_count) {
-			struct radv_amdgpu_cs *next = radv_amdgpu_cs(cs_array[i + 1]);
+		if (cs->empty_padded)
+			skip_count++;
+		else {
+			next_idx += skip_count;
+			skip_count = 0;
+		}
+
+		if (i + next_idx < cs_count) {
+			struct radv_amdgpu_cs *next = radv_amdgpu_cs(cs_array[i + next_idx]);
+
 			assert(cs->base.cdw + 4 <= cs->base.max_dw);
 
 			cs->is_chained = true;
