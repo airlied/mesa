@@ -794,6 +794,7 @@ enum radv_cmd_flush_bits {
 struct radv_vertex_binding {
 	struct radv_buffer *                          buffer;
 	VkDeviceSize                                 offset;
+	uint64_t va;
 };
 
 struct radv_viewport_state {

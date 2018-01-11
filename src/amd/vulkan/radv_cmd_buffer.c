@@ -1876,10 +1876,9 @@ radv_cmd_buffer_update_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer, bo
 			struct radv_buffer *buffer = cmd_buffer->vertex_bindings[vb].buffer;
 			uint32_t stride = cmd_buffer->state.pipeline->binding_stride[vb];
 
-			va = radv_buffer_get_va(buffer->bo);
-
+			va = cmd_buffer->vertex_bindings[vb].va;
 			offset = cmd_buffer->vertex_bindings[vb].offset + velems->offset[i];
-			va += offset + buffer->offset;
+			va += velems->offset[i];
 			desc[0] = va;
 			desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
 			if (cmd_buffer->device->physical_device->rad_info.chip_class <= CIK && stride)
@@ -2374,15 +2373,17 @@ void radv_CmdBindVertexBuffers(
 	assert(firstBinding + bindingCount <= MAX_VBS);
 	for (uint32_t i = 0; i < bindingCount; i++) {
 		uint32_t idx = firstBinding + i;
+		struct radv_buffer *buffer = radv_buffer_from_handle(pBuffers[i]);
 
 		if (!changed &&
-		    (vb[idx].buffer != radv_buffer_from_handle(pBuffers[i]) ||
+		    (vb[idx].buffer != buffer ||
 		     vb[idx].offset != pOffsets[i])) {
 			changed = true;
 		}
 
-		vb[idx].buffer = radv_buffer_from_handle(pBuffers[i]);
+		vb[idx].buffer = buffer;
 		vb[idx].offset = pOffsets[i];
+		vb[idx].va = radv_buffer_get_va(buffer->bo) + buffer->offset + pOffsets[i];
 
 		radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs,
 				   vb[idx].buffer->bo, 8);
