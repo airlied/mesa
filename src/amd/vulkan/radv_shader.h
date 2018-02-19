@@ -101,6 +101,7 @@ struct radv_nir_compiler_options {
 	bool dump_preoptir;
 	enum radeon_family family;
 	enum chip_class chip_class;
+	uint32_t tess_offchip_block_dw_size;
 };
 
 enum radv_ud_index {
@@ -118,7 +119,6 @@ enum radv_ud_index {
 	AC_UD_CS_MAX_UD,
 	AC_UD_GS_VS_RING_STRIDE_ENTRIES = AC_UD_VS_MAX_UD,
 	AC_UD_GS_MAX_UD,
-	AC_UD_TCS_OFFCHIP_LAYOUT = AC_UD_VS_MAX_UD,
 	AC_UD_TCS_MAX_UD,
 	AC_UD_TES_OFFCHIP_LAYOUT = AC_UD_SHADER_START,
 	AC_UD_TES_MAX_UD,

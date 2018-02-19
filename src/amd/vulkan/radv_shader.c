@@ -464,7 +464,7 @@ shader_variant_create(struct radv_device *device,
 	options->chip_class = device->physical_device->rad_info.chip_class;
 	options->dump_preoptir = radv_can_dump_shader(device, module) &&
 				 device->instance->debug_flags & RADV_DEBUG_PREOPTIR;
-
+	options->tess_offchip_block_dw_size = device->tess_offchip_block_dw_size;
 	if (options->supports_spill)
 		tm_options |= AC_TM_SUPPORTS_SPILL;
 	if (device->instance->perftest_flags & RADV_PERFTEST_SISCHED)
