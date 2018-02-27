@@ -424,6 +424,9 @@ void radv_cmd_buffer_trace_emit(struct radv_cmd_buffer *cmd_buffer)
 	struct radeon_winsys_cs *cs = cmd_buffer->cs;
 	uint64_t va;
 
+	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER)
+		return;
+	
 	va = radv_buffer_get_va(device->trace_bo);
 	if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
 		va += 4;

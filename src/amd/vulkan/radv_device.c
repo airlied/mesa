@@ -1714,6 +1714,9 @@ radv_get_preamble_cs(struct radv_queue *queue,
 	unsigned hs_offchip_param = 0;
 	unsigned tess_offchip_ring_offset;
 	uint32_t ring_bo_flags = RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING;
+
+	if (queue->queue_family_index == RADV_QUEUE_TRANSFER)
+		return VK_SUCCESS;
 	if (!queue->has_tess_rings) {
 		if (needs_tess_rings)
 			add_tess_rings = true;
