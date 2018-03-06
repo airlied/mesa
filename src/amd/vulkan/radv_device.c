@@ -1366,6 +1366,9 @@ VkResult radv_CreateDevice(
 			radeon_emit(device->empty_cs[family], PKT3(PKT3_NOP, 0, 0));
 			radeon_emit(device->empty_cs[family], 0);
 			break;
+		case RADV_QUEUE_TRANSFER:
+			radeon_emit(device->empty_cs[family], 0);
+			break;
 		}
 		device->ws->cs_finalize(device->empty_cs[family]);
 	}
