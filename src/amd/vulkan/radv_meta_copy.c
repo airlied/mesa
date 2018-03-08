@@ -339,7 +339,7 @@ meta_copy_image(struct radv_cmd_buffer *cmd_buffer,
 		uint32_t regionCount,
 		const VkImageCopy *pRegions)
 {
-	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE;
+	bool cs = cmd_buffer->queue_family_index == RADV_QUEUE_COMPUTE || dest_image->info.samples > 1;
 	struct radv_meta_saved_state saved_state;
 
 	/* From the Vulkan 1.0 spec:

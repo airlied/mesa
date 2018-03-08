@@ -478,6 +478,192 @@ radv_device_finish_meta_btoi_state(struct radv_device *device)
 			     state->btoi.pipeline_3d, &state->alloc);
 }
 
+/*
+ * for multisample copies we need to copy per the fmask value in the src.
+ * - fetch the fmask value using txf_ms_mcs.
+ * - if it's 0 all samples are identical, write the 0 sample
+ *   into all samples.
+ * - if it's a mask value have to iterate per sample
+ *   and write the sample to the correct dest sample.
+ */
+static nir_shader *
+build_nir_itoi_compute_shader_ms(struct radv_device *dev)
+{
+	nir_builder b;
+	enum glsl_sampler_dim dim = GLSL_SAMPLER_DIM_MS;
+	const struct glsl_type *buf_type = glsl_sampler_type(dim,
+							     false,
+							     false,
+							     GLSL_TYPE_FLOAT);
+	const struct glsl_type *img_type = glsl_sampler_type(dim,
+							     false,
+							     false,
+							     GLSL_TYPE_FLOAT);
+	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_COMPUTE, NULL);
+	b.shader->info.name = ralloc_strdup(b.shader, "meta_itoi_cs_ms");
+
+	b.shader->info.cs.local_size[0] = 16;
+	b.shader->info.cs.local_size[1] = 16;
+	b.shader->info.cs.local_size[2] = 1;
+	nir_variable *input_img = nir_variable_create(b.shader, nir_var_uniform,
+						      buf_type, "s_tex");
+	input_img->data.descriptor_set = 0;
+	input_img->data.binding = 0;
+
+	nir_variable *output_img = nir_variable_create(b.shader, nir_var_uniform,
+						       img_type, "out_img");
+	output_img->data.descriptor_set = 0;
+	output_img->data.binding = 1;
+
+	nir_ssa_def *invoc_id = nir_load_system_value(&b, nir_intrinsic_load_local_invocation_id, 0);
+	nir_ssa_def *wg_id = nir_load_system_value(&b, nir_intrinsic_load_work_group_id, 0);
+	nir_ssa_def *block_size = nir_imm_ivec4(&b,
+						b.shader->info.cs.local_size[0],
+						b.shader->info.cs.local_size[1],
+						b.shader->info.cs.local_size[2], 0);
+
+	nir_ssa_def *global_id = nir_iadd(&b, nir_imul(&b, wg_id, block_size), invoc_id);
+
+	nir_intrinsic_instr *src_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
+	nir_intrinsic_set_base(src_offset, 0);
+	nir_intrinsic_set_range(src_offset, 24);
+	src_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 0));
+	src_offset->num_components = 3;
+	nir_ssa_dest_init(&src_offset->instr, &src_offset->dest, 3, 32, "src_offset");
+	nir_builder_instr_insert(&b, &src_offset->instr);
+
+	nir_intrinsic_instr *dst_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
+	nir_intrinsic_set_base(dst_offset, 0);
+	nir_intrinsic_set_range(dst_offset, 24);
+	dst_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 12));
+	dst_offset->num_components = 3;
+	nir_ssa_dest_init(&dst_offset->instr, &dst_offset->dest, 3, 32, "dst_offset");
+	nir_builder_instr_insert(&b, &dst_offset->instr);
+
+	nir_ssa_def *src_coord = nir_iadd(&b, global_id, &src_offset->dest.ssa);
+
+	nir_ssa_def *dst_coord = nir_iadd(&b, global_id, &dst_offset->dest.ssa);
+
+	nir_tex_instr *mcs_mask = nir_tex_instr_create(b.shader, 2);
+	mcs_mask->sampler_dim = dim;
+	mcs_mask->op = nir_texop_txf_ms_mcs;
+	mcs_mask->src[0].src_type = nir_tex_src_coord;
+	mcs_mask->src[0].src = nir_src_for_ssa(nir_channels(&b, src_coord, 0x3));
+	mcs_mask->src[1].src_type = nir_tex_src_ms_index;
+	mcs_mask->src[1].src = nir_src_for_ssa(nir_channel(&b, src_coord, 2));
+	mcs_mask->dest_type = nir_type_uint32;
+	mcs_mask->is_array = false;
+	mcs_mask->coord_components = 2;
+	mcs_mask->texture = nir_deref_var_create(mcs_mask, input_img);
+	mcs_mask->sampler = NULL;
+
+	nir_ssa_dest_init(&mcs_mask->instr, &mcs_mask->dest, 4, 32, "mcs");
+	nir_builder_instr_insert(&b, &mcs_mask->instr);
+
+	nir_ssa_def *mask_is_zero = nir_ieq(&b, nir_channel(&b, &mcs_mask->dest.ssa, 0), nir_imm_int(&b, 0));
+	nir_if *if_miz = nir_push_if(&b, mask_is_zero);
+
+	/* if all samples are 0 - just load once */
+	nir_tex_instr *tex = nir_tex_instr_create(b.shader, 2);
+	tex->sampler_dim = dim;
+	tex->op = nir_texop_txf_ms;
+	tex->src[0].src_type = nir_tex_src_coord;
+	tex->src[0].src = nir_src_for_ssa(nir_channels(&b, src_coord, 0x3));
+	tex->src[1].src_type = nir_tex_src_ms_index;
+	tex->src[1].src = nir_src_for_ssa(nir_imm_int(&b, 0));
+	tex->dest_type = nir_type_float;
+	tex->is_array = false;
+	tex->coord_components = 2;
+	tex->texture = nir_deref_var_create(tex, input_img);
+	tex->sampler = NULL;
+
+	nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+	nir_builder_instr_insert(&b, &tex->instr);
+
+	/* src_offset[2] is num samples */
+	/* write out all the samples */
+	nir_variable *loop_count = nir_local_variable_create(b.impl, glsl_int_type(), "loop_count");
+	nir_variable *sample_idx = nir_local_variable_create(b.impl, glsl_uint_type(), "sample_idx");
+	nir_store_var(&b, loop_count, nir_channel(&b, &src_offset->dest.ssa, 2), 0x1);
+	nir_store_var(&b, sample_idx, nir_imm_int(&b, 0), 0x1);
+	nir_loop *loop1 = nir_push_loop(&b);
+
+	nir_ssa_def *current_sample_idx = nir_load_var(&b, sample_idx);
+	nir_ssa_def *outval = &tex->dest.ssa;
+	nir_intrinsic_instr *store = nir_intrinsic_instr_create(b.shader, nir_intrinsic_image_store);
+	store->src[0] = nir_src_for_ssa(dst_coord);
+	store->src[1] = nir_src_for_ssa(current_sample_idx);
+	store->src[2] = nir_src_for_ssa(outval);
+	store->variables[0] = nir_deref_var_create(store, output_img);
+	nir_builder_instr_insert(&b, &store->instr);
+	current_sample_idx = nir_iadd(&b, current_sample_idx, nir_imm_int(&b, 1));
+	nir_store_var(&b, sample_idx, current_sample_idx, 0x1);
+
+	/* decrement loop count */
+	nir_ssa_def *current_loop_count = nir_load_var(&b, loop_count);
+	current_loop_count = nir_isub(&b, current_loop_count, nir_imm_int(&b, 1));
+	nir_store_var(&b, loop_count, current_loop_count, 0x1);
+
+	nir_ssa_def *lcmp = nir_ieq(&b, current_loop_count, nir_imm_int(&b, 0));
+	nir_if *loop_over = nir_push_if(&b, lcmp);
+	nir_jump(&b, nir_jump_break);
+	nir_pop_if(&b, loop_over);
+
+	nir_pop_loop(&b, loop1);
+
+	nir_push_else(&b, if_miz);
+
+	nir_variable *sample_mask_var = nir_local_variable_create(b.impl, glsl_uint_type(), "sample_mask");
+	nir_store_var(&b, loop_count, nir_channel(&b, &src_offset->dest.ssa, 2), 0x1);
+	nir_store_var(&b, sample_mask_var, nir_channel(&b, &mcs_mask->dest.ssa, 0), 0x1);
+
+	nir_loop *loop2 = nir_push_loop(&b);
+	nir_ssa_def *sample_mask = nir_load_var(&b, sample_mask_var);
+	nir_ssa_def *sample_id = nir_iand(&b, sample_mask, nir_imm_int(&b, 0xf));
+	tex = nir_tex_instr_create(b.shader, 2);
+	tex->sampler_dim = dim;
+	tex->op = nir_texop_txf;
+	tex->src[0].src_type = nir_tex_src_coord;
+	tex->src[0].src = nir_src_for_ssa(nir_channels(&b, src_coord, 0x3));
+	tex->src[1].src_type = nir_tex_src_ms_index;
+	tex->src[1].src = nir_src_for_ssa(sample_id);
+	tex->dest_type = nir_type_float;
+	tex->is_array = false;
+	tex->coord_components = 2;
+	tex->texture = nir_deref_var_create(tex, input_img);
+	tex->sampler = NULL;
+	nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+	nir_builder_instr_insert(&b, &tex->instr);
+
+	outval = &tex->dest.ssa;
+	store = nir_intrinsic_instr_create(b.shader, nir_intrinsic_image_store);
+	store->src[0] = nir_src_for_ssa(dst_coord);
+	store->src[1] = nir_src_for_ssa(sample_id);
+	store->src[2] = nir_src_for_ssa(outval);
+	store->variables[0] = nir_deref_var_create(store, output_img);
+
+	nir_builder_instr_insert(&b, &store->instr);
+
+	sample_mask = nir_ushr(&b, sample_mask, nir_imm_int(&b, 4));
+	nir_store_var(&b, sample_mask_var, sample_mask, 0x1);
+
+	/* decrement loop count */
+	current_loop_count = nir_load_var(&b, loop_count);
+	current_loop_count = nir_isub(&b, current_loop_count, nir_imm_int(&b, 1));
+	nir_store_var(&b, loop_count, current_loop_count, 0x1);
+
+	lcmp = nir_ieq(&b, current_loop_count, nir_imm_int(&b, 0));
+	loop_over = nir_push_if(&b, lcmp);
+	nir_jump(&b, nir_jump_break);
+	nir_pop_if(&b, loop_over);
+
+	nir_pop_loop(&b, loop2);
+
+	nir_pop_if(&b, if_miz);
+
+	return b.shader;
+}
+
 static nir_shader *
 build_nir_itoi_compute_shader(struct radv_device *dev, bool is_3d)
 {
@@ -568,8 +754,10 @@ radv_device_init_meta_itoi_state(struct radv_device *device)
 {
 	VkResult result;
 	struct radv_shader_module cs = { .nir = NULL };
+	struct radv_shader_module cs_ms = { .nir = NULL };
 	struct radv_shader_module cs_3d = { .nir = NULL };
 	cs.nir = build_nir_itoi_compute_shader(device, false);
+	cs_ms.nir = build_nir_itoi_compute_shader_ms(device);
 	if (device->physical_device->rad_info.chip_class >= GFX9)
 		cs_3d.nir = build_nir_itoi_compute_shader(device, true);
 	/*
@@ -631,17 +819,33 @@ radv_device_init_meta_itoi_state(struct radv_device *device)
 		.pSpecializationInfo = NULL,
 	};
 
-	VkComputePipelineCreateInfo vk_pipeline_info = {
-		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-		.stage = pipeline_shader_stage,
-		.flags = 0,
-		.layout = device->meta_state.itoi.img_p_layout,
+	VkPipelineShaderStageCreateInfo pipeline_shader_stage_ms = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_COMPUTE_BIT,
+		.module = radv_shader_module_to_handle(&cs_ms),
+		.pName = "main",
+		.pSpecializationInfo = NULL,
+	};
+
+	VkComputePipelineCreateInfo vk_pipeline_info[2] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+			.stage = pipeline_shader_stage,
+			.flags = 0,
+			.layout = device->meta_state.itoi.img_p_layout,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+			.stage = pipeline_shader_stage_ms,
+			.flags = 0,
+			.layout = device->meta_state.itoi.img_p_layout,
+		}
 	};
 
 	result = radv_CreateComputePipelines(radv_device_to_handle(device),
 					     radv_pipeline_cache_to_handle(&device->meta_state.cache),
-					     1, &vk_pipeline_info, NULL,
-					     &device->meta_state.itoi.pipeline);
+					     2, vk_pipeline_info, NULL,
+					     device->meta_state.itoi.pipeline);
 	if (result != VK_SUCCESS)
 		goto fail;
 
@@ -688,7 +892,9 @@ radv_device_finish_meta_itoi_state(struct radv_device *device)
 				        state->itoi.img_ds_layout,
 					&state->alloc);
 	radv_DestroyPipeline(radv_device_to_handle(device),
-			     state->itoi.pipeline, &state->alloc);
+			     state->itoi.pipeline[0], &state->alloc);
+	radv_DestroyPipeline(radv_device_to_handle(device),
+			     state->itoi.pipeline[1], &state->alloc);
 	if (device->physical_device->rad_info.chip_class >= GFX9)
 		radv_DestroyPipeline(radv_device_to_handle(device),
 				     state->itoi.pipeline_3d, &state->alloc);
@@ -1173,15 +1379,18 @@ radv_meta_image_to_image_cs(struct radv_cmd_buffer *cmd_buffer,
 			    unsigned num_rects,
 			    struct radv_meta_blit2d_rect *rects)
 {
-	VkPipeline pipeline = cmd_buffer->device->meta_state.itoi.pipeline;
+	VkPipeline pipeline = cmd_buffer->device->meta_state.itoi.pipeline[0];
 	struct radv_device *device = cmd_buffer->device;
 	struct radv_image_view src_view, dst_view;
+	int num_samples = dst->image->info.samples;
 
 	create_iview(cmd_buffer, src, &src_view);
 	create_iview(cmd_buffer, dst, &dst_view);
 
 	itoi_bind_descriptors(cmd_buffer, &src_view, &dst_view);
 
+	if (src->image->info.samples > 1)
+		pipeline = cmd_buffer->device->meta_state.itoi.pipeline[1];
 	if (device->physical_device->rad_info.chip_class >= GFX9 &&
 	    src->image->type == VK_IMAGE_TYPE_3D)
 		pipeline = cmd_buffer->device->meta_state.itoi.pipeline_3d;
@@ -1192,7 +1401,7 @@ radv_meta_image_to_image_cs(struct radv_cmd_buffer *cmd_buffer,
 		unsigned push_constants[6] = {
 			rects[r].src_x,
 			rects[r].src_y,
-			src->layer,
+			num_samples > 1 ? num_samples : src->layer,
 			rects[r].dst_x,
 			rects[r].dst_y,
 			dst->layer,
