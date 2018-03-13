@@ -3581,6 +3581,38 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 	}
 }
 
+
+static void radv_initialise_fmask(struct radv_cmd_buffer *cmd_buffer,
+			   struct radv_image *image, uint32_t value)
+{
+	struct radv_cmd_state *state = &cmd_buffer->state;
+
+	state->flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB |
+			    RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+
+	state->flush_bits |= radv_fill_buffer(cmd_buffer, image->bo,
+					      image->offset + image->fmask.offset,
+					      image->fmask.size, value);
+
+	state->flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
+}
+
+static const uint32_t fmask_clear_values[4] = { 0x0, 0x02020202, 0xE4E4E4E4, 0x76543210 };
+
+static void radv_handle_fmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
+					       struct radv_image *image,
+					       VkImageLayout src_layout,
+					       VkImageLayout dst_layout,
+					       unsigned src_queue_mask,
+					       unsigned dst_queue_mask,
+					       const VkImageSubresourceRange *range)
+{
+	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+		if (image->fmask.size)
+			radv_initialise_fmask(cmd_buffer, image, fmask_clear_values[util_logbase2(image->info.samples)]);
+	}
+}
+
 void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
 			 struct radv_image *image, uint32_t value)
 {
@@ -3660,6 +3692,10 @@ static void radv_handle_image_transition(struct radv_cmd_buffer *cmd_buffer,
 						   dst_layout, src_queue_mask,
 						   dst_queue_mask, range);
 
+	if (image->fmask.size)
+		radv_handle_fmask_image_transition(cmd_buffer, image, src_layout,
+						   dst_layout, src_queue_mask,
+						   dst_queue_mask, range);
 	if (image->surface.dcc_size)
 		radv_handle_dcc_image_transition(cmd_buffer, image, src_layout,
 						 dst_layout, src_queue_mask,
