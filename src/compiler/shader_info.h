@@ -52,6 +52,7 @@ struct spirv_supported_capabilities {
    bool subgroup_shuffle;
    bool subgroup_vote;
    bool gcn_shader;
+   bool storage_image_ms;
 };
 
 typedef struct shader_info {
