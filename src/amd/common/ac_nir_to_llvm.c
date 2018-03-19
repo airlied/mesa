@@ -1178,6 +1178,7 @@ static LLVMValueRef build_tex_intrinsic(struct ac_nir_context *ctx,
 	switch (instr->op) {
 	case nir_texop_txf:
 	case nir_texop_txf_ms:
+	case nir_texop_txf_ms_mcs:
 	case nir_texop_samples_identical:
 		args->opcode = lod_is_zero ||
 			       instr->sampler_dim == GLSL_SAMPLER_DIM_MS ?
@@ -3148,7 +3149,7 @@ static void tex_fetch_ptrs(struct ac_nir_context *ctx,
 		if (instr->sampler_dim < GLSL_SAMPLER_DIM_RECT)
 			*samp_ptr = sici_fix_sampler_aniso(ctx, *res_ptr, *samp_ptr);
 	}
-	if (fmask_ptr && !instr->sampler && (instr->op == nir_texop_txf_ms ||
+	if (fmask_ptr && !instr->sampler && (instr->op == nir_texop_txf_ms || instr->op == nir_texop_txf_ms_mcs ||
 					     instr->op == nir_texop_samples_identical))
 		*fmask_ptr = get_sampler_desc(ctx, instr->texture, AC_DESC_FMASK, instr, false, false);
 }
@@ -3399,7 +3400,7 @@ static void visit_tex(struct ac_nir_context *ctx, nir_tex_instr *instr)
 	/* Pack LOD */
 	if (lod && ((instr->op == nir_texop_txl || instr->op == nir_texop_txf) && !lod_is_zero)) {
 		address[count++] = lod;
-	} else if (instr->op == nir_texop_txf_ms && sample_index) {
+	} else if ((instr->op == nir_texop_txf_ms || instr->op == nir_texop_txf_ms_mcs) && sample_index) {
 		address[count++] = sample_index;
 	} else if(instr->op == nir_texop_txs) {
 		count = 0;
@@ -3414,7 +3415,8 @@ static void visit_tex(struct ac_nir_context *ctx, nir_tex_instr *instr)
 						 address[chan], ctx->ac.i32, "");
 	}
 
-	if (instr->op == nir_texop_samples_identical) {
+	if (instr->op == nir_texop_samples_identical ||
+	    instr->op == nir_texop_txf_ms_mcs) {
 		LLVMValueRef txf_address[4];
 		struct ac_image_args txf_args = { 0 };
 		unsigned txf_count = count;
@@ -3431,12 +3433,22 @@ static void visit_tex(struct ac_nir_context *ctx, nir_tex_instr *instr)
 		result = build_tex_intrinsic(ctx, instr, false, &txf_args);
 
 		result = LLVMBuildExtractElement(ctx->ac.builder, result, ctx->ac.i32_0, "");
-		result = emit_int_cmp(&ctx->ac, LLVMIntEQ, result, ctx->ac.i32_0);
+
+		/* Don't rewrite the sample index if WORD1.DATA_FORMAT of the FMASK
+		 * resource descriptor is 0 (invalid),
+		 */
+		LLVMValueRef word1_is_nonzero = get_fmask_desc_valid(&ctx->ac, fmask_ptr);
+		LLVMValueRef default_value = instr->op == nir_texop_samples_identical ? ctx->ac.i32_0 : LLVMConstInt(ctx->ac.i32, 0x76543210, false);
+		result = LLVMBuildSelect(ctx->ac.builder, word1_is_nonzero,
+					 result, default_value, "");
+
+		if (instr->op == nir_texop_samples_identical)
+			result = emit_int_cmp(&ctx->ac, LLVMIntEQ, result, ctx->ac.i32_0);
 		goto write_result;
 	}
 
 	if (instr->sampler_dim == GLSL_SAMPLER_DIM_MS &&
-	    instr->op != nir_texop_txs) {
+	    instr->op == nir_texop_txf_ms) {
 		unsigned sample_chan = instr->is_array ? 3 : 2;
 		address[sample_chan] = adjust_sample_index_using_fmask(&ctx->ac,
 								       address[0],
