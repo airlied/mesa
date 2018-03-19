@@ -2327,21 +2327,7 @@ handle_vs_outputs_post(struct radv_shader_context *ctx,
 		for (unsigned j = 0; j < 4; j++)
 			values[j] = ac_to_float(&ctx->ac, radv_load_output(ctx, i, j));
 
-		unsigned output_usage_mask;
-
-		if (ctx->stage == MESA_SHADER_VERTEX &&
-		    !ctx->is_gs_copy_shader) {
-			output_usage_mask =
-				ctx->shader_info->info.vs.output_usage_mask[i];
-		} else if (ctx->stage == MESA_SHADER_TESS_EVAL) {
-			output_usage_mask =
-				ctx->shader_info->info.tes.output_usage_mask[i];
-		} else {
-			/* Enable all channels for the GS copy shader because
-			 * we don't know the output usage mask currently.
-			 */
-			output_usage_mask = 0xf;
-		}
+		unsigned output_usage_mask = 0xf;
 
 		radv_export_param(ctx, param_count, values, output_usage_mask);
 
