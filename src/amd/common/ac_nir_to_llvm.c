@@ -1944,6 +1944,23 @@ glsl_is_array_image(const struct glsl_type *type)
 	       dim == GLSL_SAMPLER_DIM_SUBPASS_MS;
 }
 
+static LLVMValueRef get_fmask_desc_valid(struct ac_llvm_context *ctx,
+					 LLVMValueRef fmask_desc_ptr)
+{
+	LLVMValueRef fmask_desc =
+		LLVMBuildBitCast(ctx->builder, fmask_desc_ptr,
+				 ctx->v8i32, "");
+
+	LLVMValueRef fmask_word1 =
+		LLVMBuildExtractElement(ctx->builder, fmask_desc,
+					ctx->i32_1, "");
+
+	LLVMValueRef word1_is_nonzero =
+		LLVMBuildICmp(ctx->builder, LLVMIntNE,
+			      fmask_word1, ctx->i32_0, "");
+
+	return word1_is_nonzero;
+}
 
 /* Adjust the sample index according to FMASK.
  *
@@ -2003,17 +2020,7 @@ static LLVMValueRef adjust_sample_index_using_fmask(struct ac_llvm_context *ctx,
 	/* Don't rewrite the sample index if WORD1.DATA_FORMAT of the FMASK
 	 * resource descriptor is 0 (invalid),
 	 */
-	LLVMValueRef fmask_desc =
-		LLVMBuildBitCast(ctx->builder, fmask_desc_ptr,
-				 ctx->v8i32, "");
-
-	LLVMValueRef fmask_word1 =
-		LLVMBuildExtractElement(ctx->builder, fmask_desc,
-					ctx->i32_1, "");
-
-	LLVMValueRef word1_is_nonzero =
-		LLVMBuildICmp(ctx->builder, LLVMIntNE,
-			      fmask_word1, ctx->i32_0, "");
+	LLVMValueRef word1_is_nonzero = get_fmask_desc_valid(ctx, fmask_desc_ptr);
 
 	/* Replace the MSAA sample index. */
 	sample_index =
