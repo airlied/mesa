@@ -93,7 +93,7 @@ build_resolve_fragment_shader(struct radv_device *dev, bool is_integer, int samp
 	nir_variable *color = nir_local_variable_create(b.impl, glsl_vec4_type(), "color");
 
 	radv_meta_build_resolve_shader_core(&b, is_integer, samples, input_img,
-	                                    color, img_coord);
+	                                    color, img_coord, 2);
 
 	nir_ssa_def *outval = nir_load_var(&b, color);
 	nir_store_var(&b, color_out, outval, 0xf);

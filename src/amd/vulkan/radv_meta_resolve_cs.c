@@ -77,11 +77,11 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, bool is_s
 	char name[64];
 	const struct glsl_type *sampler_type = glsl_sampler_type(GLSL_SAMPLER_DIM_MS,
 								 false,
-								 false,
+								 true,
 								 GLSL_TYPE_FLOAT);
 	const struct glsl_type *img_type = glsl_sampler_type(GLSL_SAMPLER_DIM_2D,
 							     false,
-							     false,
+							     true,
 							     GLSL_TYPE_FLOAT);
 	snprintf(name, 64, "meta_resolve_cs-%d-%s", samples, is_integer ? "int" : (is_srgb ? "srgb" : "float"));
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_COMPUTE, NULL);
@@ -110,25 +110,25 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, bool is_s
 
 	nir_intrinsic_instr *src_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
 	nir_intrinsic_set_base(src_offset, 0);
-	nir_intrinsic_set_range(src_offset, 16);
+	nir_intrinsic_set_range(src_offset, 20);
 	src_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 0));
-	src_offset->num_components = 2;
-	nir_ssa_dest_init(&src_offset->instr, &src_offset->dest, 2, 32, "src_offset");
+	src_offset->num_components = 3;
+	nir_ssa_dest_init(&src_offset->instr, &src_offset->dest, 3, 32, "src_offset");
 	nir_builder_instr_insert(&b, &src_offset->instr);
 
 	nir_intrinsic_instr *dst_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
 	nir_intrinsic_set_base(dst_offset, 0);
-	nir_intrinsic_set_range(dst_offset, 16);
-	dst_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 8));
+	nir_intrinsic_set_range(dst_offset, 20);
+	dst_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 12));
 	dst_offset->num_components = 2;
 	nir_ssa_dest_init(&dst_offset->instr, &dst_offset->dest, 2, 32, "dst_offset");
 	nir_builder_instr_insert(&b, &dst_offset->instr);
 
-	nir_ssa_def *img_coord = nir_channels(&b, nir_iadd(&b, global_id, &src_offset->dest.ssa), 0x3);
+	nir_ssa_def *img_coord = nir_channels(&b, nir_iadd(&b, global_id, &src_offset->dest.ssa), 0x7);
 	nir_variable *color = nir_local_variable_create(b.impl, glsl_vec4_type(), "color");
 
 	radv_meta_build_resolve_shader_core(&b, is_integer, samples, input_img,
-	                                    color, img_coord);
+	                                    color, img_coord, 3);
 
 	nir_ssa_def *outval = nir_load_var(&b, color);
 	if (is_srgb)
@@ -188,7 +188,7 @@ create_layout(struct radv_device *device)
 		.setLayoutCount = 1,
 		.pSetLayouts = &device->meta_state.resolve_compute.ds_layout,
 		.pushConstantRangeCount = 1,
-		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_COMPUTE_BIT, 0, 16},
+		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_COMPUTE_BIT, 0, 20},
 	};
 
 	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
@@ -364,17 +364,18 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
 	radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer),
 			     VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-	unsigned push_constants[4] = {
+	unsigned push_constants[5] = {
 		src_offset->x,
 		src_offset->y,
+		0,
 		dest_offset->x,
 		dest_offset->y,
 	};
 	radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
 			      device->meta_state.resolve_compute.p_layout,
-			      VK_SHADER_STAGE_COMPUTE_BIT, 0, 16,
+			      VK_SHADER_STAGE_COMPUTE_BIT, 0, 20,
 			      push_constants);
-	radv_unaligned_dispatch(cmd_buffer, resolve_extent->width, resolve_extent->height, 1);
+	radv_unaligned_dispatch(cmd_buffer, resolve_extent->width, resolve_extent->height, src_iview->image->info.array_size);
 
 }
 

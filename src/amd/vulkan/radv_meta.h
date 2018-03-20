@@ -214,7 +214,7 @@ void radv_meta_build_resolve_shader_core(nir_builder *b,
 					 int samples,
 					 nir_variable *input_img,
 					 nir_variable *color,
-					 nir_ssa_def *img_coord);
+					 nir_ssa_def *img_coord, int coord_components);
 #ifdef __cplusplus
 }
 #endif
