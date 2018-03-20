@@ -555,6 +555,12 @@ struct radv_meta_state {
 		VkPipeline occlusion_query_pipeline;
 		VkPipeline pipeline_statistics_query_pipeline;
 	} query;
+
+	struct {
+		VkDescriptorSetLayout ds_layout;
+		VkPipelineLayout p_layout;
+		VkPipeline pipeline[MAX_SAMPLES_LOG2];
+	} fmask_expand;
 };
 
 /* queue types */
@@ -1301,6 +1307,7 @@ bool radv_is_colorbuffer_format_supported(VkFormat format, bool *blendable);
 bool radv_dcc_formats_compatible(VkFormat format1,
                                  VkFormat format2);
 
+static const uint32_t radv_fmask_clear_values[4] = { 0x0, 0x02020202, 0xE4E4E4E4, 0x76543210 };
 struct radv_fmask_info {
 	uint64_t offset;
 	uint64_t size;
@@ -1668,7 +1675,8 @@ void radv_initialise_cmask(struct radv_cmd_buffer *cmd_buffer,
 			   struct radv_image *image, uint32_t value);
 void radv_initialize_dcc(struct radv_cmd_buffer *cmd_buffer,
 			 struct radv_image *image, uint32_t value);
-
+void radv_initialise_fmask(struct radv_cmd_buffer *cmd_buffer,
+			   struct radv_image *image, uint32_t value);
 struct radv_fence {
 	struct radeon_winsys_fence *fence;
 	bool submitted;

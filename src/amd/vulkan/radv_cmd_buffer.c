@@ -3582,7 +3582,7 @@ static void radv_handle_cmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 }
 
 
-static void radv_initialise_fmask(struct radv_cmd_buffer *cmd_buffer,
+void radv_initialise_fmask(struct radv_cmd_buffer *cmd_buffer,
 			   struct radv_image *image, uint32_t value)
 {
 	struct radv_cmd_state *state = &cmd_buffer->state;
@@ -3597,8 +3597,6 @@ static void radv_initialise_fmask(struct radv_cmd_buffer *cmd_buffer,
 	state->flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
 }
 
-static const uint32_t fmask_clear_values[4] = { 0x0, 0x02020202, 0xE4E4E4E4, 0x76543210 };
-
 static void radv_handle_fmask_image_transition(struct radv_cmd_buffer *cmd_buffer,
 					       struct radv_image *image,
 					       VkImageLayout src_layout,
@@ -3609,7 +3607,11 @@ static void radv_handle_fmask_image_transition(struct radv_cmd_buffer *cmd_buffe
 {
 	if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
 		if (image->fmask.size)
-			radv_initialise_fmask(cmd_buffer, image, fmask_clear_values[util_logbase2(image->info.samples)]);
+			radv_initialise_fmask(cmd_buffer, image, radv_fmask_clear_values[util_logbase2(image->info.samples)]);
+	} else if (src_layout != VK_IMAGE_LAYOUT_GENERAL &&
+		   dst_layout == VK_IMAGE_LAYOUT_GENERAL) {
+		if (image->fmask.size)
+			radv_expand_fmask_image_inplace(cmd_buffer, image, range);
 	}
 }
 
