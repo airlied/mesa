@@ -53,32 +53,38 @@ static const struct legacy_surf_level *get_base_level_info(const struct radv_ima
 }
 
 static void get_image_info(struct radv_cmd_buffer *cmd_buffer,
-			   const struct radv_image *img,
-			   const VkImageSubresourceLayers *subres,
-			   uint64_t *va_p, uint32_t *bpp_p, uint32_t *pitch, uint32_t *slice_pitch)
+				const struct radv_image *img,
+				const VkImageSubresourceLayers *subres,
+				uint64_t *va_p, uint32_t *bpp_p, uint32_t *pitch, uint32_t *slice_pitch)
 {
-	const struct legacy_surf_level *base_level = get_base_level_info(img, subres->aspectMask,
-									 subres->mipLevel);
 	VkFormat format = get_format_from_aspect_mask(subres->aspectMask, img->vk_format);
 	uint32_t bpp = vk_format_get_blocksize(format);
 	uint64_t va = radv_buffer_get_va(img->bo);
-	bool lvl_is_2d_surf = base_level->mode == RADEON_SURF_MODE_2D;
 
 	va += img->offset;
-	va += base_level->offset;
-	va |= lvl_is_2d_surf ? (img->surface.tile_swizzle << 8) : 0;
-	*pitch = base_level->nblk_x;
-	*slice_pitch = (base_level->slice_size_dw * 4) / bpp;
+
+	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
+		*pitch = img->surface.u.gfx9.surf_pitch;
+		*slice_pitch = img->surface.u.gfx9.surf_slice_size / bpp;
+	} else {
+		const struct legacy_surf_level *base_level = get_base_level_info(img, subres->aspectMask,
+										 subres->mipLevel);
+		bool lvl_is_2d_surf = base_level->mode == RADEON_SURF_MODE_2D;
+		va += base_level->offset;
+		va |= lvl_is_2d_surf ? (img->surface.tile_swizzle << 8) : 0;
+		*pitch = base_level->nblk_x;
+		*slice_pitch = (base_level->slice_size_dw * 4) / bpp;
+	}
+
 	if (bpp_p)
 		*bpp_p = bpp;
 	*va_p = va;
 }
 
-static unsigned encode_tile_info(struct radv_cmd_buffer *cmd_buffer,
-				 struct radv_image *image, unsigned level,
-				 bool set_bpp)
+static unsigned encode_tile_info_gfx6(struct radeon_info *info,
+				      struct radv_image *image, unsigned level,
+				      bool set_bpp)
 {
-	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
 	unsigned tile_index = image->surface.u.legacy.tiling_index[level];
 	unsigned macro_tile_index = image->surface.u.legacy.macro_tile_index;
 	unsigned tile_mode = info->si_tile_mode_array[tile_index];
@@ -94,6 +100,27 @@ static unsigned encode_tile_info(struct radv_cmd_buffer *cmd_buffer,
 		(G_009990_NUM_BANKS(macro_tile_mode) << 21) |
 		(G_009990_MACRO_TILE_ASPECT(macro_tile_mode) << 24) |
 		(G_009910_PIPE_CONFIG(tile_mode) << 26);
+}
+
+static unsigned encode_tile_info_gfx9(struct radeon_info *info,
+				      struct radv_image *image, unsigned level,
+				      bool set_bpp)
+{
+	return (util_logbase2(image->surface.bpe)) |
+		(image->surface.u.gfx9.surf.swizzle_mode << 3) |
+		(image->type << 9) |
+		(image->surface.u.gfx9.surf.epitch << 16);
+}
+
+static unsigned encode_tile_info(struct radv_cmd_buffer *cmd_buffer,
+				 struct radv_image *image, unsigned level,
+				 bool set_bpp)
+{
+	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
+	if (info->chip_class >= GFX9)
+		return encode_tile_info_gfx9(info, image, level, set_bpp);
+	else
+		return encode_tile_info_gfx6(info, image, level, set_bpp);
 }
 
 static void
@@ -389,6 +416,7 @@ radv_cik_dma_copy_one_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 					 const VkExtent3D *extent, bool lin2tiled)
 {
 	uint64_t lin_va, til_va;
+	uint32_t dword0, dword4, dword5;
 	unsigned lin_pitch, lin_slice_pitch, lin_zoffset;
 	unsigned til_pitch, til_slice_pitch, til_zoffset;
 	unsigned bpp;
@@ -404,8 +432,6 @@ radv_cik_dma_copy_one_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 
 	assert(til_pitch % 8 == 0);
 	assert(til_slice_pitch % 64 == 0);
-	unsigned pitch_tile_max = til_pitch / 8 - 1;
-	unsigned slice_tile_max = til_slice_pitch / 64 - 1;
 	unsigned xalign = MAX2(1, 4 / bpp);
 	unsigned copy_width = DIV_ROUND_UP(extent->width, til_image->surface.blk_w);
 	unsigned copy_height = DIV_ROUND_UP(extent->width, til_image->surface.blk_w);
@@ -485,14 +511,29 @@ radv_cik_dma_copy_one_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 		return;
 	}
 
-	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
-						    CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW, 0) |
-		    (lin2tiled ? 0 : (1u << 31)));
+	dword0 = CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+				 CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW, 0) |
+		(lin2tiled ? 0 : (1u << 31));
+
+	dword4 = til_zoffset;
+	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
+		dword4 |= (til_width - 1) << 16;
+		dword5 = (til_image->info.height - 1) | ((til_image->info.depth - 1) << 16);
+		dword0 |= (til_image->info.levels - 1) << 20;
+		dword0 |= til_sub_resource->mipLevel;
+	} else {
+		unsigned pitch_tile_max = til_pitch / 8 - 1;
+		unsigned slice_tile_max = til_slice_pitch / 64 - 1;
+
+		dword4 |= (pitch_tile_max << 16);
+		dword5 = slice_tile_max;
+	}
+	radeon_emit(cmd_buffer->cs, dword0);
 	radeon_emit(cmd_buffer->cs, til_va);
 	radeon_emit(cmd_buffer->cs, til_va >> 32);
 	radeon_emit(cmd_buffer->cs, til_offset->x | (til_offset->y << 16));
-	radeon_emit(cmd_buffer->cs, til_zoffset | (pitch_tile_max << 16));
-	radeon_emit(cmd_buffer->cs, slice_tile_max);
+	radeon_emit(cmd_buffer->cs, dword4);
+	radeon_emit(cmd_buffer->cs, dword5);
 	radeon_emit(cmd_buffer->cs, encode_tile_info(cmd_buffer, til_image, til_sub_resource->mipLevel, true));
 	radeon_emit(cmd_buffer->cs, lin_va);
 	radeon_emit(cmd_buffer->cs, lin_va >> 32);
@@ -533,17 +574,13 @@ radv_cik_dma_copy_one_image_tiled_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	get_image_info(cmd_buffer, dst_image, &region->dstSubresource, &dst_va,
 		       NULL, &dst_pitch, &dst_slice_pitch);
 
-	unsigned src_pitch_tile_max = src_pitch / 8 - 1;
-	unsigned src_slice_tile_max = src_slice_pitch / 64 - 1;
-
-	unsigned dst_pitch_tile_max = dst_pitch / 8 - 1;
-	unsigned dst_slice_tile_max = dst_slice_pitch / 64 - 1;
 
 	unsigned copy_width = DIV_ROUND_UP(region->extent.width, src_image->surface.blk_w);
 	unsigned copy_height = DIV_ROUND_UP(region->extent.height, src_image->surface.blk_h);
 
 	unsigned copy_width_aligned = copy_width;
 	unsigned copy_height_aligned = copy_height;
+	unsigned dword4, dword5, dword10, dword11;
 
 	if (copy_width % 8 != 0 &&
 	    region->srcOffset.x + copy_width == src_width &&
@@ -569,19 +606,40 @@ radv_cik_dma_copy_one_image_tiled_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 		dst_zoffset = region->dstSubresource.baseArrayLayer;
 	}
 
+	dword4 = src_zoffset;
+	dword10 = dst_zoffset;
+	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
+		dword4 |= (src_width - 1) << 16;
+		dword5 = (src_height - 1) | ((src_image->info.depth - 1) << 16);
+
+		dword10 |= (dst_width - 1) << 16;
+		dword11 = (dst_height - 1) | ((dst_image->info.height - 1) << 16);
+	} else {
+		unsigned src_pitch_tile_max = src_pitch / 8 - 1;
+		unsigned src_slice_tile_max = src_slice_pitch / 64 - 1;
+		unsigned dst_pitch_tile_max = dst_pitch / 8 - 1;
+		unsigned dst_slice_tile_max = dst_slice_pitch / 64 - 1;
+
+		dword4 |= (src_pitch_tile_max << 16);
+		dword5 = src_slice_tile_max;
+
+		dword10 |= (dst_pitch_tile_max << 16);
+		dword11 = dst_slice_tile_max;
+	}
+
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
 					CIK_SDMA_COPY_SUB_OPCODE_T2T_SUB_WINDOW, 0));
 	radeon_emit(cmd_buffer->cs, src_va);
 	radeon_emit(cmd_buffer->cs, src_va >> 32);
 	radeon_emit(cmd_buffer->cs, region->srcOffset.x | (region->srcOffset.y << 16));
-	radeon_emit(cmd_buffer->cs, src_zoffset | (src_pitch_tile_max << 16));
-	radeon_emit(cmd_buffer->cs, src_slice_tile_max);
+	radeon_emit(cmd_buffer->cs, dword4);
+	radeon_emit(cmd_buffer->cs, dword5);
 	radeon_emit(cmd_buffer->cs, encode_tile_info(cmd_buffer, src_image, region->srcSubresource.mipLevel, true));
 	radeon_emit(cmd_buffer->cs, dst_va);
 	radeon_emit(cmd_buffer->cs, dst_va >> 32);
 	radeon_emit(cmd_buffer->cs, region->dstOffset.x | (region->dstOffset.y << 16));
-	radeon_emit(cmd_buffer->cs, dst_zoffset | (dst_pitch_tile_max << 16));
-	radeon_emit(cmd_buffer->cs, dst_slice_tile_max);
+	radeon_emit(cmd_buffer->cs, dword10);
+	radeon_emit(cmd_buffer->cs, dword11);
 	radeon_emit(cmd_buffer->cs, encode_tile_info(cmd_buffer, dst_image, region->dstSubresource.mipLevel, false));
 	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
 		radeon_emit(cmd_buffer->cs, copy_width_aligned | (copy_height_aligned << 16));
@@ -725,7 +783,10 @@ void radv_cik_dma_update_buffer(struct radv_cmd_buffer *cmd_buffer,
 							    SDMA_WRITE_SUB_OPCODE_LINEAR, 0));
 		radeon_emit(cmd_buffer->cs, dst_va);
 		radeon_emit(cmd_buffer->cs, dst_va >> 32);
-		radeon_emit(cmd_buffer->cs, this_dw);
+		if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9)
+			radeon_emit(cmd_buffer->cs, this_dw - 1);
+		else
+			radeon_emit(cmd_buffer->cs, this_dw);
 		radeon_emit_array(cmd_buffer->cs, data_dw, this_dw);
 
 		data_dw += this_dw;

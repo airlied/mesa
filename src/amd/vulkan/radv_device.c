@@ -1150,7 +1150,6 @@ static bool radv_enable_transfer_queue(struct radv_physical_device *pdevice)
 {
 	if (pdevice->rad_info.num_sdma_rings > 0 &&
 	    pdevice->rad_info.chip_class >= VI &&
-	    pdevice->rad_info.chip_class < GFX9 &&
 	    !(pdevice->instance->debug_flags & RADV_DEBUG_NO_TRANSFER_QUEUE))
 		return true;
 	return false;
