@@ -77,11 +77,11 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, bool is_s
 	char name[64];
 	const struct glsl_type *sampler_type = glsl_sampler_type(GLSL_SAMPLER_DIM_MS,
 								 false,
-								 false,
+								 true,
 								 GLSL_TYPE_FLOAT);
 	const struct glsl_type *img_type = glsl_sampler_type(GLSL_SAMPLER_DIM_2D,
 							     false,
-							     false,
+							     true,
 							     GLSL_TYPE_FLOAT);
 	snprintf(name, 64, "meta_resolve_cs-%d-%s", samples, is_integer ? "int" : (is_srgb ? "srgb" : "float"));
 	nir_builder_init_simple_shader(&b, NULL, MESA_SHADER_COMPUTE, NULL);
@@ -110,25 +110,25 @@ build_resolve_compute_shader(struct radv_device *dev, bool is_integer, bool is_s
 
 	nir_intrinsic_instr *src_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
 	nir_intrinsic_set_base(src_offset, 0);
-	nir_intrinsic_set_range(src_offset, 16);
+	nir_intrinsic_set_range(src_offset, 24);
 	src_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 0));
-	src_offset->num_components = 2;
-	nir_ssa_dest_init(&src_offset->instr, &src_offset->dest, 2, 32, "src_offset");
+	src_offset->num_components = 3;
+	nir_ssa_dest_init(&src_offset->instr, &src_offset->dest, 3, 32, "src_offset");
 	nir_builder_instr_insert(&b, &src_offset->instr);
 
 	nir_intrinsic_instr *dst_offset = nir_intrinsic_instr_create(b.shader, nir_intrinsic_load_push_constant);
 	nir_intrinsic_set_base(dst_offset, 0);
-	nir_intrinsic_set_range(dst_offset, 16);
-	dst_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 8));
-	dst_offset->num_components = 2;
-	nir_ssa_dest_init(&dst_offset->instr, &dst_offset->dest, 2, 32, "dst_offset");
+	nir_intrinsic_set_range(dst_offset, 24);
+	dst_offset->src[0] = nir_src_for_ssa(nir_imm_int(&b, 12));
+	dst_offset->num_components = 3;
+	nir_ssa_dest_init(&dst_offset->instr, &dst_offset->dest, 3, 32, "dst_offset");
 	nir_builder_instr_insert(&b, &dst_offset->instr);
 
-	nir_ssa_def *img_coord = nir_channels(&b, nir_iadd(&b, global_id, &src_offset->dest.ssa), 0x3);
+	nir_ssa_def *img_coord = nir_channels(&b, nir_iadd(&b, global_id, &src_offset->dest.ssa), 0x7);
 	nir_variable *color = nir_local_variable_create(b.impl, glsl_vec4_type(), "color");
 
 	radv_meta_build_resolve_shader_core(&b, is_integer, samples, input_img,
-	                                    color, img_coord, 2);
+	                                    color, img_coord, 3);
 
 	nir_ssa_def *outval = nir_load_var(&b, color);
 	if (is_srgb)
@@ -188,7 +188,7 @@ create_layout(struct radv_device *device)
 		.setLayoutCount = 1,
 		.pSetLayouts = &device->meta_state.resolve_compute.ds_layout,
 		.pushConstantRangeCount = 1,
-		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_COMPUTE_BIT, 0, 16},
+		.pPushConstantRanges = &(VkPushConstantRange){VK_SHADER_STAGE_COMPUTE_BIT, 0, 24},
 	};
 
 	result = radv_CreatePipelineLayout(radv_device_to_handle(device),
@@ -311,9 +311,9 @@ static void
 emit_resolve(struct radv_cmd_buffer *cmd_buffer,
 	     struct radv_image_view *src_iview,
 	     struct radv_image_view *dest_iview,
-	     const VkOffset2D *src_offset,
-             const VkOffset2D *dest_offset,
-             const VkExtent2D *resolve_extent)
+	     const VkOffset3D *src_offset,
+             const VkOffset3D *dest_offset,
+             const VkExtent3D *resolve_extent)
 {
 	struct radv_device *device = cmd_buffer->device;
 	const uint32_t samples = src_iview->image->info.samples;
@@ -364,17 +364,19 @@ emit_resolve(struct radv_cmd_buffer *cmd_buffer,
 	radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer),
 			     VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-	unsigned push_constants[4] = {
+	unsigned push_constants[6] = {
 		src_offset->x,
 		src_offset->y,
+		src_offset->z,
 		dest_offset->x,
 		dest_offset->y,
+		dest_offset->z,
 	};
 	radv_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer),
 			      device->meta_state.resolve_compute.p_layout,
-			      VK_SHADER_STAGE_COMPUTE_BIT, 0, 16,
+			      VK_SHADER_STAGE_COMPUTE_BIT, 0, 24,
 			      push_constants);
-	radv_unaligned_dispatch(cmd_buffer, resolve_extent->width, resolve_extent->height, 1);
+	radv_unaligned_dispatch(cmd_buffer, resolve_extent->width, resolve_extent->height, resolve_extent->depth);
 
 }
 
@@ -456,9 +458,9 @@ void radv_meta_resolve_compute_image(struct radv_cmd_buffer *cmd_buffer,
 			emit_resolve(cmd_buffer,
 				     &src_iview,
 				     &dest_iview,
-				     &(VkOffset2D) {srcOffset.x, srcOffset.y },
-				     &(VkOffset2D) {dstOffset.x, dstOffset.y },
-				     &(VkExtent2D) {extent.width, extent.height });
+				     &(VkOffset3D) {srcOffset.x, srcOffset.y, 0 },
+				     &(VkOffset3D) {dstOffset.x, dstOffset.y, 0 },
+				     &(VkExtent3D) {extent.width, extent.height, 1 });
 		}
 	}
 	radv_meta_restore(&saved_state, cmd_buffer);
@@ -508,48 +510,12 @@ radv_cmd_buffer_resolve_subpass_cs(struct radv_cmd_buffer *cmd_buffer)
 		if (dest_att.attachment == VK_ATTACHMENT_UNUSED)
 			continue;
 
-		struct radv_image *src_image = src_iview->image;
-		struct radv_image *dst_image = dst_iview->image;
-		for (uint32_t layer = 0; layer < src_image->info.array_size; layer++) {
-
-			struct radv_image_view tsrc_iview;
-			radv_image_view_init(&tsrc_iview, cmd_buffer->device,
-					     &(VkImageViewCreateInfo) {
-						     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-							     .image = radv_image_to_handle(src_image),
-							     .viewType = radv_meta_get_view_type(src_image),
-							     .format = src_image->vk_format,
-							     .subresourceRange = {
-							     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-							     .baseMipLevel = src_iview->base_mip,
-							     .levelCount = 1,
-							     .baseArrayLayer = layer,
-							     .layerCount = 1,
-						     },
-					     });
-
-			struct radv_image_view tdst_iview;
-			radv_image_view_init(&tdst_iview, cmd_buffer->device,
-					     &(VkImageViewCreateInfo) {
-						     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-							     .image = radv_image_to_handle(dst_image),
-							     .viewType = radv_meta_get_view_type(dst_image),
-							     .format = vk_to_non_srgb_format(dst_image->vk_format),
-							     .subresourceRange = {
-							     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-							     .baseMipLevel = dst_iview->base_mip,
-							     .levelCount = 1,
-							     .baseArrayLayer = layer,
-							     .layerCount = 1,
-						     },
-					     });
-			emit_resolve(cmd_buffer,
-				     &tsrc_iview,
-				     &tdst_iview,
-				     &(VkOffset2D) { 0, 0 },
-				     &(VkOffset2D) { 0, 0 },
-				     &(VkExtent2D) { fb->width, fb->height });
-		}
+		emit_resolve(cmd_buffer,
+			     src_iview,
+			     dst_iview,
+			     &(VkOffset3D) { 0, 0, 0 },
+			     &(VkOffset3D) { 0, 0, 0 },
+			     &(VkExtent3D) { fb->width, fb->height, fb->layers });
 	}
 
 	cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
