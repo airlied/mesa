@@ -509,7 +509,8 @@ void radv_meta_build_resolve_shader_core(nir_builder *b,
 					 int samples,
 					 nir_variable *input_img,
 					 nir_variable *color,
-					 nir_ssa_def *img_coord)
+					 nir_ssa_def *img_coord,
+					 int coord_components)
 {
 	/* do a txf_ms on each sample */
 	nir_ssa_def *tmp;
@@ -524,7 +525,7 @@ void radv_meta_build_resolve_shader_core(nir_builder *b,
 	tex->src[1].src = nir_src_for_ssa(nir_imm_int(b, 0));
 	tex->dest_type = nir_type_float;
 	tex->is_array = false;
-	tex->coord_components = 2;
+	tex->coord_components = coord_components;
 	tex->texture = nir_deref_var_create(tex, input_img);
 	tex->sampler = NULL;
 
@@ -541,7 +542,7 @@ void radv_meta_build_resolve_shader_core(nir_builder *b,
 		tex_all_same->src[0].src = nir_src_for_ssa(img_coord);
 		tex_all_same->dest_type = nir_type_float;
 		tex_all_same->is_array = false;
-		tex_all_same->coord_components = 2;
+		tex_all_same->coord_components = coord_components;
 		tex_all_same->texture = nir_deref_var_create(tex_all_same, input_img);
 		tex_all_same->sampler = NULL;
 
@@ -564,7 +565,7 @@ void radv_meta_build_resolve_shader_core(nir_builder *b,
 			tex_add->src[1].src = nir_src_for_ssa(nir_imm_int(b, i));
 			tex_add->dest_type = nir_type_float;
 			tex_add->is_array = false;
-			tex_add->coord_components = 2;
+			tex_add->coord_components = coord_components;
 			tex_add->texture = nir_deref_var_create(tex_add, input_img);
 			tex_add->sampler = NULL;
 
