@@ -169,8 +169,9 @@ LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_library_info,
 	if (!passmgr)
 		return NULL;
 
-	LLVMAddTargetLibraryInfo(target_library_info,
-				 passmgr);
+	if (target_library_info)
+		LLVMAddTargetLibraryInfo(target_library_info,
+					 passmgr);
 
 	if (check_ir)
 		LLVMAddVerifierPass(passmgr);
