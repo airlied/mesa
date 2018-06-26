@@ -119,6 +119,7 @@ static void si_init_compiler(struct si_screen *sscreen,
 		(sscreen->info.chip_class < GFX9 ? AC_TM_FORCE_DISABLE_XNACK : 0) |
 		(!sscreen->llvm_has_working_vgpr_indexing ? AC_TM_PROMOTE_ALLOCA_TO_SCRATCH : 0);
 
+	ac_init_llvm_once();
 	compiler->tm = ac_create_target_machine(sscreen->info.family,
 						tm_options, &compiler->triple);
 	if (!compiler->tm)
