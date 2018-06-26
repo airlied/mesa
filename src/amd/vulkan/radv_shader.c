@@ -525,8 +525,7 @@ shader_variant_create(struct radv_device *device,
 	enum ac_target_machine_options tm_options = 0;
 	struct radv_shader_variant *variant;
 	struct ac_shader_binary binary;
-	LLVMTargetMachineRef tm;
-	LLVMPassManagerRef passmgr;
+	struct ac_llvm_compiler_info llvm_info;
 
 	variant = calloc(1, sizeof(struct radv_shader_variant));
 	if (!variant)
@@ -546,23 +545,24 @@ shader_variant_create(struct radv_device *device,
 		tm_options |= AC_TM_SUPPORTS_SPILL;
 	if (device->instance->perftest_flags & RADV_PERFTEST_SISCHED)
 		tm_options |= AC_TM_SISCHED;
+	if (options->check_ir)
+		tm_options |= AC_TM_CHECK_IR;
 	
 	radv_init_llvm_once();
-	tm = ac_create_target_machine(chip_family, tm_options, NULL);
-	passmgr = ac_init_passmgr(NULL, options->check_ir);
+
+	ac_llvm_compiler_init(&llvm_info, false, chip_family, tm_options);
 	if (gs_copy_shader) {
 		assert(shader_count == 1);
-		radv_compile_gs_copy_shader(tm, passmgr, *shaders, &binary,
+		radv_compile_gs_copy_shader(&llvm_info, *shaders, &binary,
 					    &variant->config, &variant->info,
 					    options);
 	} else {
-		radv_compile_nir_shader(tm, passmgr, &binary, &variant->config,
+		radv_compile_nir_shader(&llvm_info, &binary, &variant->config,
 					&variant->info, shaders, shader_count,
 					options);
 	}
 
-	LLVMDisposePassManager(passmgr);
-	LLVMDisposeTargetMachine(tm);
+	ac_llvm_compiler_dispose(&llvm_info);
 
 	radv_fill_shader_variant(device, variant, &binary, stage);
 

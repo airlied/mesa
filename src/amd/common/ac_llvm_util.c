@@ -188,6 +188,56 @@ LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_library_info,
 	return passmgr;
 }
 
+bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
+			   bool add_target_library_info,
+			   enum radeon_family family,
+			   enum ac_target_machine_options tm_options)
+{
+	memset(info, 0, sizeof(*info));
+	info->tm = ac_create_target_machine(family, tm_options, &info->triple);
+	if (!info->tm)
+		return false;
+
+	/* Get the data layout. */
+	LLVMTargetDataRef data_layout = LLVMCreateTargetDataLayout(info->tm);
+	if (!data_layout)
+		goto fail;
+	info->data_layout = LLVMCopyStringRepOfTargetData(data_layout);
+	LLVMDisposeTargetData(data_layout);
+
+#if HAVE_LLVM < 0x0700
+	if (add_target_library_info)
+#endif
+	{
+		info->target_library_info =
+			ac_create_target_library_info(info->triple);
+		if (!info->target_library_info)
+			goto fail;
+	}
+	info->passmgr = ac_init_passmgr(info->target_library_info, tm_options & AC_TM_CHECK_IR);
+	if (!info->passmgr)
+		goto fail;
+	return true;
+fail:
+	ac_llvm_compiler_dispose(info);
+	return false;
+}
+
+void ac_llvm_compiler_dispose(struct ac_llvm_compiler_info *info)
+{
+	if (info->data_layout)
+		LLVMDisposeMessage((char*)info->data_layout);
+	if (info->passmgr)
+		LLVMDisposePassManager(info->passmgr);
+#if HAVE_LLVM >= 0x0700
+	/* This crashes on LLVM 5.0 and 6.0 and Ubuntu 18.04, so leak it there. */
+	if (info->target_library_info)
+		ac_dispose_target_library_info(info->target_library_info);
+#endif
+	if (info->tm)
+		LLVMDisposeTargetMachine(info->tm);
+}
+
 static const char *attr_to_str(enum ac_func_attr attr)
 {
    switch (attr) {

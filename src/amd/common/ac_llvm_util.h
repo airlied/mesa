@@ -59,12 +59,21 @@ enum ac_target_machine_options {
 	AC_TM_FORCE_ENABLE_XNACK = (1 << 2),
 	AC_TM_FORCE_DISABLE_XNACK = (1 << 3),
 	AC_TM_PROMOTE_ALLOCA_TO_SCRATCH = (1 << 4),
+	AC_TM_CHECK_IR = (1 << 5),
 };
 
 enum ac_float_mode {
 	AC_FLOAT_MODE_DEFAULT,
 	AC_FLOAT_MODE_NO_SIGNED_ZEROS_FP_MATH,
 	AC_FLOAT_MODE_UNSAFE_FP_MATH,
+};
+
+struct ac_llvm_compiler_info {
+	LLVMTargetMachineRef tm;
+	LLVMPassManagerRef passmgr;
+	LLVMTargetLibraryInfoRef target_library_info;
+	const char *triple;
+	const char *data_layout;
 };
 
 const char *ac_get_llvm_processor_name(enum radeon_family family);
@@ -110,6 +119,11 @@ ac_get_store_intr_attribs(bool writeonly_memory)
 unsigned
 ac_count_scratch_private_memory(LLVMValueRef function);
 
+bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
+			   bool add_target_library_info, /* crash workaround */
+			   enum radeon_family family,
+			   enum ac_target_machine_options tm_options);
+void ac_llvm_compiler_dispose(struct ac_llvm_compiler_info *info);
 LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_library_info,
 				   bool check_ir);
 LLVMTargetLibraryInfoRef ac_create_target_library_info(const char *triple);
