@@ -110,6 +110,8 @@ ac_get_store_intr_attribs(bool writeonly_memory)
 unsigned
 ac_count_scratch_private_memory(LLVMValueRef function);
 
+LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_library_info,
+				   bool check_ir);
 void ac_init_llvm_once(void);
 
 #ifdef __cplusplus
