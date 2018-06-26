@@ -547,6 +547,8 @@ shader_variant_create(struct radv_device *device,
 		tm_options |= AC_TM_SISCHED;
 	if (options->check_ir)
 		tm_options |= AC_TM_CHECK_IR;
+	if (!(device->instance->debug_flags & RADV_DEBUG_NOTHREADLLVM))
+		tm_options |= AC_TM_THREAD_LLVM;
 	
 	radv_init_llvm_once();
 

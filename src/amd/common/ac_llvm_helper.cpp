@@ -31,12 +31,21 @@
 
 #include "ac_llvm_util.h"
 #include <llvm-c/Core.h>
-#include <llvm/Target/TargetOptions.h>
-#include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/IR/Attributes.h>
-#include <llvm/IR/CallSite.h>
+#include <llvm/Target/TargetMachine.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
+#include <llvm/IR/LegacyPassManager.h>
+
+#include <llvm-c/Transforms/IPO.h>
+#include <llvm-c/Transforms/Scalar.h>
+#if HAVE_LLVM >= 0x0700
+#include <llvm-c/Transforms/Utils.h>
+#endif
+
+#if HAVE_LLVM < 0x0700
+#include "llvm/Support/raw_ostream.h"
+#endif
+#include <list>
 
 void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes)
 {
@@ -101,11 +110,110 @@ ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info)
 	delete reinterpret_cast<llvm::TargetLibraryInfoImpl *>(library_info);
 }
 
+class ac_llvm_per_thread_info {
+public:
+	ac_llvm_per_thread_info(enum radeon_family arg_family,
+				enum ac_target_machine_options arg_tm_options)
+		: family(arg_family), tm_options(arg_tm_options),
+		  OStream(CodeString) {}
+	~ac_llvm_per_thread_info() {
+		ac_llvm_compiler_dispose_internal(&llvm_info);
+	}
+
+	struct ac_llvm_compiler_info llvm_info;
+	enum radeon_family family;
+	enum ac_target_machine_options tm_options;
+	llvm::SmallString<0> CodeString;
+	llvm::raw_svector_ostream OStream;
+	llvm::legacy::PassManager pass;
+};
+
+/* we have to store a linked list per thread due to the possiblity of multiple gpus being required */
+static thread_local std::list<ac_llvm_per_thread_info> ac_llvm_per_thread_list;
+
 bool ac_compile_to_memory_buffer(struct ac_llvm_compiler_info *info,
 				 LLVMModuleRef M,
 				 char **ErrorMessage,
 				 LLVMMemoryBufferRef *OutMemBuf)
 {
-	return LLVMTargetMachineEmitToMemoryBuffer(info->tm, M, LLVMObjectFile,
-						   ErrorMessage, OutMemBuf);
+	ac_llvm_per_thread_info *thread_info = nullptr;
+	if (info->thread_stored) {
+		for (auto &I : ac_llvm_per_thread_list) {
+			if (I.llvm_info.tm == info->tm) {
+				thread_info = &I;
+				break;
+			}
+		}
+
+		if (!thread_info) {
+			assert(0);
+			return false;
+		}
+	} else {
+		return LLVMTargetMachineEmitToMemoryBuffer(info->tm, M, LLVMObjectFile,
+							   ErrorMessage, OutMemBuf);
+	}
+
+	llvm::TargetMachine *TM = reinterpret_cast<llvm::TargetMachine*>(thread_info->llvm_info.tm);
+	llvm::Module *Mod = llvm::unwrap(M);
+	llvm::StringRef Data;
+
+	Mod->setDataLayout(TM->createDataLayout());
+
+	thread_info->pass.run(*Mod);
+
+	Data = thread_info->OStream.str();
+	*OutMemBuf = LLVMCreateMemoryBufferWithMemoryRangeCopy(Data.data(), Data.size(), "");
+	thread_info->CodeString = "";
+	return false;
+}
+
+bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
+			   bool add_target_library_info,
+			   enum radeon_family family,
+			   enum ac_target_machine_options tm_options)
+{
+	if (tm_options & AC_TM_THREAD_LLVM) {
+		for (auto &I : ac_llvm_per_thread_list) {
+			if (I.family == family &&
+			    I.tm_options == tm_options) {
+				*info = I.llvm_info;
+				return true;
+			}
+		}
+
+		ac_llvm_per_thread_list.emplace_back(family, tm_options);
+		ac_llvm_per_thread_info &tinfo = ac_llvm_per_thread_list.back();
+		if (!ac_llvm_compiler_init_internal(&tinfo.llvm_info,
+						    true,
+						    family,
+						    tm_options))
+			return false;
+
+		tinfo.llvm_info.thread_stored = true;
+		*info = tinfo.llvm_info;
+
+		llvm::TargetMachine *TM = reinterpret_cast<llvm::TargetMachine*>(tinfo.llvm_info.tm);
+		if (TM->addPassesToEmitFile(tinfo.pass, tinfo.OStream,
+#if HAVE_LLVM >= 0x0700
+					    nullptr,
+#endif
+					llvm::TargetMachine::CGFT_ObjectFile)) {
+			assert(0);
+			return false;
+		}
+	} else {
+		if (!ac_llvm_compiler_init_internal(info,
+						    add_target_library_info,
+						    family,
+						    tm_options))
+			return false;
+	}
+	return true;
+}
+
+void ac_llvm_compiler_dispose(struct ac_llvm_compiler_info *info)
+{
+	if (!info->thread_stored)
+		ac_llvm_compiler_dispose_internal(info);
 }

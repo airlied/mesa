@@ -188,10 +188,10 @@ static LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_librar
 	return passmgr;
 }
 
-bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
-			   bool add_target_library_info,
-			   enum radeon_family family,
-			   enum ac_target_machine_options tm_options)
+bool ac_llvm_compiler_init_internal(struct ac_llvm_compiler_info *info,
+				    bool add_target_library_info,
+				    enum radeon_family family,
+				    enum ac_target_machine_options tm_options)
 {
 	memset(info, 0, sizeof(*info));
 	info->tm = ac_create_target_machine(family, tm_options, &info->triple);
@@ -223,7 +223,7 @@ fail:
 	return false;
 }
 
-void ac_llvm_compiler_dispose(struct ac_llvm_compiler_info *info)
+void ac_llvm_compiler_dispose_internal(struct ac_llvm_compiler_info *info)
 {
 	if (info->data_layout)
 		LLVMDisposeMessage((char*)info->data_layout);

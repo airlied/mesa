@@ -60,6 +60,7 @@ enum ac_target_machine_options {
 	AC_TM_FORCE_DISABLE_XNACK = (1 << 3),
 	AC_TM_PROMOTE_ALLOCA_TO_SCRATCH = (1 << 4),
 	AC_TM_CHECK_IR = (1 << 5),
+	AC_TM_THREAD_LLVM = (1 << 6),
 };
 
 enum ac_float_mode {
@@ -74,6 +75,7 @@ struct ac_llvm_compiler_info {
 	LLVMTargetLibraryInfoRef target_library_info;
 	const char *triple;
 	const char *data_layout;
+	bool thread_stored;
 };
 
 const char *ac_get_llvm_processor_name(enum radeon_family family);
@@ -114,6 +116,12 @@ ac_get_store_intr_attribs(bool writeonly_memory)
 unsigned
 ac_count_scratch_private_memory(LLVMValueRef function);
 
+bool ac_llvm_compiler_init_internal(struct ac_llvm_compiler_info *info,
+				    bool add_target_library_info, /* crash workaround */
+				    enum radeon_family family,
+				    enum ac_target_machine_options tm_options);
+void ac_llvm_compiler_dispose_internal(struct ac_llvm_compiler_info *info);
+
 bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
 			   bool add_target_library_info, /* crash workaround */
 			   enum radeon_family family,
@@ -127,6 +135,7 @@ bool ac_compile_to_memory_buffer(struct ac_llvm_compiler_info *info,
 				 LLVMModuleRef M,
 				 char **ErrorMessage,
 				 LLVMMemoryBufferRef *OutMemBuf);
+
 #ifdef __cplusplus
 }
 #endif
