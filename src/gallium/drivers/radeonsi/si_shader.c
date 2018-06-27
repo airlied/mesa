@@ -69,7 +69,7 @@ enum si_arg_regfile {
 
 static void si_init_shader_ctx(struct si_shader_context *ctx,
 			       struct si_screen *sscreen,
-			       struct si_compiler *compiler);
+			       struct ac_llvm_compiler_info *compiler);
 
 static void si_llvm_emit_barrier(const struct lp_build_tgsi_action *action,
 				 struct lp_build_tgsi_context *bld_base,
@@ -5642,7 +5642,7 @@ void si_shader_dump(struct si_screen *sscreen, const struct si_shader *shader,
 static int si_compile_llvm(struct si_screen *sscreen,
 			   struct ac_shader_binary *binary,
 			   struct si_shader_config *conf,
-			   struct si_compiler *compiler,
+			   struct ac_llvm_compiler_info *compiler,
 			   LLVMModuleRef mod,
 			   struct pipe_debug_callback *debug,
 			   unsigned processor,
@@ -5720,7 +5720,7 @@ static void si_llvm_build_ret(struct si_shader_context *ctx, LLVMValueRef ret)
 /* Generate code for the hardware VS shader stage to go with a geometry shader */
 struct si_shader *
 si_generate_gs_copy_shader(struct si_screen *sscreen,
-			   struct si_compiler *compiler,
+			   struct ac_llvm_compiler_info *compiler,
 			   struct si_shader_selector *gs_selector,
 			   struct pipe_debug_callback *debug)
 {
@@ -5967,7 +5967,7 @@ static void si_dump_shader_key(unsigned processor, const struct si_shader *shade
 
 static void si_init_shader_ctx(struct si_shader_context *ctx,
 			       struct si_screen *sscreen,
-			       struct si_compiler *compiler)
+			       struct ac_llvm_compiler_info *compiler)
 {
 	struct lp_build_tgsi_context *bld_base;
 
@@ -6749,7 +6749,7 @@ static void si_build_wrapper_function(struct si_shader_context *ctx,
 }
 
 int si_compile_tgsi_shader(struct si_screen *sscreen,
-			   struct si_compiler *compiler,
+			   struct ac_llvm_compiler_info *compiler,
 			   struct si_shader *shader,
 			   struct pipe_debug_callback *debug)
 {
@@ -7090,7 +7090,7 @@ si_get_shader_part(struct si_screen *sscreen,
 		   enum pipe_shader_type type,
 		   bool prolog,
 		   union si_shader_part_key *key,
-		   struct si_compiler *compiler,
+		   struct ac_llvm_compiler_info *compiler,
 		   struct pipe_debug_callback *debug,
 		   void (*build)(struct si_shader_context *,
 				 union si_shader_part_key *),
@@ -7336,7 +7336,7 @@ static void si_build_vs_prolog_function(struct si_shader_context *ctx,
 }
 
 static bool si_get_vs_prolog(struct si_screen *sscreen,
-			     struct si_compiler *compiler,
+			     struct ac_llvm_compiler_info *compiler,
 			     struct si_shader *shader,
 			     struct pipe_debug_callback *debug,
 			     struct si_shader *main_part,
@@ -7364,7 +7364,7 @@ static bool si_get_vs_prolog(struct si_screen *sscreen,
  * Select and compile (or reuse) vertex shader parts (prolog & epilog).
  */
 static bool si_shader_select_vs_parts(struct si_screen *sscreen,
-				      struct si_compiler *compiler,
+				      struct ac_llvm_compiler_info *compiler,
 				      struct si_shader *shader,
 				      struct pipe_debug_callback *debug)
 {
@@ -7453,7 +7453,7 @@ static void si_build_tcs_epilog_function(struct si_shader_context *ctx,
  * Select and compile (or reuse) TCS parts (epilog).
  */
 static bool si_shader_select_tcs_parts(struct si_screen *sscreen,
-				       struct si_compiler *compiler,
+				       struct ac_llvm_compiler_info *compiler,
 				       struct si_shader *shader,
 				       struct pipe_debug_callback *debug)
 {
@@ -7485,7 +7485,7 @@ static bool si_shader_select_tcs_parts(struct si_screen *sscreen,
  * Select and compile (or reuse) GS parts (prolog).
  */
 static bool si_shader_select_gs_parts(struct si_screen *sscreen,
-				      struct si_compiler *compiler,
+				      struct ac_llvm_compiler_info *compiler,
 				      struct si_shader *shader,
 				      struct pipe_debug_callback *debug)
 {
@@ -7898,7 +7898,7 @@ static void si_build_ps_epilog_function(struct si_shader_context *ctx,
  * Select and compile (or reuse) pixel shader parts (prolog & epilog).
  */
 static bool si_shader_select_ps_parts(struct si_screen *sscreen,
-				      struct si_compiler *compiler,
+				      struct ac_llvm_compiler_info *compiler,
 				      struct si_shader *shader,
 				      struct pipe_debug_callback *debug)
 {
@@ -8029,7 +8029,7 @@ static void si_fix_resource_usage(struct si_screen *sscreen,
 	}
 }
 
-int si_shader_create(struct si_screen *sscreen, struct si_compiler *compiler,
+int si_shader_create(struct si_screen *sscreen, struct ac_llvm_compiler_info *compiler,
 		     struct si_shader *shader,
 		     struct pipe_debug_callback *debug)
 {

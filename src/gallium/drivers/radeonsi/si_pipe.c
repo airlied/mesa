@@ -105,51 +105,21 @@ static const struct debug_named_value debug_options[] = {
 };
 
 static void si_init_compiler(struct si_screen *sscreen,
-			     struct si_compiler *compiler)
+			     struct ac_llvm_compiler_info *compiler)
 {
 	enum ac_target_machine_options tm_options =
 		(sscreen->debug_flags & DBG(SI_SCHED) ? AC_TM_SISCHED : 0) |
 		(sscreen->info.chip_class >= GFX9 ? AC_TM_FORCE_ENABLE_XNACK : 0) |
 		(sscreen->info.chip_class < GFX9 ? AC_TM_FORCE_DISABLE_XNACK : 0) |
-		(!sscreen->llvm_has_working_vgpr_indexing ? AC_TM_PROMOTE_ALLOCA_TO_SCRATCH : 0);
+		(!sscreen->llvm_has_working_vgpr_indexing ? AC_TM_PROMOTE_ALLOCA_TO_SCRATCH : 0) |
+		(sscreen->debug_flags & DBG(CHECK_IR) ? AC_TM_CHECK_IR : 0);
 
 	ac_init_llvm_once();
-	compiler->tm = ac_create_target_machine(sscreen->info.family,
-						tm_options, &compiler->triple);
-	if (!compiler->tm)
-		return;
 
-	compiler->target_library_info =
-		gallivm_create_target_library_info(compiler->triple);
-	if (!compiler->target_library_info)
-		return;
-
-	compiler->passmgr = ac_init_passmgr(compiler->target_library_info,
-					    (sscreen->debug_flags & DBG(CHECK_IR)));
-	if (!compiler->passmgr)
-		return;
-
-	/* Get the data layout. */
-	LLVMTargetDataRef data_layout = LLVMCreateTargetDataLayout(compiler->tm);
-	if (!data_layout)
-		return;
-	compiler->data_layout = LLVMCopyStringRepOfTargetData(data_layout);
-	LLVMDisposeTargetData(data_layout);
-}
-
-static void si_destroy_compiler(struct si_compiler *compiler)
-{
-	if (compiler->data_layout)
-		LLVMDisposeMessage((char*)compiler->data_layout);
-	if (compiler->passmgr)
-		LLVMDisposePassManager(compiler->passmgr);
-#if HAVE_LLVM >= 0x0700
-	/* This crashes on LLVM 5.0 and 6.0 and Ubuntu 18.04, so leak it there. */
-	if (compiler->target_library_info)
-		gallivm_dispose_target_library_info(compiler->target_library_info);
-#endif
-	if (compiler->tm)
-		LLVMDisposeTargetMachine(compiler->tm);
+	ac_llvm_compiler_init(compiler,
+			      true,
+			      sscreen->info.family,
+			      tm_options);
 }
 
 /*
@@ -250,7 +220,7 @@ static void si_destroy_context(struct pipe_context *context)
 	sctx->ws->fence_reference(&sctx->last_sdma_fence, NULL);
 	r600_resource_reference(&sctx->eop_bug_scratch, NULL);
 
-	si_destroy_compiler(&sctx->compiler);
+	ac_llvm_compiler_dispose(&sctx->compiler);
 
 	si_saved_cs_reference(&sctx->current_saved_cs, NULL);
 
@@ -659,10 +629,10 @@ static void si_destroy_screen(struct pipe_screen* pscreen)
 	util_queue_destroy(&sscreen->shader_compiler_queue_low_priority);
 
 	for (i = 0; i < ARRAY_SIZE(sscreen->compiler); i++)
-		si_destroy_compiler(&sscreen->compiler[i]);
+		ac_llvm_compiler_dispose(&sscreen->compiler[i]);
 
 	for (i = 0; i < ARRAY_SIZE(sscreen->compiler_lowp); i++)
-		si_destroy_compiler(&sscreen->compiler_lowp[i]);
+		ac_llvm_compiler_dispose(&sscreen->compiler_lowp[i]);
 
 	/* Free shader parts. */
 	for (i = 0; i < ARRAY_SIZE(parts); i++) {
