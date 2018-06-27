@@ -77,11 +77,6 @@ struct ac_llvm_compiler_info {
 };
 
 const char *ac_get_llvm_processor_name(enum radeon_family family);
-LLVMTargetMachineRef ac_create_target_machine(enum radeon_family family,
-					      enum ac_target_machine_options tm_options,
-					      const char **out_triple);
-
-LLVMTargetRef ac_get_llvm_target(const char *triple);
 void ac_add_attr_dereferenceable(LLVMValueRef val, uint64_t bytes);
 bool ac_is_sgpr_param(LLVMValueRef param);
 void ac_add_function_attr(LLVMContextRef ctx, LLVMValueRef function,
@@ -124,8 +119,6 @@ bool ac_llvm_compiler_init(struct ac_llvm_compiler_info *info,
 			   enum radeon_family family,
 			   enum ac_target_machine_options tm_options);
 void ac_llvm_compiler_dispose(struct ac_llvm_compiler_info *info);
-LLVMPassManagerRef ac_init_passmgr(LLVMTargetLibraryInfoRef target_library_info,
-				   bool check_ir);
 LLVMTargetLibraryInfoRef ac_create_target_library_info(const char *triple);
 void ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info);
 void ac_init_llvm_once(void);
