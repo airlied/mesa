@@ -130,6 +130,10 @@ LLVMTargetLibraryInfoRef ac_create_target_library_info(const char *triple);
 void ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info);
 void ac_init_llvm_once(void);
 
+bool ac_compile_to_memory_buffer(struct ac_llvm_compiler_info *info,
+				 LLVMModuleRef M,
+				 char **ErrorMessage,
+				 LLVMMemoryBufferRef *OutMemBuf);
 #ifdef __cplusplus
 }
 #endif

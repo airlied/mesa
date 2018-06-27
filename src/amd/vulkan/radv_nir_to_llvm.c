@@ -3345,8 +3345,8 @@ static unsigned ac_llvm_compile(LLVMModuleRef M,
 	                                &retval);
 
 	/* Compile IR*/
-	mem_err = LLVMTargetMachineEmitToMemoryBuffer(llvm_info->tm, M, LLVMObjectFile,
-	                                              &err, &out_buffer);
+	mem_err = ac_compile_to_memory_buffer(llvm_info, M,
+					      &err, &out_buffer);
 
 	/* Process Errors/Warnings */
 	if (mem_err) {

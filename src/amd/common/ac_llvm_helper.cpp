@@ -100,3 +100,12 @@ ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info)
 {
 	delete reinterpret_cast<llvm::TargetLibraryInfoImpl *>(library_info);
 }
+
+bool ac_compile_to_memory_buffer(struct ac_llvm_compiler_info *info,
+				 LLVMModuleRef M,
+				 char **ErrorMessage,
+				 LLVMMemoryBufferRef *OutMemBuf)
+{
+	return LLVMTargetMachineEmitToMemoryBuffer(info->tm, M, LLVMObjectFile,
+						   ErrorMessage, OutMemBuf);
+}
