@@ -212,6 +212,9 @@ static LLVMTypeRef to_integer_type_scalar(struct ac_llvm_context *ctx, LLVMTypeR
 LLVMTypeRef
 ac_to_integer_type(struct ac_llvm_context *ctx, LLVMTypeRef t)
 {
+	if (LLVMGetTypeKind(t) == LLVMPointerTypeKind) {
+		return t;
+	}
 	if (LLVMGetTypeKind(t) == LLVMVectorTypeKind) {
 		LLVMTypeRef elem_type = LLVMGetElementType(t);
 		return LLVMVectorType(to_integer_type_scalar(ctx, elem_type),
