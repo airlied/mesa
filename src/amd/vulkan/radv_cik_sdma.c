@@ -440,6 +440,16 @@ radv_cik_sdma_emit_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
 {
 	unsigned bytes_to_copy = MIN2(copy_size, CIK_SDMA_COPY_MAX_SIZE);
 
+	/*
+	 * If the source and destination are dword aligned and the size is at least one DWORD,
+	 * then go ahead and do DWORD copies.
+	 * Note that the SDMA microcode makes the switch between byte and DWORD copies automagically,
+	 * depending on the addresses being dword aligned and the size being a dword multiple.
+	 */
+	if (u_is_aligned(dst_va, 4) && u_is_aligned(src_va, 4) &&
+	    copy_size >= 4)
+		bytes_to_copy = u_align_down_npot_u32(bytes_to_copy, 4);
+
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 7);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
 						    CIK_SDMA_COPY_SUB_OPCODE_LINEAR,
