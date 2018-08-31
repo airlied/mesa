@@ -128,23 +128,36 @@ radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 				  bool buf2img)
 {
 	uint64_t src_va, dst_va;
+	uint32_t src_xy, src_z_pitch, src_slice_pitch;
+	uint32_t dst_xy, dst_z_pitch, dst_slice_pitch;	
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 	src_va = buf2img ? info->buf_info.va : info->image_info.va;
 	dst_va = buf2img ? info->image_info.va : info->buf_info.va;
 
+	uint32_t img_xy = info->image_info.offset.x | (info->image_info.offset.y << 16);
+	uint32_t img_z_pitch = info->image_info.offset.z | ((info->image_info.pitch - 1) << 16);
+	uint32_t buf_z_pitch = ((info->buf_info.pitch - 1) << 16);
+	src_xy = buf2img ? 0 : img_xy;
+	dst_xy = buf2img ? img_xy : 0;
+
+	src_z_pitch = buf2img ? buf_z_pitch : img_z_pitch;
+	dst_z_pitch = buf2img ? img_z_pitch : buf_z_pitch;
+
+	src_slice_pitch = buf2img ? (info->buf_info.slice_pitch - 1) : (info->image_info.slice_pitch - 1);
+	dst_slice_pitch = buf2img ? (info->image_info.slice_pitch - 1) : (info->buf_info.slice_pitch - 1);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
 						    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
 		    (util_logbase2(info->image_info.bpp) << 29));
 	radeon_emit(cmd_buffer->cs, src_va);
 	radeon_emit(cmd_buffer->cs, src_va >> 32);
-	radeon_emit(cmd_buffer->cs, 0);
-	radeon_emit(cmd_buffer->cs, ((info->buf_info.pitch - 1) << 16));
-	radeon_emit(cmd_buffer->cs, (info->buf_info.slice_pitch - 1));
+	radeon_emit(cmd_buffer->cs, src_xy);
+	radeon_emit(cmd_buffer->cs, src_z_pitch);
+	radeon_emit(cmd_buffer->cs, src_slice_pitch);
 	radeon_emit(cmd_buffer->cs, dst_va);
 	radeon_emit(cmd_buffer->cs, dst_va >> 32);
-	radeon_emit(cmd_buffer->cs, info->image_info.offset.x | (info->image_info.offset.y << 16));
-	radeon_emit(cmd_buffer->cs, info->image_info.offset.z | ((info->image_info.pitch - 1) << 16));
-	radeon_emit(cmd_buffer->cs, (info->image_info.slice_pitch - 1));
+	radeon_emit(cmd_buffer->cs, dst_xy);
+	radeon_emit(cmd_buffer->cs, dst_z_pitch);
+	radeon_emit(cmd_buffer->cs, dst_slice_pitch);
 	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
 		radeon_emit(cmd_buffer->cs, info->extent.width | (info->extent.height << 16));
 		radeon_emit(cmd_buffer->cs, info->extent.depth);
