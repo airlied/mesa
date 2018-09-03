@@ -340,7 +340,7 @@ radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 		dword4 |= (til_width - 1) << 16;
 		dword5 = (til_image->info.height - 1) | ((til_image->info.depth - 1) << 16);
 		dword0 |= (til_image->info.levels - 1) << 20;
-		dword0 |= til_info->mip_level;
+		dword0 |= til_info->mip_level << 24;
 	} else {
 		unsigned pitch_tile_max = til_info->pitch / 8 - 1;
 		unsigned slice_tile_max = til_info->slice_pitch / 64 - 1;
