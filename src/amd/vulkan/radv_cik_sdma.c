@@ -526,14 +526,16 @@ radv_cik_sdma_emit_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 
 	size = MIN2(fillSize, max_fill);
 
-	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9)
-		size--;
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 5);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_PACKET_CONSTANT_FILL,
 						    0, SDMA_CONSTANT_FILL_DWORDS));
 	radeon_emit(cmd_buffer->cs, dst_va);
 	radeon_emit(cmd_buffer->cs, dst_va >> 32);
 	radeon_emit(cmd_buffer->cs, data);
-	radeon_emit(cmd_buffer->cs, size);
+	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9)
+		radeon_emit(cmd_buffer->cs, size - 1);
+	else
+		radeon_emit(cmd_buffer->cs, size);
 	return size;
 }
 
