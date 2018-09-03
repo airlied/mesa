@@ -83,17 +83,28 @@ static unsigned encode_tile_info(struct radv_cmd_buffer *cmd_buffer,
 		return encode_tile_info_gfx6(info, image, level, set_bpp);
 }
 
+/* The hw can read outside of the given linear buffer bounds,
+ * or access those pages but not touch the memory in case
+ * of writes. (it still causes a VM fault)
+ *
+ * Out-of-bounds memory access or page directory access must
+ * be prevented.
+ */
 static bool
 linear_buffer_workaround(struct radv_cmd_buffer *cmd_buffer,
-			 struct radv_image *image,
-			 uint32_t level,
-			 uint32_t bpp, unsigned *granularity_p)
+			 struct radv_image *til_image,
+			 const struct radv_transfer_per_image_info *til_info,
+			 struct radv_image *lin_image,
+			 const struct radv_transfer_per_image_info *lin_info,
+			 uint32_t copy_width, uint32_t copy_height, uint32_t copy_depth,
+			 uint32_t bpp)
 {
 	struct radeon_info *info = &cmd_buffer->device->physical_device->rad_info;
-	unsigned til_tile_index = image->surface.u.legacy.tiling_index[level];
+	unsigned til_tile_index = til_image->surface.u.legacy.tiling_index[til_info->mip_level];
 	unsigned til_tile_mode = info->si_tile_mode_array[til_tile_index];
 	unsigned til_micro_mode = G_009910_MICRO_TILE_MODE_NEW(til_tile_mode);
 	unsigned granularity;
+	int64_t start_linear_address, end_linear_address;
 
 	/* Deduce the size of reads from the linear surface. */
 	switch (til_micro_mode) {
@@ -117,7 +128,31 @@ linear_buffer_workaround(struct radv_cmd_buffer *cmd_buffer,
 		return false;
 	}
 
-	*granularity_p = granularity;
+		/* The linear reads start at tiled_x & ~(granularity - 1).
+	 * If linear_x == 0 && tiled_x % granularity != 0, the hw
+	 * starts reading from an address preceding linear_address!!!
+	 */
+	start_linear_address =
+		lin_image->surface.u.legacy.level[lin_info->mip_level].offset +
+		bpp * (lin_info->offset.z * lin_info->slice_pitch +
+		       lin_info->offset.y * lin_info->pitch +
+		       lin_info->offset.x);
+	start_linear_address -= (int)(bpp * (til_info->offset.x % granularity));
+
+	end_linear_address =
+		lin_image->surface.u.legacy.level[lin_info->mip_level].offset +
+		bpp * ((lin_info->offset.z + copy_depth - 1) * lin_info->slice_pitch +
+		       (lin_info->offset.y + copy_height - 1) * lin_info->pitch +
+		       (lin_info->offset.x + copy_width));
+
+	if ((til_info->offset.x + copy_width) % granularity)
+		end_linear_address += granularity -
+			(til_info->offset.x + copy_width) % granularity;
+
+	if (start_linear_address < 0 ||
+	    end_linear_address > lin_image->surface.surf_size) {
+		return false;
+	}
 	return true;
 }
 
@@ -283,50 +318,17 @@ radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 
 	/* TODO HW Limitations - how do we handle those in vk? */
 
-	/* The hw can read outside of the given linear buffer bounds,
-	 * or access those pages but not touch the memory in case
-	 * of writes. (it still causes a VM fault)
-	 *
-	 * Out-of-bounds memory access or page directory access must
-	 * be prevented.
-	 */
-	int64_t start_linear_address, end_linear_address;
-	bool ret;
-	unsigned granularity;
-	ret = linear_buffer_workaround(cmd_buffer, til_image,
-				       til_info->mip_level,
-				       bpp, &granularity);
+	if (cmd_buffer->device->physical_device->rad_info.chip_class < GFX9) {
+		 bool ret = linear_buffer_workaround(cmd_buffer,
+						     til_image, til_info,
+						     lin_image, lin_info,
+						     copy_width, copy_height, copy_depth,
+						     bpp);
 
-	if (ret == false) {
-		cmd_buffer->record_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
-		return;
-	}
-
-	/* The linear reads start at tiled_x & ~(granularity - 1).
-	 * If linear_x == 0 && tiled_x % granularity != 0, the hw
-	 * starts reading from an address preceding linear_address!!!
-	 */
-	start_linear_address =
-		lin_image->surface.u.legacy.level[lin_info->mip_level].offset +
-		bpp * (lin_info->offset.z * lin_info->slice_pitch +
-		       lin_info->offset.y * lin_info->pitch +
-		       lin_info->offset.x);
-	start_linear_address -= (int)(bpp * (til_info->offset.x % granularity));
-
-	end_linear_address =
-		lin_image->surface.u.legacy.level[lin_info->mip_level].offset +
-		bpp * ((lin_info->offset.z + copy_depth - 1) * lin_info->slice_pitch +
-		       (lin_info->offset.y + copy_height - 1) * lin_info->pitch +
-		       (lin_info->offset.x + copy_width));
-
-	if ((til_info->offset.x + copy_width) % granularity)
-		end_linear_address += granularity -
-			(til_info->offset.x + copy_width) % granularity;
-
-	if (start_linear_address < 0 ||
-	    end_linear_address > lin_image->surface.surf_size) {
-		cmd_buffer->record_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
-		return;
+		 if (ret == false) {
+			 cmd_buffer->record_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+			 return;
+		 }
 	}
 
 	dword0 = CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
