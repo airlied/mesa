@@ -373,7 +373,7 @@ radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, lin_info->va);
 	radeon_emit(cmd_buffer->cs, lin_info->va >> 32);
 	radeon_emit(cmd_buffer->cs, lin_info->offset.x | (lin_info->offset.y << 16));
-	radeon_emit(cmd_buffer->cs, lin_info->offset.z| ((lin_info->pitch - 1) << 16));
+	radeon_emit(cmd_buffer->cs, lin_info->offset.z | ((lin_info->pitch - 1) << 16));
 	radeon_emit(cmd_buffer->cs, lin_info->slice_pitch - 1);
 	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
 		radeon_emit(cmd_buffer->cs, copy_width_aligned | (copy_height << 16));
