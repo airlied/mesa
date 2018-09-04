@@ -211,21 +211,36 @@ radv_cik_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 {
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 14);
 
-	unsigned pitch_tile_max = info->image_info.pitch / 8 - 1;
-	unsigned slice_tile_max = info->image_info.slice_pitch / 64 - 1;
-
 	unsigned copy_width = DIV_ROUND_UP(info->extent.width, image->surface.blk_w);
 	unsigned copy_height = DIV_ROUND_UP(info->extent.height, image->surface.blk_h);
 	unsigned copy_width_aligned = copy_width;
 
-	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
-						    CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW, 0) |
-		    (buf2img ? 0 : (1u << 31)));
+	unsigned dword0, dword4, dword5;
+
+	dword0 = CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+				 CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW, 0) |
+		(buf2img ? 0 : (1u << 31));
+
+	dword4 = info->image_info.offset.z;
+	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
+		dword4 |= (image->info.width - 1) << 16;
+		dword5 = (image->info.height - 1) | ((image->info.depth - 1) << 16);
+		dword0 |= (image->info.levels - 1) << 20;
+		dword0 |= info->image_info.mip_level << 24;
+	} else {
+		unsigned pitch_tile_max = info->image_info.pitch / 8 - 1;
+		unsigned slice_tile_max = info->image_info.slice_pitch / 64 - 1;
+
+		dword4 |= (pitch_tile_max << 16);
+		dword5 = slice_tile_max;
+	}
+
+	radeon_emit(cmd_buffer->cs, dword0);
 	radeon_emit(cmd_buffer->cs, info->image_info.va);
 	radeon_emit(cmd_buffer->cs, info->image_info.va >> 32);
 	radeon_emit(cmd_buffer->cs, info->image_info.offset.x | (info->image_info.offset.y << 16));
-	radeon_emit(cmd_buffer->cs, info->image_info.offset.z | (pitch_tile_max << 16));
-	radeon_emit(cmd_buffer->cs, slice_tile_max);
+	radeon_emit(cmd_buffer->cs, dword4);
+	radeon_emit(cmd_buffer->cs, dword5);
 	radeon_emit(cmd_buffer->cs, encode_tile_info(cmd_buffer, image, info->image_info.mip_level, true));
 	radeon_emit(cmd_buffer->cs, info->buf_info.va);
 	radeon_emit(cmd_buffer->cs, info->buf_info.va >> 32);
@@ -337,7 +352,7 @@ radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 
 	dword4 = til_info->offset.z;
 	if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
-		dword4 |= (til_width - 1) << 16;
+		dword4 |= (til_image->info.width - 1) << 16;
 		dword5 = (til_image->info.height - 1) | ((til_image->info.depth - 1) << 16);
 		dword0 |= (til_image->info.levels - 1) << 20;
 		dword0 |= til_info->mip_level << 24;
