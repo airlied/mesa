@@ -46,10 +46,12 @@ void radv_transfer_get_per_image_info(struct radv_device *device,
 	info->mip_level = subres->mipLevel;
 
 	info->offset = *offset;
-	if (image->type == VK_IMAGE_TYPE_1D)
-		info->offset.y = subres->baseArrayLayer;
-	else if (image->type == VK_IMAGE_TYPE_2D)
-		info->offset.z = subres->baseArrayLayer;
+	if (image->type != VK_IMAGE_TYPE_3D) {
+		if (image->type == VK_IMAGE_TYPE_1D && device->physical_device->rad_info.chip_class < GFX9)
+			info->offset.y = subres->baseArrayLayer;
+		else
+			info->offset.z = subres->baseArrayLayer;
+	}
 	device->transfer_fns->get_per_image_info(image, subres->aspectMask == VK_IMAGE_ASPECT_STENCIL_BIT, info);
 }
 
