@@ -68,7 +68,7 @@ static unsigned encode_tile_info_gfx9(struct radeon_info *info,
 {
 	return (util_logbase2(image->surface.bpe)) |
 		(image->surface.u.gfx9.surf.swizzle_mode << 3) |
-		(image->type << 9) |
+		((image->type == VK_IMAGE_TYPE_3D ? 2 : 1) << 9) |
 		(image->surface.u.gfx9.surf.epitch << 16);
 }
 
