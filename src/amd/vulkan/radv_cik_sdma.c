@@ -579,6 +579,8 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 	info->va = radv_buffer_get_va(image->bo) + image->offset;
 	info->pitch = image->surface.u.gfx9.surf_pitch;
 	info->slice_pitch = image->surface.u.gfx9.surf_slice_size / info->bpp;
+	if (image->surface.is_linear)
+		info->va += image->surface.u.gfx9.offset[info->mip_level];
 }
 
 const static struct radv_transfer_fns sdma24_fns = {
