@@ -569,7 +569,7 @@ radv_cik_sdma_copy_image_tiled(struct radv_cmd_buffer *cmd_buffer,
 		dword5 = (src_image->info.height - 1) | ((src_image->info.depth - 1) << 16);
 
 		dword10 |= (dst_image->info.width - 1) << 16;
-		dword11 = (dst_image->info.height - 1) | ((dst_image->info.height - 1) << 16);
+		dword11 = (dst_image->info.height - 1) | ((dst_image->info.depth - 1) << 16);
 	} else {
 		unsigned src_pitch_tile_max = info->src_info.pitch / 8 - 1;
 		unsigned src_slice_tile_max = info->src_info.slice_pitch / 64 - 1;
