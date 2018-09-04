@@ -456,6 +456,9 @@ radv_cik_sdma_copy_image_tiled(struct radv_cmd_buffer *cmd_buffer,
 	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
 		radeon_emit(cmd_buffer->cs, copy_width_aligned | (copy_height_aligned << 16));
 		radeon_emit(cmd_buffer->cs, info->extent.depth);
+	} else if (cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9) {
+		radeon_emit(cmd_buffer->cs, (copy_width_aligned - 1) | ((copy_height_aligned - 1) << 16));
+		radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
 	} else {
 		radeon_emit(cmd_buffer->cs, (copy_width_aligned - 8) | ((copy_height_aligned - 8) << 16));
 		radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
