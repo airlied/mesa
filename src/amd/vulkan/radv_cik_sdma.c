@@ -394,26 +394,39 @@ radv_cik_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 					struct radv_image *src_image,
 					struct radv_image *dst_image)
 {
-	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
-	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
-						    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
-		    (util_logbase2(info->src_info.bpp) << 29));
-	radeon_emit(cmd_buffer->cs, info->src_info.va);
-	radeon_emit(cmd_buffer->cs, info->src_info.va >> 32);
-	radeon_emit(cmd_buffer->cs, info->src_info.offset.x | (info->src_info.offset.y << 16));
-	radeon_emit(cmd_buffer->cs, info->src_info.offset.z | ((info->src_info.pitch - 1) << 16));
-	radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch - 1);
-	radeon_emit(cmd_buffer->cs, info->dst_info.va);
-	radeon_emit(cmd_buffer->cs, info->dst_info.va >> 32);
-	radeon_emit(cmd_buffer->cs, info->dst_info.offset.x | (info->dst_info.offset.y << 16));
-	radeon_emit(cmd_buffer->cs, info->dst_info.offset.z | ((info->dst_info.pitch - 1) << 16));
-	radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch - 1);
-	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
-		radeon_emit(cmd_buffer->cs, info->extent.width | (info->extent.height << 16));
-		radeon_emit(cmd_buffer->cs, info->extent.depth);
-	} else {
-		radeon_emit(cmd_buffer->cs, (info->extent.width -1) | ((info->extent.height - 1) << 16));
-		radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+	int num_x_xfer = 1, num_y_xfer = 1;
+
+	uint32_t width = info->extent.width;
+	uint32_t height = info->extent.height;
+	if (width == CIK_MAX_DIM) {
+		num_x_xfer++;
+		width /= 2;
+	}
+	if (height == CIK_MAX_DIM) {
+		num_y_xfer++;
+		height /= 2;
+	}
+	for (uint32_t x = 0; x < num_x_xfer; x++) {
+		for (uint32_t y = 0; y < num_y_xfer; y++) {
+			uint32_t src_xy = (info->src_info.offset.x + (x * width)) | ((info->src_info.offset.y + (y * width)) << 16);
+			uint32_t dst_xy = (info->dst_info.offset.x + (x * width)) | ((info->dst_info.offset.y + (y * width)) << 16);
+			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+			radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+								    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
+				    (util_logbase2(info->src_info.bpp) << 29));
+			radeon_emit(cmd_buffer->cs, info->src_info.va);
+			radeon_emit(cmd_buffer->cs, info->src_info.va >> 32);
+			radeon_emit(cmd_buffer->cs, src_xy);
+			radeon_emit(cmd_buffer->cs, info->src_info.offset.z | ((info->src_info.pitch - 1) << 16));
+			radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch - 1);
+			radeon_emit(cmd_buffer->cs, info->dst_info.va);
+			radeon_emit(cmd_buffer->cs, info->dst_info.va >> 32);
+			radeon_emit(cmd_buffer->cs, dst_xy);
+			radeon_emit(cmd_buffer->cs, info->dst_info.offset.z | ((info->dst_info.pitch - 1) << 16));
+			radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch - 1);
+			radeon_emit(cmd_buffer->cs, width | (height << 16));
+			radeon_emit(cmd_buffer->cs, info->extent.depth);
+		}
 	}
 }
 
