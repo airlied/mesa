@@ -159,9 +159,9 @@ linear_buffer_workaround(struct radv_cmd_buffer *cmd_buffer,
 
 /* L2L buffer->image + image->buffer */
 static void
-radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
-				  const struct radv_transfer_image_buffer_info *info,
-				  bool buf2img)
+radv_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
+			      const struct radv_transfer_image_buffer_info *info,
+			      bool buf2img)
 {
 	uint64_t src_va, dst_va;
 	uint32_t src_xy, src_z_pitch, src_slice_pitch;
@@ -202,9 +202,9 @@ radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 
 /* L2L buffer->image + image->buffer */
 static void
-radv_cik_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
-				      const struct radv_transfer_image_buffer_info *info,
-				      bool buf2img)
+radv_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
+				  const struct radv_transfer_image_buffer_info *info,
+				  bool buf2img)
 {
 	uint64_t src_va, dst_va;
 	uint32_t src_xy, src_z_pitch, src_slice_pitch;
@@ -260,10 +260,10 @@ radv_cik_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 
 /* L2T buffer->image + image->buffer */
 static void
-radv_cik_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
-				    const struct radv_transfer_image_buffer_info *info,
-				    struct radv_image *image,
-				    bool buf2img)
+radv_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
+				const struct radv_transfer_image_buffer_info *info,
+				struct radv_image *image,
+				bool buf2img)
 {
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 14);
 
@@ -308,10 +308,10 @@ radv_cik_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static void
-radv_cik_sdma_copy_one_lin_to_tiled_cik(struct radv_cmd_buffer *cmd_buffer,
-					const struct radv_transfer_image_buffer_info *info,
-					struct radv_image *image,
-					bool buf2img)
+radv_sdma_copy_one_lin_to_tiled_cik(struct radv_cmd_buffer *cmd_buffer,
+				    const struct radv_transfer_image_buffer_info *info,
+				    struct radv_image *image,
+				    bool buf2img)
 {
 	unsigned copy_width = DIV_ROUND_UP(info->extent.width, image->surface.blk_w);
 	unsigned copy_height = DIV_ROUND_UP(info->extent.height, image->surface.blk_h);
@@ -365,10 +365,10 @@ radv_cik_sdma_copy_one_lin_to_tiled_cik(struct radv_cmd_buffer *cmd_buffer,
 
 /* L2L buffer->image */
 static void
-radv_cik_sdma_copy_image_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
-				    const struct radv_transfer_image_info *info,
-				    struct radv_image *src_image,
-				    struct radv_image *dst_image)
+radv_sdma_copy_image_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
+				const struct radv_transfer_image_info *info,
+				struct radv_image *src_image,
+				struct radv_image *dst_image)
 {
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
@@ -389,10 +389,10 @@ radv_cik_sdma_copy_image_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static void
-radv_cik_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
-					const struct radv_transfer_image_info *info,
-					struct radv_image *src_image,
-					struct radv_image *dst_image)
+radv_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
+				    const struct radv_transfer_image_info *info,
+				    struct radv_image *src_image,
+				    struct radv_image *dst_image)
 {
 	int num_x_xfer = 1, num_y_xfer = 1;
 
@@ -432,10 +432,10 @@ radv_cik_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 
 /* L2L buffer->image */
 static void
-radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
-				      const struct radv_transfer_image_info *info,
-				      struct radv_image *src_image,
-				      struct radv_image *dst_image)
+radv_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
+				  const struct radv_transfer_image_info *info,
+				  struct radv_image *src_image,
+				  struct radv_image *dst_image)
 {
 	const struct radv_transfer_per_image_info *lin_info, *til_info;
 	struct radv_image *lin_image, *til_image;
@@ -529,10 +529,10 @@ radv_cik_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static void
-radv_cik_sdma_copy_image_tiled(struct radv_cmd_buffer *cmd_buffer,
-			       const struct radv_transfer_image_info *info,
-			       struct radv_image *src_image,
-			       struct radv_image *dst_image)
+radv_sdma_copy_image_tiled(struct radv_cmd_buffer *cmd_buffer,
+			   const struct radv_transfer_image_info *info,
+			   struct radv_image *src_image,
+			   struct radv_image *dst_image)
 {
 	unsigned dst_width = minify_as_blocks(dst_image->info.width,
 					      info->dst_info.mip_level, dst_image->surface.blk_w);
@@ -610,10 +610,10 @@ radv_cik_sdma_copy_image_tiled(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static VkDeviceSize
-radv_cik_sdma_emit_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
-			       uint64_t src_va,
-			       uint64_t dst_va,
-			       VkDeviceSize copy_size)
+radv_sdma_emit_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
+			   uint64_t src_va,
+			   uint64_t dst_va,
+			   VkDeviceSize copy_size)
 {
 	unsigned bytes_to_copy = MIN2(copy_size, CIK_SDMA_COPY_MAX_SIZE);
 
@@ -645,10 +645,10 @@ radv_cik_sdma_emit_copy_buffer(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static void
-radv_cik_sdma_emit_update_buffer(struct radv_cmd_buffer *cmd_buffer,
-				 uint64_t dst_va,
-				 VkDeviceSize data_size,
-				 const void *data)
+radv_sdma_emit_update_buffer(struct radv_cmd_buffer *cmd_buffer,
+			     uint64_t dst_va,
+			     VkDeviceSize data_size,
+			     const void *data)
 {
 	int num_dw = (data_size + 3) / 4;
 	const uint32_t *data_dw = data;
@@ -678,10 +678,10 @@ radv_cik_sdma_emit_update_buffer(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static VkDeviceSize
-radv_cik_sdma_emit_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
-			       uint64_t dst_va,
-			       VkDeviceSize fillSize,
-			       uint32_t data)
+radv_sdma_emit_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
+			   uint64_t dst_va,
+			   VkDeviceSize fillSize,
+			   uint32_t data)
 {
 	uint32_t size;
 	VkDeviceSize max_fill = ((1ul << 22ull) - 1ull) & (~0x3ull);
@@ -702,9 +702,9 @@ radv_cik_sdma_emit_fill_buffer(struct radv_cmd_buffer *cmd_buffer,
 }
 
 static void
-radv_cik_sdma_get_per_image_info(struct radv_image *image,
-				 bool is_stencil,
-				 struct radv_transfer_per_image_info *info)
+radv_sdma_get_per_image_info(struct radv_image *image,
+			     bool is_stencil,
+			     struct radv_transfer_per_image_info *info)
 {
 	const struct legacy_surf_level *base_level = get_base_level_info(image, is_stencil,
 									 info->mip_level);
@@ -731,40 +731,40 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 }
 
 const static struct radv_transfer_fns sdma20_fns = {
-	.emit_copy_buffer = radv_cik_sdma_emit_copy_buffer,
-	.emit_update_buffer = radv_cik_sdma_emit_update_buffer,
-	.emit_fill_buffer = radv_cik_sdma_emit_fill_buffer,
-	.copy_buffer_image_l2l = radv_cik_sdma_copy_one_lin_to_lin_cik,
-	.copy_buffer_image_l2t = radv_cik_sdma_copy_one_lin_to_tiled_cik,
-	.copy_image_l2l = radv_cik_sdma_copy_image_lin_to_lin_cik,
-	.copy_image_l2t = radv_cik_sdma_copy_image_lin_to_tiled,
-	.copy_image_t2t = radv_cik_sdma_copy_image_tiled,
+	.emit_copy_buffer = radv_sdma_emit_copy_buffer,
+	.emit_update_buffer = radv_sdma_emit_update_buffer,
+	.emit_fill_buffer = radv_sdma_emit_fill_buffer,
+	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin_cik,
+	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled_cik,
+	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin_cik,
+	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
+	.copy_image_t2t = radv_sdma_copy_image_tiled,
 
-	.get_per_image_info = radv_cik_sdma_get_per_image_info,
+	.get_per_image_info = radv_sdma_get_per_image_info,
 };
 
 const static struct radv_transfer_fns sdma24_fns = {
-	.emit_copy_buffer = radv_cik_sdma_emit_copy_buffer,
-	.emit_update_buffer = radv_cik_sdma_emit_update_buffer,
-	.emit_fill_buffer = radv_cik_sdma_emit_fill_buffer,
-	.copy_buffer_image_l2l = radv_cik_sdma_copy_one_lin_to_lin,
-	.copy_buffer_image_l2t = radv_cik_sdma_copy_one_lin_to_tiled,
-	.copy_image_l2l = radv_cik_sdma_copy_image_lin_to_lin,
-	.copy_image_l2t = radv_cik_sdma_copy_image_lin_to_tiled,
-	.copy_image_t2t = radv_cik_sdma_copy_image_tiled,
+	.emit_copy_buffer = radv_sdma_emit_copy_buffer,
+	.emit_update_buffer = radv_sdma_emit_update_buffer,
+	.emit_fill_buffer = radv_sdma_emit_fill_buffer,
+	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin,
+	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled,
+	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
+	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
+	.copy_image_t2t = radv_sdma_copy_image_tiled,
 
-	.get_per_image_info = radv_cik_sdma_get_per_image_info,
+	.get_per_image_info = radv_sdma_get_per_image_info,
 };
 
 const static struct radv_transfer_fns sdma40_fns = {
-	.emit_copy_buffer = radv_cik_sdma_emit_copy_buffer,
-	.emit_update_buffer = radv_cik_sdma_emit_update_buffer,
-	.emit_fill_buffer = radv_cik_sdma_emit_fill_buffer,
-	.copy_buffer_image_l2l = radv_cik_sdma_copy_one_lin_to_lin,
-	.copy_buffer_image_l2t = radv_cik_sdma_copy_one_lin_to_tiled,
-	.copy_image_l2l = radv_cik_sdma_copy_image_lin_to_lin,
-	.copy_image_l2t = radv_cik_sdma_copy_image_lin_to_tiled,
-	.copy_image_t2t = radv_cik_sdma_copy_image_tiled,
+	.emit_copy_buffer = radv_sdma_emit_copy_buffer,
+	.emit_update_buffer = radv_sdma_emit_update_buffer,
+	.emit_fill_buffer = radv_sdma_emit_fill_buffer,
+	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin,
+	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled,
+	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
+	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
+	.copy_image_t2t = radv_sdma_copy_image_tiled,
 
 	.get_per_image_info = radv_gfx9_sdma_get_per_image_info,
 };
