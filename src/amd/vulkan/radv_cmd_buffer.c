@@ -4443,7 +4443,7 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer,
 
 	if (cmd_buffer->queue_family_index == RADV_QUEUE_TRANSFER) {
 		/* NOP waits for idle on CIK and later. */
-		radeon_emit(cmd_buffer->cs, 0x00000000); /* NOP */
+		cmd_buffer->device->transfer_fns->emit_nop(cmd_buffer);
 		return;
 	}
 
