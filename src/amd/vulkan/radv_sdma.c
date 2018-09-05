@@ -782,7 +782,7 @@ radv_sdma_emit_fill_buffer_si(struct radv_cmd_buffer *cmd_buffer,
 
 	uint32_t size = MIN2(fillSize, max_fill * sizeof(uint32_t));
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 4);
-	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET_CONSTANT_FILL | ((size / sizeof(uint32_t)) << 12));
+	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_CONSTANT_FILL, 0, size / sizeof(uint32_t)));
 	radeon_emit(cmd_buffer->cs, dst_va);
 	radeon_emit(cmd_buffer->cs, data);
 	radeon_emit(cmd_buffer->cs, ((dst_va >> 32) & 0xff) << 16);
