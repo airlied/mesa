@@ -684,6 +684,8 @@ struct radv_transfer_fns {
 			       const struct radv_transfer_image_info *image_info,
 			       struct radv_image *src_image,
 			       struct radv_image *dst_image);
+
+	void (*emit_nop)(struct radv_cmd_buffer *cmd_buffer);
 };
 
 struct radv_device {

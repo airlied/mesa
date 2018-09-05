@@ -725,6 +725,13 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 		info->va += image->surface.u.gfx9.offset[info->mip_level];
 }
 
+static void
+radv_sdma_emit_nop(struct radv_cmd_buffer *cmd_buffer)
+{
+	/* emit 0 for a transfer NOP on CIK+ */
+	radeon_emit(cmd_buffer->cs, 0);
+}
+	
 const static struct radv_transfer_fns sdma20_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer,
 	.emit_update_buffer = radv_sdma_emit_update_buffer,
@@ -735,6 +742,7 @@ const static struct radv_transfer_fns sdma20_fns = {
 	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
 	.copy_image_t2t = radv_sdma_copy_image_tiled,
 
+	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
 };
 
@@ -747,7 +755,7 @@ const static struct radv_transfer_fns sdma24_fns = {
 	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
 	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
 	.copy_image_t2t = radv_sdma_copy_image_tiled,
-
+	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
 };
 
@@ -760,13 +768,65 @@ const static struct radv_transfer_fns sdma40_fns = {
 	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
 	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
 	.copy_image_t2t = radv_sdma_copy_image_tiled,
-
+	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_gfx9_sdma_get_per_image_info,
+};
+
+static VkDeviceSize
+radv_sdma_emit_fill_buffer_si(struct radv_cmd_buffer *cmd_buffer,
+			      uint64_t dst_va,
+			      VkDeviceSize fillSize,
+			      uint32_t data)
+{
+	VkDeviceSize max_fill = ((1ul << 20ull) - 1ull);
+
+	uint32_t size = MIN2(fillSize, max_fill * sizeof(uint32_t));
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 4);
+	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET_CONSTANT_FILL | ((size / sizeof(uint32_t)) << 12));
+	radeon_emit(cmd_buffer->cs, dst_va);
+	radeon_emit(cmd_buffer->cs, data);
+	radeon_emit(cmd_buffer->cs, ((dst_va >> 32) & 0xff) << 16);
+	return size;
+}
+
+static void
+radv_sdma_emit_update_buffer_si(struct radv_cmd_buffer *cmd_buffer,
+				uint64_t dst_va,
+				VkDeviceSize data_size,
+				const void *data)
+{
+	int num_dw = (data_size + 3) / 4;
+	const uint32_t *data_dw = data;
+	int left_dw = num_dw;
+	do {
+		int can_dw = cmd_buffer->cs->max_dw - cmd_buffer->cs->cdw - 4;
+		int this_dw = MIN2(left_dw, can_dw);
+
+		data_dw += this_dw;
+		left_dw -= this_dw;
+		dst_va += this_dw * sizeof(uint32_t);
+	} while (left_dw > 0);
+}
+
+static void
+radv_sdma_emit_nop_si(struct radv_cmd_buffer *cmd_buffer)
+{
+	/* emit 0 for a transfer NOP on CIK+ */
+	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET_NOP);
+}
+
+const static struct radv_transfer_fns sdma10_fns = {
+	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
+	.emit_update_buffer = radv_sdma_emit_update_buffer_si,
+	.get_per_image_info = radv_sdma_get_per_image_info,
+	.emit_nop = radv_sdma_emit_nop_si,
 };
 
 void radv_setup_transfer(struct radv_device *device)
 {
-	if (device->physical_device->rad_info.chip_class == CIK)
+        if (device->physical_device->rad_info.chip_class == SI)
+ 		device->transfer_fns = &sdma10_fns;
+ 	if (device->physical_device->rad_info.chip_class == CIK)
 		device->transfer_fns = &sdma20_fns;
 	if (device->physical_device->rad_info.chip_class == VI)
 		device->transfer_fns = &sdma24_fns;
