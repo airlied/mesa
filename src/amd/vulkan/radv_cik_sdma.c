@@ -27,6 +27,7 @@
 #include "sid.h"
 #include "radv_cs.h"
 
+#define CIK_MAX_DIM (1<<14)
 static unsigned minify_as_blocks(unsigned width, unsigned level, unsigned blk_w)
 {
 	width = radv_minify(width, level);
@@ -165,7 +166,7 @@ radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t src_va, dst_va;
 	uint32_t src_xy, src_z_pitch, src_slice_pitch;
 	uint32_t dst_xy, dst_z_pitch, dst_slice_pitch;	
-	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+
 	src_va = buf2img ? info->buf_info.va : info->image_info.va;
 	dst_va = buf2img ? info->image_info.va : info->buf_info.va;
 
@@ -180,6 +181,8 @@ radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 
 	src_slice_pitch = buf2img ? (info->buf_info.slice_pitch - 1) : (info->image_info.slice_pitch - 1);
 	dst_slice_pitch = buf2img ? (info->image_info.slice_pitch - 1) : (info->buf_info.slice_pitch - 1);
+
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
 						    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
 		    (util_logbase2(info->image_info.bpp) << 29));
@@ -193,12 +196,65 @@ radv_cik_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, dst_xy);
 	radeon_emit(cmd_buffer->cs, dst_z_pitch);
 	radeon_emit(cmd_buffer->cs, dst_slice_pitch);
-	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
-		radeon_emit(cmd_buffer->cs, info->extent.width | (info->extent.height << 16));
-		radeon_emit(cmd_buffer->cs, info->extent.depth);
-	} else {
-		radeon_emit(cmd_buffer->cs, (info->extent.width - 1) | ((info->extent.height - 1) << 16));
-		radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+	radeon_emit(cmd_buffer->cs, (info->extent.width - 1) | ((info->extent.height - 1) << 16));
+	radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+}
+
+/* L2L buffer->image + image->buffer */
+static void
+radv_cik_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
+				      const struct radv_transfer_image_buffer_info *info,
+				      bool buf2img)
+{
+	uint64_t src_va, dst_va;
+	uint32_t src_xy, src_z_pitch, src_slice_pitch;
+	uint32_t dst_xy, dst_z_pitch, dst_slice_pitch;	
+	int num_x_xfer = 1, num_y_xfer = 1;
+	src_va = buf2img ? info->buf_info.va : info->image_info.va;
+	dst_va = buf2img ? info->image_info.va : info->buf_info.va;
+
+	uint32_t img_z_pitch = info->image_info.offset.z | ((info->image_info.pitch - 1) << 16);
+	uint32_t buf_z_pitch = ((info->buf_info.pitch - 1) << 16);
+	src_z_pitch = buf2img ? buf_z_pitch : img_z_pitch;
+	dst_z_pitch = buf2img ? img_z_pitch : buf_z_pitch;
+
+	src_slice_pitch = buf2img ? (info->buf_info.slice_pitch - 1) : (info->image_info.slice_pitch - 1);
+	dst_slice_pitch = buf2img ? (info->image_info.slice_pitch - 1) : (info->buf_info.slice_pitch - 1);
+
+	uint32_t width = info->extent.width;
+	uint32_t height = info->extent.height;
+	if (info->extent.width == CIK_MAX_DIM) {
+		num_x_xfer++;
+		width /= 2;
+	}
+	if (info->extent.height == CIK_MAX_DIM) {
+		num_y_xfer++;
+		height /= 2;
+	}
+
+	for (int x = 0; x < num_x_xfer; x++) {
+		for (int y = 0; y < num_y_xfer; y++) {
+			uint32_t img_xy = (info->image_info.offset.x + (x * width)) | ((info->image_info.offset.y + (y * width)) << 16);
+			uint32_t buf_xy = (x * width) | ((y * width) << 16);
+			src_xy = buf2img ? buf_xy : img_xy;
+			dst_xy = buf2img ? img_xy : buf_xy;
+			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+			radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+								    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
+				    (util_logbase2(info->image_info.bpp) << 29));
+			radeon_emit(cmd_buffer->cs, src_va);
+			radeon_emit(cmd_buffer->cs, src_va >> 32);
+			radeon_emit(cmd_buffer->cs, src_xy);
+			radeon_emit(cmd_buffer->cs, src_z_pitch);
+			radeon_emit(cmd_buffer->cs, src_slice_pitch);
+			radeon_emit(cmd_buffer->cs, dst_va);
+			radeon_emit(cmd_buffer->cs, dst_va >> 32);
+			radeon_emit(cmd_buffer->cs, dst_xy);
+			radeon_emit(cmd_buffer->cs, dst_z_pitch);
+			radeon_emit(cmd_buffer->cs, dst_slice_pitch);
+			radeon_emit(cmd_buffer->cs, width | (height << 16));
+			radeon_emit(cmd_buffer->cs, info->extent.depth);
+		}
 	}
 }
 
@@ -247,12 +303,63 @@ radv_cik_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, 0/*x,y*/);
 	radeon_emit(cmd_buffer->cs, ((info->buf_info.pitch - 1) << 16));
 	radeon_emit(cmd_buffer->cs, info->buf_info.slice_pitch - 1);
-	if (cmd_buffer->device->physical_device->rad_info.chip_class == CIK) {
-		radeon_emit(cmd_buffer->cs, copy_width_aligned | (copy_height << 16));
-		radeon_emit(cmd_buffer->cs, info->extent.depth);
-	} else {
-		radeon_emit(cmd_buffer->cs, (copy_width_aligned - 1) | ((copy_height - 1) << 16));
-		radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+	radeon_emit(cmd_buffer->cs, (copy_width_aligned - 1) | ((copy_height - 1) << 16));
+	radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+}
+
+static void
+radv_cik_sdma_copy_one_lin_to_tiled_cik(struct radv_cmd_buffer *cmd_buffer,
+					const struct radv_transfer_image_buffer_info *info,
+					struct radv_image *image,
+					bool buf2img)
+{
+	unsigned copy_width = DIV_ROUND_UP(info->extent.width, image->surface.blk_w);
+	unsigned copy_height = DIV_ROUND_UP(info->extent.height, image->surface.blk_h);
+	int num_x_xfers = 1, num_y_xfers = 1;
+	unsigned dword0, dword4, dword5;
+
+	dword0 = CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+				 CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW, 0) |
+		(buf2img ? 0 : (1u << 31));
+
+	dword4 = info->image_info.offset.z;
+	unsigned pitch_tile_max = info->image_info.pitch / 8 - 1;
+	unsigned slice_tile_max = info->image_info.slice_pitch / 64 - 1;
+
+	dword4 |= (pitch_tile_max << 16);
+	dword5 = slice_tile_max;
+
+	if (copy_width == CIK_MAX_DIM) {
+		num_x_xfers++;
+		copy_width /= 2;
+	}
+	if ((info->image_info.offset.y + copy_height == CIK_MAX_DIM) && (copy_height > 1)) {
+		num_y_xfers++;
+		copy_height -= 1;
+	}
+	for (uint32_t x = 0; x < num_x_xfers; x++) {
+		for (uint32_t y = 0; y < num_y_xfers; y++) {
+			uint32_t img_xy, buf_xy;
+
+			img_xy = info->image_info.offset.x + (x * copy_width);
+			img_xy |= (info->image_info.offset.y + (y * copy_height)) << 16;
+			buf_xy = (x * copy_width) | ((y * copy_height) << 16);
+			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 14);
+			radeon_emit(cmd_buffer->cs, dword0);
+			radeon_emit(cmd_buffer->cs, info->image_info.va);
+			radeon_emit(cmd_buffer->cs, info->image_info.va >> 32);
+			radeon_emit(cmd_buffer->cs, img_xy);
+			radeon_emit(cmd_buffer->cs, dword4);
+			radeon_emit(cmd_buffer->cs, dword5);
+			radeon_emit(cmd_buffer->cs, encode_tile_info(cmd_buffer, image, info->image_info.mip_level, true));
+			radeon_emit(cmd_buffer->cs, info->buf_info.va);
+			radeon_emit(cmd_buffer->cs, info->buf_info.va >> 32);
+			radeon_emit(cmd_buffer->cs, buf_xy);
+			radeon_emit(cmd_buffer->cs, ((info->buf_info.pitch - 1) << 16));
+			radeon_emit(cmd_buffer->cs, info->buf_info.slice_pitch - 1);
+			radeon_emit(cmd_buffer->cs, copy_width | (((y == 0) ? copy_height : 1) << 16));
+			radeon_emit(cmd_buffer->cs, info->extent.depth);
+		}
 	}
 }
 
@@ -262,6 +369,30 @@ radv_cik_sdma_copy_image_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 				    const struct radv_transfer_image_info *info,
 				    struct radv_image *src_image,
 				    struct radv_image *dst_image)
+{
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
+						    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
+		    (util_logbase2(info->src_info.bpp) << 29));
+	radeon_emit(cmd_buffer->cs, info->src_info.va);
+	radeon_emit(cmd_buffer->cs, info->src_info.va >> 32);
+	radeon_emit(cmd_buffer->cs, info->src_info.offset.x | (info->src_info.offset.y << 16));
+	radeon_emit(cmd_buffer->cs, info->src_info.offset.z | ((info->src_info.pitch - 1) << 16));
+	radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch - 1);
+	radeon_emit(cmd_buffer->cs, info->dst_info.va);
+	radeon_emit(cmd_buffer->cs, info->dst_info.va >> 32);
+	radeon_emit(cmd_buffer->cs, info->dst_info.offset.x | (info->dst_info.offset.y << 16));
+	radeon_emit(cmd_buffer->cs, info->dst_info.offset.z | ((info->dst_info.pitch - 1) << 16));
+	radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch - 1);
+	radeon_emit(cmd_buffer->cs, (info->extent.width -1) | ((info->extent.height - 1) << 16));
+	radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
+}
+
+static void
+radv_cik_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
+					const struct radv_transfer_image_info *info,
+					struct radv_image *src_image,
+					struct radv_image *dst_image)
 {
 	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 	radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
@@ -586,6 +717,19 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 		info->va += image->surface.u.gfx9.offset[info->mip_level];
 }
 
+const static struct radv_transfer_fns sdma20_fns = {
+	.emit_copy_buffer = radv_cik_sdma_emit_copy_buffer,
+	.emit_update_buffer = radv_cik_sdma_emit_update_buffer,
+	.emit_fill_buffer = radv_cik_sdma_emit_fill_buffer,
+	.copy_buffer_image_l2l = radv_cik_sdma_copy_one_lin_to_lin_cik,
+	.copy_buffer_image_l2t = radv_cik_sdma_copy_one_lin_to_tiled_cik,
+	.copy_image_l2l = radv_cik_sdma_copy_image_lin_to_lin_cik,
+	.copy_image_l2t = radv_cik_sdma_copy_image_lin_to_tiled,
+	.copy_image_t2t = radv_cik_sdma_copy_image_tiled,
+
+	.get_per_image_info = radv_cik_sdma_get_per_image_info,
+};
+
 const static struct radv_transfer_fns sdma24_fns = {
 	.emit_copy_buffer = radv_cik_sdma_emit_copy_buffer,
 	.emit_update_buffer = radv_cik_sdma_emit_update_buffer,
@@ -614,6 +758,8 @@ const static struct radv_transfer_fns sdma40_fns = {
 
 void radv_setup_transfer(struct radv_device *device)
 {
+	if (device->physical_device->rad_info.chip_class == CIK)
+		device->transfer_fns = &sdma20_fns;
 	if (device->physical_device->rad_info.chip_class == VI)
 		device->transfer_fns = &sdma24_fns;
 	if (device->physical_device->rad_info.chip_class == GFX9)
