@@ -951,11 +951,7 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 	struct radeon_winsys *ws = (struct radeon_winsys*)cs0->ws;
 	amdgpu_bo_list_handle bo_list;
 	struct amdgpu_cs_request request;
-	uint32_t pad_word = 0xffff1000U;
 	bool emit_signal_sem = sem_info->cs_emit_signal;
-
-	if (radv_amdgpu_winsys(ws)->info.chip_class == SI)
-		pad_word = 0x80000000;
 
 	assert(cs_count);
 
@@ -969,6 +965,13 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 		unsigned cnt = 0;
 		unsigned size = 0;
 		unsigned pad_words = 0;
+		uint32_t pad_word = 0xffff1000U;
+
+		if (radv_amdgpu_winsys(ws)->info.chip_class == SI)
+			if (cs->hw_ip == AMDGPU_HW_IP_DMA)
+				pad_word = 0xf0000000;
+			else
+				pad_word = 0x80000000;
 
 		if (cs->num_old_cs_buffers > 0) {
 			/* Special path when the maximum size in dwords has
