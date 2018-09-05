@@ -157,7 +157,6 @@ linear_buffer_workaround(struct radv_cmd_buffer *cmd_buffer,
 	return true;
 }
 
-/* L2L buffer->image + image->buffer */
 static void
 radv_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 			      const struct radv_transfer_image_buffer_info *info,
@@ -200,7 +199,6 @@ radv_sdma_copy_one_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, (info->extent.depth - 1));
 }
 
-/* L2L buffer->image + image->buffer */
 static void
 radv_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 				  const struct radv_transfer_image_buffer_info *info,
@@ -258,7 +256,6 @@ radv_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
-/* L2T buffer->image + image->buffer */
 static void
 radv_sdma_copy_one_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 				const struct radv_transfer_image_buffer_info *info,
@@ -363,7 +360,6 @@ radv_sdma_copy_one_lin_to_tiled_cik(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
-/* L2L buffer->image */
 static void
 radv_sdma_copy_image_lin_to_lin(struct radv_cmd_buffer *cmd_buffer,
 				const struct radv_transfer_image_info *info,
@@ -430,7 +426,6 @@ radv_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
-/* L2L buffer->image */
 static void
 radv_sdma_copy_image_lin_to_tiled(struct radv_cmd_buffer *cmd_buffer,
 				  const struct radv_transfer_image_info *info,
