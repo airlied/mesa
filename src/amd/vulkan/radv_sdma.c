@@ -789,6 +789,51 @@ radv_sdma_emit_fill_buffer_si(struct radv_cmd_buffer *cmd_buffer,
 	return size;
 }
 
+static VkDeviceSize
+radv_sdma_emit_copy_buffer_si(struct radv_cmd_buffer *cmd_buffer,
+			      uint64_t src_va,
+			      uint64_t dst_va,
+			      VkDeviceSize copy_size)
+{
+	const VkDeviceSize maxTransferSize = (1ull << 20) - 1 - ((src_va & 0x1C) >> 2);
+	VkDeviceSize bytes_to_copy;
+	bool use_dword = false;
+	
+	/*
+	 * If the source and destination are dword aligned and the size is at least one DWORD,
+	 * then go ahead and do DWORD copies.
+	 * Note that the SDMA microcode makes the switch between byte and DWORD copies automagically,
+	 * depending on the addresses being dword aligned and the size being a dword multiple.
+	 */
+	if (u_is_aligned(dst_va, 4) && u_is_aligned(src_va, 4) &&
+	    copy_size >= 4) {
+		use_dword = true;
+	}
+
+	if (use_dword) {
+		VkDeviceSize dwords_to_copy = MIN2(copy_size / sizeof(uint32_t), maxTransferSize);
+		bytes_to_copy = dwords_to_copy * sizeof(uint32_t);
+		
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 5);
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY,
+							  0, bytes_to_copy / sizeof(uint32_t)));
+		radeon_emit(cmd_buffer->cs, dst_va);
+		radeon_emit(cmd_buffer->cs, src_va);
+		radeon_emit(cmd_buffer->cs, dst_va >> 32);
+		radeon_emit(cmd_buffer->cs, src_va >> 32);
+	} else {
+		bytes_to_copy = MIN2(copy_size, maxTransferSize);
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 5);
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_COPY_BYTE_ALIGNED,
+							  bytes_to_copy));
+		radeon_emit(cmd_buffer->cs, dst_va);
+		radeon_emit(cmd_buffer->cs, src_va);
+		radeon_emit(cmd_buffer->cs, dst_va >> 32);
+		radeon_emit(cmd_buffer->cs, src_va >> 32);
+	}
+	return bytes_to_copy;
+}
+
 static void
 radv_sdma_emit_update_buffer_si(struct radv_cmd_buffer *cmd_buffer,
 				uint64_t dst_va,
@@ -823,6 +868,7 @@ radv_sdma_emit_nop_si(struct radv_cmd_buffer *cmd_buffer)
 }
 
 const static struct radv_transfer_fns sdma10_fns = {
+	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
 	.emit_update_buffer = radv_sdma_emit_update_buffer_si,
 	.get_per_image_info = radv_sdma_get_per_image_info,
