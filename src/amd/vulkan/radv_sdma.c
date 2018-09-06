@@ -799,12 +799,19 @@ radv_sdma_emit_update_buffer_si(struct radv_cmd_buffer *cmd_buffer,
 	const uint32_t *data_dw = data;
 	int left_dw = num_dw;
 	do {
-		int can_dw = cmd_buffer->cs->max_dw - cmd_buffer->cs->cdw - 4;
+		int can_dw = cmd_buffer->cs->max_dw - cmd_buffer->cs->cdw - 3;
 		int this_dw = MIN2(left_dw, can_dw);
 
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, this_dw + 3);
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_WRITE, 0, this_dw));
+		radeon_emit(cmd_buffer->cs, dst_va);
+		radeon_emit(cmd_buffer->cs, ((dst_va >> 32) & 0xff));
+		radeon_emit_array(cmd_buffer->cs, data_dw, this_dw);
 		data_dw += this_dw;
 		left_dw -= this_dw;
 		dst_va += this_dw * sizeof(uint32_t);
+		if (left_dw)
+			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, left_dw + 3);
 	} while (left_dw > 0);
 }
 
@@ -812,7 +819,7 @@ static void
 radv_sdma_emit_nop_si(struct radv_cmd_buffer *cmd_buffer)
 {
 	/* emit 0 for a transfer NOP on CIK+ */
-	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET_NOP);
+	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_NOP, 0, 0));
 }
 
 const static struct radv_transfer_fns sdma10_fns = {
