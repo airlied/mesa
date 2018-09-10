@@ -404,8 +404,8 @@ radv_sdma_copy_image_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 	}
 	for (uint32_t x = 0; x < num_x_xfer; x++) {
 		for (uint32_t y = 0; y < num_y_xfer; y++) {
-			uint32_t src_xy = (info->src_info.offset.x + (x * width)) | ((info->src_info.offset.y + (y * width)) << 16);
-			uint32_t dst_xy = (info->dst_info.offset.x + (x * width)) | ((info->dst_info.offset.y + (y * width)) << 16);
+			uint32_t src_xy = (info->src_info.offset.x + (x * width)) | ((info->src_info.offset.y + (y * height)) << 16);
+			uint32_t dst_xy = (info->dst_info.offset.x + (x * width)) | ((info->dst_info.offset.y + (y * height)) << 16);
 			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
 			radeon_emit(cmd_buffer->cs, CIK_SDMA_PACKET(CIK_SDMA_OPCODE_COPY,
 								    CIK_SDMA_COPY_SUB_OPCODE_LINEAR_SUB_WINDOW, 0) |
