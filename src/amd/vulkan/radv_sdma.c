@@ -734,20 +734,50 @@ radv_sdma_emit_nop(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static bool
-radv_sdma_use_scanline_t2t_cik(struct radv_cmd_buffer *cmd_buffer,
-			      const struct radv_transfer_image_info *image_info,
-			      struct radv_image *src_image,
-			      struct radv_image *dst_image)
+radv_sdma_use_scanline_t2t(struct radv_cmd_buffer *cmd_buffer,
+			   const struct radv_transfer_image_info *info,
+			   struct radv_image *src_image,
+			   struct radv_image *dst_image)
 {
-	return true;
-}
+	struct radeon_info *rad_info = &cmd_buffer->device->physical_device->rad_info;
+	unsigned src_tile_index = src_image->surface.u.legacy.tiling_index[info->src_info.mip_level];
+	unsigned dst_tile_index = dst_image->surface.u.legacy.tiling_index[info->dst_info.mip_level];
 
-static bool
-radv_sdma_use_scanline_t2t_vi(struct radv_cmd_buffer *cmd_buffer,
-			      const struct radv_transfer_image_info *image_info,
-			      struct radv_image *src_image,
-			      struct radv_image *dst_image)
-{
+	/* src x/y, dst x/y, extent w/h must be aligned to 8 pixels,
+	   the vulkan API should guarantee this though.*/
+	if (src_tile_index != dst_tile_index)
+		return true;
+
+        const uint32_t z_alignment_hw_array_mode[] =
+        {
+            1, // ARRAY_LINEAR_GENERAL
+            1, // ARRAY_LINEAR_ALIGNED
+            1, // ARRAY_1D_TILED_THIN1
+            4, // ARRAY_1D_TILED_THICK
+            1, // ARRAY_2D_TILED_THIN1
+            1, // ARRAY_PRT_TILED_THIN1__CI__VI
+            1, // ARRAY_PRT_2D_TILED_THIN1__CI__VI
+            4, // ARRAY_2D_TILED_THICK
+            8, // ARRAY_2D_TILED_XTHICK
+            4, // ARRAY_PRT_TILED_THICK__CI__VI
+            4, // ARRAY_PRT_2D_TILED_THICK__CI__VI
+            1, // ARRAY_PRT_3D_TILED_THIN1__CI__VI
+            1, // ARRAY_3D_TILED_THIN1
+            4, // ARRAY_3D_TILED_THICK
+            8, // ARRAY_3D_TILED_XTHICK
+            4, // ARRAY_PRT_3D_TILED_THICK__CI__VI
+        };
+
+	unsigned src_tile_mode = rad_info->si_tile_mode_array[src_tile_index];
+	const uint32_t z_alignment = z_alignment_hw_array_mode[src_tile_mode];
+
+	/* check Z alignment is correct */
+	/* tiletype isn't THICK_MICRO_TILING__CI_VI */
+	if (u_is_aligned(info->src_info.offset.z, z_alignment) &&
+	    u_is_aligned(info->dst_info.offset.z, z_alignment) &&
+	    u_is_aligned(info->extent.depth, z_alignment))
+		return false;
+	
 	return true;
 }
 
@@ -781,7 +811,7 @@ const static struct radv_transfer_fns sdma20_fns = {
 	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
 
-	.use_scanline_t2t = radv_sdma_use_scanline_t2t_cik,
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t,
 };
 
 const static struct radv_transfer_fns sdma24_fns = {
@@ -796,7 +826,7 @@ const static struct radv_transfer_fns sdma24_fns = {
 	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
 
-	.use_scanline_t2t = radv_sdma_use_scanline_t2t_vi,
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t,
 };
 
 const static struct radv_transfer_fns sdma40_fns = {
