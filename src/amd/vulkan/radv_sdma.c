@@ -901,8 +901,8 @@ si_get_next_extent_and_offset(VkExtent3D orig_extent, VkOffset3D orig_offset,
 	next_offset->x = orig_offset.x + total_width_copied;
 }
 
-#define SI_DMA_PACKET_COPY_LINEAR 0x41 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
-#define SI_DMA_PACKET_COPY_TILED 0x49 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
+#define SI_DMA_PACKET_COPY_LINEAR_PARTIAL 0x41 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
+#define SI_DMA_PACKET_COPY_L2TT2L_PARTIAL 0x49 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
 
 static uint64_t si_calc_linear_base_addr(const struct radv_transfer_per_image_info *img_info,
 					 VkOffset3D offset)
@@ -944,7 +944,7 @@ radv_sdma_copy_one_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 		uint64_t this_dst_va = buf2img ? this_img_va : this_buf_va;
 		
 		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
-		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_LINEAR, 0));
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_LINEAR_PARTIAL, 0));
 		radeon_emit(cmd_buffer->cs, this_src_va);
 		radeon_emit(cmd_buffer->cs, ((this_src_va >> 32) & 0xff) | (src_pitch << 13));
 		radeon_emit(cmd_buffer->cs, src_slice_pitch);
@@ -974,40 +974,46 @@ radv_sdma_copy_one_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	uint32_t bank_w = G_009910_BANK_WIDTH(tile_mode);
 	uint32_t mt_aspect = G_009910_MACRO_TILE_ASPECT(tile_mode);
 	uint32_t pipe_config = G_009910_PIPE_CONFIG(tile_mode);
-	uint32_t pitch_tile_max = ((info->image_info.pitch / info->image_info.bpp) / 8) - 1;
-	uint64_t slice_tile_max = (image->surface.u.legacy.level[info->image_info.mip_level].nblk_x *
-				   image->surface.u.legacy.level[info->image_info.mip_level].nblk_y) / (8*8) - 1;
+	uint32_t mt = G_009910_MICRO_TILE_MODE(tile_mode);
+	uint32_t nbanks = G_009910_NUM_BANKS(tile_mode);
+	uint32_t pitch_tile_max = info->image_info.pitch / 8 - 1;
+	uint64_t slice_tile_max = info->image_info.slice_pitch / 64 - 1;
+	uint32_t tile_split = util_logbase2(image->surface.u.legacy.tile_split >> 6);
+	uint32_t height = radv_minify(image->info.height, info->image_info.mip_level);
 	while (total_width_copied < info->extent.width) {
 		VkExtent3D next_extent;
 		VkOffset3D next_offset;
 
 		uint64_t this_lin_va = info->buf_info.va + (total_width_copied * info->image_info.bpp);
-		uint32_t tile_info0;
+		uint32_t tile_info0, tile_info4;
 		si_get_next_extent_and_offset(info->extent,
 					      info->image_info.offset,
 					      info->image_info.bpp,
 					      total_width_copied,
 					      &next_extent,
 					      &next_offset);
-		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 12);
 
 		tile_info0 = buf2img ? 0 : (1 << 31);
 		tile_info0 |= util_logbase2(info->image_info.bpp) << 24;
 		tile_info0 |= (array_mode << 27) | (bank_h << 21) | (bank_w << 18);
 		tile_info0 |= (mt_aspect << 16);
 
-		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_TILED, 0));
-		radeon_emit(cmd_buffer->cs, info->image_info.va >> 8);/* tileaddr */
-		radeon_emit(cmd_buffer->cs, tile_info0);/* tiledinfo0 */
-		radeon_emit(cmd_buffer->cs, pitch_tile_max);
+		tile_info4 = next_offset.y;
+		tile_info4 |= (tile_split << 21) | (nbanks << 25) | (mt << 27);
+
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_L2TT2L_PARTIAL, 0));
+		radeon_emit(cmd_buffer->cs, info->image_info.va >> 8);
+		radeon_emit(cmd_buffer->cs, tile_info0);
+		radeon_emit(cmd_buffer->cs, pitch_tile_max | (((height - 1) << 16)));
 		radeon_emit(cmd_buffer->cs, slice_tile_max | (pipe_config << 26));
-		radeon_emit(cmd_buffer->cs, 0);
-		radeon_emit(cmd_buffer->cs, 0);/*tiledinfo5*/
-		radeon_emit(cmd_buffer->cs, this_lin_va);
-		radeon_emit(cmd_buffer->cs, ((this_lin_va >> 32) & 0xff) | (info->buf_info.pitch << 13));
-		radeon_emit(cmd_buffer->cs, info->buf_info.slice_pitch);
-		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* size xy */
-		radeon_emit(cmd_buffer->cs, next_extent.depth);/* size z */
+		radeon_emit(cmd_buffer->cs, next_offset.x | (next_offset.z << 18));
+		radeon_emit(cmd_buffer->cs, tile_info4);
+		radeon_emit(cmd_buffer->cs, this_lin_va & 0xfffffffc);
+		radeon_emit(cmd_buffer->cs, ((this_lin_va >> 32) & 0xff) | ((info->buf_info.pitch * info->image_info.bpp) << 13));
+		radeon_emit(cmd_buffer->cs, info->buf_info.slice_pitch * info->image_info.bpp);
+		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));
+		radeon_emit(cmd_buffer->cs, next_extent.depth);
 
 		total_width_copied += next_extent.width;
 	}
