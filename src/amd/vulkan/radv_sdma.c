@@ -732,7 +732,42 @@ radv_sdma_emit_nop(struct radv_cmd_buffer *cmd_buffer)
 	/* emit 0 for a transfer NOP on CIK+ */
 	radeon_emit(cmd_buffer->cs, 0);
 }
-	
+
+static bool
+radv_sdma_use_scanline_t2t_cik(struct radv_cmd_buffer *cmd_buffer,
+			      const struct radv_transfer_image_info *image_info,
+			      struct radv_image *src_image,
+			      struct radv_image *dst_image)
+{
+	return true;
+}
+
+static bool
+radv_sdma_use_scanline_t2t_vi(struct radv_cmd_buffer *cmd_buffer,
+			      const struct radv_transfer_image_info *image_info,
+			      struct radv_image *src_image,
+			      struct radv_image *dst_image)
+{
+	return true;
+}
+
+static bool
+radv_sdma_use_scanline_t2t_gfx9(struct radv_cmd_buffer *cmd_buffer,
+				const struct radv_transfer_image_info *image_info,
+				struct radv_image *src_image,
+				struct radv_image *dst_image)
+{
+	/*
+	 * The built in tiled-to-tiled image copy packet not only doesn't support mip level selection, it doesn't
+	 * even support specifying the number of mip levels the image has.  So if either the source or the destination
+	 * image has more than one mip level, we can't use it.
+	 */
+	if (src_image->info.levels > 1 || dst_image->info.levels > 1)
+		return true;
+	/* for now always use scanline t2t on gfx9 */
+	return true;
+}
+
 const static struct radv_transfer_fns sdma20_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer,
 	.emit_update_buffer = radv_sdma_emit_update_buffer,
@@ -745,6 +780,8 @@ const static struct radv_transfer_fns sdma20_fns = {
 
 	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
+
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t_cik,
 };
 
 const static struct radv_transfer_fns sdma24_fns = {
@@ -758,6 +795,8 @@ const static struct radv_transfer_fns sdma24_fns = {
 	.copy_image_t2t = radv_sdma_copy_image_tiled,
 	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_sdma_get_per_image_info,
+
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t_vi,
 };
 
 const static struct radv_transfer_fns sdma40_fns = {
@@ -771,6 +810,8 @@ const static struct radv_transfer_fns sdma40_fns = {
 	.copy_image_t2t = radv_sdma_copy_image_tiled,
 	.emit_nop = radv_sdma_emit_nop,
 	.get_per_image_info = radv_gfx9_sdma_get_per_image_info,
+
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t_gfx9,
 };
 
 static VkDeviceSize
@@ -1202,6 +1243,32 @@ radv_sdma_copy_image_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	radeon_emit(cmd_buffer->cs, info->extent.depth);
 }
 
+static bool
+radv_sdma_use_scanline_t2t_si(struct radv_cmd_buffer *cmd_buffer,
+			      const struct radv_transfer_image_info *info,
+			      struct radv_image *src_image,
+			      struct radv_image *dst_image)
+{
+	unsigned src_tile_index = src_image->surface.u.legacy.tiling_index[info->src_info.mip_level];
+	unsigned dst_tile_index = dst_image->surface.u.legacy.tiling_index[info->dst_info.mip_level];
+
+	/* src x/y, dst x/y, extent w/h must be aligned to 8 pixels,
+	   the vulkan API should guarantee this though.*/
+	if (src_tile_index != dst_tile_index)
+		return true;
+
+	/* Beyond the documented T2T packet restricitons, there is an apparent hardware bug with OSS 1.0
+	 * that causes corruption when copying from a 2D to a 3D image where the source array-slice doesn't
+	 * match the destination Z-slice.
+	 */
+	if (src_image->type == VK_IMAGE_TYPE_2D &&
+	    dst_image->type == VK_IMAGE_TYPE_3D &&
+	    info->dst_info.offset.z > 0 &&
+	    info->dst_info.offset.z != info->src_info.offset.z)
+		return true;
+	return false;
+}
+
 const static struct radv_transfer_fns sdma10_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
@@ -1216,6 +1283,8 @@ const static struct radv_transfer_fns sdma10_fns = {
 
 	.get_per_image_info = radv_sdma_get_per_image_info,
 	.emit_nop = radv_sdma_emit_nop_si,
+
+	.use_scanline_t2t = radv_sdma_use_scanline_t2t_si,
 };
 
 void radv_setup_transfer(struct radv_device *device)
