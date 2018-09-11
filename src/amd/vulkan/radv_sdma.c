@@ -901,8 +901,9 @@ si_get_next_extent_and_offset(VkExtent3D orig_extent, VkOffset3D orig_offset,
 	next_offset->x = orig_offset.x + total_width_copied;
 }
 
-#define SI_DMA_PACKET_COPY_LINEAR_PARTIAL 0x41 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
-#define SI_DMA_PACKET_COPY_L2TT2L_PARTIAL 0x49 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
+#define SI_DMA_PACKET_COPY_LINEAR_PARTIAL 0x41
+#define SI_DMA_PACKET_COPY_L2TT2L_PARTIAL 0x49
+#define SI_DMA_PACKET_COPY_T2T_PARTIAL 0x4d
 
 static uint64_t si_calc_linear_base_addr(const struct radv_transfer_per_image_info *img_info,
 					 VkOffset3D offset)
@@ -1141,6 +1142,64 @@ radv_sdma_copy_image_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+static void
+radv_sdma_copy_image_tiled_si(struct radv_cmd_buffer *cmd_buffer,
+			      const struct radv_transfer_image_info *info,
+			      struct radv_image *src_image,
+			      struct radv_image *dst_image)
+{
+	struct radeon_info *rad_info = &cmd_buffer->device->physical_device->rad_info;
+	uint32_t src_pitch_tile_max = info->src_info.pitch / 8 - 1;
+	uint64_t src_slice_tile_max = info->src_info.slice_pitch / 64 - 1;
+
+	uint32_t dst_pitch_tile_max = info->dst_info.pitch / 8 - 1;
+	uint64_t dst_slice_tile_max = info->dst_info.slice_pitch / 64 - 1;
+
+	unsigned index = src_image->surface.u.legacy.tiling_index[info->src_info.mip_level];
+	unsigned tile_mode = rad_info->si_tile_mode_array[index];
+
+	uint32_t array_mode = G_009910_ARRAY_MODE(tile_mode);
+	uint32_t bank_h = G_009910_BANK_HEIGHT(tile_mode);
+	uint32_t bank_w = G_009910_BANK_WIDTH(tile_mode);
+	uint32_t mt_aspect = G_009910_MACRO_TILE_ASPECT(tile_mode);
+	uint32_t pipe_config = G_009910_PIPE_CONFIG(tile_mode);
+	uint32_t mt = G_009910_MICRO_TILE_MODE(tile_mode);
+	uint32_t nbanks = G_009910_NUM_BANKS(tile_mode);
+	uint32_t tile_split = util_logbase2(dst_image->surface.u.legacy.tile_split >> 6);
+	uint64_t info0, xinfo1, yinfo1, zinfo2;
+
+	uint32_t src_height = radv_minify(src_image->info.height, info->src_info.mip_level);
+	uint32_t dst_height = radv_minify(dst_image->info.height, info->dst_info.mip_level);
+	info0 = (tile_split << 3) |
+		(nbanks << 7) |
+		(mt << 9) |
+		(mt_aspect << 16) |
+		(bank_w << 18) |
+		(bank_h << 21) |
+		(util_logbase2(info->src_info.bpp) << 24) |
+		(array_mode << 27);
+	xinfo1 = info->dst_info.offset.x | (info->src_info.offset.x << 16);
+	yinfo1 = info->dst_info.offset.y | (info->src_info.offset.y << 16);
+	zinfo2 = info->dst_info.offset.z | (info->src_info.offset.z << 16);
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_T2T_PARTIAL, 0));
+	radeon_emit(cmd_buffer->cs, info->src_info.va >> 8);
+	radeon_emit(cmd_buffer->cs, src_pitch_tile_max | (src_height - 1) << 16);
+	radeon_emit(cmd_buffer->cs, src_slice_tile_max | (pipe_config << 26));
+
+	radeon_emit(cmd_buffer->cs, info->dst_info.va >> 8);
+	radeon_emit(cmd_buffer->cs, dst_pitch_tile_max | (dst_height - 1) << 16);
+	radeon_emit(cmd_buffer->cs, dst_slice_tile_max | (pipe_config << 26));
+
+	radeon_emit(cmd_buffer->cs, info0);
+	radeon_emit(cmd_buffer->cs, xinfo1);
+	radeon_emit(cmd_buffer->cs, yinfo1);
+	radeon_emit(cmd_buffer->cs, zinfo2);
+
+	radeon_emit(cmd_buffer->cs, info->extent.width | (info->extent.height << 16));
+	radeon_emit(cmd_buffer->cs, info->extent.depth);
+}
+
 const static struct radv_transfer_fns sdma10_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
@@ -1151,7 +1210,7 @@ const static struct radv_transfer_fns sdma10_fns = {
 
 	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin_si,
 	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled_si,
-	//.copy_image_t2t = radv_sdma_copy_image_tiled,
+	.copy_image_t2t = radv_sdma_copy_image_tiled_si,
 
 	.get_per_image_info = radv_sdma_get_per_image_info,
 	.emit_nop = radv_sdma_emit_nop_si,
