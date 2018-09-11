@@ -1019,7 +1019,7 @@ const static struct radv_transfer_fns sdma10_fns = {
 	.emit_update_buffer = radv_sdma_emit_update_buffer_si,
 
 	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin_si,
-	//.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled,
+	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled_si,
 	//.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
 	//.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
 	//.copy_image_t2t = radv_sdma_copy_image_tiled,
