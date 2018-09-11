@@ -1063,6 +1063,84 @@ radv_sdma_copy_image_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+static void
+radv_sdma_copy_image_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
+				     const struct radv_transfer_image_info *info,
+				     struct radv_image *src_image,
+				     struct radv_image *dst_image)
+{
+	struct radeon_info *rad_info = &cmd_buffer->device->physical_device->rad_info;
+	const struct radv_transfer_per_image_info *lin_info, *til_info;
+	struct radv_image *til_image;
+	bool src_is_linear = src_image->surface.is_linear;
+
+	lin_info = src_is_linear ? &info->src_info : &info->dst_info;
+	til_info = src_is_linear ? &info->dst_info : &info->src_info;
+
+	til_image = src_is_linear ? dst_image : src_image;
+
+	unsigned index = til_image->surface.u.legacy.tiling_index[til_info->mip_level];
+	unsigned tile_mode = rad_info->si_tile_mode_array[index];
+	uint32_t total_width_copied = 0;
+
+	uint32_t array_mode = G_009910_ARRAY_MODE(tile_mode);
+	uint32_t bank_h = G_009910_BANK_HEIGHT(tile_mode);
+	uint32_t bank_w = G_009910_BANK_WIDTH(tile_mode);
+	uint32_t mt_aspect = G_009910_MACRO_TILE_ASPECT(tile_mode);
+	uint32_t pipe_config = G_009910_PIPE_CONFIG(tile_mode);
+	uint32_t mt = G_009910_MICRO_TILE_MODE(tile_mode);
+	uint32_t nbanks = G_009910_NUM_BANKS(tile_mode);
+	uint32_t pitch_tile_max = til_info->pitch / 8 - 1;
+	uint64_t slice_tile_max = til_info->slice_pitch / 64 - 1;
+	uint32_t tile_split = util_logbase2(til_image->surface.u.legacy.tile_split >> 6);
+	uint32_t height = radv_minify(til_image->info.height, til_info->mip_level);
+
+	while (total_width_copied < info->extent.width) {
+		VkExtent3D next_extent;
+		VkOffset3D next_offset;
+		uint32_t tile_info0, tile_info4;
+
+		si_get_next_extent_and_offset(info->extent,
+					      lin_info->offset,
+					      lin_info->bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+		si_get_next_extent_and_offset(info->extent,
+					      til_info->offset,
+					      til_info->bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+
+		uint64_t this_lin_va = si_calc_linear_base_addr(lin_info, next_offset);
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 12);
+
+		tile_info0 = src_is_linear ? 0 : (1 << 31);
+		tile_info0 |= util_logbase2(til_info->bpp) << 24;
+		tile_info0 |= (array_mode << 27) | (bank_h << 21) | (bank_w << 18);
+		tile_info0 |= (mt_aspect << 16);
+
+		tile_info4 = next_offset.y;
+		tile_info4 |= (tile_split << 21) | (nbanks << 25) | (mt << 27);
+
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_L2TT2L_PARTIAL, 0));
+		radeon_emit(cmd_buffer->cs, til_info->va >> 8);
+		radeon_emit(cmd_buffer->cs, tile_info0);
+		radeon_emit(cmd_buffer->cs, pitch_tile_max | (((height - 1) << 16)));
+		radeon_emit(cmd_buffer->cs, slice_tile_max | (pipe_config << 26));
+		radeon_emit(cmd_buffer->cs, next_offset.x | (next_offset.z << 18));
+		radeon_emit(cmd_buffer->cs, tile_info4);
+		radeon_emit(cmd_buffer->cs, this_lin_va & 0xfffffffc);
+		radeon_emit(cmd_buffer->cs, ((this_lin_va >> 32) & 0xff) | ((lin_info->pitch * lin_info->bpp) << 13));
+		radeon_emit(cmd_buffer->cs, lin_info->slice_pitch * lin_info->bpp);
+		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));
+		radeon_emit(cmd_buffer->cs, next_extent.depth);
+
+		total_width_copied += next_extent.width;
+	}
+}
+
 const static struct radv_transfer_fns sdma10_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
@@ -1072,7 +1150,7 @@ const static struct radv_transfer_fns sdma10_fns = {
 	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled_si,
 
 	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin_si,
-	//.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
+	.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled_si,
 	//.copy_image_t2t = radv_sdma_copy_image_tiled,
 
 	.get_per_image_info = radv_sdma_get_per_image_info,
