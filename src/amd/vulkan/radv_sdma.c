@@ -728,6 +728,7 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 static void
 radv_sdma_emit_nop(struct radv_cmd_buffer *cmd_buffer)
 {
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 1);
 	/* emit 0 for a transfer NOP on CIK+ */
 	radeon_emit(cmd_buffer->cs, 0);
 }
@@ -863,6 +864,7 @@ radv_sdma_emit_update_buffer_si(struct radv_cmd_buffer *cmd_buffer,
 static void
 radv_sdma_emit_nop_si(struct radv_cmd_buffer *cmd_buffer)
 {
+	radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 1);
 	/* emit 0 for a transfer NOP on CIK+ */
 	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_NOP, 0, 0));
 }
