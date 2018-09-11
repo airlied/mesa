@@ -1019,6 +1019,50 @@ radv_sdma_copy_one_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+static void
+radv_sdma_copy_image_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
+				   const struct radv_transfer_image_info *info,
+				   struct radv_image *src_image,
+				   struct radv_image *dst_image)
+{
+	uint32_t total_width_copied = 0;
+
+	while (total_width_copied < info->extent.width) {
+		VkExtent3D next_extent;
+		VkOffset3D next_offset;
+
+		si_get_next_extent_and_offset(info->extent,
+					      info->src_info.offset,
+					      info->src_info.bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+
+		si_get_next_extent_and_offset(info->extent,
+					      info->dst_info.offset,
+					      info->dst_info.bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+
+		uint64_t this_src_va = si_calc_linear_base_addr(&info->src_info, next_offset);
+		uint64_t this_dst_va = si_calc_linear_base_addr(&info->dst_info, next_offset);
+		
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_LINEAR_PARTIAL, 0));
+		radeon_emit(cmd_buffer->cs, this_src_va);
+		radeon_emit(cmd_buffer->cs, ((this_src_va >> 32) & 0xff) | (info->src_info.pitch << 13));
+		radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch);
+		radeon_emit(cmd_buffer->cs, this_dst_va);
+		radeon_emit(cmd_buffer->cs, (this_dst_va >> 32 & 0xff) | (info->dst_info.pitch << 13));
+		radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch);
+		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* sizeXY */
+		radeon_emit(cmd_buffer->cs, next_extent.depth | (info->dst_info.bpp << 29));/* sizeZ */
+			
+		total_width_copied += next_extent.width;
+	}
+}
+
 const static struct radv_transfer_fns sdma10_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
@@ -1026,7 +1070,8 @@ const static struct radv_transfer_fns sdma10_fns = {
 
 	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin_si,
 	.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled_si,
-	//.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
+
+	.copy_image_l2l = radv_sdma_copy_image_lin_to_lin_si,
 	//.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
 	//.copy_image_t2t = radv_sdma_copy_image_tiled,
 
