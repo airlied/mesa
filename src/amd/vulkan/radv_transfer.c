@@ -264,7 +264,7 @@ void radv_transfer_cmd_copy_image(struct radv_cmd_buffer *cmd_buffer,
 			xfer_fns->copy_image_l2t(cmd_buffer, &info, src_image, dst_image);
 		else {
 			bool use_scanline = true;
-			if (use_scanline)
+			if (xfer_fns->use_scanline_t2t(cmd_buffer, &info, src_image, dst_image))
 				radv_transfer_cmd_copy_image_t2t_scanline(cmd_buffer, &info, src_image, dst_image);
 			else
 				xfer_fns->copy_image_t2t(cmd_buffer, &info, src_image, dst_image);
