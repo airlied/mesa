@@ -159,6 +159,86 @@ void radv_transfer_cmd_copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer,
 	}
 }
 
+static void
+radv_transfer_alloc_temp_buffer(struct radv_cmd_buffer *cmd_buffer,
+				struct radv_buffer *temp_buf)
+{
+	/* amdvlk allocate 128k dwords */
+	if (!cmd_buffer->transfer_temp_bo) {
+		cmd_buffer->transfer_temp_bo = cmd_buffer->device->ws->buffer_create(cmd_buffer->device->ws,
+										     128 * 1024 * 4,
+										     4096,
+										     RADEON_DOMAIN_VRAM,
+										     RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING);
+	}
+	temp_buf->bo = cmd_buffer->transfer_temp_bo;
+	temp_buf->size = 128 * 1024 * 4;
+	temp_buf->offset = 0;
+}
+
+static void
+radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
+					  const struct radv_transfer_image_info *info,
+					  struct radv_image *src_image,
+					  struct radv_image *dst_image)
+{
+	const struct radv_transfer_fns *xfer_fns = cmd_buffer->device->transfer_fns;
+	struct radv_transfer_image_buffer_info src_to_temp_info;
+	struct radv_transfer_image_buffer_info temp_to_dst_info;
+	struct radv_buffer temp_buf = {};
+
+	radv_transfer_alloc_temp_buffer(cmd_buffer, &temp_buf);
+
+	uint32_t copy_size_dwords = MIN2(temp_buf.size, info->extent.width * info->src_info.bpp);
+	uint32_t copy_size_bytes = copy_size_dwords * sizeof(uint32_t);
+	uint32_t copy_size_pixels = copy_size_bytes / info->src_info.bpp;
+
+	for (uint32_t slice = 0; slice < info->extent.depth; slice++) {
+		for (uint32_t y = 0; y < info->extent.height; y++) {
+			for (uint32_t x = 0; x < info->extent.width; x += copy_size_pixels) {
+				VkBufferImageCopy region = {};
+
+				region.imageExtent.width = copy_size_pixels;
+				region.imageExtent.height = 1;
+				region.imageExtent.depth = 1;
+
+				region.imageOffset.x = x;
+				region.imageOffset.y = y;
+				region.imageOffset.z = slice;
+
+				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				region.imageSubresource.mipLevel = info->src_info.mip_level;
+				region.imageSubresource.baseArrayLayer = slice;
+				region.imageSubresource.layerCount = 1;
+
+				region.bufferOffset = 0;
+				radv_transfer_get_buffer_image_info(cmd_buffer->device,
+								    &temp_buf,
+								    src_image,
+								    &region,
+								    &src_to_temp_info);
+
+				radv_transfer_get_buffer_image_info(cmd_buffer->device,
+								    &temp_buf,
+								    dst_image,
+								    &region,
+								    &temp_to_dst_info);
+
+				xfer_fns->copy_buffer_image_l2t(cmd_buffer,
+								&src_to_temp_info,
+								src_image,
+								true);
+				xfer_fns->emit_nop(cmd_buffer);
+				xfer_fns->copy_buffer_image_l2t(cmd_buffer,
+								&temp_to_dst_info,
+								dst_image,
+								false);
+				xfer_fns->emit_nop(cmd_buffer);
+			}
+		}
+	}
+}
+
 void radv_transfer_cmd_copy_image(struct radv_cmd_buffer *cmd_buffer,
 				  struct radv_image *src_image,
 				  VkImageLayout src_image_layout,
@@ -182,8 +262,13 @@ void radv_transfer_cmd_copy_image(struct radv_cmd_buffer *cmd_buffer,
 			xfer_fns->copy_image_l2l(cmd_buffer, &info, src_image, dst_image);
 		else if (src_image->surface.is_linear || dst_image->surface.is_linear)
 			xfer_fns->copy_image_l2t(cmd_buffer, &info, src_image, dst_image);
-		else
-			xfer_fns->copy_image_t2t(cmd_buffer, &info, src_image, dst_image);
+		else {
+			bool use_scanline = true;
+			if (use_scanline)
+				radv_transfer_cmd_copy_image_t2t_scanline(cmd_buffer, &info, src_image, dst_image);
+			else
+				xfer_fns->copy_image_t2t(cmd_buffer, &info, src_image, dst_image);
+		}
 	}
 }
 

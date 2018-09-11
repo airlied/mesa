@@ -1130,6 +1130,11 @@ struct radv_cmd_buffer {
 	 * Whether a query pool has been resetted and we have to flush caches.
 	 */
 	bool pending_reset_query;
+
+	/*
+	 * Temporary required for T2T scanline copies on transfer queue.
+	 */
+	struct radeon_winsys_bo *transfer_temp_bo;
 };
 
 struct radv_image;
