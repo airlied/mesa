@@ -907,8 +907,8 @@ si_get_next_extent_and_offset(VkExtent3D orig_extent, VkOffset3D orig_offset,
 static uint64_t si_calc_linear_base_addr(const struct radv_transfer_per_image_info *img_info,
 					 VkOffset3D offset)
 {
-	return img_info->va + (offset.z * img_info->slice_pitch) +
-		(offset.y * img_info->pitch) +
+	return img_info->va + (offset.z * img_info->slice_pitch * img_info->bpp) +
+		(offset.y * img_info->pitch * img_info->bpp) +
 		(offset.x * img_info->bpp);
 }
 					 
