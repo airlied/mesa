@@ -867,10 +867,163 @@ radv_sdma_emit_nop_si(struct radv_cmd_buffer *cmd_buffer)
 	radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_NOP, 0, 0));
 }
 
+/*
+ * Returns the base multiple, in terms of pixels, that doesn't work for the specified bytes-per-pixel value.  i.e., copy
+ * widths that are a multiple of the returned value need to be broken up into multiple copies.
+ *
+ * There is a HW bug related to a shift operation.  All the below cases are affected.
+ * Psize=1: DX=0x2000
+ * Psize=2: DX=any multiple of 0x1000
+ * Psize=3: DX=any multiple of 0x800
+ * Psize=4: DX=any multiple of 0x400
+ * Where "psize" is equal to log2(bytes-per-pixel)
+ */
+static int
+si_calc_bad_mod_value(uint32_t bpp)
+{
+    return (0x4000 >> util_logbase2(bpp));
+}
+
+static void
+si_get_next_extent_and_offset(VkExtent3D orig_extent, VkOffset3D orig_offset,
+			      uint32_t bpp, int total_width_copied,
+			      VkExtent3D *next_extent, VkOffset3D *next_offset)
+
+{
+	*next_extent = orig_extent;
+	*next_offset = orig_offset;
+
+	int remaining_width = orig_extent.width - total_width_copied;
+	if ((remaining_width % si_calc_bad_mod_value(bpp)) != 0)
+		next_extent->width = remaining_width;
+	else
+		next_extent->width = remaining_width - 8;
+	next_offset->x = orig_offset.x + total_width_copied;
+}
+
+#define SI_DMA_PACKET_COPY_LINEAR 0x41 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
+#define SI_DMA_PACKET_COPY_TILED 0x49 /* bits 0 - idcmd, 3 - tiled, 6 - r8xxcmd */
+
+static uint64_t si_calc_linear_base_addr(const struct radv_transfer_per_image_info *img_info,
+					 VkOffset3D offset)
+{
+	return img_info->va + (offset.z * img_info->slice_pitch) +
+		(offset.y * img_info->pitch) +
+		(offset.x * img_info->bpp);
+}
+					 
+static void
+radv_sdma_copy_one_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
+				   const struct radv_transfer_image_buffer_info *info,
+				   bool buf2img)
+{
+	uint32_t total_width_copied = 0;
+	uint32_t src_pitch, dst_pitch, src_slice_pitch, dst_slice_pitch;
+
+	src_pitch = buf2img ? info->image_info.pitch : info->buf_info.pitch;
+	dst_pitch = buf2img ? info->buf_info.pitch : info->image_info.pitch;
+
+	src_slice_pitch = buf2img ? info->image_info.slice_pitch : info->buf_info.slice_pitch;
+	dst_slice_pitch = buf2img ? info->buf_info.slice_pitch : info->image_info.slice_pitch;
+	
+	while (total_width_copied < info->extent.width) {
+		VkExtent3D next_extent;
+		VkOffset3D next_offset;
+
+		si_get_next_extent_and_offset(info->extent,
+					      info->image_info.offset,
+					      info->image_info.bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+
+		uint64_t this_img_va = si_calc_linear_base_addr(&info->image_info, next_offset);
+		uint64_t this_buf_va = info->buf_info.va + total_width_copied * info->image_info.bpp;
+
+		uint64_t this_src_va = buf2img ? this_buf_va : this_img_va;
+		uint64_t this_dst_va = buf2img ? this_img_va : this_buf_va;
+		
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_LINEAR, 0));
+		radeon_emit(cmd_buffer->cs, this_src_va);
+		radeon_emit(cmd_buffer->cs, ((this_src_va >> 32) & 0xff) | (src_pitch << 13));
+		radeon_emit(cmd_buffer->cs, src_slice_pitch);
+		radeon_emit(cmd_buffer->cs, this_dst_va);
+		radeon_emit(cmd_buffer->cs, (this_dst_va >> 32 & 0xff) | (dst_pitch << 13));
+		radeon_emit(cmd_buffer->cs, dst_slice_pitch);
+		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* sizeXY */
+		radeon_emit(cmd_buffer->cs, next_extent.depth);/* sizeZ */
+			
+		total_width_copied += next_extent.width;
+	}
+
+}
+static void
+radv_sdma_copy_one_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
+				   const struct radv_transfer_image_buffer_info *info,
+				   struct radv_image *image,
+				   bool buf2img)
+{
+	struct radeon_info *rad_info = &cmd_buffer->device->physical_device->rad_info;
+	unsigned index = image->surface.u.legacy.tiling_index[info->image_info.mip_level];
+	unsigned tile_mode = rad_info->si_tile_mode_array[index];
+	uint32_t total_width_copied = 0;
+
+	uint32_t array_mode = G_009910_ARRAY_MODE(tile_mode);
+	uint32_t bank_h = G_009910_BANK_HEIGHT(tile_mode);
+	uint32_t bank_w = G_009910_BANK_WIDTH(tile_mode);
+	uint32_t mt_aspect = G_009910_MACRO_TILE_ASPECT(tile_mode);
+	uint32_t pipe_config = G_009910_PIPE_CONFIG(tile_mode);
+	uint32_t pitch_tile_max = ((info->image_info.pitch / info->image_info.bpp) / 8) - 1;
+	uint64_t slice_tile_max = (image->surface.u.legacy.level[info->image_info.mip_level].nblk_x *
+				   image->surface.u.legacy.level[info->image_info.mip_level].nblk_y) / (8*8) - 1;
+	while (total_width_copied < info->extent.width) {
+		VkExtent3D next_extent;
+		VkOffset3D next_offset;
+
+		uint64_t this_lin_va = info->buf_info.va + (total_width_copied * info->image_info.bpp);
+		uint32_t tile_info0;
+		si_get_next_extent_and_offset(info->extent,
+					      info->image_info.offset,
+					      info->image_info.bpp,
+					      total_width_copied,
+					      &next_extent,
+					      &next_offset);
+		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
+
+		tile_info0 = buf2img ? 0 : (1 << 31);
+		tile_info0 |= util_logbase2(info->image_info.bpp) << 24;
+		tile_info0 |= (array_mode << 27) | (bank_h << 21) | (bank_w << 18);
+		tile_info0 |= (mt_aspect << 16);
+
+		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_TILED, 0));
+		radeon_emit(cmd_buffer->cs, info->image_info.va >> 8);/* tileaddr */
+		radeon_emit(cmd_buffer->cs, tile_info0);/* tiledinfo0 */
+		radeon_emit(cmd_buffer->cs, pitch_tile_max);
+		radeon_emit(cmd_buffer->cs, slice_tile_max | (pipe_config << 26));
+		radeon_emit(cmd_buffer->cs, 0);
+		radeon_emit(cmd_buffer->cs, 0);/*tiledinfo5*/
+		radeon_emit(cmd_buffer->cs, this_lin_va);
+		radeon_emit(cmd_buffer->cs, ((this_lin_va >> 32) & 0xff) | (info->buf_info.pitch << 13));
+		radeon_emit(cmd_buffer->cs, info->buf_info.slice_pitch);
+		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* size xy */
+		radeon_emit(cmd_buffer->cs, next_extent.depth);/* size z */
+
+		total_width_copied += next_extent.width;
+	}
+}
+
 const static struct radv_transfer_fns sdma10_fns = {
 	.emit_copy_buffer = radv_sdma_emit_copy_buffer_si,
 	.emit_fill_buffer = radv_sdma_emit_fill_buffer_si,
 	.emit_update_buffer = radv_sdma_emit_update_buffer_si,
+
+	.copy_buffer_image_l2l = radv_sdma_copy_one_lin_to_lin_si,
+	//.copy_buffer_image_l2t = radv_sdma_copy_one_lin_to_tiled,
+	//.copy_image_l2l = radv_sdma_copy_image_lin_to_lin,
+	//.copy_image_l2t = radv_sdma_copy_image_lin_to_tiled,
+	//.copy_image_t2t = radv_sdma_copy_image_tiled,
+
 	.get_per_image_info = radv_sdma_get_per_image_info,
 	.emit_nop = radv_sdma_emit_nop_si,
 };
@@ -879,10 +1032,10 @@ void radv_setup_transfer(struct radv_device *device)
 {
         if (device->physical_device->rad_info.chip_class == SI)
  		device->transfer_fns = &sdma10_fns;
- 	if (device->physical_device->rad_info.chip_class == CIK)
+ 	else if (device->physical_device->rad_info.chip_class == CIK)
 		device->transfer_fns = &sdma20_fns;
-	if (device->physical_device->rad_info.chip_class == VI)
+	else if (device->physical_device->rad_info.chip_class == VI)
 		device->transfer_fns = &sdma24_fns;
-	if (device->physical_device->rad_info.chip_class == GFX9)
+	else if (device->physical_device->rad_info.chip_class == GFX9)
 		device->transfer_fns = &sdma40_fns;
 }
