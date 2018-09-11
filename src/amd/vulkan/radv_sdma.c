@@ -952,7 +952,7 @@ radv_sdma_copy_one_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 		radeon_emit(cmd_buffer->cs, (this_dst_va >> 32 & 0xff) | (dst_pitch << 13));
 		radeon_emit(cmd_buffer->cs, dst_slice_pitch);
 		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* sizeXY */
-		radeon_emit(cmd_buffer->cs, next_extent.depth);/* sizeZ */
+		radeon_emit(cmd_buffer->cs, next_extent.depth | (info->image_info.bpp << 29));/* sizeZ */
 			
 		total_width_copied += next_extent.width;
 	}
