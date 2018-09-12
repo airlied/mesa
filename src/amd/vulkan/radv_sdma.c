@@ -769,6 +769,7 @@ radv_sdma_use_scanline_t2t(struct radv_cmd_buffer *cmd_buffer,
         };
 
 	unsigned src_tile_mode = rad_info->si_tile_mode_array[src_tile_index];
+	src_tile_mode = G_009910_ARRAY_MODE(src_tile_mode);
 	const uint32_t z_alignment = z_alignment_hw_array_mode[src_tile_mode];
 
 	/* check Z alignment is correct */
