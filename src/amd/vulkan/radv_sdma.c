@@ -232,8 +232,8 @@ radv_sdma_copy_one_lin_to_lin_cik(struct radv_cmd_buffer *cmd_buffer,
 
 	for (int x = 0; x < num_x_xfer; x++) {
 		for (int y = 0; y < num_y_xfer; y++) {
-			uint32_t img_xy = (info->image_info.offset.x + (x * width)) | ((info->image_info.offset.y + (y * width)) << 16);
-			uint32_t buf_xy = (x * width) | ((y * width) << 16);
+			uint32_t img_xy = (info->image_info.offset.x + (x * width)) | ((info->image_info.offset.y + (y * height)) << 16);
+			uint32_t buf_xy = (x * width) | ((y * height) << 16);
 			src_xy = buf2img ? buf_xy : img_xy;
 			dst_xy = buf2img ? img_xy : buf_xy;
 			radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 13);
