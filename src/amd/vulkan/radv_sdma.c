@@ -986,11 +986,38 @@ static uint64_t si_calc_linear_base_addr(const struct radv_transfer_per_image_in
 		(offset.y * img_info->pitch * img_info->bpp) +
 		(offset.x * img_info->bpp);
 }
-					 
+
+static bool
+si_check_buffer_info_limits(const struct radv_transfer_image_buffer_info *info, VkExtent3D *extent_out)
+{
+	*extent_out = info->extent;
+	if (info->image_info.offset.y + info->extent.height == CIK_MAX_DIM) {
+		fprintf(stderr, "radv: SI hardware bug workaround - not copying last line of 16k image.\n");
+		extent_out->height -= 1;
+		if (extent_out->height == 0)
+			return false;
+	}
+	return true;
+}
+
+static bool
+si_check_image_info_limits(const struct radv_transfer_image_info *info, VkExtent3D *extent_out)
+{
+	*extent_out = info->extent;
+	if (info->src_info.offset.y + info->extent.height == CIK_MAX_DIM ||
+	    info->dst_info.offset.y + info->extent.height == CIK_MAX_DIM) {
+		fprintf(stderr, "radv: SI hardware bug workaround - not copying last line of 16k image.\n");
+		extent_out->height -= 1;
+		if (extent_out->height == 0)
+			return false;
+	}
+	return true;
+}
+
 static void
 radv_sdma_copy_one_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
-				   const struct radv_transfer_image_buffer_info *info,
-				   bool buf2img)
+				 const struct radv_transfer_image_buffer_info *info,
+				 bool buf2img)
 {
 	uint32_t total_width_copied = 0;
 	uint32_t src_pitch, dst_pitch, src_slice_pitch, dst_slice_pitch;
@@ -1000,12 +1027,17 @@ radv_sdma_copy_one_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 
 	src_slice_pitch = buf2img ? info->image_info.slice_pitch : info->buf_info.slice_pitch;
 	dst_slice_pitch = buf2img ? info->buf_info.slice_pitch : info->image_info.slice_pitch;
+
+	VkExtent3D adjusted_extent;
+
+	if (!si_check_buffer_info_limits(info, &adjusted_extent))
+		return;
 	
-	while (total_width_copied < info->extent.width) {
+	while (total_width_copied < adjusted_extent.width) {
 		VkExtent3D next_extent;
 		VkOffset3D next_offset;
 
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      info->image_info.offset,
 					      info->image_info.bpp,
 					      total_width_copied,
@@ -1055,13 +1087,18 @@ radv_sdma_copy_one_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t slice_tile_max = info->image_info.slice_pitch / 64 - 1;
 	uint32_t tile_split = util_logbase2(image->surface.u.legacy.tile_split >> 6);
 	uint32_t height = radv_minify(image->info.height, info->image_info.mip_level);
+
+	VkExtent3D adjusted_extent;
+	if (!si_check_buffer_info_limits(info, &adjusted_extent))
+		return;
+
 	while (total_width_copied < info->extent.width) {
 		VkExtent3D next_extent;
 		VkOffset3D next_offset;
 
 		uint64_t this_lin_va = info->buf_info.va + (total_width_copied * info->image_info.bpp);
 		uint32_t tile_info0, tile_info4;
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      info->image_info.offset,
 					      info->image_info.bpp,
 					      total_width_copied,
@@ -1101,19 +1138,22 @@ radv_sdma_copy_image_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 				   struct radv_image *dst_image)
 {
 	uint32_t total_width_copied = 0;
+	VkExtent3D adjusted_extent;
 
+	if (!si_check_image_info_limits(info, &adjusted_extent))
+		return;
 	while (total_width_copied < info->extent.width) {
 		VkExtent3D next_extent;
 		VkOffset3D next_offset;
 
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      info->src_info.offset,
 					      info->src_info.bpp,
 					      total_width_copied,
 					      &next_extent,
 					      &next_offset);
 
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      info->dst_info.offset,
 					      info->dst_info.bpp,
 					      total_width_copied,
@@ -1169,19 +1209,23 @@ radv_sdma_copy_image_lin_to_tiled_si(struct radv_cmd_buffer *cmd_buffer,
 	uint64_t slice_tile_max = til_info->slice_pitch / 64 - 1;
 	uint32_t tile_split = util_logbase2(til_image->surface.u.legacy.tile_split >> 6);
 	uint32_t height = radv_minify(til_image->info.height, til_info->mip_level);
+	VkExtent3D adjusted_extent;
 
-	while (total_width_copied < info->extent.width) {
+	if (!si_check_image_info_limits(info, &adjusted_extent))
+		return;
+
+	while (total_width_copied < adjusted_extent.width) {
 		VkExtent3D next_extent;
 		VkOffset3D next_offset;
 		uint32_t tile_info0, tile_info4;
 
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      lin_info->offset,
 					      lin_info->bpp,
 					      total_width_copied,
 					      &next_extent,
 					      &next_offset);
-		si_get_next_extent_and_offset(info->extent,
+		si_get_next_extent_and_offset(adjusted_extent,
 					      til_info->offset,
 					      til_info->bpp,
 					      total_width_copied,
@@ -1288,6 +1332,11 @@ radv_sdma_use_scanline_t2t_si(struct radv_cmd_buffer *cmd_buffer,
 	if (src_tile_index != dst_tile_index)
 		return true;
 
+	VkExtent3D adjusted_extent;
+	if (!si_check_image_info_limits(info, &adjusted_extent))
+		return true;
+	if (adjusted_extent.height != info->extent.height)
+		return true;
 	/* Beyond the documented T2T packet restricitons, there is an apparent hardware bug with OSS 1.0
 	 * that causes corruption when copying from a 2D to a 3D image where the source array-slice doesn't
 	 * match the destination Z-slice.
