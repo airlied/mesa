@@ -1166,13 +1166,13 @@ radv_sdma_copy_image_lin_to_lin_si(struct radv_cmd_buffer *cmd_buffer,
 		radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 9);
 		radeon_emit(cmd_buffer->cs, SI_DMA_PACKET(SI_DMA_PACKET_COPY, SI_DMA_PACKET_COPY_LINEAR_PARTIAL, 0));
 		radeon_emit(cmd_buffer->cs, this_src_va);
-		radeon_emit(cmd_buffer->cs, ((this_src_va >> 32) & 0xff) | (info->src_info.pitch << 13));
-		radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch);
+		radeon_emit(cmd_buffer->cs, ((this_src_va >> 32) & 0xff) | ((info->src_info.pitch * info->src_info.bpp) << 13));
+		radeon_emit(cmd_buffer->cs, info->src_info.slice_pitch * info->src_info.bpp);
 		radeon_emit(cmd_buffer->cs, this_dst_va);
-		radeon_emit(cmd_buffer->cs, (this_dst_va >> 32 & 0xff) | (info->dst_info.pitch << 13));
-		radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch);
+		radeon_emit(cmd_buffer->cs, (this_dst_va >> 32 & 0xff) | ((info->dst_info.pitch * info->dst_info.bpp) << 13));
+		radeon_emit(cmd_buffer->cs, info->dst_info.slice_pitch * info->dst_info.bpp);
 		radeon_emit(cmd_buffer->cs, next_extent.width | (next_extent.height << 16));/* sizeXY */
-		radeon_emit(cmd_buffer->cs, next_extent.depth | (info->dst_info.bpp << 29));/* sizeZ */
+		radeon_emit(cmd_buffer->cs, next_extent.depth | (util_logbase2(info->dst_info.bpp) << 29));/* sizeZ */
 			
 		total_width_copied += next_extent.width;
 	}
