@@ -1351,6 +1351,7 @@ radv_sdma_use_scanline_t2t_si(struct radv_cmd_buffer *cmd_buffer,
 	if (src_tile_index != dst_tile_index)
 		return true;
 
+	/* use scanline copies if we are going to hit the height limit - we'll at least copy the first 16383 lines */
 	VkExtent3D adjusted_extent;
 	if (!si_check_image_info_limits(info, &adjusted_extent))
 		return true;
