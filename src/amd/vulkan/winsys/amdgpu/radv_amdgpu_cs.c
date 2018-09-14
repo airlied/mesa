@@ -46,6 +46,7 @@ struct radv_amdgpu_cs {
 
 	struct amdgpu_cs_ib_info    ib;
 
+	bool use_ib_bo;
 	struct radeon_winsys_bo     *ib_buffer;
 	uint8_t                 *ib_mapped;
 	unsigned                    max_num_buffers;
@@ -230,7 +231,7 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 		      enum ring_type ring_type)
 {
 	struct radv_amdgpu_cs *cs;
-	uint32_t ib_size = 20 * 1024 * 4;
+	uint32_t ib_size = 16 * 1024 * 4;
 	cs = calloc(1, sizeof(struct radv_amdgpu_cs));
 	if (!cs)
 		return NULL;
@@ -238,7 +239,8 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws,
 	cs->ws = radv_amdgpu_winsys(ws);
 	radv_amdgpu_init_cs(cs, ring_type);
 
-	if (cs->ws->use_ib_bos) {
+	cs->use_ib_bo = cs->ws->use_ib_bos && cs->hw_ip != AMDGPU_HW_IP_DMA;
+	if (cs->use_ib_bo) {
 		cs->ib_buffer = ws->buffer_create(ws, ib_size, 0,
 						  RADEON_DOMAIN_GTT,
 						  RADEON_FLAG_CPU_ACCESS |
@@ -284,8 +286,8 @@ static void radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 		return;
 	}
 
-	if (!cs->ws->use_ib_bos) {
-		const uint64_t limit_dws = 0xffff8;
+	if (!cs->use_ib_bo) {
+		const uint64_t limit_dws = cs->hw_ip == AMDGPU_HW_IP_DMA ? 16384 : 0xffff8;
 		uint64_t ib_dws = MAX2(cs->base.cdw + min_size,
 				       MIN2(cs->base.max_dw * 2, limit_dws));
 
@@ -341,8 +343,13 @@ static void radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 	/* max that fits in the chain size field. */
 	ib_size = MIN2(ib_size, 0xfffff);
 
-	while (!cs->base.cdw || (cs->base.cdw & 7) != 4)
-		radeon_emit(&cs->base, 0xffff1000);
+	while (!cs->base.cdw || (cs->base.cdw & 7) != 4) {
+		uint32_t pad_word = 0xffff1000;		
+		if (cs->hw_ip == AMDGPU_HW_IP_DMA)
+			pad_word = 0x00000000;
+
+		radeon_emit(&cs->base, pad_word);
+	}
 
 	*cs->ib_size_ptr |= cs->base.cdw + 4;
 
@@ -376,16 +383,18 @@ static void radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 
 	cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer);
 
-	radeon_emit(&cs->base, PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0));
-	radeon_emit(&cs->base, radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va);
-	radeon_emit(&cs->base, radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va >> 32);
-	radeon_emit(&cs->base, S_3F2_CHAIN(1) | S_3F2_VALID(1));
+	if (cs->hw_ip != AMDGPU_HW_IP_DMA) {
+		radeon_emit(&cs->base, PKT3(PKT3_INDIRECT_BUFFER_CIK, 2, 0));
+		radeon_emit(&cs->base, radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va);
+		radeon_emit(&cs->base, radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va >> 32);
+		radeon_emit(&cs->base, S_3F2_CHAIN(1) | S_3F2_VALID(1));
+	}
 
 	cs->ib_size_ptr = cs->base.buf + cs->base.cdw - 1;
 
 	cs->base.buf = (uint32_t *)cs->ib_mapped;
 	cs->base.cdw = 0;
-	cs->base.max_dw = ib_size / 4 - 4;
+	cs->base.max_dw = ib_size / 4 - (cs->hw_ip != AMDGPU_HW_IP_DMA ? 0 : 4);
 
 }
 
@@ -403,7 +412,7 @@ static bool radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
 	} else if (cs->hw_ip == AMDGPU_HW_IP_DMA)
 		pad_word = 0x00000000;
 
-	if (cs->ws->use_ib_bos) {
+	if (cs->use_ib_bo) {
 		while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
 			radeon_emit(&cs->base, pad_word);
 
@@ -435,7 +444,7 @@ static void radv_amdgpu_cs_reset(struct radeon_cmdbuf *_cs)
 	cs->num_buffers = 0;
 	cs->num_virtual_buffers = 0;
 
-	if (cs->ws->use_ib_bos) {
+	if (cs->use_ib_bo) {
 		cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer);
 
 		for (unsigned i = 0; i < cs->num_old_ib_buffers; ++i)
@@ -571,7 +580,7 @@ static void radv_amdgpu_cs_execute_secondary(struct radeon_cmdbuf *_parent,
 		radv_amdgpu_cs_add_buffer(&parent->base, child->virtual_buffers[i]);
 	}
 
-	if (parent->ws->use_ib_bos) {
+	if (parent->use_ib_bo) {
 		if (parent->base.cdw + 4 > parent->base.max_dw)
 			radv_amdgpu_cs_grow(&parent->base, 4);
 
@@ -974,11 +983,12 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 		unsigned pad_words = 0;
 		uint32_t pad_word = 0xffff1000U;
 
-		if (radv_amdgpu_winsys(ws)->info.chip_class == SI)
+		if (radv_amdgpu_winsys(ws)->info.chip_class == SI) {
 			if (cs->hw_ip == AMDGPU_HW_IP_DMA)
 				pad_word = 0xf0000000;
 			else
 				pad_word = 0x80000000;
+		}
 
 		/* Compute the number of IBs for this submit. */
 		number_of_ibs = cs->num_old_cs_buffers + 1;
@@ -1160,10 +1170,10 @@ static int radv_amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx,
 	int ret;
 
 	assert(sem_info);
-	if (!cs->ws->use_ib_bos) {
+	if (!cs->use_ib_bo) {
 		ret = radv_amdgpu_winsys_cs_submit_sysmem(_ctx, queue_idx, sem_info, bo_list, cs_array,
 							   cs_count, initial_preamble_cs, continue_preamble_cs, _fence);
-	} else if (can_patch && cs->ws->batchchain) {
+	} else if (can_patch && cs->ws->batchchain && cs->hw_ip != AMDGPU_HW_IP_DMA) {
 		ret = radv_amdgpu_winsys_cs_submit_chained(_ctx, queue_idx, sem_info, bo_list, cs_array,
 							    cs_count, initial_preamble_cs, continue_preamble_cs, _fence);
 	} else {
@@ -1216,7 +1226,7 @@ static void radv_amdgpu_winsys_cs_dump(struct radeon_cmdbuf *_cs,
 	void *ib = cs->base.buf;
 	int num_dw = cs->base.cdw;
 
-	if (cs->ws->use_ib_bos) {
+	if (cs->use_ib_bo) {
 		ib = radv_amdgpu_winsys_get_cpu_addr(cs, cs->ib.ib_mc_address);
 		num_dw = cs->ib.size;
 	}
