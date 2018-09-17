@@ -440,6 +440,11 @@ bool ac_query_gpu_info(int fd, amdgpu_device_handle dev,
        assert(ib_align);
 	info->ib_start_alignment = ib_align;
 
+	ib_align = 0;
+	ib_align = MAX2(ib_align, gfx.ib_size_alignment);
+	ib_align = MAX2(ib_align, compute.ib_size_alignment);
+	info->gfx_compute_ib_size_alignment = ib_align;
+	info->sdma_ib_size_alignment = dma.ib_size_alignment;
 	return true;
 }
 
