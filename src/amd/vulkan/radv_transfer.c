@@ -169,7 +169,8 @@ radv_transfer_alloc_temp_buffer(struct radv_cmd_buffer *cmd_buffer,
 										     128 * 1024 * 4,
 										     4096,
 										     RADEON_DOMAIN_VRAM,
-										     RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING);
+										     RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING | RADEON_FLAG_32BIT);
+		radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, cmd_buffer->transfer_temp_bo);
 	}
 	temp_buf->bo = cmd_buffer->transfer_temp_bo;
 	temp_buf->size = 128 * 1024 * 4;
@@ -189,7 +190,7 @@ radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
 
 	radv_transfer_alloc_temp_buffer(cmd_buffer, &temp_buf);
 
-	uint32_t copy_size_dwords = MIN2(temp_buf.size, info->extent.width * info->src_info.bpp);
+	uint32_t copy_size_dwords = MIN2(temp_buf.size, (info->extent.width * info->src_info.bpp) / sizeof(uint32_t));
 	uint32_t copy_size_bytes = copy_size_dwords * sizeof(uint32_t);
 	uint32_t copy_size_pixels = copy_size_bytes / info->src_info.bpp;
 
@@ -212,6 +213,8 @@ radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
 				region.imageSubresource.layerCount = 1;
 
 				region.bufferOffset = 0;
+				region.bufferRowLength = copy_size_pixels;
+				region.bufferImageHeight = 1;
 				radv_transfer_get_buffer_image_info(cmd_buffer->device,
 								    &temp_buf,
 								    src_image,
@@ -227,12 +230,12 @@ radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
 				xfer_fns->copy_buffer_image_l2t(cmd_buffer,
 								&src_to_temp_info,
 								src_image,
-								true);
+								false);
 				xfer_fns->emit_nop(cmd_buffer);
 				xfer_fns->copy_buffer_image_l2t(cmd_buffer,
 								&temp_to_dst_info,
 								dst_image,
-								false);
+								true);
 				xfer_fns->emit_nop(cmd_buffer);
 			}
 		}
@@ -263,7 +266,6 @@ void radv_transfer_cmd_copy_image(struct radv_cmd_buffer *cmd_buffer,
 		else if (src_image->surface.is_linear || dst_image->surface.is_linear)
 			xfer_fns->copy_image_l2t(cmd_buffer, &info, src_image, dst_image);
 		else {
-			bool use_scanline = true;
 			if (xfer_fns->use_scanline_t2t(cmd_buffer, &info, src_image, dst_image))
 				radv_transfer_cmd_copy_image_t2t_scanline(cmd_buffer, &info, src_image, dst_image);
 			else

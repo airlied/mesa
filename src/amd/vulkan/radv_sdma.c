@@ -899,7 +899,7 @@ radv_sdma_get_per_image_info(struct radv_image *image,
 	info->va += base_level->offset;
 	info->va |= lvl_is_2d_surf ? (image->surface.tile_swizzle << 8) : 0;
 	info->pitch = base_level->nblk_x;
-	info->slice_pitch = (base_level->slice_size_dw * 4) / info->bpp;
+	info->slice_pitch = (base_level->slice_size_dw * 4);
 }
 
 static void
@@ -909,7 +909,7 @@ radv_gfx9_sdma_get_per_image_info(struct radv_image *image,
 {
 	info->va = radv_buffer_get_va(image->bo) + image->offset;
 	info->pitch = image->surface.u.gfx9.surf_pitch;
-	info->slice_pitch = image->surface.u.gfx9.surf_slice_size / info->bpp;
+	info->slice_pitch = image->surface.u.gfx9.surf_slice_size / image->surface.bpe;
 	if (image->surface.is_linear)
 		info->va += image->surface.u.gfx9.offset[info->mip_level];
 }
