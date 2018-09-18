@@ -47,10 +47,7 @@ void radv_transfer_get_per_image_info(struct radv_device *device,
 
 	info->offset = *offset;
 	if (image->type != VK_IMAGE_TYPE_3D) {
-		if (image->type == VK_IMAGE_TYPE_1D && device->physical_device->rad_info.chip_class < GFX9)
-			info->offset.y = subres->baseArrayLayer;
-		else
-			info->offset.z = subres->baseArrayLayer;
+		info->offset.z = subres->baseArrayLayer;
 	}
 	device->transfer_fns->get_per_image_info(image, subres->aspectMask == VK_IMAGE_ASPECT_STENCIL_BIT, info);
 }
@@ -193,38 +190,54 @@ radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
 	uint32_t copy_size_dwords = MIN2(temp_buf.size, (info->extent.width * info->src_info.bpp) / sizeof(uint32_t));
 	uint32_t copy_size_bytes = copy_size_dwords * sizeof(uint32_t);
 	uint32_t copy_size_pixels = copy_size_bytes / info->src_info.bpp;
+	VkBufferImageCopy region = {};
+	region.imageExtent.width = copy_size_pixels;
+	region.imageExtent.height = 1;
+	region.imageExtent.depth = 1;
 
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.layerCount = 1;
+
+	region.bufferOffset = 0;
+	region.bufferRowLength = copy_size_pixels;
+	region.bufferImageHeight = 1;
+	  
 	for (uint32_t slice = 0; slice < info->extent.depth; slice++) {
 		for (uint32_t y = 0; y < info->extent.height; y++) {
 			for (uint32_t x = 0; x < info->extent.width; x += copy_size_pixels) {
-				VkBufferImageCopy region = {};
+				VkBufferImageCopy src_region = region;
+				VkBufferImageCopy dst_region = region;
+				
+				src_region.imageOffset.x = x + info->src_info.offset.x;
+				src_region.imageOffset.y = y + info->src_info.offset.y;
 
-				region.imageExtent.width = copy_size_pixels;
-				region.imageExtent.height = 1;
-				region.imageExtent.depth = 1;
+				src_region.imageSubresource.mipLevel = info->src_info.mip_level;
 
-				region.imageOffset.x = x;
-				region.imageOffset.y = y;
-				region.imageOffset.z = slice;
+				if (src_image->type != VK_IMAGE_TYPE_3D)
+					src_region.imageSubresource.baseArrayLayer = slice + info->src_info.offset.z;
+				else
+					src_region.imageOffset.z = slice + info->src_info.offset.z;
 
-				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				region.imageSubresource.mipLevel = info->src_info.mip_level;
-				region.imageSubresource.baseArrayLayer = slice;
-				region.imageSubresource.layerCount = 1;
+				dst_region.imageOffset.x = x + info->dst_info.offset.x;
+				dst_region.imageOffset.y = y + info->dst_info.offset.y;
 
-				region.bufferOffset = 0;
-				region.bufferRowLength = copy_size_pixels;
-				region.bufferImageHeight = 1;
-				radv_transfer_get_buffer_image_info(cmd_buffer->device,
+				dst_region.imageSubresource.mipLevel = info->dst_info.mip_level;
+
+				if (dst_image->type != VK_IMAGE_TYPE_3D)
+					dst_region.imageSubresource.baseArrayLayer = slice + info->dst_info.offset.z;
+				else
+					dst_region.imageOffset.z = slice + info->dst_info.offset.z;
+
+			       radv_transfer_get_buffer_image_info(cmd_buffer->device,
 								    &temp_buf,
 								    src_image,
-								    &region,
+								    &src_region,
 								    &src_to_temp_info);
 
 				radv_transfer_get_buffer_image_info(cmd_buffer->device,
 								    &temp_buf,
 								    dst_image,
-								    &region,
+								    &dst_region,
 								    &temp_to_dst_info);
 
 				xfer_fns->copy_buffer_image_l2t(cmd_buffer,
