@@ -899,7 +899,7 @@ radv_sdma_get_per_image_info(struct radv_image *image,
 	info->va += base_level->offset;
 	info->va |= lvl_is_2d_surf ? (image->surface.tile_swizzle << 8) : 0;
 	info->pitch = base_level->nblk_x;
-	info->slice_pitch = (base_level->slice_size_dw * 4);
+	info->slice_pitch = ((base_level->slice_size_dw * 4) / image->surface.bpe);
 }
 
 static void
