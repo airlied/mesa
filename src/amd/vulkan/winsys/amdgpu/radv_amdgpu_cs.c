@@ -343,13 +343,16 @@ static void radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 	/* max that fits in the chain size field. */
 	ib_size = MIN2(ib_size, 0xfffff);
 
-	while (!cs->base.cdw || (cs->base.cdw & 7) != 4) {
-		uint32_t pad_word = 0xffff1000;		
-		if (cs->hw_ip == AMDGPU_HW_IP_DMA)
-			pad_word = 0x00000000;
-
-		radeon_emit(&cs->base, pad_word);
-	}
+	uint32_t pad_word = 0xffff1000;		
+	if (cs->hw_ip == AMDGPU_HW_IP_DMA)
+		pad_word = 0x00000000;
+	uint32_t pad_mask = cs->hw_ip == AMDGPU_HW_IP_DMA ?
+		cs->ws->info.sdma_ib_size_alignment :
+		cs->ws->info.gfx_compute_ib_size_alignment;
+	pad_mask -= 1;
+	if (pad_mask)
+		while (!cs->base.cdw || (cs->base.cdw & pad_mask) != 4)
+			radeon_emit(&cs->base, pad_word);
 
 	*cs->ib_size_ptr |= cs->base.cdw + 4;
 
@@ -413,7 +416,11 @@ static bool radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
 		pad_word = 0x00000000;
 
 	if (cs->use_ib_bo) {
-		while (!cs->base.cdw || (cs->base.cdw & 7) != 0)
+		uint32_t pad_mask = cs->hw_ip == AMDGPU_HW_IP_DMA ?
+			cs->ws->info.sdma_ib_size_alignment :
+			cs->ws->info.gfx_compute_ib_size_alignment;
+		pad_mask -= 1;
+		while (!cs->base.cdw || (cs->base.cdw & pad_mask) != 0)
 			radeon_emit(&cs->base, pad_word);
 
 		*cs->ib_size_ptr |= cs->base.cdw;
@@ -1030,7 +1037,11 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 
 				assert(size < 0xffff8);
 
-				while (!size || (size & 7)) {
+				uint32_t pad_mask = cs->hw_ip == AMDGPU_HW_IP_DMA ?
+					cs->ws->info.sdma_ib_size_alignment :
+					cs->ws->info.gfx_compute_ib_size_alignment;
+				pad_mask -= 1;
+				while (!size || (size & pad_mask)) {
 					size++;
 					pad_words++;
 				}
@@ -1068,7 +1079,12 @@ static int radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx,
 				++cnt;
 			}
 
-			while (!size || (size & 7)) {
+			uint32_t pad_mask = cs->hw_ip == AMDGPU_HW_IP_DMA ?
+				cs->ws->info.sdma_ib_size_alignment :
+				cs->ws->info.gfx_compute_ib_size_alignment;
+			pad_mask -= 1;
+			
+			while (!size || (size & pad_mask)) {
 				size++;
 				pad_words++;
 			}
