@@ -452,7 +452,7 @@ static const struct debug_control radv_perftest_options[] = {
 	{"nobatchchain", RADV_PERFTEST_NO_BATCHCHAIN},
 	{"sisched", RADV_PERFTEST_SISCHED},
 	{"localbos", RADV_PERFTEST_LOCAL_BOS},
-	{"binning", RADV_PERFTEST_BINNING},
+	{"nobinning", RADV_PERFTEST_NO_BINNING},
 	{"dccmsaa", RADV_PERFTEST_DCC_MSAA},
 	{NULL, 0}
 };
@@ -1552,7 +1552,7 @@ VkResult radv_CreateDevice(
 	}
 
 	device->pbb_allowed = device->physical_device->rad_info.chip_class >= GFX9 &&
-			((device->instance->perftest_flags & RADV_PERFTEST_BINNING) ||
+		(!(device->instance->perftest_flags & RADV_PERFTEST_NO_BINNING) ||
 			 device->physical_device->rad_info.family == CHIP_RAVEN);
 
 	/* Disabled and not implemented for now. */
