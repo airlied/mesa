@@ -2517,6 +2517,32 @@ radv_compute_bin_size(struct radv_pipeline *pipeline, const VkGraphicsPipelineCr
 	return extent;
 }
 
+static bool
+radv_pipeline_should_enable_pbb(struct radv_pipeline *pipeline,
+				const VkGraphicsPipelineCreateInfo *pCreateInfo)
+{
+	if (!pipeline->device->pbb_allowed)
+		return false;
+
+	/*
+	 * AMDVLK has 4 tunables - defaults:
+	 * ps has discard: true
+	 * no depth bound: false
+	 * blending disable: false
+	 * ps uses uav append/consume : true
+	 */
+	if (pipeline->shaders[MESA_SHADER_FRAGMENT]->info.fs.can_discard)
+		return false;
+	if (pCreateInfo->pMultisampleState && pCreateInfo->pMultisampleState->alphaToCoverageEnable)
+		return false;
+	if (!pipeline->shaders[MESA_SHADER_FRAGMENT]->info.info.ps.writes_z)
+		return false;
+	if (pCreateInfo->pDepthStencilState && radv_is_ds_write_enabled(pCreateInfo->pDepthStencilState))
+		return false;
+
+	return true;
+}
+
 static void
 radv_pipeline_generate_binning_state(struct radeon_cmdbuf *cs,
 				     struct radv_pipeline *pipeline,
@@ -2530,7 +2556,7 @@ radv_pipeline_generate_binning_state(struct radeon_cmdbuf *cs,
 	                S_028C44_DISABLE_START_OF_PRIM(1);
 	uint32_t db_dfsm_control = S_028060_PUNCHOUT_MODE(V_028060_FORCE_OFF);
 
-	VkExtent2D bin_size = radv_compute_bin_size(pipeline, pCreateInfo);
+	VkExtent2D bin_size = {};
 
 	unsigned context_states_per_bin; /* allowed range: [1, 6] */
 	unsigned persistent_states_per_bin; /* allowed range: [1, 32] */
@@ -2552,7 +2578,10 @@ radv_pipeline_generate_binning_state(struct radeon_cmdbuf *cs,
 		unreachable("unhandled family while determining binning state.");
 	}
 
-	if (pipeline->device->pbb_allowed && bin_size.width && bin_size.height) {
+	if (radv_pipeline_should_enable_pbb(pipeline, pCreateInfo))
+		bin_size = radv_compute_bin_size(pipeline, pCreateInfo);
+
+	if (bin_size.width && bin_size.height) {
 		pa_sc_binner_cntl_0 =
 	                S_028C44_BINNING_MODE(V_028C44_BINNING_ALLOWED) |
 	                S_028C44_BIN_SIZE_X(bin_size.width == 16) |
