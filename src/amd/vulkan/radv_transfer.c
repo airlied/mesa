@@ -187,7 +187,7 @@ radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
 
 	radv_transfer_alloc_temp_buffer(cmd_buffer, &temp_buf);
 
-	uint32_t copy_size_dwords = MIN2(temp_buf.size, (info->extent.width * info->src_info.bpp) / sizeof(uint32_t));
+	uint32_t copy_size_dwords = MIN2(temp_buf.size / sizeof(uint32_t), (info->extent.width * info->src_info.bpp) / sizeof(uint32_t));
 	uint32_t copy_size_bytes = copy_size_dwords * sizeof(uint32_t);
 	uint32_t copy_size_pixels = copy_size_bytes / info->src_info.bpp;
 	VkBufferImageCopy region = {};
