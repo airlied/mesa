@@ -160,19 +160,21 @@ static void
 radv_transfer_alloc_temp_buffer(struct radv_cmd_buffer *cmd_buffer,
 				struct radv_buffer *temp_buf)
 {
+#define TEMP_SIZE (128 * 1024 * 4)
 	/* amdvlk allocate 128k dwords */
 	if (!cmd_buffer->transfer_temp_bo) {
 		cmd_buffer->transfer_temp_bo = cmd_buffer->device->ws->buffer_create(cmd_buffer->device->ws,
-										     128 * 1024 * 4,
+										     TEMP_SIZE,
 										     4096,
 										     RADEON_DOMAIN_VRAM,
 										     RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING | RADEON_FLAG_32BIT);
 		radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, cmd_buffer->transfer_temp_bo);
 	}
 	temp_buf->bo = cmd_buffer->transfer_temp_bo;
-	temp_buf->size = 128 * 1024 * 4;
+	temp_buf->size = TEMP_SIZE;
 	temp_buf->offset = 0;
 }
+#undef TEMP_SIZE
 
 static void
 radv_transfer_cmd_copy_image_t2t_scanline(struct radv_cmd_buffer *cmd_buffer,
