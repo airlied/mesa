@@ -138,7 +138,7 @@ class Opcode(object):
    """Class that represents all the information we have about the opcode
    NOTE: this must be kept in sync with aco_op_info
    """
-   def __init__(self, name, opcode_gfx9, format, input_mod, output_mod):
+   def __init__(self, name, opcode_gfx7, opcode_gfx9, format, input_mod, output_mod):
       """Parameters:
 
       - name is the name of the opcode (prepend nir_op_ for the enum name)
@@ -150,12 +150,14 @@ class Opcode(object):
         constant value of the opcode given the constant values of its inputs.
       """
       assert isinstance(name, str)
+      assert isinstance(opcode_gfx7, int)
       assert isinstance(opcode_gfx9, int)
       assert isinstance(format, Format)
       assert isinstance(input_mod, bool)
       assert isinstance(output_mod, bool)
 
       self.name = name
+      self.opcode_gfx7 = opcode_gfx7
       self.opcode_gfx9 = opcode_gfx9
       self.input_mod = "1" if input_mod else "0"
       self.output_mod = "1" if output_mod else "0"
@@ -168,11 +170,11 @@ opcodes = {}
 # VOPC to GFX6 opcode translation map
 VOPC_GFX6 = [0] * 256
 
-def opcode(name, opcode_gfx9 = -1, format = Format.PSEUDO, input_mod = False, output_mod = False):
+def opcode(name, opcode_gfx7 = -1, opcode_gfx9 = -1, format = Format.PSEUDO, input_mod = False, output_mod = False):
    assert name not in opcodes
-   opcodes[name] = Opcode(name, opcode_gfx9, format, input_mod, output_mod)
+   opcodes[name] = Opcode(name, opcode_gfx7, opcode_gfx9, format, input_mod, output_mod)
 
-opcode("exp", 0, format = Format.EXP)
+opcode("exp", 0, 0, format = Format.EXP)
 opcode("p_parallelcopy")
 opcode("p_startpgm")
 opcode("p_phi")
@@ -279,7 +281,7 @@ SOP2 = {
    (  -1,   -1,   -1, 0x2c, 0x35, "s_mul_hi_i32"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SOP2:
-    opcode(name, gfx9, Format.SOP2)
+    opcode(name, gfx7, gfx9, Format.SOP2)
 
 
 # SOPK instructions: 0 input (+ imm), 1 output + optional scc
@@ -315,7 +317,7 @@ SOPK = {
    (  -1,   -1,   -1,   -1, 0x1c, "s_subvector_loop_end"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SOPK:
-   opcode(name, gfx9, Format.SOPK)
+   opcode(name, gfx7, gfx9, Format.SOPK)
 
 
 # SOP1 instructions: 1 input, 1 output (+optional SCC)
@@ -391,7 +393,7 @@ SOP1 = {
    (  -1,   -1,   -1,   -1, 0x49, "s_movrelsd_2_b32"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SOP1:
-   opcode(name, gfx9, Format.SOP1)
+   opcode(name, gfx7, gfx9, Format.SOP1)
 
 
 # SOPC instructions: 2 inputs and 0 outputs (+SCC)
@@ -419,7 +421,7 @@ SOPC = {
    (  -1,   -1, 0x13, 0x13, 0x13, "s_cmp_lg_u64"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SOPC:
-   opcode(name, gfx9, Format.SOPC)
+   opcode(name, gfx7, gfx9, Format.SOPC)
 
 
 # SOPP instructions: 0 inputs (+optional scc/vcc), 0 outputs
@@ -466,7 +468,7 @@ SOPP = {
    (  -1,   -1,   -1,   -1, 0x26, "s_ttracedata_imm"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SOPP:
-   opcode(name, gfx9, Format.SOPP)
+   opcode(name, gfx7, gfx9, Format.SOPP)
 
 
 # SMEM instructions: sbase input (2 sgpr), potentially 2 offset inputs, 1 sdata input/output
@@ -560,7 +562,7 @@ SMEM = {
    (  -1,   -1,   -1, 0xac, 0xac, "s_atomic_dec_x2"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in SMEM:
-   opcode(name, gfx9, Format.SMEM)
+   opcode(name, gfx7, gfx9, Format.SMEM)
 
 
 # VOP2 instructions: 2 inputs, 1 output (+ optional vcc)
@@ -634,7 +636,7 @@ VOP2 = {
    (  -1,   -1, 0x36, 0x36,   -1, "v_subrev_u32", False),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name, modifiers) in VOP2:
-   opcode(name, gfx9, Format.VOP2, modifiers, modifiers)
+   opcode(name, gfx7, gfx9, Format.VOP2, modifiers, modifiers)
 
 
 # VOP1 instructions: instructions with 1 input and 1 output
@@ -734,7 +736,7 @@ VOP1 = {
    (  -1,   -1,   -1,   -1, 0x68, "v_swaprel_b32", False, False),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name, in_mod, out_mod) in VOP1:
-   opcode(name, gfx9, Format.VOP1, in_mod, out_mod)
+   opcode(name, gfx7, gfx9, Format.VOP1, in_mod, out_mod)
 
 
 # VOPC instructions:
@@ -748,29 +750,29 @@ VOPC_CLASS = {
    (0xb8, 0xb8, 0x13, 0x13, 0xb8, "v_cmpx_class_f64"),
 }
 for (gfx6, gfx7, gfx8, gfx9, gfx10, name) in VOPC_CLASS:
-    opcode(name, gfx9, Format.VOPC, True, False)
+    opcode(name, gfx7, gfx9, Format.VOPC, True, False)
 
 COMPF = ["f", "lt", "eq", "le", "gt", "lg", "ge", "o", "u", "nge", "nlg", "ngt", "nle", "neq", "nlt", "tru"]
 
 for i in range(8):
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0x20+i, 0x20+i, 0xc8+i, "v_cmp_"+COMPF[i]+"_f16")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0x30+i, 0x30+i, 0xd8+i, "v_cmpx_"+COMPF[i]+"_f16")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0x28+i, 0x28+i, 0xe8+i, "v_cmp_"+COMPF[i+8]+"_f16")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0x38+i, 0x38+i, 0xf8+i, "v_cmpx_"+COMPF[i+8]+"_f16")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
 
 for i in range(16):
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x00+i, 0x00+i, 0x40+i, 0x40+i, 0x00+i, "v_cmp_"+COMPF[i]+"_f32")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x10+i, 0x10+i, 0x50+i, 0x50+i, 0x10+i, "v_cmpx_"+COMPF[i]+"_f32")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x20+i, 0x20+i, 0x60+i, 0x60+i, 0x20+i, "v_cmp_"+COMPF[i]+"_f64")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x30+i, 0x30+i, 0x70+i, 0x70+i, 0x30+i, "v_cmpx_"+COMPF[i]+"_f64")
-   opcode(name, gfx9, Format.VOPC, True, False)
+   opcode(name, gfx7, gfx9, Format.VOPC, True, False)
    # GFX_6_7
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x40+i, 0x40+i, -1, -1, -1, "v_cmps_"+COMPF[i]+"_f32")
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x50+i, 0x50+i, -1, -1, -1, "v_cmpsx_"+COMPF[i]+"_f32")
@@ -782,41 +784,41 @@ COMPI = ["f", "lt", "eq", "le", "gt", "lg", "ge", "tru"]
 # GFX_8_9
 for i in [0,7]: # only 0 and 7
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xa0+i, 0xa0+i, -1, "v_cmp_"+COMPI[i]+"_i16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xb0+i, 0xb0+i, -1, "v_cmpx_"+COMPI[i]+"_i16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xa8+i, 0xa8+i, -1, "v_cmp_"+COMPI[i]+"_u16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xb8+i, 0xb8+i, -1, "v_cmpx_"+COMPI[i]+"_u16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
 
 for i in range(1, 7): # [1..6]
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xa0+i, 0xa0+i, 0x88+i, "v_cmp_"+COMPI[i]+"_i16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xb0+i, 0xb0+i, 0x98+i, "v_cmpx_"+COMPI[i]+"_i16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xa8+i, 0xa8+i, 0xa8+i, "v_cmp_"+COMPI[i]+"_u16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (-1, -1, 0xb8+i, 0xb8+i, 0xb8+i, "v_cmpx_"+COMPI[i]+"_u16")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
 
 for i in range(8):
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x80+i, 0x80+i, 0xc0+i, 0xc0+i, 0x80+i, "v_cmp_"+COMPI[i]+"_i32")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0x90+i, 0x90+i, 0xd0+i, 0xd0+i, 0x90+i, "v_cmpx_"+COMPI[i]+"_i32")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xa0+i, 0xa0+i, 0xe0+i, 0xe0+i, 0xa0+i, "v_cmp_"+COMPI[i]+"_i64")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xb0+i, 0xb0+i, 0xf0+i, 0xf0+i, 0xb0+i, "v_cmpx_"+COMPI[i]+"_i64")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xc0+i, 0xc0+i, 0xc8+i, 0xc8+i, 0xc0+i, "v_cmp_"+COMPI[i]+"_u32")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xd0+i, 0xd0+i, 0xd8+i, 0xd8+i, 0xd0+i, "v_cmpx_"+COMPI[i]+"_u32")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xe0+i, 0xe0+i, 0xe8+i, 0xe8+i, 0xe0+i, "v_cmp_"+COMPI[i]+"_u64")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
    (gfx6, gfx7, gfx8, gfx9, gfx10, name) = (0xf0+i, 0xf0+i, 0xf8+i, 0xf8+i, 0xf0+i, "v_cmpx_"+COMPI[i]+"_u64")
-   opcode(name, gfx9, Format.VOPC)
+   opcode(name, gfx7, gfx9, Format.VOPC)
 
 
 # VOPP instructions: packed 16bit instructions - 1 or 2 inputs and 1 output
@@ -863,9 +865,9 @@ VINTRP = [
    "v_interp_p2_f32",
    "v_interp_mov_f32"
 ]
-opcode("v_interp_p1_f32", 0, Format.VINTRP)
-opcode("v_interp_p2_f32", 1, Format.VINTRP)
-opcode("v_interp_mov_f32", 2, Format.VINTRP)
+opcode("v_interp_p1_f32", 0, 0, Format.VINTRP)
+opcode("v_interp_p2_f32", 1, 1, Format.VINTRP)
+opcode("v_interp_mov_f32", 2, 2, Format.VINTRP)
 
 # VOP3 instructions: 3 inputs, 1 output
 # VOP3b instructions: have a unique scalar output, e.g. VOP2 with vcc out
@@ -877,117 +879,118 @@ VOP3b = [
    "v_mad_i64_i32"
 ]
 #TODO opcode("v_mad_u64_u32", 3, [1,1,2], 2, [2,2], [0, 1], 0, 1, 0, 0, [0, 0, 0])
-opcode("v_mad_u64_u32", 488, Format.VOP3B)
+opcode("v_mad_u64_u32", 374, 488, Format.VOP3B)
 
 
 VOP3a_32 = {
-   (448, "v_mad_legacy_f32", True, True),
-   (449, "v_mad_f32", True, True),
-   (450, "v_mad_i32_i24", False, False),
-   (451, "v_mad_u32_u24", False, False),
-   (452, "v_cubeid_f32", True, True),
-   (453, "v_cubesc_f32", True, True),
-   (454, "v_cubetc_f32", True, True),
-   (455, "v_cubema_f32", True, True),
-   (456, "v_bfe_u32", False, False),
-   (457, "v_bfe_i32", False, False),
-   (458, "v_bfi_b32", False, False),
-   (459, "v_fma_f32", True, True),
-   (460, "v_fma_f64", True, True),
-   (461, "v_lerp_u8", False, False),
-   (462, "v_alignbit_b32", False, False),
-   (463, "v_alignbyte_b32", False, False),
-   (464, "v_min3_f32", True, True),
-   (465, "v_min3_i32", False, False),
-   (466, "v_min3_u32", False, False),
-   (467, "v_max3_f32", True, True),
-   (468, "v_max3_i32", False, False),
-   (469, "v_max3_u32", False, False),
-   (470, "v_med3_f32", True, True),
-   (471, "v_med3_i32", False, False),
-   (472, "v_med3_u32", False, False),
-   (473, "v_sad_u8", False, False),
-   (474, "v_sad_hi_u8", False, False),
-   (475, "v_sad_u16", False, False),
-   (476, "v_sad_u32", False, False),
-   (477, "v_cvt_pk_u8_f32", True, False),
-   (478, "v_div_fixup_f32", True, True),
-   (479, "v_div_fixup_f64", True, True),
-   (484, "v_msad_u8", False, False),
-   (490, "v_mad_legacy_f16", True, True),
-   (491, "v_mad_legacy_u16", False, False),
-   (492, "v_mad_legacy_i16", False, False),
-   (493, "v_perm_b32", False, False),
-   (494, "v_fma_legacy_f16", True, True),
-   (495, "v_div_fixup_legacy_f16", True, True),
-   (497, "v_mad_u32_u16", False, False),
-   (498, "v_mad_i32_i16", False, False),
-   (499, "v_xad_u32", False, False),
-   (500, "v_min3_f16", True, True),
-   (501, "v_min3_i16", False, False),
-   (502, "v_min3_u16", False, False),
-   (503, "v_max3_f16", True, True),
-   (504, "v_max3_i16", False, False),
-   (505, "v_max3_u16", False, False),
-   (506, "v_med3_f16", True, True),
-   (507, "v_med3_i16", False, False),
-   (508, "v_med3_u16", False, False),
-   (509, "v_lshl_add_u32", False, False),
-   (510, "v_add_lshl_u32", False, False),
-   (511, "v_add3_u32", False, False),
-   (512, "v_lshl_or_b32", False, False),
-   (513, "v_and_or_b32", False, False),
-   (514, "v_or3_b32", False, False),
-   (515, "v_mad_f16", True, True),
-   (516, "v_mad_u16", False, False),
-   (517, "v_mad_i16", False, False),
-   (518, "v_fma_f16", True, True),
-   (519, "v_div_fixup_f16", True, True),
+   (448, 320, "v_mad_legacy_f32", True, True),
+   (449, 321, "v_mad_f32", True, True),
+   (450, 322, "v_mad_i32_i24", False, False),
+   (451, 323, "v_mad_u32_u24", False, False),
+   (452, 324, "v_cubeid_f32", True, True),
+   (453, 325, "v_cubesc_f32", True, True),
+   (454, 326, "v_cubetc_f32", True, True),
+   (455, 327, "v_cubema_f32", True, True),
+   (456, 328, "v_bfe_u32", False, False),
+   (457, 329, "v_bfe_i32", False, False),
+   (458, 330, "v_bfi_b32", False, False),
+   (459, 331, "v_fma_f32", True, True),
+   (460, 332, "v_fma_f64", True, True),
+   (461, 333, "v_lerp_u8", False, False),
+   (462, 334, "v_alignbit_b32", False, False),
+   (463, 335, "v_alignbyte_b32", False, False),
+   # gfx7 hole 336 - v_mullit_f32
+   (464, 337, "v_min3_f32", True, True),
+   (465, 338, "v_min3_i32", False, False),
+   (466, 339, "v_min3_u32", False, False),
+   (467, 340, "v_max3_f32", True, True),
+   (468, 341, "v_max3_i32", False, False),
+   (469, 342, "v_max3_u32", False, False),
+   (470, 343, "v_med3_f32", True, True),
+   (471, 344, "v_med3_i32", False, False),
+   (472, 345, "v_med3_u32", False, False),
+   (473, 346, "v_sad_u8", False, False),
+   (474, 347, "v_sad_hi_u8", False, False),
+   (475, 348, "v_sad_u16", False, False),
+   (476, 349, "v_sad_u32", False, False),
+   (477, 350, "v_cvt_pk_u8_f32", True, False),
+   (478, 351, "v_div_fixup_f32", True, True),
+   (479, 352, "v_div_fixup_f64", True, True),
+   (484, 369, "v_msad_u8", False, False),
+   (490, -1, "v_mad_legacy_f16", True, True),
+   (491, -1, "v_mad_legacy_u16", False, False),
+   (492, -1, "v_mad_legacy_i16", False, False),
+   (493, -1, "v_perm_b32", False, False),
+   (494, -1, "v_fma_legacy_f16", True, True),
+   (495, -1, "v_div_fixup_legacy_f16", True, True),
+   (497, -1, "v_mad_u32_u16", False, False),
+   (498, -1, "v_mad_i32_i16", False, False),
+   (499, -1, "v_xad_u32", False, False),
+   (500, -1, "v_min3_f16", True, True),
+   (501, -1, "v_min3_i16", False, False),
+   (502, -1, "v_min3_u16", False, False),
+   (503, -1, "v_max3_f16", True, True),
+   (504, -1, "v_max3_i16", False, False),
+   (505, -1, "v_max3_u16", False, False),
+   (506, -1, "v_med3_f16", True, True),
+   (507, -1, "v_med3_i16", False, False),
+   (508, -1, "v_med3_u16", False, False),
+   (509, -1, "v_lshl_add_u32", False, False),
+   (510, -1, "v_add_lshl_u32", False, False),
+   (511, -1, "v_add3_u32", False, False),
+   (512, -1, "v_lshl_or_b32", False, False),
+   (513, -1, "v_and_or_b32", False, False),
+   (514, -1, "v_or3_b32", False, False),
+   (515, -1, "v_mad_f16", True, True),
+   (516, -1, "v_mad_u16", False, False),
+   (517, -1, "v_mad_i16", False, False),
+   (518, -1, "v_fma_f16", True, True),
+   (519, -1, "v_div_fixup_f16", True, True),
 }
-for code, name, in_mod, out_mod in VOP3a_32:
-   opcode(name, code, Format.VOP3A, in_mod, out_mod)
+for code, gfx7, name, in_mod, out_mod in VOP3a_32:
+   opcode(name, gfx7, code, Format.VOP3A, in_mod, out_mod)
 
 
 #two parameters
 VOP3a_32_2 = {
-   (496, "v_cvt_pkaccum_u8_f32"),
-   (645, "v_mul_lo_u32"),
-   (646, "v_mul_hi_u32"),
-   (647, "v_mul_hi_i32"),
-   (648, "v_ldexp_f32"),
-   (650, "v_writelane_b32"),
-   (652, "v_mbcnt_lo_u32_b32"),
-   (653, "v_mbcnt_hi_u32_b32"),
-   (659, "v_bfm_b32"),
-   (660, "v_cvt_pknorm_i16_f32"),
-   (661, "v_cvt_pknorm_u16_f32"),
-   (662, "v_cvt_pkrtz_f16_f32"),
-   (663, "v_cvt_pk_u16_u32"),
-   (664, "v_cvt_pk_i16_i32"),
-   (665, "v_cvt_pknorm_i16_f16"),
-   (666, "v_cvt_pknorm_u16_f16"),
-   (668, "v_add_i32"),
-   (669, "v_sub_i32"),
-   (670, "v_add_i16"),
-   (671, "v_sub_i16"),
-   (672, "v_pack_b32_f16"),
+   (496, 300, "v_cvt_pkaccum_u8_f32"),
+   (645, 361, "v_mul_lo_u32"),
+   (646, 362, "v_mul_hi_u32"),
+   (647, 364, "v_mul_hi_i32"),
+   (648, 299, "v_ldexp_f32"),
+   (650, 258, "v_writelane_b32"),
+   (652, 291, "v_mbcnt_lo_u32_b32"),
+   (653, 292, "v_mbcnt_hi_u32_b32"),
+   (659, 286, "v_bfm_b32"),
+   (660, 301, "v_cvt_pknorm_i16_f32"),
+   (661, 302, "v_cvt_pknorm_u16_f32"),
+   (662, 303, "v_cvt_pkrtz_f16_f32"),
+   (663, 304, "v_cvt_pk_u16_u32"),
+   (664, 305, "v_cvt_pk_i16_i32"),
+   (665, -1, "v_cvt_pknorm_i16_f16"),
+   (666, -1, "v_cvt_pknorm_u16_f16"),
+   (668, 259, "v_add_i32"),
+   (669, 260, "v_sub_i32"),
+   (670, -1, "v_add_i16"),
+   (671, -1, "v_sub_i16"),
+   (672, -1, "v_pack_b32_f16"),
 }
-for code, name in VOP3a_32_2:
-   opcode(name, code, Format.VOP3A)
+for code, gfx7, name in VOP3a_32_2:
+   opcode(name, gfx7, code, Format.VOP3A)
 
 VOP3a_64_2 = [
-   (640, "v_add_f64"),
-   (641, "v_mul_f64"),
-   (642, "v_min_f64"),
-   (643, "v_max_f64"),
-   (644, "v_ldexp_f64"),
-   (655, "v_lshlrev_b64"),
-   (656, "v_lshrrev_b64"), #64bit
-   (657, "v_ashrrev_i64"), #64bit
-   (658, "v_trig_preop_f64"), #64bit
+   (640, 356, "v_add_f64"),
+   (641, 357, "v_mul_f64"),
+   (642, 358, "v_min_f64"),
+   (643, 359, "v_max_f64"),
+   (644, 360, "v_ldexp_f64"),
+   (655, -1, "v_lshlrev_b64"),
+   (656, -1, "v_lshrrev_b64"), #64bit
+   (657, -1, "v_ashrrev_i64"), #64bit
+   (658, 372, "v_trig_preop_f64"), #64bit
 ]
-for code, name in VOP3a_64_2:
-   opcode(name, code, Format.VOP3A)
+for code, gfx7, name in VOP3a_64_2:
+   opcode(name, gfx7, code, Format.VOP3A)
    
 VOP3a_SPECIAL = [
    "v_bcnt_u32_b32", # one input
@@ -1003,13 +1006,13 @@ VOP3a_SPECIAL = [
    "v_interp_p2_legacy_f16",
    "v_interp_p2_f16"
 ]
-opcode("v_bcnt_u32_b32", 651, Format.VOP3A)
-opcode("v_readlane_b32", 649, Format.VOP3A)
-opcode("v_div_fmas_f32", 482, Format.VOP3A)
-opcode("v_div_fmas_f64", 483, Format.VOP3A)
-opcode("v_qsad_pk_u16_u8", 485, Format.VOP3A)
-opcode("v_mqsad_pk_u16_u8", 486, Format.VOP3A)
-opcode("v_mqsad_u32_u8", 487, Format.VOP3A)
+opcode("v_bcnt_u32_b32", 290, 651, Format.VOP3A)
+opcode("v_readlane_b32", 257, 649, Format.VOP3A)
+opcode("v_div_fmas_f32", 367, 482, Format.VOP3A)
+opcode("v_div_fmas_f64", 368, 483, Format.VOP3A)
+opcode("v_qsad_pk_u16_u8", 370, 485, Format.VOP3A)
+opcode("v_mqsad_pk_u16_u8", 371, 486, Format.VOP3A)
+opcode("v_mqsad_u32_u8", 373, 487, Format.VOP3A)
 
 
 # DS instructions: 3 inputs (1 addr, 2 data), 1 output
@@ -1171,182 +1174,182 @@ DS = [
    (255, "ds_read_b128"),
 ]
 for (code, name) in DS:
-    opcode(name, code, Format.DS)
+    opcode(name, code, code, Format.DS)
 
 
 # MUBUF instructions:
 
 MUBUF = {
-   (0, "buffer_load_format_x"),
-   (1, "buffer_load_format_xy"),
-   (2, "buffer_load_format_xyz"),
-   (3, "buffer_load_format_xyzw"),
-   (4, "buffer_store_format_x"),
-   (5, "buffer_store_format_xy"),
-   (6, "buffer_store_format_xyz"),
-   (7, "buffer_store_format_xyzw"),
-   (8, "buffer_load_format_d16_x"),
-   (9, "buffer_load_format_d16_xy"),
-   (10, "buffer_load_format_d16_xyz"),
-   (11, "buffer_load_format_d16_xyzw"),
-   (12, "buffer_store_format_d16_x"),
-   (13, "buffer_store_format_d16_xy"),
-   (14, "buffer_store_format_d16_xyz"),
-   (15, "buffer_store_format_d16_xyzw"),
-   (16, "buffer_load_ubyte"),
-   (17, "buffer_load_sbyte"),
-   (18, "buffer_load_ushort"),
-   (19, "buffer_load_sshort"),
-   (20, "buffer_load_dword"),
-   (21, "buffer_load_dwordx2"),
-   (22, "buffer_load_dwordx3"),
-   (23, "buffer_load_dwordx4"),
-   (24, "buffer_store_byte"),
-   (25, "buffer_store_byte_d16_hi"),
-   (26, "buffer_store_short"),
-   (27, "buffer_store_short_d16_hi"),
-   (28, "buffer_store_dword"),
-   (29, "buffer_store_dwordx2"),
-   (30, "buffer_store_dwordx3"),
-   (31, "buffer_store_dwordx4"),
-   (32, "buffer_load_ubyte_d16"),
-   (33, "buffer_load_ubyte_d16_hi"),
-   (34, "buffer_load_sbyte_d16"),
-   (35, "buffer_load_sbyte_d16_hi"),
-   (36, "buffer_load_short_d16"),
-   (37, "buffer_load_short_d16_hi"),
-   (38, "buffer_load_format_d16_hi_x"),
-   (39, "buffer_store_format_d16_hi_x"),
-   (61, "buffer_store_lds_dword"),
-   (62, "buffer_wbinvl1"),
-   (63, "buffer_wbinvl1_vol"),
-   (64, "buffer_atomic_swap"),
-   (65, "buffer_atomic_cmpswap"),
-   (66, "buffer_atomic_add"),
-   (67, "buffer_atomic_sub"),
-   (68, "buffer_atomic_smin"),
-   (69, "buffer_atomic_umin"),
-   (70, "buffer_atomic_smax"),
-   (71, "buffer_atomic_umax"),
-   (72, "buffer_atomic_and"),
-   (73, "buffer_atomic_or"),
-   (74, "buffer_atomic_xor"),
-   (75, "buffer_atomic_inc"),
-   (76, "buffer_atomic_dec"),
-   (96, "buffer_atomic_swap_x2"),
-   (97, "buffer_atomic_cmpswap_x2"),
-   (98, "buffer_atomic_add_x2"),
-   (99, "buffer_atomic_sub_x2"),
-   (100, "buffer_atomic_smin_x2"),
-   (101, "buffer_atomic_umin_x2"),
-   (102, "buffer_atomic_smax_x2"),
-   (103, "buffer_atomic_umax_x2"),
-   (104, "buffer_atomic_and_x2"),
-   (105, "buffer_atomic_or_x2"),
-   (106, "buffer_atomic_xor_x2"),
-   (107, "buffer_atomic_inc_x2"),
-   (108, "buffer_atomic_dec_x2"),
+   (0, 0, "buffer_load_format_x"),
+   (1, 1, "buffer_load_format_xy"),
+   (2, 2, "buffer_load_format_xyz"),
+   (3, 3, "buffer_load_format_xyzw"),
+   (4, 4, "buffer_store_format_x"),
+   (5, 5, "buffer_store_format_xy"),
+   (6, 6, "buffer_store_format_xyz"),
+   (7, 7, "buffer_store_format_xyzw"),
+   (8, -1, "buffer_load_format_d16_x"),
+   (9, -1, "buffer_load_format_d16_xy"),
+   (10, -1, "buffer_load_format_d16_xyz"),
+   (11, -1, "buffer_load_format_d16_xyzw"),
+   (12, -1, "buffer_store_format_d16_x"),
+   (13, -1, "buffer_store_format_d16_xy"),
+   (14, -1, "buffer_store_format_d16_xyz"),
+   (15, -1, "buffer_store_format_d16_xyzw"),
+   (16, 8, "buffer_load_ubyte"),
+   (17, 9, "buffer_load_sbyte"),
+   (18, 10, "buffer_load_ushort"),
+   (19, 11, "buffer_load_sshort"),
+   (20, 12, "buffer_load_dword"),
+   (21, 13, "buffer_load_dwordx2"),
+   (22, 15, "buffer_load_dwordx3"),
+   (23, 14, "buffer_load_dwordx4"),
+   (24, 24, "buffer_store_byte"),
+   (25, -1, "buffer_store_byte_d16_hi"),
+   (26, 26, "buffer_store_short"),
+   (27, -1, "buffer_store_short_d16_hi"),
+   (28, 28, "buffer_store_dword"),
+   (29, 29, "buffer_store_dwordx2"),
+   (30, 31, "buffer_store_dwordx3"),
+   (31, 30, "buffer_store_dwordx4"),
+   (32, -1, "buffer_load_ubyte_d16"),
+   (33, -1, "buffer_load_ubyte_d16_hi"),
+   (34, -1, "buffer_load_sbyte_d16"),
+   (35, -1, "buffer_load_sbyte_d16_hi"),
+   (36, -1, "buffer_load_short_d16"),
+   (37, -1, "buffer_load_short_d16_hi"),
+   (38, -1, "buffer_load_format_d16_hi_x"),
+   (39, -1, "buffer_store_format_d16_hi_x"),
+   (61, -1, "buffer_store_lds_dword"),
+   (62, 113, "buffer_wbinvl1"),
+   (63, 112, "buffer_wbinvl1_vol"),
+   (64, 48, "buffer_atomic_swap"),
+   (65, 49, "buffer_atomic_cmpswap"),
+   (66, 50, "buffer_atomic_add"),
+   (67, 51, "buffer_atomic_sub"),
+   (68, 53, "buffer_atomic_smin"),
+   (69, 54, "buffer_atomic_umin"),
+   (70, 55, "buffer_atomic_smax"),
+   (71, 56, "buffer_atomic_umax"),
+   (72, 57, "buffer_atomic_and"),
+   (73, 58, "buffer_atomic_or"),
+   (74, 59, "buffer_atomic_xor"),
+   (75, 60, "buffer_atomic_inc"),
+   (76, 61, "buffer_atomic_dec"),
+   (96, 80, "buffer_atomic_swap_x2"),
+   (97, 81, "buffer_atomic_cmpswap_x2"),
+   (98, 82, "buffer_atomic_add_x2"),
+   (99, 83, "buffer_atomic_sub_x2"),
+   (100, 85, "buffer_atomic_smin_x2"),
+   (101, 86, "buffer_atomic_umin_x2"),
+   (102, 87, "buffer_atomic_smax_x2"),
+   (103, 88, "buffer_atomic_umax_x2"),
+   (104, 89, "buffer_atomic_and_x2"),
+   (105, 90, "buffer_atomic_or_x2"),
+   (106, 91, "buffer_atomic_xor_x2"),
+   (107, 92, "buffer_atomic_inc_x2"),
+   (108, 93, "buffer_atomic_dec_x2"),
 }
-for (code, name) in MUBUF:
-    opcode(name, code, Format.MUBUF)
+for (code, gfx7, name) in MUBUF:
+    opcode(name, gfx7, code, Format.MUBUF)
 
 
 MIMG = [
-   (0, "image_load"),
-   (1, "image_load_mip"),
-   (2, "image_load_pck"),
-   (3, "image_load_pck_sgn"),
-   (4, "image_load_mip_pck"),
-   (5, "image_load_mip_pck_sgn"),
-   (8, "image_store"),
-   (9, "image_store_mip"),
-   (10, "image_store_pck"),
-   (11, "image_store_mip_pck"),
-   (14, "image_get_resinfo"),
-   (16, "image_atomic_swap"),
-   (17, "image_atomic_cmpswap"),
-   (18, "image_atomic_add"),
-   (19, "image_atomic_sub"),
-   (20, "image_atomic_smin"),
-   (21, "image_atomic_umin"),
-   (22, "image_atomic_smax"),
-   (23, "image_atomic_umax"),
-   (24, "image_atomic_and"),
-   (25, "image_atomic_or"),
-   (26, "image_atomic_xor"),
-   (27, "image_atomic_inc"),
-   (28, "image_atomic_dec"),
-   (32, "image_sample"),
-   (33, "image_sample_cl"),
-   (34, "image_sample_d"),
-   (35, "image_sample_d_cl"),
-   (36, "image_sample_l"),
-   (37, "image_sample_b"),
-   (38, "image_sample_b_cl"),
-   (39, "image_sample_lz"),
-   (40, "image_sample_c"),
-   (41, "image_sample_c_cl"),
-   (42, "image_sample_c_d"),
-   (43, "image_sample_c_d_cl"),
-   (44, "image_sample_c_l"),
-   (45, "image_sample_c_b"),
-   (46, "image_sample_c_b_cl"),
-   (47, "image_sample_c_lz"),
-   (48, "image_sample_o"),
-   (49, "image_sample_cl_o"),
-   (50, "image_sample_d_o"),
-   (51, "image_sample_d_cl_o"),
-   (52, "image_sample_l_o"),
-   (53, "image_sample_b_o"),
-   (54, "image_sample_b_cl_o"),
-   (55, "image_sample_lz_o"),
-   (56, "image_sample_c_o"),
-   (57, "image_sample_c_cl_o"),
-   (58, "image_sample_c_d_o"),
-   (59, "image_sample_c_d_cl_o"),
-   (60, "image_sample_c_l_o"),
-   (61, "image_sample_c_b_o"),
-   (62, "image_sample_c_b_cl_o"),
-   (63, "image_sample_c_lz_o"),
-   (64, "image_gather4"),
-   (65, "image_gather4_cl"),
-   (66, "image_gather4h"),
-   (68, "image_gather4_l"),
-   (69, "image_gather4_b"),
-   (70, "image_gather4_b_cl"),
-   (71, "image_gather4_lz"),
-   (72, "image_gather4_c"),
-   (73, "image_gather4_c_cl"),
-   (74, "image_gather4h_pck"),
-   (75, "image_gather8h_pck"),
-   (76, "image_gather4_c_l"),
-   (77, "image_gather4_c_b"),
-   (78, "image_gather4_c_b_cl"),
-   (79, "image_gather4_c_lz"),
-   (80, "image_gather4_o"),
-   (81, "image_gather4_cl_o"),
-   (84, "image_gather4_l_o"),
-   (85, "image_gather4_b_o"),
-   (86, "image_gather4_b_cl_o"),
-   (87, "image_gather4_lz_o"),
-   (88, "image_gather4_c_o"),
-   (89, "image_gather4_c_cl_o"),
-   (92, "image_gather4_c_l_o"),
-   (93, "image_gather4_c_b_o"),
-   (94, "image_gather4_c_b_cl_o"),
-   (95, "image_gather4_c_lz_o"),
-   (96, "image_get_lod"),
-   (104, "image_sample_cd"),
-   (105, "image_sample_cd_cl"),
-   (106, "image_sample_c_cd"),
-   (107, "image_sample_c_cd_cl"),
-   (108, "image_sample_cd_o"),
-   (109, "image_sample_cd_cl_o"),
-   (110, "image_sample_c_cd_o"),
-   (111, "image_sample_c_cd_cl_o"),
+   (0, 0, "image_load"),
+   (1, 1, "image_load_mip"),
+   (2, 2, "image_load_pck"),
+   (3, 3, "image_load_pck_sgn"),
+   (4, 4, "image_load_mip_pck"),
+   (5, 5, "image_load_mip_pck_sgn"),
+   (8, 8, "image_store"),
+   (9, 9, "image_store_mip"),
+   (10, 10, "image_store_pck"),
+   (11, 11, "image_store_mip_pck"),
+   (14, 14, "image_get_resinfo"),
+   (16, 15, "image_atomic_swap"),
+   (17, 16, "image_atomic_cmpswap"),
+   (18, 17, "image_atomic_add"),
+   (19, 18, "image_atomic_sub"),
+   (20, 20, "image_atomic_smin"),
+   (21, 21, "image_atomic_umin"),
+   (22, 22, "image_atomic_smax"),
+   (23, 23, "image_atomic_umax"),
+   (24, 24, "image_atomic_and"),
+   (25, 25, "image_atomic_or"),
+   (26, 26, "image_atomic_xor"),
+   (27, 27, "image_atomic_inc"),
+   (28, 28, "image_atomic_dec"),
+   (32, 32, "image_sample"),
+   (33, 33, "image_sample_cl"),
+   (34, 34, "image_sample_d"),
+   (35, 35, "image_sample_d_cl"),
+   (36, 36, "image_sample_l"),
+   (37, 37, "image_sample_b"),
+   (38, 38, "image_sample_b_cl"),
+   (39, 39, "image_sample_lz"),
+   (40, 40, "image_sample_c"),
+   (41, 41, "image_sample_c_cl"),
+   (42, 42, "image_sample_c_d"),
+   (43, 43, "image_sample_c_d_cl"),
+   (44, 44, "image_sample_c_l"),
+   (45, 45, "image_sample_c_b"),
+   (46, 46, "image_sample_c_b_cl"),
+   (47, 47, "image_sample_c_lz"),
+   (48, 48, "image_sample_o"),
+   (49, 49, "image_sample_cl_o"),
+   (50, 50, "image_sample_d_o"),
+   (51, 51, "image_sample_d_cl_o"),
+   (52, 52, "image_sample_l_o"),
+   (53, 53, "image_sample_b_o"),
+   (54, 54, "image_sample_b_cl_o"),
+   (55, 55, "image_sample_lz_o"),
+   (56, 56, "image_sample_c_o"),
+   (57, 57, "image_sample_c_cl_o"),
+   (58, 58, "image_sample_c_d_o"),
+   (59, 59, "image_sample_c_d_cl_o"),
+   (60, 60, "image_sample_c_l_o"),
+   (61, 61, "image_sample_c_b_o"),
+   (62, 62, "image_sample_c_b_cl_o"),
+   (63, 63, "image_sample_c_lz_o"),
+   (64, 64, "image_gather4"),
+   (65, 65, "image_gather4_cl"),
+   (66, -1, "image_gather4h"),
+   (68, 66, "image_gather4_l"),
+   (69, 67, "image_gather4_b"),
+   (70, 68, "image_gather4_b_cl"),
+   (71, 69, "image_gather4_lz"),
+   (72, 70, "image_gather4_c"),
+   (73, 71, "image_gather4_c_cl"),
+   (74, -1, "image_gather4h_pck"),
+   (75, -1, "image_gather8h_pck"),
+   (76, 76, "image_gather4_c_l"),
+   (77, 77, "image_gather4_c_b"),
+   (78, 78, "image_gather4_c_b_cl"),
+   (79, 79, "image_gather4_c_lz"),
+   (80, 80, "image_gather4_o"),
+   (81, 81, "image_gather4_cl_o"),
+   (84, 84, "image_gather4_l_o"),
+   (85, 85, "image_gather4_b_o"),
+   (86, 86, "image_gather4_b_cl_o"),
+   (87, 87, "image_gather4_lz_o"),
+   (88, 88, "image_gather4_c_o"),
+   (89, 89, "image_gather4_c_cl_o"),
+   (92, 92, "image_gather4_c_l_o"),
+   (93, 93, "image_gather4_c_b_o"),
+   (94, 94, "image_gather4_c_b_cl_o"),
+   (95, 95, "image_gather4_c_lz_o"),
+   (96, 96, "image_get_lod"),
+   (104, 104, "image_sample_cd"),
+   (105, 105, "image_sample_cd_cl"),
+   (106, 106, "image_sample_c_cd"),
+   (107, 107, "image_sample_c_cd_cl"),
+   (108, 108, "image_sample_cd_o"),
+   (109, 109, "image_sample_cd_cl_o"),
+   (110, 110, "image_sample_c_cd_o"),
+   (111, 111, "image_sample_c_cd_cl_o"),
 ]
-for code, name in MIMG:
-    opcode(name, code, Format.MIMG)
+for code, gfx7, name in MIMG:
+    opcode(name, gfx7, code, Format.MIMG)
 
 NOT_DPP = [
    "v_madmk_f32",
@@ -1425,57 +1428,57 @@ GLOBAL = [
    (108, "global_atomic_dec_x2"),
 ]
 for code, name in GLOBAL:
-    opcode(name, code, Format.GLOBAL)
+    opcode(name, -1, code, Format.GLOBAL)
 
 FLAT = [
-   (16, "flat_load_ubyte"),
-   (17, "flat_load_sbyte"),
-   (18, "flat_load_ushort"),
-   (19, "flat_load_sshort"),
-   (20, "flat_load_dword"),
-   (21, "flat_load_dwordx2"),
-   (22, "flat_load_dwordx3"),
-   (23, "flat_load_dwordx4"),
-   (24, "flat_store_byte"),
-   (25, "flat_store_byte_d16_hi"),
-   (26, "flat_store_short"),
-   (27, "flat_store_short_d16_hi"),
-   (28, "flat_store_dword"),
-   (29, "flat_store_dwordx2"),
-   (30, "flat_store_dwordx3"),
-   (31, "flat_store_dwordx4"),
-   (32, "flat_load_ubyte_d16"),
-   (33, "flat_load_ubyte_d16_hi"),
-   (34, "flat_load_sbyte_d16"),
-   (35, "flat_load_sbyte_d16_hi"),
-   (36, "flat_load_short_d16"),
-   (37, "flat_load_short_d16_hi"),
-   (64, "flat_atomic_swap"),
-   (65, "flat_atomic_cmpswap"),
-   (66, "flat_atomic_add"),
-   (67, "flat_atomic_sub"),
-   (68, "flat_atomic_smin"),
-   (69, "flat_atomic_umin"),
-   (70, "flat_atomic_smax"),
-   (71, "flat_atomic_umax"),
-   (72, "flat_atomic_and"),
-   (73, "flat_atomic_or"),
-   (74, "flat_atomic_xor"),
-   (75, "flat_atomic_inc"),
-   (76, "flat_atomic_dec"),
-   (96, "flat_atomic_swap_x2"),
-   (97, "flat_atomic_cmpswap_x2"),
-   (98, "flat_atomic_add_x2"),
-   (99, "flat_atomic_sub_x2"),
-   (100, "flat_atomic_smin_x2"),
-   (101, "flat_atomic_umin_x2"),
-   (102, "flat_atomic_smax_x2"),
-   (103, "flat_atomic_umax_x2"),
-   (104, "flat_atomic_and_x2"),
-   (105, "flat_atomic_or_x2"),
-   (106, "flat_atomic_xor_x2"),
-   (107, "flat_atomic_inc_x2"),
-   (108, "flat_atomic_dec_x2"),
+   (16, 8, "flat_load_ubyte"),
+   (17, 9, "flat_load_sbyte"),
+   (18, 10, "flat_load_ushort"),
+   (19, 11, "flat_load_sshort"),
+   (20, 12, "flat_load_dword"),
+   (21, 13, "flat_load_dwordx2"),
+   (22, 15, "flat_load_dwordx3"),
+   (23, 14, "flat_load_dwordx4"),
+   (24, 24, "flat_store_byte"),
+   (25, -1, "flat_store_byte_d16_hi"),
+   (26, 26, "flat_store_short"),
+   (27, -1, "flat_store_short_d16_hi"),
+   (28, 28, "flat_store_dword"),
+   (29, 29, "flat_store_dwordx2"),
+   (30, 31, "flat_store_dwordx3"),
+   (31, 30, "flat_store_dwordx4"),
+   (32, -1, "flat_load_ubyte_d16"),
+   (33, -1, "flat_load_ubyte_d16_hi"),
+   (34, -1, "flat_load_sbyte_d16"),
+   (35, -1, "flat_load_sbyte_d16_hi"),
+   (36, -1, "flat_load_short_d16"),
+   (37, -1, "flat_load_short_d16_hi"),
+   (64, 48, "flat_atomic_swap"),
+   (65, 49, "flat_atomic_cmpswap"),
+   (66, 50, "flat_atomic_add"),
+   (67, 51, "flat_atomic_sub"),
+   (68, 53, "flat_atomic_smin"),
+   (69, 54, "flat_atomic_umin"),
+   (70, 55, "flat_atomic_smax"),
+   (71, 56, "flat_atomic_umax"),
+   (72, 57, "flat_atomic_and"),
+   (73, 58, "flat_atomic_or"),
+   (74, 59, "flat_atomic_xor"),
+   (75, 60, "flat_atomic_inc"),
+   (76, 61, "flat_atomic_dec"),
+   (96, 80, "flat_atomic_swap_x2"),
+   (97, 81, "flat_atomic_cmpswap_x2"),
+   (98, 82, "flat_atomic_add_x2"),
+   (99, 83, "flat_atomic_sub_x2"),
+   (100, 85, "flat_atomic_smin_x2"),
+   (101, 86, "flat_atomic_umin_x2"),
+   (102, 87, "flat_atomic_smax_x2"),
+   (103, 88, "flat_atomic_umax_x2"),
+   (104, 89, "flat_atomic_and_x2"),
+   (105, 90, "flat_atomic_or_x2"),
+   (106, 91, "flat_atomic_xor_x2"),
+   (107, 92, "flat_atomic_inc_x2"),
+   (108, 93, "flat_atomic_dec_x2"),
 ]
-for code, name in FLAT:
-    opcode(name, code, Format.FLAT)
+for code, gfx7, name in FLAT:
+    opcode(name, gfx7, code, Format.FLAT)
