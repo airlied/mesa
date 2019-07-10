@@ -83,7 +83,7 @@ void emit_instruction(asm_context& ctx, std::vector<uint32_t>& out, Instruction*
          encoding |= instr->definitionCount() ? instr->getDefinition(0).physReg() << 15 : 0;
          encoding |= instr->operandCount() ? (instr->getOperand(0).physReg() >> 1) << 9 : 0;
          encoding |= instr->getOperand(1).isConstant() ? 1 << 8 : 0;
-         encoding |= instr->getOperand(1).isConstant() ? instr->getOperand(1).constantValue() : instr->getOperand(1).physReg().reg;
+         encoding |= instr->getOperand(1).isConstant() ? (instr->getOperand(1).constantValue() >> 2) : instr->getOperand(1).physReg().reg;
          out.push_back(encoding);
       } else {
          uint32_t encoding = (0b110000 << 26);
