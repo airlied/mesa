@@ -2314,9 +2314,8 @@ void visit_store_output(isel_context *ctx, nir_intrinsic_instr *instr)
       target = V_008DFC_SQ_EXP_MRT + index;
       col_format = (ctx->options->key.fs.col_format >> (4 * index)) & 0xf;
    }
-   MAYBE_UNUSED bool is_int8 = (ctx->options->key.fs.is_int8 >> index) & 1;
-   MAYBE_UNUSED bool is_int10 = (ctx->options->key.fs.is_int10 >> index) & 1;
-   assert(!is_int8 && !is_int10);
+   bool is_int8 = (ctx->options->key.fs.is_int8 >> index) & 1;
+   bool is_int10 = (ctx->options->key.fs.is_int10 >> index) & 1;
 
    switch (col_format)
    {
@@ -2373,6 +2372,37 @@ void visit_store_output(isel_context *ctx, nir_intrinsic_instr *instr)
    if (target == V_008DFC_SQ_EXP_NULL)
       return;
 
+   if (compr_op == aco_opcode::v_cvt_pk_u16_u32 && (is_int8 || is_int10)) {
+      uint32_t max_rgb = is_int8 ? 255 : is_int10 ? 1023 : 0;
+      uint32_t max_alpha = is_int10 ? 3 : max_rgb;
+      aco_ptr<SOP1_instruction> max_rgb_mov{create_instruction<SOP1_instruction>(aco_opcode::s_mov_b32, Format::SOP1, 1, 1)};
+      Temp tmp{ctx->program->allocateId(), s1};
+      max_rgb_mov->getOperand(0) = Operand(max_rgb);
+      max_rgb_mov->getDefinition(0) = Definition(tmp);
+      Operand max_rgb_val = Operand(tmp);
+      ctx->block->instructions.emplace_back(std::move(max_rgb_mov));
+
+      Operand max_alpha_val;
+      if (max_rgb != max_alpha) {
+         aco_ptr<SOP1_instruction> max_alpha_mov{create_instruction<SOP1_instruction>(aco_opcode::s_mov_b32, Format::SOP1, 1, 1)};
+         Temp tmp{ctx->program->allocateId(), s1};
+         max_alpha_mov->getOperand(0) = Operand(max_alpha);
+         max_alpha_mov->getDefinition(0) = Definition(tmp);
+         max_alpha_val = Operand(tmp);
+         ctx->block->instructions.emplace_back(std::move(max_alpha_mov));
+      } else
+         max_alpha_val = max_rgb_val;
+
+      for (unsigned i = 0; i < 4; i++) {
+         aco_ptr<VOP2_instruction> min_val{create_instruction<VOP2_instruction>(aco_opcode::v_min_u32, Format::VOP2, 2, 1)};
+         Temp tmp{ctx->program->allocateId(), v1};
+         min_val->getOperand(0) = i == 3 ? max_alpha_val : max_rgb_val;
+         min_val->getOperand(1) = values[i];
+         min_val->getDefinition(0) = Definition(tmp);
+         values[i] = Operand(tmp);
+         ctx->block->instructions.emplace_back(std::move(min_val));
+      }
+   }
    if ((bool)compr_op)
    {
       for (int i = 0; i < 2; i++)
