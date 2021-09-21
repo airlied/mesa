@@ -297,6 +297,13 @@ struct radv_physical_device {
 #endif
 
    nir_shader_compiler_options nir_options;
+
+   struct {
+      unsigned data0;
+      unsigned data1;
+      unsigned cmd;
+      unsigned cntl;
+   } vid_dec_reg;
 };
 
 struct radv_instance {
@@ -648,11 +655,13 @@ struct radv_meta_state {
 #define RADV_QUEUE_GENERAL  0
 #define RADV_QUEUE_COMPUTE  1
 #define RADV_QUEUE_TRANSFER 2
+#define RADV_QUEUE_VIDEO_DEC 3
+#define RADV_QUEUE_VIDEO_ENC 4
 
 /* Not a real queue family */
-#define RADV_QUEUE_FOREIGN 3
+#define RADV_QUEUE_FOREIGN 5
 
-#define RADV_MAX_QUEUE_FAMILIES 3
+#define RADV_MAX_QUEUE_FAMILIES 5
 
 #define RADV_NUM_HW_CTX (RADEON_CTX_PRIORITY_REALTIME + 1)
 
@@ -2869,6 +2878,8 @@ si_translate_blend_logic_op(VkLogicOp op)
    }
 }
 
+/* radv_video */
+void radv_init_physical_device_decoder(struct radv_physical_device *pdevice);
 /**
  * Helper used for debugging compiler issues by enabling/disabling LLVM for a
  * specific shader stage (developers only).

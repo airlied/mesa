@@ -94,6 +94,10 @@ ring_to_hw_ip(enum ring_type ring)
       return AMDGPU_HW_IP_DMA;
    case RING_COMPUTE:
       return AMDGPU_HW_IP_COMPUTE;
+   case RING_VCN_DEC:
+      return AMDGPU_HW_IP_VCN_DEC;
+   case RING_VCN_ENC:
+      return AMDGPU_HW_IP_VCN_ENC;
    default:
       unreachable("unsupported ring");
    }

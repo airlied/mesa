@@ -774,6 +774,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    if ((device->instance->debug_flags & RADV_DEBUG_INFO))
       ac_print_gpu_info(&device->rad_info, stdout);
 
+   radv_init_physical_device_decoder(device);
    /* The WSI is structured as a layer on top of the driver, so this has
     * to be the last part of initialization (at least until we get other
     * semi-layers).
@@ -2298,6 +2299,9 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
        !(pdevice->instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
       num_queue_families++;
 
+   if (pdevice->rad_info.num_rings[RING_VCN_DEC] > 0)
+      num_queue_families++;
+
    if (pQueueFamilyProperties == NULL) {
       *pCount = num_queue_families;
       return;
@@ -2325,6 +2329,18 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
             .queueFlags =
                VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT,
             .queueCount = pdevice->rad_info.num_rings[RING_COMPUTE],
+            .timestampValidBits = 64,
+            .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
+         };
+         idx++;
+      }
+   }
+
+   if (pdevice->rad_info.num_rings[RING_VCN_DEC] > 0) {
+      if (*pCount > idx) {
+         *pQueueFamilyProperties[idx] = (VkQueueFamilyProperties){
+            .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
+            .queueCount = pdevice->rad_info.num_rings[RING_VCN_DEC],
             .timestampValidBits = 64,
             .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
          };
@@ -5068,6 +5084,10 @@ radv_get_queue_family_name(struct radv_queue *queue)
       return "compute";
    case RADV_QUEUE_TRANSFER:
       return "transfer";
+   case RADV_QUEUE_VIDEO_DEC:
+      return "video decode";
+   case RADV_QUEUE_VIDEO_ENC:
+      return "video encode";
    default:
       unreachable("Unknown queue family");
    }

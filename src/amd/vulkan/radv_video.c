@@ -1,5 +1,45 @@
 #include "radv_private.h"
 
+#include "ac_vcn_dec_regs.h"
+
+void
+radv_init_physical_device_decoder(struct radv_physical_device *pdevice)
+{
+   switch (pdevice->rad_info.family) {
+   case CHIP_RAVEN:
+   case CHIP_RAVEN2:
+      pdevice->vid_dec_reg.data0 = RDECODE_VCN1_GPCOM_VCPU_DATA0;
+      pdevice->vid_dec_reg.data1 = RDECODE_VCN1_GPCOM_VCPU_DATA1;
+      pdevice->vid_dec_reg.cmd = RDECODE_VCN1_GPCOM_VCPU_CMD;
+      pdevice->vid_dec_reg.cntl = RDECODE_VCN1_ENGINE_CNTL;
+      break;
+   case CHIP_NAVI10:
+   case CHIP_NAVI12:
+   case CHIP_NAVI14:
+   case CHIP_RENOIR:
+      pdevice->vid_dec_reg.data0 = RDECODE_VCN2_GPCOM_VCPU_DATA0;
+      pdevice->vid_dec_reg.data1 = RDECODE_VCN2_GPCOM_VCPU_DATA1;
+      pdevice->vid_dec_reg.cmd = RDECODE_VCN2_GPCOM_VCPU_CMD;
+      pdevice->vid_dec_reg.cntl = RDECODE_VCN2_ENGINE_CNTL;
+      break;
+   case CHIP_ARCTURUS:
+   case CHIP_ALDEBARAN:
+   case CHIP_SIENNA_CICHLID:
+   case CHIP_NAVY_FLOUNDER:
+   case CHIP_DIMGREY_CAVEFISH:
+   case CHIP_BEIGE_GOBY:
+   case CHIP_VANGOGH:
+   case CHIP_YELLOW_CARP:
+      pdevice->vid_dec_reg.data0 = RDECODE_VCN2_5_GPCOM_VCPU_DATA0;
+      pdevice->vid_dec_reg.data1 = RDECODE_VCN2_5_GPCOM_VCPU_DATA1;
+      pdevice->vid_dec_reg.cmd = RDECODE_VCN2_5_GPCOM_VCPU_CMD;
+      pdevice->vid_dec_reg.cntl = RDECODE_VCN2_5_ENGINE_CNTL;
+      break;
+   default:
+      break;
+   }
+}
+
 VkResult
 radv_CreateVideoSessionKHR(VkDevice _device,
                            const VkVideoSessionCreateInfoKHR *pCreateInfo,

@@ -385,6 +385,10 @@ radv_queue_family_to_ring(int f)
       return RING_COMPUTE;
    case RADV_QUEUE_TRANSFER:
       return RING_DMA;
+   case RADV_QUEUE_VIDEO_DEC:
+      return RING_VCN_DEC;
+   case RADV_QUEUE_VIDEO_ENC:
+      return RING_VCN_ENC;
    default:
       unreachable("Unknown queue family");
    }
