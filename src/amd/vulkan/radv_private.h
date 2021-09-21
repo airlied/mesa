@@ -2574,6 +2574,14 @@ struct radv_semaphore {
    struct radv_semaphore_part temporary;
 };
 
+struct radv_video_session {
+   struct vk_object_base base;
+};
+
+struct radv_video_session_params {
+   struct vk_object_base base;
+};
+
 bool radv_queue_internal_submit(struct radv_queue *queue, struct radeon_cmdbuf *cs);
 
 void radv_set_descriptor_set(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoint bind_point,
@@ -2939,6 +2947,9 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(radv_sampler_ycbcr_conversion, base,
                                VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION)
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_semaphore, base, VkSemaphore,
                                VK_OBJECT_TYPE_SEMAPHORE)
+
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session, VkVideoSessionKHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session_params, VkVideoSessionParametersKHR)
 
 #ifdef __cplusplus
 }

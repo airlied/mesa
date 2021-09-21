@@ -465,6 +465,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
+      .KHR_video_queue = true,
       .KHR_vulkan_memory_model = true,
       .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
@@ -2387,6 +2388,12 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
             memcpy(&prop->priorities, radv_global_queue_priorities, sizeof(radv_global_queue_priorities));
             break;
          }
+	 case VK_STRUCTURE_TYPE_VIDEO_QUEUE_FAMILY_PROPERTIES_2_KHR: {
+            VkVideoQueueFamilyProperties2KHR *prop =
+               (VkVideoQueueFamilyProperties2KHR *)ext;
+            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
+            break;
+	 }
          default:
             break;
          }
