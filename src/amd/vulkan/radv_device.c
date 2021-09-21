@@ -3211,7 +3211,8 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    }
 
    for (int family = 0; family < RADV_MAX_QUEUE_FAMILIES; ++family) {
-      device->empty_cs[family] = device->ws->cs_create(device->ws, family);
+      device->empty_cs[family] = device->ws->cs_create(device->ws,
+                                                       radv_queue_family_to_ring(family));
       if (!device->empty_cs[family])
          goto fail;
 
