@@ -26,10 +26,10 @@
 #include "util/macros.h"
 #include "util/mesa-sha1.h"
 #include "util/u_atomic.h"
-#include "vulkan/util/vk_util.h"
 #include "radv_debug.h"
 #include "radv_private.h"
 #include "radv_shader.h"
+#include "vulkan/util/vk_util.h"
 
 struct cache_entry {
    union {

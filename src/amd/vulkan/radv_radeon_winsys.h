@@ -36,6 +36,7 @@
 #include <string.h>
 #include "util/u_math.h"
 #include "util/u_memory.h"
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan/vulkan.h>
 #include "amd_family.h"
 

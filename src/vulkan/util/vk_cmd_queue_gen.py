@@ -51,6 +51,7 @@ TEMPLATE_H = Template(COPYRIGHT + """\
 #include "util/list.h"
 
 #define VK_PROTOTYPES
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan/vulkan.h>
 
 #ifdef __cplusplus

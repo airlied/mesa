@@ -48,6 +48,7 @@ TEMPLATE_H = Template(COPYRIGHT + """\
 #ifndef VK_DISPATCH_TABLE_H
 #define VK_DISPATCH_TABLE_H
 
+#define VK_ENABLE_BETA_EXTENSIONS
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_android_native_buffer.h"
 

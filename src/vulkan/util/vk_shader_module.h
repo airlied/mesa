@@ -24,6 +24,7 @@
 #ifndef VK_SHADER_MODULE_H
 #define VK_SHADER_MODULE_H
 
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan/vulkan.h>
 #include "vk_object.h"
 

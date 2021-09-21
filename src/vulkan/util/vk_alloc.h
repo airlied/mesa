@@ -23,6 +23,7 @@
 #ifndef VK_ALLOC_H
 #define VK_ALLOC_H
 
+#define VK_ENABLE_BETA_EXTENSIONS
 /* common allocation inlines for vulkan drivers */
 
 #include <stdio.h>

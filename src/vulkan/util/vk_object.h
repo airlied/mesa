@@ -23,6 +23,7 @@
 #ifndef VK_OBJECT_H
 #define VK_OBJECT_H
 
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_icd.h>
 
