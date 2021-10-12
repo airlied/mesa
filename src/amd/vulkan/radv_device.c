@@ -461,6 +461,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_swapchain = true,
       .KHR_swapchain_mutable_format = true,
 #endif
+      .KHR_synchronization2 = true,
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
@@ -1632,6 +1633,12 @@ radv_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
          VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *features =
             (VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)ext;
          features->vertexInputDynamicState = true;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR: {
+         VkPhysicalDeviceSynchronization2FeaturesKHR *features =
+            (VkPhysicalDeviceSynchronization2FeaturesKHR *)ext;
+         features->synchronization2 = true;
          break;
       }
       default:
