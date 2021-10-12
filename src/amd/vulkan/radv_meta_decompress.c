@@ -622,7 +622,7 @@ radv_expand_depth_stencil_compute(struct radv_cmd_buffer *cmd_buffer, struct rad
    assert(radv_image_is_tc_compat_htile(image));
 
    cmd_buffer->state.flush_bits |=
-      radv_dst_access_flush(cmd_buffer, VK_ACCESS_SHADER_WRITE_BIT, image);
+      radv_dst_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, image);
 
    radv_meta_save(&saved_state, cmd_buffer,
                   RADV_META_SAVE_DESCRIPTORS | RADV_META_SAVE_COMPUTE_PIPELINE);
@@ -711,7 +711,7 @@ radv_expand_depth_stencil_compute(struct radv_cmd_buffer *cmd_buffer, struct rad
 
    cmd_buffer->state.flush_bits |=
       RADV_CMD_FLAG_CS_PARTIAL_FLUSH | RADV_CMD_FLAG_INV_VCACHE |
-      radv_src_access_flush(cmd_buffer, VK_ACCESS_SHADER_WRITE_BIT, image);
+      radv_src_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, image);
 
    /* Initialize the HTILE metadata as "fully expanded". */
    uint32_t htile_value = radv_get_htile_initial_value(cmd_buffer->device, image);

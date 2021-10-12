@@ -610,13 +610,13 @@ radv_process_color_image_layer(struct radv_cmd_buffer *cmd_buffer, struct radv_i
 
    if (flush_cb)
       cmd_buffer->state.flush_bits |=
-         radv_dst_access_flush(cmd_buffer, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, image);
+         radv_dst_access_flush(cmd_buffer, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR, image);
 
    radv_CmdDraw(radv_cmd_buffer_to_handle(cmd_buffer), 3, 1, 0, 0);
 
    if (flush_cb)
       cmd_buffer->state.flush_bits |=
-         radv_src_access_flush(cmd_buffer, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, image);
+         radv_src_access_flush(cmd_buffer, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR, image);
 
    radv_cmd_buffer_end_render_pass(cmd_buffer);
 
@@ -807,7 +807,7 @@ radv_decompress_dcc_compute(struct radv_cmd_buffer *cmd_buffer, struct radv_imag
    struct radv_device *device = cmd_buffer->device;
 
    cmd_buffer->state.flush_bits |=
-      radv_dst_access_flush(cmd_buffer, VK_ACCESS_SHADER_WRITE_BIT, image);
+      radv_dst_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, image);
 
    if (!cmd_buffer->device->meta_state.fast_clear_flush.cmask_eliminate_pipeline) {
       VkResult ret = radv_device_init_meta_fast_clear_flush_state_internal(cmd_buffer->device);
@@ -907,7 +907,7 @@ radv_decompress_dcc_compute(struct radv_cmd_buffer *cmd_buffer, struct radv_imag
 
    cmd_buffer->state.flush_bits |=
       RADV_CMD_FLAG_CS_PARTIAL_FLUSH | RADV_CMD_FLAG_INV_VCACHE |
-      radv_src_access_flush(cmd_buffer, VK_ACCESS_SHADER_WRITE_BIT, image);
+      radv_src_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, image);
 
    /* Initialize the DCC metadata as "fully expanded". */
    cmd_buffer->state.flush_bits |= radv_init_dcc(cmd_buffer, image, subresourceRange, 0xffffffff);
