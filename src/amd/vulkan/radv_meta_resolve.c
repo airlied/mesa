@@ -911,18 +911,22 @@ radv_decompress_resolve_src(struct radv_cmd_buffer *cmd_buffer, struct radv_imag
    const uint32_t src_base_layer =
       radv_meta_get_iview_layer(src_image, &region->srcSubresource, &region->srcOffset);
 
-   VkImageMemoryBarrier barrier = {0};
-   barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-   barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-   barrier.oldLayout = src_image_layout;
-   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-   barrier.image = radv_image_to_handle(src_image);
-   barrier.subresourceRange = (VkImageSubresourceRange){
-      .aspectMask = region->srcSubresource.aspectMask,
-      .baseMipLevel = region->srcSubresource.mipLevel,
-      .levelCount = 1,
-      .baseArrayLayer = src_base_layer,
-      .layerCount = region->srcSubresource.layerCount,
+   VkImageMemoryBarrier2KHR barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+      .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
+      .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+      .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR,
+      .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR,
+      .oldLayout = src_image_layout,
+      .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      .image = radv_image_to_handle(src_image),
+      .subresourceRange = (VkImageSubresourceRange){
+         .aspectMask = region->srcSubresource.aspectMask,
+         .baseMipLevel = region->srcSubresource.mipLevel,
+         .levelCount = 1,
+         .baseArrayLayer = src_base_layer,
+         .layerCount = region->srcSubresource.layerCount,
+      }
    };
 
    if (src_image->flags & VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT) {
@@ -941,7 +945,11 @@ radv_decompress_resolve_src(struct radv_cmd_buffer *cmd_buffer, struct radv_imag
       };
    }
 
-   radv_CmdPipelineBarrier(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, false, 0, NULL, 0, NULL, 1,
-                           &barrier);
+   struct VkDependencyInfoKHR dep_info = {
+      .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+      .imageMemoryBarrierCount = 1,
+      .pImageMemoryBarriers = &barrier,
+   };
+
+   radv_CmdPipelineBarrier2KHR(radv_cmd_buffer_to_handle(cmd_buffer), &dep_info);
 }

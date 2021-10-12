@@ -572,31 +572,18 @@ sqtt_CmdResolveImage2KHR(VkCommandBuffer commandBuffer,
 }
 
 void
-sqtt_CmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
-                   VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
-                   uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
-                   uint32_t bufferMemoryBarrierCount,
-                   const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                   uint32_t imageMemoryBarrierCount,
-                   const VkImageMemoryBarrier *pImageMemoryBarriers)
+sqtt_CmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent* pEvents,
+                       const VkDependencyInfoKHR* pDependencyInfos)
 {
-   EVENT_MARKER(WaitEvents, commandBuffer, eventCount, pEvents, srcStageMask, dstStageMask,
-                memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount,
-                pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
+   EVENT_MARKER_ALIAS(WaitEvents2KHR, WaitEvents, commandBuffer, eventCount, pEvents,
+                      pDependencyInfos);
 }
 
 void
-sqtt_CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask,
-                        VkPipelineStageFlags destStageMask, VkBool32 byRegion,
-                        uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
-                        uint32_t bufferMemoryBarrierCount,
-                        const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                        uint32_t imageMemoryBarrierCount,
-                        const VkImageMemoryBarrier *pImageMemoryBarriers)
+sqtt_CmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer,
+                            const VkDependencyInfoKHR* pDependencyInfo)
 {
-   EVENT_MARKER(PipelineBarrier, commandBuffer, srcStageMask, destStageMask, byRegion,
-                memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount,
-                pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
+   EVENT_MARKER_ALIAS(PipelineBarrier2KHR, PipelineBarrier, commandBuffer, pDependencyInfo);
 }
 
 void

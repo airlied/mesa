@@ -34,6 +34,7 @@
 #include "sid.h"
 #include "vk_format.h"
 #include "vk_util.h"
+#include "vk_enum_defines.h"
 
 #include "ac_debug.h"
 
@@ -3711,29 +3712,29 @@ radv_emit_draw_registers(struct radv_cmd_buffer *cmd_buffer, const struct radv_d
 }
 
 static void
-radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags src_stage_mask)
+radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2KHR src_stage_mask)
 {
    if (src_stage_mask &
-       (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT |
-        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR |
-        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
+       (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR |
+        VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR |
+        VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR |
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR)) {
       cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_CS_PARTIAL_FLUSH;
    }
 
    if (src_stage_mask &
-       (VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-        VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) {
+       (VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR |
+        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR |
+        VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR | VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR |
+        VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT_KHR | VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR)) {
       cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_PS_PARTIAL_FLUSH;
    } else if (src_stage_mask &
-              (VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
-               VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-               VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
-               VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-               VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
-               VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT)) {
+              (VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT_KHR | VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT_KHR |
+               VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR |
+               VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT_KHR |
+               VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT_KHR |
+               VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT_KHR |
+               VK_PIPELINE_STAGE_2_TRANSFORM_FEEDBACK_BIT_EXT)) {
       cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_VS_PARTIAL_FLUSH;
    }
 }
@@ -3768,7 +3769,7 @@ radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags src_st
  */
 
 enum radv_cmd_flush_bits
-radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags src_flags,
+radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags2KHR src_flags,
                       const struct radv_image *image)
 {
    bool has_CB_meta = true, has_DB_meta = true;
@@ -3782,10 +3783,10 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags src_flag
          has_DB_meta = false;
    }
 
-   u_foreach_bit(b, src_flags)
+   u_foreach_bit64(b, src_flags)
    {
-      switch ((VkAccessFlagBits)(1 << b)) {
-      case VK_ACCESS_SHADER_WRITE_BIT:
+      switch ((VkAccessFlags2KHR)(1 << b)) {
+      case VK_ACCESS_2_SHADER_WRITE_BIT_KHR:
          /* since the STORAGE bit isn't set we know that this is a meta operation.
           * on the dst flush side we skip CB/DB flushes without the STORAGE bit, so
           * set it here. */
@@ -3803,23 +3804,23 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags src_flag
          if (!image_is_coherent)
             flush_bits |= RADV_CMD_FLAG_WB_L2;
          break;
-      case VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR:
-      case VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT:
-      case VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT:
+      case VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR:
+      case VK_ACCESS_2_TRANSFORM_FEEDBACK_WRITE_BIT_EXT:
+      case VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT:
          if (!image_is_coherent)
             flush_bits |= RADV_CMD_FLAG_WB_L2;
          break;
-      case VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT:
+      case VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
          if (has_CB_meta)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
          break;
-      case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT:
+      case VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
          if (has_DB_meta)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
          break;
-      case VK_ACCESS_TRANSFER_WRITE_BIT:
+      case VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB | RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 
          if (!image_is_coherent)
@@ -3829,7 +3830,7 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags src_flag
          if (has_DB_meta)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
          break;
-      case VK_ACCESS_MEMORY_WRITE_BIT:
+      case VK_ACCESS_2_MEMORY_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB | RADV_CMD_FLAG_FLUSH_AND_INV_DB;
 
          if (!image_is_coherent)
@@ -3847,7 +3848,7 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags src_flag
 }
 
 enum radv_cmd_flush_bits
-radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags dst_flags,
+radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags2KHR dst_flags,
                       const struct radv_image *image)
 {
    bool has_CB_meta = true, has_DB_meta = true;
@@ -3872,20 +3873,20 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags dst_flag
    image_is_coherent |= cmd_buffer->device->physical_device->rad_info.chip_class >= GFX9 &&
                         !cmd_buffer->state.rb_noncoherent_dirty;
 
-   u_foreach_bit(b, dst_flags)
+   u_foreach_bit64(b, dst_flags)
    {
-      switch ((VkAccessFlagBits)(1 << b)) {
-      case VK_ACCESS_INDIRECT_COMMAND_READ_BIT:
-      case VK_ACCESS_INDEX_READ_BIT:
-      case VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT:
+      switch ((VkAccessFlags2KHR)(1 << b)) {
+      case VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT_KHR:
+      case VK_ACCESS_2_INDEX_READ_BIT_KHR:
+      case VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT:
          break;
-      case VK_ACCESS_UNIFORM_READ_BIT:
+      case VK_ACCESS_2_UNIFORM_READ_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE | RADV_CMD_FLAG_INV_SCACHE;
          break;
-      case VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT:
-      case VK_ACCESS_INPUT_ATTACHMENT_READ_BIT:
-      case VK_ACCESS_TRANSFER_READ_BIT:
-      case VK_ACCESS_TRANSFER_WRITE_BIT:
+      case VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT_KHR:
+      case VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT_KHR:
+      case VK_ACCESS_2_TRANSFER_READ_BIT_KHR:
+      case VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE;
 
          if (has_CB_meta || has_DB_meta)
@@ -3893,7 +3894,7 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags dst_flag
          if (!image_is_coherent)
             flush_bits |= RADV_CMD_FLAG_INV_L2;
          break;
-      case VK_ACCESS_SHADER_READ_BIT:
+      case VK_ACCESS_2_SHADER_READ_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE;
          /* Unlike LLVM, ACO uses SMEM for SSBOs and we have to
           * invalidate the scalar cache. */
@@ -3905,30 +3906,30 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags dst_flag
          if (!image_is_coherent)
             flush_bits |= RADV_CMD_FLAG_INV_L2;
          break;
-      case VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR:
+      case VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE;
          if (cmd_buffer->device->physical_device->rad_info.chip_class < GFX9)
             flush_bits |= RADV_CMD_FLAG_INV_L2;
          break;
-      case VK_ACCESS_SHADER_WRITE_BIT:
-      case VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR:
+      case VK_ACCESS_2_SHADER_WRITE_BIT_KHR:
+      case VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR:
          break;
-      case VK_ACCESS_COLOR_ATTACHMENT_READ_BIT:
-      case VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT:
+      case VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR:
+      case VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR:
          if (flush_CB)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB;
          if (has_CB_meta)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_CB_META;
          break;
-      case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT:
-      case VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT:
+      case VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT_KHR:
+      case VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR:
          if (flush_DB)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB;
          if (has_DB_meta)
             flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
          break;
-      case VK_ACCESS_MEMORY_READ_BIT:
-      case VK_ACCESS_MEMORY_WRITE_BIT:
+      case VK_ACCESS_2_MEMORY_READ_BIT_KHR:
+      case VK_ACCESS_2_MEMORY_WRITE_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE | RADV_CMD_FLAG_INV_SCACHE;
          if (!image_is_coherent)
             flush_bits |= RADV_CMD_FLAG_INV_L2;
@@ -7641,19 +7642,17 @@ struct radv_barrier_info {
    enum rgp_barrier_reason reason;
    uint32_t eventCount;
    const VkEvent *pEvents;
-   VkPipelineStageFlags srcStageMask;
-   VkPipelineStageFlags dstStageMask;
 };
 
 static void
-radv_barrier(struct radv_cmd_buffer *cmd_buffer, uint32_t memoryBarrierCount,
-             const VkMemoryBarrier *pMemoryBarriers, uint32_t bufferMemoryBarrierCount,
-             const VkBufferMemoryBarrier *pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount,
-             const VkImageMemoryBarrier *pImageMemoryBarriers, const struct radv_barrier_info *info)
+radv_barrier(struct radv_cmd_buffer *cmd_buffer, const VkDependencyInfoKHR *dep_info,
+             const struct radv_barrier_info *info)
 {
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
    enum radv_cmd_flush_bits src_flush_bits = 0;
    enum radv_cmd_flush_bits dst_flush_bits = 0;
+   VkPipelineStageFlags2KHR src_stage_mask = 0;
+   VkPipelineStageFlags2KHR dst_stage_mask = 0;
 
    if (cmd_buffer->state.subpass)
       radv_mark_noncoherent_rb(cmd_buffer);
@@ -7672,47 +7671,55 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer, uint32_t memoryBarrierCount,
       assert(cmd_buffer->cs->cdw <= cdw_max);
    }
 
-   for (uint32_t i = 0; i < memoryBarrierCount; i++) {
-      src_flush_bits |= radv_src_access_flush(cmd_buffer, pMemoryBarriers[i].srcAccessMask, NULL);
-      dst_flush_bits |= radv_dst_access_flush(cmd_buffer, pMemoryBarriers[i].dstAccessMask, NULL);
+   for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
+      src_stage_mask |= dep_info->pMemoryBarriers[i].srcStageMask;
+      src_flush_bits |=
+         radv_src_access_flush(cmd_buffer, dep_info->pMemoryBarriers[i].srcAccessMask, NULL);
+      dst_stage_mask |= dep_info->pMemoryBarriers[i].dstStageMask;
+      dst_flush_bits |=
+         radv_dst_access_flush(cmd_buffer, dep_info->pMemoryBarriers[i].dstAccessMask, NULL);
    }
 
-   for (uint32_t i = 0; i < bufferMemoryBarrierCount; i++) {
+   for (uint32_t i = 0; i < dep_info->bufferMemoryBarrierCount; i++) {
+      src_stage_mask |= dep_info->pBufferMemoryBarriers[i].srcStageMask;
       src_flush_bits |=
-         radv_src_access_flush(cmd_buffer, pBufferMemoryBarriers[i].srcAccessMask, NULL);
+         radv_src_access_flush(cmd_buffer, dep_info->pBufferMemoryBarriers[i].srcAccessMask, NULL);
+      dst_stage_mask |= dep_info->pBufferMemoryBarriers[i].dstStageMask;
       dst_flush_bits |=
-         radv_dst_access_flush(cmd_buffer, pBufferMemoryBarriers[i].dstAccessMask, NULL);
+         radv_dst_access_flush(cmd_buffer, dep_info->pBufferMemoryBarriers[i].dstAccessMask, NULL);
    }
 
-   for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
-      RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
+   for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
+      RADV_FROM_HANDLE(radv_image, image, dep_info->pImageMemoryBarriers[i].image);
 
+      src_stage_mask |= dep_info->pImageMemoryBarriers[i].srcStageMask;
       src_flush_bits |=
-         radv_src_access_flush(cmd_buffer, pImageMemoryBarriers[i].srcAccessMask, image);
+         radv_src_access_flush(cmd_buffer, dep_info->pImageMemoryBarriers[i].srcAccessMask, image);
+      dst_stage_mask |= dep_info->pImageMemoryBarriers[i].dstStageMask;
       dst_flush_bits |=
-         radv_dst_access_flush(cmd_buffer, pImageMemoryBarriers[i].dstAccessMask, image);
+         radv_dst_access_flush(cmd_buffer, dep_info->pImageMemoryBarriers[i].dstAccessMask, image);
    }
 
    /* The Vulkan spec 1.1.98 says:
     *
     * "An execution dependency with only
-    *  VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT in the destination stage mask
+    *  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR in the destination stage mask
     *  will only prevent that stage from executing in subsequently
     *  submitted commands. As this stage does not perform any actual
     *  execution, this is not observable - in effect, it does not delay
     *  processing of subsequent commands. Similarly an execution dependency
-    *  with only VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT in the source stage mask
+    *  with only VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR in the source stage mask
     *  will effectively not wait for any prior commands to complete."
     */
-   if (info->dstStageMask != VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT)
-      radv_stage_flush(cmd_buffer, info->srcStageMask);
+   if (dst_stage_mask != VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR)
+      radv_stage_flush(cmd_buffer, src_stage_mask);
    cmd_buffer->state.flush_bits |= src_flush_bits;
 
-   for (uint32_t i = 0; i < imageMemoryBarrierCount; i++) {
-      RADV_FROM_HANDLE(radv_image, image, pImageMemoryBarriers[i].image);
+   for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
+      RADV_FROM_HANDLE(radv_image, image, dep_info->pImageMemoryBarriers[i].image);
 
       const struct VkSampleLocationsInfoEXT *sample_locs_info =
-         vk_find_struct_const(pImageMemoryBarriers[i].pNext, SAMPLE_LOCATIONS_INFO_EXT);
+         vk_find_struct_const(dep_info->pImageMemoryBarriers[i].pNext, SAMPLE_LOCATIONS_INFO_EXT);
       struct radv_sample_locations_state sample_locations = {0};
 
       if (sample_locs_info) {
@@ -7725,18 +7732,20 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer, uint32_t memoryBarrierCount,
       }
 
       radv_handle_image_transition(
-         cmd_buffer, image, pImageMemoryBarriers[i].oldLayout,
+         cmd_buffer, image, dep_info->pImageMemoryBarriers[i].oldLayout,
          false, /* Outside of a renderpass we are never in a renderloop */
-         pImageMemoryBarriers[i].newLayout,
+         dep_info->pImageMemoryBarriers[i].newLayout,
          false, /* Outside of a renderpass we are never in a renderloop */
-         pImageMemoryBarriers[i].srcQueueFamilyIndex, pImageMemoryBarriers[i].dstQueueFamilyIndex,
-         &pImageMemoryBarriers[i].subresourceRange, sample_locs_info ? &sample_locations : NULL);
+         dep_info->pImageMemoryBarriers[i].srcQueueFamilyIndex,
+         dep_info->pImageMemoryBarriers[i].dstQueueFamilyIndex,
+         &dep_info->pImageMemoryBarriers[i].subresourceRange, sample_locs_info ? &sample_locations : NULL);
    }
 
    /* Make sure CP DMA is idle because the driver might have performed a
     * DMA operation for copying or filling buffers/images.
     */
-   if (info->srcStageMask & (VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT))
+   if (src_stage_mask & (VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR))
       si_cp_dma_wait_for_idle(cmd_buffer);
 
    cmd_buffer->state.flush_bits |= dst_flush_bits;
@@ -7745,13 +7754,8 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer, uint32_t memoryBarrierCount,
 }
 
 void
-radv_CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask,
-                        VkPipelineStageFlags destStageMask, VkBool32 byRegion,
-                        uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
-                        uint32_t bufferMemoryBarrierCount,
-                        const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                        uint32_t imageMemoryBarrierCount,
-                        const VkImageMemoryBarrier *pImageMemoryBarriers)
+radv_CmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer,
+                            const VkDependencyInfoKHR *pDependencyInfo)
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_barrier_info info;
@@ -7759,11 +7763,8 @@ radv_CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcS
    info.reason = RGP_BARRIER_EXTERNAL_CMD_PIPELINE_BARRIER;
    info.eventCount = 0;
    info.pEvents = NULL;
-   info.srcStageMask = srcStageMask;
-   info.dstStageMask = destStageMask;
 
-   radv_barrier(cmd_buffer, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount,
-                pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers, &info);
+   radv_barrier(cmd_buffer, pDependencyInfo, &info);
 }
 
 static void
@@ -7870,13 +7871,8 @@ radv_CmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent _event,
 }
 
 void
-radv_CmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
-                   VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
-                   uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
-                   uint32_t bufferMemoryBarrierCount,
-                   const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                   uint32_t imageMemoryBarrierCount,
-                   const VkImageMemoryBarrier *pImageMemoryBarriers)
+radv_CmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
+                       const VkDependencyInfoKHR* pDependencyInfos)
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_barrier_info info;
@@ -7884,10 +7880,8 @@ radv_CmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkE
    info.reason = RGP_BARRIER_EXTERNAL_CMD_WAIT_EVENTS;
    info.eventCount = eventCount;
    info.pEvents = pEvents;
-   info.srcStageMask = 0;
 
-   radv_barrier(cmd_buffer, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount,
-                pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers, &info);
+   radv_barrier(cmd_buffer, pDependencyInfos, &info);
 }
 
 void
