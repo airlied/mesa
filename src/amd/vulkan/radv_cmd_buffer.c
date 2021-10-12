@@ -7768,7 +7768,7 @@ radv_CmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcS
 
 static void
 write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event,
-            VkPipelineStageFlags stageMask, unsigned value)
+            VkPipelineStageFlags2KHR stageMask, unsigned value)
 {
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
    uint64_t va = radv_buffer_get_va(event->bo);
@@ -7780,28 +7780,28 @@ write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event,
    ASSERTED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 28);
 
    /* Flags that only require a top-of-pipe event. */
-   VkPipelineStageFlags top_of_pipe_flags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+   VkPipelineStageFlags2KHR top_of_pipe_flags = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR;
 
    /* Flags that only require a post-index-fetch event. */
-   VkPipelineStageFlags post_index_fetch_flags =
-      top_of_pipe_flags | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+   VkPipelineStageFlags2KHR post_index_fetch_flags =
+      top_of_pipe_flags | VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT_KHR | VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT_KHR;
 
    /* Flags that only require signaling post PS. */
-   VkPipelineStageFlags post_ps_flags =
-      post_index_fetch_flags | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-      VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
-      VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
-      VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT |
-      VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
-      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+   VkPipelineStageFlags2KHR post_ps_flags =
+      post_index_fetch_flags | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR |
+      VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT_KHR |
+      VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT_KHR |
+      VK_PIPELINE_STAGE_2_TRANSFORM_FEEDBACK_BIT_EXT |
+      VK_PIPELINE_STAGE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
+      VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR;
 
    /* Flags that only require signaling post CS. */
-   VkPipelineStageFlags post_cs_flags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+   VkPipelineStageFlags2KHR post_cs_flags = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR;
 
    /* Make sure CP DMA is idle because the driver might have performed a
     * DMA operation for copying or filling buffers/images.
     */
-   if (stageMask & (VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT))
+   if (stageMask & (VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR | VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR))
       si_cp_dma_wait_for_idle(cmd_buffer);
 
    if (!(stageMask & ~top_of_pipe_flags)) {
@@ -7842,16 +7842,26 @@ write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event,
 }
 
 void
-radv_CmdSetEvent(VkCommandBuffer commandBuffer, VkEvent _event, VkPipelineStageFlags stageMask)
+radv_CmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent _event,
+                     const VkDependencyInfoKHR* pDependencyInfo)
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    RADV_FROM_HANDLE(radv_event, event, _event);
+   VkPipelineStageFlags2KHR src_stage_mask = 0;
 
-   write_event(cmd_buffer, event, stageMask, 1);
+   for (uint32_t i = 0; i < pDependencyInfo->memoryBarrierCount; i++)
+      src_stage_mask |= pDependencyInfo->pMemoryBarriers[i].srcStageMask;
+   for (uint32_t i = 0; i < pDependencyInfo->bufferMemoryBarrierCount; i++)
+      src_stage_mask |= pDependencyInfo->pBufferMemoryBarriers[i].srcStageMask;
+   for (uint32_t i = 0; i < pDependencyInfo->imageMemoryBarrierCount; i++)
+      src_stage_mask |= pDependencyInfo->pImageMemoryBarriers[i].srcStageMask;
+
+   write_event(cmd_buffer, event, src_stage_mask, 1);
 }
 
 void
-radv_CmdResetEvent(VkCommandBuffer commandBuffer, VkEvent _event, VkPipelineStageFlags stageMask)
+radv_CmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent _event,
+                       VkPipelineStageFlags2KHR stageMask)
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    RADV_FROM_HANDLE(radv_event, event, _event);
