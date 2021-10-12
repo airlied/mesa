@@ -2418,9 +2418,9 @@ struct radv_framebuffer {
 };
 
 struct radv_subpass_barrier {
-   VkPipelineStageFlags src_stage_mask;
-   VkAccessFlags src_access_mask;
-   VkAccessFlags dst_access_mask;
+   VkPipelineStageFlags2KHR src_stage_mask;
+   VkAccessFlags2KHR src_access_mask;
+   VkAccessFlags2KHR dst_access_mask;
 };
 
 void radv_emit_subpass_barrier(struct radv_cmd_buffer *cmd_buffer,

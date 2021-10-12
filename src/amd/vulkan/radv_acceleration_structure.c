@@ -1872,9 +1872,9 @@ radv_CmdBuildAccelerationStructuresKHR(
          if (!progress) {
             cmd_buffer->state.flush_bits |=
                RADV_CMD_FLAG_CS_PARTIAL_FLUSH |
-               radv_src_access_flush(cmd_buffer, VK_ACCESS_SHADER_WRITE_BIT, NULL) |
+               radv_src_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, NULL) |
                radv_dst_access_flush(cmd_buffer,
-                                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, NULL);
+                                     VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR, NULL);
          }
          progress = true;
          uint32_t dst_node_count = MAX2(1, DIV_ROUND_UP(bvh_states[i].node_count, 4));
