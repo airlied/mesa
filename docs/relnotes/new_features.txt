@@ -1,1 +1,2 @@
 lavapipe KHR_dynamic_rendering
+VK_KHR_synchronization2 on RADV.
