@@ -4437,8 +4437,8 @@ struct radv_deferred_queue_submission {
    uint64_t *wait_values;
    uint64_t *signal_values;
 
-   struct radv_semaphore_part *temporary_semaphore_parts;
-   uint32_t temporary_semaphore_part_count;
+   struct radv_semaphore_part *temporary_semaphores;
+   uint32_t temporary_semaphore_count;
 
    struct list_head queue_pending_list;
    uint32_t submission_wait_count;
@@ -4560,16 +4560,16 @@ radv_create_deferred_submission(struct radv_queue *queue,
 
    deferred->fence = submission->fence;
 
-   deferred->temporary_semaphore_parts =
+   deferred->temporary_semaphores =
       (void *)(deferred->signal_semaphores + deferred->signal_semaphore_count);
-   deferred->temporary_semaphore_part_count = temporary_count;
+   deferred->temporary_semaphore_count = temporary_count;
 
    uint32_t temporary_idx = 0;
    for (uint32_t i = 0; i < submission->wait_semaphore_count; ++i) {
       RADV_FROM_HANDLE(radv_semaphore, semaphore, submission->wait_semaphores[i]);
       if (semaphore->temporary.kind != RADV_SEMAPHORE_NONE) {
-         deferred->wait_semaphores[i] = &deferred->temporary_semaphore_parts[temporary_idx];
-         deferred->temporary_semaphore_parts[temporary_idx] = semaphore->temporary;
+         deferred->wait_semaphores[i] = &deferred->temporary_semaphores[temporary_idx];
+         deferred->temporary_semaphores[temporary_idx] = semaphore->temporary;
          semaphore->temporary.kind = RADV_SEMAPHORE_NONE;
          ++temporary_idx;
       } else
@@ -4585,7 +4585,7 @@ radv_create_deferred_submission(struct radv_queue *queue,
       }
    }
 
-   deferred->wait_values = (void *)(deferred->temporary_semaphore_parts + temporary_count);
+   deferred->wait_values = (void *)(deferred->temporary_semaphores + temporary_count);
    if (submission->wait_value_count) {
       memcpy(deferred->wait_values, submission->wait_values,
              submission->wait_value_count * sizeof(uint64_t));
@@ -4786,8 +4786,8 @@ fail:
       result = radv_device_set_lost(queue->device, "vkQueueSubmit() failed");
    }
 
-   radv_free_temp_syncobjs(queue->device, submission->temporary_semaphore_part_count,
-                           submission->temporary_semaphore_parts);
+   radv_free_temp_syncobjs(queue->device, submission->temporary_semaphore_count,
+                           submission->temporary_semaphores);
    radv_free_sem_info(&sem_info);
    free(submission);
    return result;
