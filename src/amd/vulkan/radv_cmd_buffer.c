@@ -3714,6 +3714,14 @@ radv_emit_draw_registers(struct radv_cmd_buffer *cmd_buffer, const struct radv_d
 static void
 radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2KHR src_stage_mask)
 {
+   if (src_stage_mask & (VK_PIPELINE_STAGE_2_COPY_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_RESOLVE_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_BLIT_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_CLEAR_BIT_KHR)) {
+      /* Be conservative for now. */
+      src_stage_mask |= VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+   }
+
    if (src_stage_mask &
        (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR |
         VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR |
@@ -3734,7 +3742,8 @@ radv_stage_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2KHR sr
                VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT_KHR |
                VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT_KHR |
                VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT_KHR |
-               VK_PIPELINE_STAGE_2_TRANSFORM_FEEDBACK_BIT_EXT)) {
+               VK_PIPELINE_STAGE_2_TRANSFORM_FEEDBACK_BIT_EXT |
+               VK_PIPELINE_STAGE_2_PRE_RASTERIZATION_SHADERS_BIT_KHR)) {
       cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_VS_PARTIAL_FLUSH;
    }
 }
@@ -3787,6 +3796,7 @@ radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags2KHR src_
    {
       switch ((VkAccessFlags2KHR)(1 << b)) {
       case VK_ACCESS_2_SHADER_WRITE_BIT_KHR:
+      case VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT_KHR:
          /* since the STORAGE bit isn't set we know that this is a meta operation.
           * on the dst flush side we skip CB/DB flushes without the STORAGE bit, so
           * set it here. */
@@ -3895,6 +3905,7 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags2KHR dst_
             flush_bits |= RADV_CMD_FLAG_INV_L2;
          break;
       case VK_ACCESS_2_SHADER_READ_BIT_KHR:
+      case VK_ACCESS_2_SHADER_STORAGE_READ_BIT_KHR:
          flush_bits |= RADV_CMD_FLAG_INV_VCACHE;
          /* Unlike LLVM, ACO uses SMEM for SSBOs and we have to
           * invalidate the scalar cache. */
@@ -3912,6 +3923,7 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkAccessFlags2KHR dst_
             flush_bits |= RADV_CMD_FLAG_INV_L2;
          break;
       case VK_ACCESS_2_SHADER_WRITE_BIT_KHR:
+      case VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT_KHR:
       case VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR:
          break;
       case VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR:
@@ -7744,6 +7756,14 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer, const VkDependencyInfoKHR *dep_
    /* Make sure CP DMA is idle because the driver might have performed a
     * DMA operation for copying or filling buffers/images.
     */
+   if (src_stage_mask & (VK_PIPELINE_STAGE_2_COPY_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_RESOLVE_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_BLIT_BIT_KHR |
+                         VK_PIPELINE_STAGE_2_CLEAR_BIT_KHR)) {
+      /* Be conservative for now. */
+      src_stage_mask |= VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+   }
+
    if (src_stage_mask & (VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR |
                          VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR))
       si_cp_dma_wait_for_idle(cmd_buffer);
@@ -7780,6 +7800,14 @@ write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event,
 
    ASSERTED unsigned cdw_max = radeon_check_space(cmd_buffer->device->ws, cs, 28);
 
+   if (stageMask & (VK_PIPELINE_STAGE_2_COPY_BIT_KHR |
+                    VK_PIPELINE_STAGE_2_RESOLVE_BIT_KHR |
+                    VK_PIPELINE_STAGE_2_BLIT_BIT_KHR |
+                    VK_PIPELINE_STAGE_2_CLEAR_BIT_KHR)) {
+      /* Be conservative for now. */
+      stageMask |= VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+   }
+
    /* Flags that only require a top-of-pipe event. */
    VkPipelineStageFlags2KHR top_of_pipe_flags = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR;
 
@@ -7793,6 +7821,7 @@ write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event,
       VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT_KHR |
       VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT_KHR |
       VK_PIPELINE_STAGE_2_TRANSFORM_FEEDBACK_BIT_EXT |
+      VK_PIPELINE_STAGE_2_PRE_RASTERIZATION_SHADERS_BIT_KHR |
       VK_PIPELINE_STAGE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR |
       VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR;
 
