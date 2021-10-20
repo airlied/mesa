@@ -2584,8 +2584,38 @@ struct radv_semaphore {
    struct radv_semaphore_part temporary;
 };
 
+#define VL_MACROBLOCK_WIDTH 16
+#define VL_MACROBLOCK_HEIGHT 16
+
+struct radv_vid_mem {
+   uint32_t           bind_index;
+   struct radv_device_memory *mem;
+   VkDeviceSize       offset;
+   VkDeviceSize       size;
+};
+
 struct radv_video_session {
    struct vk_object_base base;
+
+   VkFormat format;
+   VkExtent2D max_coded;
+   VkFormat ref_format;
+   uint32_t max_ref_pic_slots;
+   uint32_t max_ref_pic_active;
+
+   uint32_t level;
+   uint32_t stream_handle;
+
+   enum {
+      DPB_MAX_RES = 0,
+      DPB_DYNAMIC_TIER_1,
+      DPB_DYNAMIC_TIER_2
+   } dpb_type;
+   unsigned db_alignment;
+   unsigned dpb_size;
+
+   struct radv_vid_mem ctx;
+   struct radv_vid_mem fb_it[4];
 };
 
 struct radv_video_session_params {
@@ -2960,8 +2990,8 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(radv_sampler_ycbcr_conversion, base,
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_semaphore, base, VkSemaphore,
                                VK_OBJECT_TYPE_SEMAPHORE)
 
-VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session, VkVideoSessionKHR)
-VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session_params, VkVideoSessionParametersKHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session, base, VkVideoSessionKHR, VK_OBJECT_TYPE_VIDEO_SESSION_KHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session_params, base, VkVideoSessionParametersKHR, VK_OBJECT_TYPE_VIDEO_SESSION_PARAMETERS_KHR)
 
 #ifdef __cplusplus
 }
