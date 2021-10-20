@@ -466,6 +466,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
       .KHR_video_queue = true,
+      .KHR_video_decode_queue = true,
       .KHR_vulkan_memory_model = true,
       .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
@@ -532,6 +533,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_vertex_attribute_divisor = true,
       .EXT_vertex_input_dynamic_state = !device->use_llvm,
       .EXT_ycbcr_image_arrays = true,
+      .EXT_ycbcr_2plane_444_formats = true,
       .AMD_buffer_marker = true,
       .AMD_device_coherent_memory = true,
       .AMD_draw_indirect_count = true,
@@ -1643,6 +1645,12 @@ radv_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
          features->synchronization2 = true;
          break;
       }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_2_PLANE_444_FORMATS_FEATURES_EXT: {
+         VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *features =
+            (VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *)ext;
+         features->ycbcr2plane444Formats = true;
+         break;
+      }
       default:
          break;
       }
@@ -2407,7 +2415,7 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
 	 case VK_STRUCTURE_TYPE_VIDEO_QUEUE_FAMILY_PROPERTIES_2_KHR: {
             VkVideoQueueFamilyProperties2KHR *prop =
                (VkVideoQueueFamilyProperties2KHR *)ext;
-            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
+            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;//VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
             break;
 	 }
          default:

@@ -28,6 +28,7 @@
 #ifndef RADV_PRIVATE_H
 #define RADV_PRIVATE_H
 
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
