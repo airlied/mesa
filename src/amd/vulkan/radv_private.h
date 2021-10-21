@@ -655,8 +655,8 @@ struct radv_meta_state {
 /* queue types */
 #define RADV_QUEUE_GENERAL  0
 #define RADV_QUEUE_COMPUTE  1
-#define RADV_QUEUE_TRANSFER 2
-#define RADV_QUEUE_VIDEO_DEC 3
+#define RADV_QUEUE_VIDEO_DEC 2
+#define RADV_QUEUE_TRANSFER 3
 #define RADV_QUEUE_VIDEO_ENC 4
 
 /* Not a real queue family */
