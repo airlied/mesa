@@ -656,24 +656,42 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
 
    memset(&result, 0, sizeof(result));
 
-   result.profile = RDECODE_H264_PROFILE_MAIN;
+   assert(params->h264_dec.sps_std_count > 0);
+   const StdVideoH264SequenceParameterSet *sps = &params->h264_dec.sps_std[0];
+   switch (sps->profile_idc) {
+   case std_video_h264_profile_idc_baseline:
+      result.profile = RDECODE_H264_PROFILE_BASELINE;
+      break;
+   case std_video_h264_profile_idc_main:
+      result.profile = RDECODE_H264_PROFILE_MAIN;
+      break;
+   case std_video_h264_profile_idc_high:
+      result.profile = RDECODE_H264_PROFILE_HIGH;
+      break;
+   default:
+      fprintf(stderr, "UNSUPPORTED CODEC %d\n", sps->profile_idc);
+      result.profile= RDECODE_H264_PROFILE_MAIN;
+      break;
+   }
 
    result.level = vid->level;
 
    result.sps_info_flags = 0;
 
-#if 0
-   result.sps_info_flags |= pic->pps->sps->direct_8x8_inference_flag << 0;
-   result.sps_info_flags |= pic->pps->sps->mb_adaptive_frame_field_flag << 1;
-   result.sps_info_flags |= pic->pps->sps->frame_mbs_only_flag << 2;
-   result.sps_info_flags |= pic->pps->sps->delta_pic_order_always_zero_flag << 3;
+   result.sps_info_flags |= sps->flags.direct_8x8_inference_flag << 0;
+   result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag << 1;
+   result.sps_info_flags |= sps->flags.frame_mbs_only_flag << 2;
+   result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag << 3;
    result.sps_info_flags |= 1 << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
 
-   result.bit_depth_luma_minus8 = pic->pps->sps->bit_depth_luma_minus8;
-   result.bit_depth_chroma_minus8 = pic->pps->sps->bit_depth_chroma_minus8;
-   result.log2_max_frame_num_minus4 = pic->pps->sps->log2_max_frame_num_minus4;
-   result.pic_order_cnt_type = pic->pps->sps->pic_order_cnt_type;
-   result.log2_max_pic_order_cnt_lsb_minus4 = pic->pps->sps->log2_max_pic_order_cnt_lsb_minus4;
+   result.bit_depth_luma_minus8 = sps->bit_depth_luma_minus8;
+   result.bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8;
+   result.log2_max_frame_num_minus4 = sps->log2_max_frame_num_minus4;
+   result.pic_order_cnt_type = sps->pic_order_cnt_type;
+   result.log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4;
+
+   result.chroma_format = 1;
+#if 0
 
    switch (dec->base.chroma_format) {
    case PIPE_VIDEO_CHROMA_FORMAT_NONE:
@@ -691,35 +709,42 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
       result.chroma_format = 3;
       break;
    }
+#endif
+
+   const StdVideoH264PictureParameterSet *pps = &params->h264_dec.pps_std[0];
 
    result.pps_info_flags = 0;
-   result.pps_info_flags |= pic->pps->transform_8x8_mode_flag << 0;
-   result.pps_info_flags |= pic->pps->redundant_pic_cnt_present_flag << 1;
-   result.pps_info_flags |= pic->pps->constrained_intra_pred_flag << 2;
-   result.pps_info_flags |= pic->pps->deblocking_filter_control_present_flag << 3;
-   result.pps_info_flags |= pic->pps->weighted_bipred_idc << 4;
-   result.pps_info_flags |= pic->pps->weighted_pred_flag << 6;
-   result.pps_info_flags |= pic->pps->bottom_field_pic_order_in_frame_present_flag << 7;
-   result.pps_info_flags |= pic->pps->entropy_coding_mode_flag << 8;
+   result.pps_info_flags |= pps->flags.transform_8x8_mode_flag << 0;
+   result.pps_info_flags |= pps->flags.redundant_pic_cnt_present_flag << 1;
+   result.pps_info_flags |= pps->flags.constrained_intra_pred_flag << 2;
+   result.pps_info_flags |= pps->flags.deblocking_filter_control_present_flag << 3;
+   result.pps_info_flags |= pps->flags.weighted_bipred_idc_flag << 4;
+   result.pps_info_flags |= pps->flags.weighted_pred_flag << 6;
+   result.pps_info_flags |= pps->flags.pic_order_present_flag << 7;
+   result.pps_info_flags |= pps->flags.entropy_coding_mode_flag << 8;
+#if 0
 
    result.num_slice_groups_minus1 = pic->pps->num_slice_groups_minus1;
    result.slice_group_map_type = pic->pps->slice_group_map_type;
    result.slice_group_change_rate_minus1 = pic->pps->slice_group_change_rate_minus1;
-   result.pic_init_qp_minus26 = pic->pps->pic_init_qp_minus26;
-   result.chroma_qp_index_offset = pic->pps->chroma_qp_index_offset;
-   result.second_chroma_qp_index_offset = pic->pps->second_chroma_qp_index_offset;
+#endif
+   result.pic_init_qp_minus26 = pps->pic_init_qp_minus26;
+   result.chroma_qp_index_offset = pps->chroma_qp_index_offset;
+   result.second_chroma_qp_index_offset = pps->second_chroma_qp_index_offset;
 
-   memcpy(result.scaling_list_4x4, pic->pps->ScalingList4x4, 6 * 16);
-   memcpy(result.scaling_list_8x8, pic->pps->ScalingList8x8, 2 * 64);
-
+   if (pps->flags.scaling_matrix_present_flag) {
+      memcpy(result.scaling_list_4x4, pps->pScalingLists->ScalingList4x4, 6 * 16);
+      memcpy(result.scaling_list_8x8, pps->pScalingLists->ScalingList8x8, 2 * 64);
+   }
+#if 0
    memcpy(dec->it, result.scaling_list_4x4, 6 * 16);
    memcpy((dec->it + 96), result.scaling_list_8x8, 2 * 64);
 
    result.num_ref_frames = pic->num_ref_frames;
-
-   result.num_ref_idx_l0_active_minus1 = pic->num_ref_idx_l0_active_minus1;
-   result.num_ref_idx_l1_active_minus1 = pic->num_ref_idx_l1_active_minus1;
-
+#endif
+   result.num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_default_active_minus1;
+   result.num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_default_active_minus1;
+#if 0
    result.frame_num = pic->frame_num;
    memcpy(result.frame_num_list, pic->frame_num_list, 4 * 16);
    result.curr_field_order_cnt_list[0] = pic->field_order_cnt[0];
