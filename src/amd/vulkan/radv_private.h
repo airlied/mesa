@@ -1521,6 +1521,8 @@ struct radv_cmd_buffer {
     * Bitmask of pending active query flushes.
     */
    enum radv_cmd_flush_bits active_query_flush_bits;
+
+   struct radv_video_session *cur_video;
 };
 
 struct radv_image;
@@ -2597,6 +2599,7 @@ struct radv_vid_mem {
 struct radv_video_session {
    struct vk_object_base base;
 
+   VkVideoCodecOperationFlagsKHR op;
    VkFormat format;
    VkExtent2D max_coded;
    VkFormat ref_format;
@@ -2605,6 +2608,7 @@ struct radv_video_session {
 
    uint32_t level;
    uint32_t stream_handle;
+   unsigned stream_type;
 
    enum {
       DPB_MAX_RES = 0,
@@ -2614,12 +2618,25 @@ struct radv_video_session {
    unsigned db_alignment;
    unsigned dpb_size;
 
-   struct radv_vid_mem ctx;
+   struct radv_vid_mem sessionctx;
    struct radv_vid_mem fb_it[4];
+   struct radv_vid_mem ctx;
 };
 
 struct radv_video_session_params {
    struct vk_object_base base;
+   VkVideoCodecOperationFlagsKHR op;
+   union {
+      struct {
+	 uint32_t max_sps_std_count;
+	 uint32_t max_pps_std_count;
+
+	 uint32_t sps_std_count;
+	 const StdVideoH264SequenceParameterSet *sps_std;
+	 uint32_t pps_std_count;
+	 const StdVideoH264PictureParameterSet *pps_std;
+      } h264_dec;
+   };
 };
 
 bool radv_queue_internal_submit(struct radv_queue *queue, struct radeon_cmdbuf *cs);
