@@ -690,26 +690,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    result.pic_order_cnt_type = sps->pic_order_cnt_type;
    result.log2_max_pic_order_cnt_lsb_minus4 = sps->log2_max_pic_order_cnt_lsb_minus4;
 
-   result.chroma_format = 1;
-#if 0
-
-   switch (dec->base.chroma_format) {
-   case PIPE_VIDEO_CHROMA_FORMAT_NONE:
-      break;
-   case PIPE_VIDEO_CHROMA_FORMAT_400:
-      result.chroma_format = 0;
-      break;
-   case PIPE_VIDEO_CHROMA_FORMAT_420:
-      result.chroma_format = 1;
-      break;
-   case PIPE_VIDEO_CHROMA_FORMAT_422:
-      result.chroma_format = 2;
-      break;
-   case PIPE_VIDEO_CHROMA_FORMAT_444:
-      result.chroma_format = 3;
-      break;
-   }
-#endif
+   result.chroma_format = sps->chroma_format_idc;
 
    const StdVideoH264PictureParameterSet *pps = &params->h264_dec.pps_std[0];
 
@@ -722,12 +703,13 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    result.pps_info_flags |= pps->flags.weighted_pred_flag << 6;
    result.pps_info_flags |= pps->flags.pic_order_present_flag << 7;
    result.pps_info_flags |= pps->flags.entropy_coding_mode_flag << 8;
-#if 0
 
+#if 0
    result.num_slice_groups_minus1 = pic->pps->num_slice_groups_minus1;
    result.slice_group_map_type = pic->pps->slice_group_map_type;
    result.slice_group_change_rate_minus1 = pic->pps->slice_group_change_rate_minus1;
 #endif
+
    result.pic_init_qp_minus26 = pps->pic_init_qp_minus26;
    result.chroma_qp_index_offset = pps->chroma_qp_index_offset;
    result.second_chroma_qp_index_offset = pps->second_chroma_qp_index_offset;
@@ -755,6 +737,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
 #endif
    return result;
 }
+
 static bool rvcn_dec_message_decode(struct radv_video_session *vid,
                                     struct radv_video_session_params *params,
                                     void *ptr,
@@ -945,9 +928,9 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    struct radv_video_session *vid = cmd_buffer->video.vid;
    struct radv_video_session_params *params = cmd_buffer->video.params;
    unsigned size = 0;
-   void *ptr;
-   uint32_t out_offset;
-
+   void *ptr, *fb_ptr, *it_ptr = NULL;
+   uint32_t out_offset, fb_offset, it_offset = 0;
+   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL;
 
    size += sizeof(rvcn_dec_message_header_t);
    size += sizeof(rvcn_dec_message_index_t);
@@ -956,23 +939,36 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    size += sizeof(rvcn_dec_message_decode_t);
    //encrypted
 
-   bool ret = radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
+   bool ret = radv_cmd_buffer_upload_alloc(cmd_buffer, FB_BUFFER_SIZE, &fb_offset,
+					   &fb_ptr);
+   fb_bo = cmd_buffer->upload.upload_bo;
+   if (have_it(vid)) {
+      radv_cmd_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_offset,
+                                   &it_ptr);
+      it_bo = cmd_buffer->upload.upload_bo;
+   }
+
+   ret = radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
 					   &ptr);
+   msg_bo = cmd_buffer->upload.upload_bo;
+
    /* offset/range */
    rvcn_dec_message_decode(vid, params, ptr, frame_info);
-   //   rvcn_dec_message_feedback(ptr);
+   rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
    /* write a lot of send_cmds */
    /* RDECODE_CMD_DPB_BUFFER dpb */
-   if (vid->dpb_type != DPB_DYNAMIC_TIER_2)
-      send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, NULL, 0);
+   //   if (vid->dpb_type != DPB_DYNAMIC_TIER_2)
+   //      send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, NULL, 0);
 
    send_cmd(cmd_buffer, RDECODE_CMD_BITSTREAM_BUFFER, src_buffer->bo, src_buffer->offset + frame_info->srcBufferOffset);
-   send_cmd(cmd_buffer, RDECODE_CMD_DECODING_TARGET_BUFFER, NULL, 0);
-   send_cmd(cmd_buffer, RDECODE_CMD_FEEDBACK_BUFFER, NULL, 0);
+   struct radv_image_view *dst_iv = radv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
+   struct radv_image *img = dst_iv->image;
+   send_cmd(cmd_buffer, RDECODE_CMD_DECODING_TARGET_BUFFER, img->bo, 0);
+   send_cmd(cmd_buffer, RDECODE_CMD_FEEDBACK_BUFFER, fb_bo, fb_offset);
    if (have_it(vid))
-      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, NULL, 0);
+      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
    else if (have_probs(vid))
       send_cmd(cmd_buffer, RDECODE_CMD_PROB_TBL_BUFFER, NULL, 0);
 
