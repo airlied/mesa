@@ -464,6 +464,12 @@ radv_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
                                                uint32_t *pVideoFormatPropertyCount,
                                                VkVideoFormatPropertiesKHR *pVideoFormatProperties)
 {
+   *pVideoFormatPropertyCount = 1;
+
+   if (!pVideoFormatProperties)
+      return VK_SUCCESS;
+
+   pVideoFormatProperties[0].format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
    return VK_SUCCESS;
 }
 
@@ -643,6 +649,7 @@ static void rvcn_dec_message_feedback(void *ptr)
 }
 
 static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
+                                           struct radv_video_session_params *params,
                                            const struct VkVideoDecodeInfoKHR *frame_info)
 {
    rvcn_dec_message_avc_t result;
@@ -724,8 +731,9 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    return result;
 }
 static bool rvcn_dec_message_decode(struct radv_video_session *vid,
-                                  void *ptr,
-                                  const struct VkVideoDecodeInfoKHR *frame_info)
+                                    struct radv_video_session_params *params,
+                                    void *ptr,
+                                    const struct VkVideoDecodeInfoKHR *frame_info)
 {
    rvcn_dec_message_header_t *header;
    rvcn_dec_message_index_t *index_codec;
@@ -838,7 +846,7 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
 
    // MPEG4_AVC only.
 
-   rvcn_dec_message_avc_t avc = get_h264_msg(vid, frame_info);
+   rvcn_dec_message_avc_t avc = get_h264_msg(vid, params,frame_info);
    memcpy(codec, (void *)&avc, sizeof(rvcn_dec_message_avc_t));
    index_codec->message_id = RDECODE_MESSAGE_AVC;
 
@@ -873,7 +881,8 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
 
-   cmd_buffer->cur_video = vid;
+   cmd_buffer->video.vid = vid;
+   cmd_buffer->video.params = params;
 }
 
 void
@@ -889,7 +898,7 @@ radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
                           const VkVideoEndCodingInfoKHR *pEndCodingInfo)
 {
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
-   struct radv_video_session *vid = cmd_buffer->cur_video;
+   struct radv_video_session *vid = cmd_buffer->video.vid;
    uint32_t size = sizeof(rvcn_dec_message_header_t);
    void *ptr;
    uint32_t out_offset;
@@ -908,7 +917,8 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
 
    /* codedOffset/extent */
    RADV_FROM_HANDLE(radv_buffer, src_buffer, frame_info->srcBuffer);
-   struct radv_video_session *vid = cmd_buffer->cur_video;
+   struct radv_video_session *vid = cmd_buffer->video.vid;
+   struct radv_video_session_params *params = cmd_buffer->video.params;
    unsigned size = 0;
    void *ptr;
    uint32_t out_offset;
@@ -924,7 +934,7 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    bool ret = radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
 					   &ptr);
    /* offset/range */
-   rvcn_dec_message_decode(vid, ptr, frame_info);
+   rvcn_dec_message_decode(vid, params, ptr, frame_info);
    //   rvcn_dec_message_feedback(ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);

@@ -530,6 +530,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_subgroup_size_control = true,
       .EXT_texel_buffer_alignment = true,
       .EXT_transform_feedback = true,
+      .EXT_video_decode_h264 = true,
       .EXT_vertex_attribute_divisor = true,
       .EXT_vertex_input_dynamic_state = !device->use_llvm,
       .EXT_ycbcr_image_arrays = true,

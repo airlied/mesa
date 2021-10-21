@@ -1522,7 +1522,10 @@ struct radv_cmd_buffer {
     */
    enum radv_cmd_flush_bits active_query_flush_bits;
 
-   struct radv_video_session *cur_video;
+   struct {
+      struct radv_video_session *vid;
+      struct radv_video_session_params *params;
+   } video;
 };
 
 struct radv_image;
