@@ -929,8 +929,9 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    struct radv_video_session_params *params = cmd_buffer->video.params;
    unsigned size = 0;
    void *ptr, *fb_ptr, *it_ptr = NULL;
-   uint32_t out_offset, fb_offset, it_offset = 0;
-   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL;
+   uint32_t out_offset, fb_offset, it_offset = 0, dpb_offset = 0;
+   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL, *dpb_bo = NULL;
+   struct radv_image_view *dpb_iv = NULL;
 
    size += sizeof(rvcn_dec_message_header_t);
    size += sizeof(rvcn_dec_message_index_t);
@@ -938,6 +939,12 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    //dpb
    size += sizeof(rvcn_dec_message_decode_t);
    //encrypted
+
+   if (frame_info->pSetupReferenceSlot) {
+      dpb_iv = radv_image_view_from_handle(frame_info->pSetupReferenceSlot->pPictureResource->imageViewBinding);
+      dpb_bo = dpb_iv->image->bo;
+      dpb_offset = dpb_iv->image->offset;
+   }
 
    bool ret = radv_cmd_buffer_upload_alloc(cmd_buffer, FB_BUFFER_SIZE, &fb_offset,
 					   &fb_ptr);
@@ -959,8 +966,8 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
    /* write a lot of send_cmds */
    /* RDECODE_CMD_DPB_BUFFER dpb */
-   //   if (vid->dpb_type != DPB_DYNAMIC_TIER_2)
-   //      send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, NULL, 0);
+   if (dpb_bo && vid->dpb_type != DPB_DYNAMIC_TIER_2)
+      send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, dpb_bo, dpb_offset);
 
    send_cmd(cmd_buffer, RDECODE_CMD_BITSTREAM_BUFFER, src_buffer->bo, src_buffer->offset + frame_info->srcBufferOffset);
    struct radv_image_view *dst_iv = radv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);

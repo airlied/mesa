@@ -3793,6 +3793,9 @@ radv_get_preamble_cs(struct radv_queue *queue, uint32_t scratch_size_per_wave,
    unsigned tess_offchip_ring_offset;
    uint32_t ring_bo_flags = RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING;
    VkResult result = VK_SUCCESS;
+
+   if (queue->vk.queue_family_index == RADV_QUEUE_VIDEO_DEC)
+     return result;
    if (!queue->has_tess_rings) {
       if (needs_tess_rings)
          add_tess_rings = true;

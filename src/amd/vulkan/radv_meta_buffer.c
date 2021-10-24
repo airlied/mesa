@@ -315,6 +315,8 @@ radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer, const struct radv_image *im
    assert(!(offset & 3));
    assert(!(size & 3));
 
+   if (cmd_buffer->queue_family_index == RADV_QUEUE_VIDEO_DEC)
+     return 0;
    if (use_compute) {
       cmd_buffer->state.flush_bits |=
          radv_dst_access_flush(cmd_buffer, VK_ACCESS_2_SHADER_WRITE_BIT_KHR, image);
