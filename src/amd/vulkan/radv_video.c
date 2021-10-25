@@ -731,7 +731,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
 
    result.num_ref_frames = frame_info->referenceSlotCount;
    for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-      int idx = i; //frame_info->referenceSlotCount - 1 - i;
+      int idx = frame_info->pReferenceSlots[i].slotIndex;
       const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
          vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
 
@@ -739,7 +739,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
       result.field_order_cnt_list[idx][0] = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
       result.field_order_cnt_list[idx][1] = dpb_slot->pStdReferenceInfo->PicOrderCnt[1];
    }
-   result.decoded_pic_idx = h264_pic_info->pStdPictureInfo->frame_num;
+   result.decoded_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
 
    return result;
 }
