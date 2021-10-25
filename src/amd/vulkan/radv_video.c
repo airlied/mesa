@@ -720,29 +720,26 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
       memcpy(result.scaling_list_4x4, pps->pScalingLists->ScalingList4x4, 6 * 16);
       memcpy(result.scaling_list_8x8, pps->pScalingLists->ScalingList8x8, 2 * 64);
    }
-#if 0
-   memcpy(dec->it, result.scaling_list_4x4, 6 * 16);
-   memcpy((dec->it + 96), result.scaling_list_8x8, 2 * 64);
 
-   result.num_ref_frames = pic->num_ref_frames;
-#endif
    result.num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_default_active_minus1;
    result.num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_default_active_minus1;
-#if 0
-   result.frame_num = pic->frame_num;
-   memcpy(result.frame_num_list, pic->frame_num_list, 4 * 16);
-   memcpy(result.field_order_cnt_list, pic->field_order_cnt_list, 4 * 16 * 2);
-#endif
 
    result.curr_field_order_cnt_list[0] = h264_pic_info->pStdPictureInfo->PicOrderCnt[0];
    result.curr_field_order_cnt_list[1] = h264_pic_info->pStdPictureInfo->PicOrderCnt[1];
 
-   result.frame_num = frame_info->pSetupReferenceSlot->slotIndex;
+   result.frame_num = h264_pic_info->pStdPictureInfo->frame_num;
 
    result.num_ref_frames = frame_info->referenceSlotCount;
-   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++)
-      result.frame_num_list[i] = frame_info->pReferenceSlots[i].slotIndex;
-   result.decoded_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
+   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+      int idx = i; //frame_info->referenceSlotCount - 1 - i;
+      const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
+         vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
+
+      result.frame_num_list[idx] = dpb_slot->pStdReferenceInfo->FrameNum;
+      result.field_order_cnt_list[idx][0] = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
+      result.field_order_cnt_list[idx][1] = dpb_slot->pStdReferenceInfo->PicOrderCnt[1];
+   }
+   result.decoded_pic_idx = h264_pic_info->pStdPictureInfo->frame_num;
 
    return result;
 }
