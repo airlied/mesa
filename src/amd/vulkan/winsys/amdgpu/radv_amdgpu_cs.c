@@ -1518,7 +1518,7 @@ radv_amdgpu_cs_submit(struct radv_amdgpu_ctx *ctx, struct radv_amdgpu_cs_request
    if (!chunks)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   size = request->number_of_ibs + 1 /* user fence */;
+   size = request->number_of_ibs + (has_user_fence ? 1 : 0)/* user fence */;
 
    chunk_data = malloc(sizeof(chunk_data[0]) * size);
    if (!chunk_data) {

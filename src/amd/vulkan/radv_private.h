@@ -2612,7 +2612,7 @@ struct radv_video_session {
    uint32_t level;
    uint32_t stream_handle;
    unsigned stream_type;
-
+   bool interlaced;
    enum {
       DPB_MAX_RES = 0,
       DPB_DYNAMIC_TIER_1,
@@ -2622,8 +2622,8 @@ struct radv_video_session {
    unsigned dpb_size;
 
    struct radv_vid_mem sessionctx;
-   struct radv_vid_mem fb_it[4];
    struct radv_vid_mem ctx;
+   struct radv_vid_mem dpb;
 };
 
 struct radv_video_session_params {
