@@ -2904,6 +2904,12 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
             memcpy(&prop->priorities, radv_global_queue_priorities, sizeof(radv_global_queue_priorities));
             break;
          }
+         case VK_STRUCTURE_TYPE_QUEUE_FAMILY_QUERY_RESULT_STATUS_PROPERTIES_KHR: {
+            VkQueueFamilyQueryResultStatusPropertiesKHR *prop =
+               (VkQueueFamilyQueryResultStatusPropertiesKHR *)ext;
+            prop->queryResultStatusSupport = VK_FALSE;
+            break;
+         }
          default:
             break;
          }
