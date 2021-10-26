@@ -95,6 +95,10 @@ ring_to_hw_ip(enum ring_type ring)
       return AMDGPU_HW_IP_DMA;
    case RING_COMPUTE:
       return AMDGPU_HW_IP_COMPUTE;
+   case RING_VCN_DEC:
+      return AMDGPU_HW_IP_VCN_DEC;
+   case RING_VCN_ENC:
+      return AMDGPU_HW_IP_VCN_ENC;
    default:
       unreachable("unsupported ring");
    }
@@ -209,7 +213,7 @@ radv_amdgpu_cs_create(struct radeon_winsys *ws, enum ring_type ring_type)
    cs->ws = radv_amdgpu_winsys(ws);
    radv_amdgpu_init_cs(cs, ring_type);
 
-   cs->use_ib_bo = cs->ws->use_ib_bos;
+   cs->use_ib_bo = cs->ws->use_ib_bos && cs->hw_ip != AMDGPU_HW_IP_VCN_DEC;
    if (cs->use_ib_bo) {
       VkResult result =
          ws->buffer_create(ws, ib_size, 0, radv_amdgpu_cs_domain(ws),
@@ -976,6 +980,8 @@ radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx, int queue_id
 
    if (radv_amdgpu_winsys(ws)->info.chip_class == GFX6)
       pad_word = 0x80000000;
+   else if (cs0->hw_ip == AMDGPU_HW_IP_VCN_DEC)
+      pad_word = 0x81ff;
 
    assert(cs_count);
 
@@ -1161,7 +1167,7 @@ radv_amdgpu_winsys_cs_submit(struct radeon_winsys_ctx *_ctx, int queue_idx,
    if (!cs->use_ib_bo) {
       result = radv_amdgpu_winsys_cs_submit_sysmem(_ctx, queue_idx, sem_info, cs_array, cs_count,
                                                    initial_preamble_cs, continue_preamble_cs);
-   } else if (can_patch) {
+   } else if (can_patch && cs->hw_ip != AMDGPU_HW_IP_VCN_DEC) {
       result = radv_amdgpu_winsys_cs_submit_chained(_ctx, queue_idx, sem_info, cs_array, cs_count,
                                                     initial_preamble_cs);
    } else {
@@ -1470,6 +1476,16 @@ fail:
    return r;
 }
 
+static bool radv_amdgpu_cs_has_user_fence(struct radv_amdgpu_cs_request *request)
+{
+   return request->ip_type != AMDGPU_HW_IP_UVD &&
+          request->ip_type != AMDGPU_HW_IP_VCE &&
+          request->ip_type != AMDGPU_HW_IP_UVD_ENC &&
+          request->ip_type != AMDGPU_HW_IP_VCN_DEC &&
+          request->ip_type != AMDGPU_HW_IP_VCN_ENC &&
+          request->ip_type != AMDGPU_HW_IP_VCN_JPEG;
+}
+
 static VkResult
 radv_amdgpu_cs_submit(struct radv_amdgpu_ctx *ctx, struct radv_amdgpu_cs_request *request,
                       struct radv_winsys_sem_info *sem_info)
@@ -1486,14 +1502,15 @@ radv_amdgpu_cs_submit(struct radv_amdgpu_ctx *ctx, struct radv_amdgpu_cs_request
    int i;
    uint32_t bo_list = 0;
    VkResult result = VK_SUCCESS;
+   bool has_user_fence = radv_amdgpu_cs_has_user_fence(request);
 
-   size = request->number_of_ibs + 2 /* user fence */ + (!use_bo_list_create ? 1 : 0) + 3;
+   size = request->number_of_ibs + 1 + (has_user_fence ? 1 : 0) /* user fence */ + (!use_bo_list_create ? 1 : 0) + 3;
 
    chunks = malloc(sizeof(chunks[0]) * size);
    if (!chunks)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   size = request->number_of_ibs + 1 /* user fence */;
+   size = request->number_of_ibs + (has_user_fence ? 1 : 0)/* user fence */;
 
    chunk_data = malloc(sizeof(chunk_data[0]) * size);
    if (!chunk_data) {
@@ -1519,15 +1536,17 @@ radv_amdgpu_cs_submit(struct radv_amdgpu_ctx *ctx, struct radv_amdgpu_cs_request
       chunk_data[i].ib_data.flags = ib->flags;
    }
 
-   i = num_chunks++;
-   chunks[i].chunk_id = AMDGPU_CHUNK_ID_FENCE;
-   chunks[i].length_dw = sizeof(struct drm_amdgpu_cs_chunk_fence) / 4;
-   chunks[i].chunk_data = (uint64_t)(uintptr_t)&chunk_data[i];
+   if (has_user_fence) {
+      i = num_chunks++;
+      chunks[i].chunk_id = AMDGPU_CHUNK_ID_FENCE;
+      chunks[i].length_dw = sizeof(struct drm_amdgpu_cs_chunk_fence) / 4;
+      chunks[i].chunk_data = (uint64_t)(uintptr_t)&chunk_data[i];
 
-   struct amdgpu_cs_fence_info fence_info;
-   fence_info.handle = radv_amdgpu_winsys_bo(ctx->fence_bo)->bo;
-   fence_info.offset = (request->ip_type * MAX_RINGS_PER_TYPE + request->ring) * sizeof(uint64_t);
-   amdgpu_cs_chunk_fence_info_to_data(&fence_info, &chunk_data[i]);
+      struct amdgpu_cs_fence_info fence_info;
+      fence_info.handle = radv_amdgpu_winsys_bo(ctx->fence_bo)->bo;
+      fence_info.offset = (request->ip_type * MAX_RINGS_PER_TYPE + request->ring) * sizeof(uint64_t);
+      amdgpu_cs_chunk_fence_info_to_data(&fence_info, &chunk_data[i]);
+   }
 
    if ((sem_info->wait.syncobj_count || sem_info->wait.timeline_syncobj_count) &&
        sem_info->cs_emit_wait) {
