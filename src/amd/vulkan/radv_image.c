@@ -48,6 +48,9 @@ radv_choose_tiling(struct radv_device *device, const VkImageCreateInfo *pCreateI
       return RADEON_SURF_MODE_LINEAR_ALIGNED;
    }
 
+   if (pCreateInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR))
+      return RADEON_SURF_MODE_LINEAR_ALIGNED;
+
    /* MSAA resources must be 2D tiled. */
    if (pCreateInfo->samples > 1)
       return RADEON_SURF_MODE_2D;
@@ -517,15 +520,20 @@ radv_patch_image_from_extra_info(struct radv_device *device, struct radv_image *
                                  struct ac_surf_info *image_info)
 {
    VkResult result = radv_patch_image_dimensions(device, image, create_info, image_info);
+   bool add_shareable = false;
    if (result != VK_SUCCESS)
       return result;
 
+   if (image->plane_count > 1)
+      add_shareable = true;
    for (unsigned plane = 0; plane < image->plane_count; ++plane) {
       if (create_info->bo_metadata) {
          radv_patch_surface_from_metadata(device, &image->planes[plane].surface,
                                           create_info->bo_metadata);
       }
 
+      if (add_shareable)
+         image->planes[plane].surface.flags |= RADEON_SURF_SHAREABLE;
       if (radv_surface_has_scanout(device, create_info)) {
          image->planes[plane].surface.flags |= RADEON_SURF_SCANOUT;
          if (device->instance->debug_flags & RADV_DEBUG_NO_DISPLAY_DCC)

@@ -563,6 +563,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_variable_pointers = true,
       .KHR_video_queue = device->video_decode_enabled,
       .KHR_video_decode_queue = device->video_decode_enabled,
+      .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && device->video_decode_enabled,
       .KHR_vulkan_memory_model = true,
       .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
@@ -2968,7 +2969,7 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
             VkQueueFamilyVideoPropertiesKHR *prop =
                (VkQueueFamilyVideoPropertiesKHR *)ext;
             if (pQueueFamilyProperties[i].queueFamilyProperties.queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR)
-               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_NONE_KHR;
+               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
             break;
          }
          default:

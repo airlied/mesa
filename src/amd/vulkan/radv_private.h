@@ -2849,6 +2849,9 @@ void radv_pc_end_query(struct radv_cmd_buffer *cmd_buffer, struct radv_pc_query_
                        uint64_t va);
 void radv_pc_get_results(const struct radv_pc_query_pool *pc_pool, const uint64_t *data, void *out);
 
+#define VL_MACROBLOCK_WIDTH 16
+#define VL_MACROBLOCK_HEIGHT 16
+
 struct radv_vid_mem {
    struct radv_device_memory *mem;
    VkDeviceSize       offset;
@@ -2857,6 +2860,21 @@ struct radv_vid_mem {
 
 struct radv_video_session {
    struct vk_video_session vk;
+
+   uint32_t stream_handle;
+   unsigned stream_type;
+   bool interlaced;
+   enum {
+      DPB_MAX_RES = 0,
+      DPB_DYNAMIC_TIER_1,
+      DPB_DYNAMIC_TIER_2
+   } dpb_type;
+   unsigned db_alignment;
+
+   struct radv_vid_mem sessionctx;
+   struct radv_vid_mem ctx;
+
+   unsigned dbg_frame_cnt;
 };
 
 struct radv_video_session_params {
