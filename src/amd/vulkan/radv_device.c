@@ -644,6 +644,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_vertex_input_dynamic_state = !device->use_llvm &&
                                         !radv_NV_device_generated_commands_enabled(device),
       .EXT_ycbcr_image_arrays = true,
+      .EXT_ycbcr_2plane_444_formats = true,
       .AMD_buffer_marker = true,
       .AMD_device_coherent_memory = true,
       .AMD_draw_indirect_count = true,
@@ -1845,6 +1846,12 @@ radv_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
          features->multiviewMeshShader = taskmesh_en;
          features->primitiveFragmentShadingRateMeshShader = taskmesh_en;
          features->meshShaderQueries = false;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_2_PLANE_444_FORMATS_FEATURES_EXT: {
+         VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *features =
+            (VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *)ext;
+         features->ycbcr2plane444Formats = true;
          break;
       }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TEXTURE_COMPRESSION_ASTC_HDR_FEATURES: {
