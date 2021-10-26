@@ -20,8 +20,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#include "radv_acceleration_structure.h"
 #include "radv_private.h"
+#include "radv_acceleration_structure.h"
 
 #include "util/format/format_utils.h"
 #include "util/half_float.h"

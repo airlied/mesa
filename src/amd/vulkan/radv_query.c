@@ -30,10 +30,10 @@
 
 #include "nir/nir_builder.h"
 #include "util/u_atomic.h"
+#include "radv_private.h"
 #include "radv_acceleration_structure.h"
 #include "radv_cs.h"
 #include "radv_meta.h"
-#include "radv_private.h"
 #include "sid.h"
 
 #define TIMESTAMP_NOT_READY UINT64_MAX

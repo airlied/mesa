@@ -21,9 +21,9 @@
  * IN THE SOFTWARE.
  */
 
+#include "radv_private.h"
 #include "radv_acceleration_structure.h"
 #include "radv_debug.h"
-#include "radv_private.h"
 #include "radv_shader.h"
 
 #include "nir/nir.h"

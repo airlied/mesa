@@ -21,10 +21,10 @@
  * IN THE SOFTWARE.
  */
 
+#include "radv_private.h"
 #include "nir/nir.h"
 #include "nir/nir_builder.h"
 #include "nir/nir_vulkan.h"
-#include "radv_private.h"
 #include "radv_shader.h"
 #include "vk_format.h"
 
