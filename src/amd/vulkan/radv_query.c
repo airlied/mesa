@@ -947,6 +947,9 @@ radv_CreateQueryPool(VkDevice _device, const VkQueryPoolCreateInfo *pCreateInfo,
    case VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT:
       pool->stride = 32;
       break;
+   case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
+      pool->stride = 8;
+      break;
    default:
       unreachable("creating unhandled query type");
    }
@@ -1463,6 +1466,8 @@ emit_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *poo
       radeon_emit(cs, va);
       radeon_emit(cs, va >> 32);
       break;
+   case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
+      break;
    default:
       unreachable("beginning unhandled query type");
    }
@@ -1543,6 +1548,8 @@ emit_end_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *pool,
       radeon_emit(cs, EVENT_TYPE(event_type_for_stream(index)) | EVENT_INDEX(3));
       radeon_emit(cs, (va + 16));
       radeon_emit(cs, (va + 16) >> 32);
+      break;
+   case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
       break;
    default:
       unreachable("ending unhandled query type");
