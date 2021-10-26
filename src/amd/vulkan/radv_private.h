@@ -241,6 +241,8 @@ enum radv_queue_family {
    RADV_QUEUE_GENERAL,
    RADV_QUEUE_COMPUTE,
    RADV_QUEUE_TRANSFER,
+   RADV_QUEUE_VIDEO_DEC,
+   RADV_QUEUE_VIDEO_ENC,
    RADV_MAX_QUEUE_FAMILIES,
    RADV_QUEUE_FOREIGN = RADV_MAX_QUEUE_FAMILIES,
 };
@@ -308,6 +310,13 @@ struct radv_physical_device {
 
    enum radv_queue_family qfi_to_qf[RADV_MAX_QUEUE_FAMILIES];
    int qf_to_qfi[RADV_MAX_QUEUE_FAMILIES];
+
+   struct {
+      unsigned data0;
+      unsigned data1;
+      unsigned cmd;
+      unsigned cntl;
+   } vid_dec_reg;
 };
 
 struct radv_instance {
@@ -1531,6 +1540,11 @@ struct radv_cmd_buffer {
     * Bitmask of pending active query flushes.
     */
    enum radv_cmd_flush_bits active_query_flush_bits;
+
+   struct {
+      struct radv_video_session *vid;
+      struct radv_video_session_params *params;
+   } video;
 };
 
 struct radv_image;
@@ -2593,6 +2607,61 @@ struct radv_semaphore {
    struct radv_semaphore_part temporary;
 };
 
+#define VL_MACROBLOCK_WIDTH 16
+#define VL_MACROBLOCK_HEIGHT 16
+
+struct radv_vid_mem {
+   uint32_t           bind_index;
+   struct radv_device_memory *mem;
+   VkDeviceSize       offset;
+   VkDeviceSize       size;
+};
+
+struct radv_video_session {
+   struct vk_object_base base;
+
+   VkVideoCodecOperationFlagsKHR op;
+   VkFormat format;
+   VkExtent2D max_coded;
+   VkFormat ref_format;
+   uint32_t max_ref_pic_slots;
+   uint32_t max_ref_pic_active;
+
+   uint32_t level;
+   uint32_t stream_handle;
+   unsigned stream_type;
+   bool interlaced;
+   enum {
+      DPB_MAX_RES = 0,
+      DPB_DYNAMIC_TIER_1,
+      DPB_DYNAMIC_TIER_2
+   } dpb_type;
+   unsigned db_alignment;
+   unsigned dpb_size;
+
+   struct radv_vid_mem sessionctx;
+   struct radv_vid_mem ctx;
+   struct radv_vid_mem dpb;
+
+   unsigned dbg_frame_cnt;
+};
+
+struct radv_video_session_params {
+   struct vk_object_base base;
+   VkVideoCodecOperationFlagsKHR op;
+   union {
+      struct {
+         uint32_t max_sps_std_count;
+         uint32_t max_pps_std_count;
+
+         uint32_t sps_std_count;
+         StdVideoH264SequenceParameterSet *sps_std;
+         uint32_t pps_std_count;
+         StdVideoH264PictureParameterSet *pps_std;
+      } h264_dec;
+   };
+};
+
 bool radv_queue_internal_submit(struct radv_queue *queue, struct radeon_cmdbuf *cs);
 
 void radv_set_descriptor_set(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoint bind_point,
@@ -2883,6 +2952,8 @@ si_translate_blend_logic_op(VkLogicOp op)
    }
 }
 
+/* radv_video */
+void radv_init_physical_device_decoder(struct radv_physical_device *pdevice);
 /**
  * Helper used for debugging compiler issues by enabling/disabling LLVM for a
  * specific shader stage (developers only).
@@ -2961,6 +3032,9 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(radv_sampler_ycbcr_conversion, base,
                                VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION)
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_semaphore, base, VkSemaphore,
                                VK_OBJECT_TYPE_SEMAPHORE)
+
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session, base, VkVideoSessionKHR, VK_OBJECT_TYPE_VIDEO_SESSION_KHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(radv_video_session_params, base, VkVideoSessionParametersKHR, VK_OBJECT_TYPE_VIDEO_SESSION_PARAMETERS_KHR)
 
 #ifdef __cplusplus
 }
