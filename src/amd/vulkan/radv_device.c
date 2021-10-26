@@ -465,6 +465,8 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
+      .KHR_video_queue = true,
+      .KHR_video_decode_queue = true,
       .KHR_vulkan_memory_model = true,
       .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
@@ -528,6 +530,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_subgroup_size_control = true,
       .EXT_texel_buffer_alignment = true,
       .EXT_transform_feedback = true,
+      .EXT_video_decode_h264 = true,
       .EXT_vertex_attribute_divisor = true,
       .EXT_vertex_input_dynamic_state = !device->use_llvm,
       .EXT_ycbcr_image_arrays = true,
@@ -774,6 +777,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    if ((device->instance->debug_flags & RADV_DEBUG_INFO))
       ac_print_gpu_info(&device->rad_info, stdout);
 
+   radv_init_physical_device_decoder(device);
    /* The WSI is structured as a layer on top of the driver, so this has
     * to be the last part of initialization (at least until we get other
     * semi-layers).
@@ -2304,6 +2308,9 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
        !(pdevice->instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
       num_queue_families++;
 
+   if (pdevice->rad_info.num_rings[RING_VCN_DEC] > 0)
+      num_queue_families++;
+
    if (pQueueFamilyProperties == NULL) {
       *pCount = num_queue_families;
       return;
@@ -2331,6 +2338,18 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
             .queueFlags =
                VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT,
             .queueCount = pdevice->rad_info.num_rings[RING_COMPUTE],
+            .timestampValidBits = 64,
+            .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
+         };
+         idx++;
+      }
+   }
+
+   if (pdevice->rad_info.num_rings[RING_VCN_DEC] > 0) {
+      if (*pCount > idx) {
+         *pQueueFamilyProperties[idx] = (VkQueueFamilyProperties){
+            .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
+            .queueCount = pdevice->rad_info.num_rings[RING_VCN_DEC],
             .timestampValidBits = 64,
             .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
          };
@@ -2392,6 +2411,12 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
             STATIC_ASSERT(ARRAY_SIZE(radv_global_queue_priorities) <= VK_MAX_GLOBAL_PRIORITY_SIZE_EXT);
             prop->priorityCount = ARRAY_SIZE(radv_global_queue_priorities);
             memcpy(&prop->priorities, radv_global_queue_priorities, sizeof(radv_global_queue_priorities));
+            break;
+         }
+         case VK_STRUCTURE_TYPE_VIDEO_QUEUE_FAMILY_PROPERTIES_2_KHR: {
+            VkVideoQueueFamilyProperties2KHR *prop =
+               (VkVideoQueueFamilyProperties2KHR *)ext;
+            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;//VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
             break;
          }
          default:
@@ -3211,7 +3236,8 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    }
 
    for (int family = 0; family < RADV_MAX_QUEUE_FAMILIES; ++family) {
-      device->empty_cs[family] = device->ws->cs_create(device->ws, family);
+      device->empty_cs[family] = device->ws->cs_create(device->ws,
+                                                       radv_queue_family_to_ring(family));
       if (!device->empty_cs[family])
          goto fail;
 
@@ -3767,6 +3793,9 @@ radv_get_preamble_cs(struct radv_queue *queue, uint32_t scratch_size_per_wave,
    unsigned tess_offchip_ring_offset;
    uint32_t ring_bo_flags = RADEON_FLAG_NO_CPU_ACCESS | RADEON_FLAG_NO_INTERPROCESS_SHARING;
    VkResult result = VK_SUCCESS;
+
+   if (queue->vk.queue_family_index == RADV_QUEUE_VIDEO_DEC)
+     return result;
    if (!queue->has_tess_rings) {
       if (needs_tess_rings)
          add_tess_rings = true;
@@ -5067,6 +5096,10 @@ radv_get_queue_family_name(struct radv_queue *queue)
       return "compute";
    case RADV_QUEUE_TRANSFER:
       return "transfer";
+   case RADV_QUEUE_VIDEO_DEC:
+      return "video decode";
+   case RADV_QUEUE_VIDEO_ENC:
+      return "video encode";
    default:
       unreachable("Unknown queue family");
    }
