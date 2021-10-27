@@ -488,6 +488,75 @@ typedef struct rvcn_dec_message_avc_s {
    } mvc;
 } rvcn_dec_message_avc_t;
 
+typedef struct rvcn_dec_message_hevc_s {
+   unsigned int sps_info_flags;
+   unsigned int pps_info_flags;
+   unsigned char chroma_format;
+   unsigned char bit_depth_luma_minus8;
+   unsigned char bit_depth_chroma_minus8;
+   unsigned char log2_max_pic_order_cnt_lsb_minus4;
+
+   unsigned char sps_max_dec_pic_buffering_minus1;
+   unsigned char log2_min_luma_coding_block_size_minus3;
+   unsigned char log2_diff_max_min_luma_coding_block_size;
+   unsigned char log2_min_transform_block_size_minus2;
+
+   unsigned char log2_diff_max_min_transform_block_size;
+   unsigned char max_transform_hierarchy_depth_inter;
+   unsigned char max_transform_hierarchy_depth_intra;
+   unsigned char pcm_sample_bit_depth_luma_minus1;
+
+   unsigned char pcm_sample_bit_depth_chroma_minus1;
+   unsigned char log2_min_pcm_luma_coding_block_size_minus3;
+   unsigned char log2_diff_max_min_pcm_luma_coding_block_size;
+   unsigned char num_extra_slice_header_bits;
+
+   unsigned char num_short_term_ref_pic_sets;
+   unsigned char num_long_term_ref_pic_sps;
+   unsigned char num_ref_idx_l0_default_active_minus1;
+   unsigned char num_ref_idx_l1_default_active_minus1;
+
+   signed char pps_cb_qp_offset;
+   signed char pps_cr_qp_offset;
+   signed char pps_beta_offset_div2;
+   signed char pps_tc_offset_div2;
+
+   unsigned char diff_cu_qp_delta_depth;
+   unsigned char num_tile_columns_minus1;
+   unsigned char num_tile_rows_minus1;
+   unsigned char log2_parallel_merge_level_minus2;
+
+   unsigned short column_width_minus1[19];
+   unsigned short row_height_minus1[21];
+
+   signed char init_qp_minus26;
+   unsigned char num_delta_pocs_ref_rps_idx;
+   unsigned char curr_idx;
+   unsigned char reserved[1];
+   int curr_poc;
+   unsigned char ref_pic_list[16];
+   int poc_list[16];
+   unsigned char ref_pic_set_st_curr_before[8];
+   unsigned char ref_pic_set_st_curr_after[8];
+   unsigned char ref_pic_set_lt_curr[8];
+
+   unsigned char ucScalingListDCCoefSizeID2[6];
+   unsigned char ucScalingListDCCoefSizeID3[2];
+
+   unsigned char highestTid;
+   unsigned char isNonRef;
+
+   unsigned char p010_mode;
+   unsigned char msb_mode;
+   unsigned char luma_10to8;
+   unsigned char chroma_10to8;
+
+   unsigned char hevc_reserved[2];
+
+   unsigned char direct_reflist[2][15];
+   unsigned int st_rps_bits;
+} rvcn_dec_message_hevc_t;
+
 typedef struct rvcn_dec_feature_index_s {
    unsigned int feature_id;
    unsigned int offset;

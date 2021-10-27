@@ -2641,6 +2641,16 @@ struct radv_video_session_params {
          uint32_t pps_std_count;
          StdVideoH264PictureParameterSet *pps_std;
       } h264_dec;
+
+      struct {
+         uint32_t max_sps_std_count;
+         uint32_t max_pps_std_count;
+
+         uint32_t sps_std_count;
+         StdVideoH265SequenceParameterSet *sps_std;
+         uint32_t pps_std_count;
+         StdVideoH265PictureParameterSet *pps_std;
+      } h265_dec;
    };
 };
 

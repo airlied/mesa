@@ -2416,7 +2416,7 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
          case VK_STRUCTURE_TYPE_VIDEO_QUEUE_FAMILY_PROPERTIES_2_KHR: {
             VkVideoQueueFamilyProperties2KHR *prop =
                (VkVideoQueueFamilyProperties2KHR *)ext;
-            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;//VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
+            prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT | VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT;//VK_VIDEO_CODEC_OPERATION_INVALID_BIT_KHR;
             break;
          }
          default:
