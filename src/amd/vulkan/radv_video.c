@@ -361,6 +361,26 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
                                            const VkVideoProfileKHR *pVideoProfile,
                                            VkVideoCapabilitiesKHR *pCapabilities)
 {
+   RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
+   struct video_codec_cap *cap = NULL;
+
+   switch (pVideoProfile->videoCodecOperation) {
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_EXT:
+      cap = &pdevice->rad_info.enc_caps.codec_info[RADV_VIDEO_FORMAT_MPEG4_AVC];
+      break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT:
+      cap = &pdevice->rad_info.dec_caps.codec_info[RADV_VIDEO_FORMAT_MPEG4_AVC];
+      break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT:
+      cap = &pdevice->rad_info.dec_caps.codec_info[RADV_VIDEO_FORMAT_HEVC];
+      break;
+   default:
+      break;
+   }
+
+   if (cap && !cap->valid)
+      cap = NULL;
+
    pCapabilities->capabilityFlags = 0;
    pCapabilities->minBitstreamBufferOffsetAlignment = 128;
    pCapabilities->minBitstreamBufferSizeAlignment = 128;
@@ -368,6 +388,31 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
    pCapabilities->videoPictureExtentGranularity.height = VL_MACROBLOCK_HEIGHT;
    pCapabilities->minExtent.width = VL_MACROBLOCK_WIDTH;
    pCapabilities->minExtent.height = VL_MACROBLOCK_HEIGHT;
+
+   if (cap) {
+      pCapabilities->maxExtent.width = cap->max_width;
+      pCapabilities->maxExtent.height = cap->max_height;
+   } else {
+      switch (pVideoProfile->videoCodecOperation) {
+      case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_EXT:
+         pCapabilities->maxExtent.width = (pdevice->rad_info.family < CHIP_TONGA) ? 2048 : 4096;
+         pCapabilities->maxExtent.height = (pdevice->rad_info.family < CHIP_TONGA) ? 1152 : 2304;
+         break;
+      case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT:
+         pCapabilities->maxExtent.width = (pdevice->rad_info.family < CHIP_TONGA) ? 2048 : 4096;
+         pCapabilities->maxExtent.height = (pdevice->rad_info.family < CHIP_TONGA) ? 1152 : 4096;
+         break;
+      case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_EXT:
+         pCapabilities->maxExtent.width = (pdevice->rad_info.family < CHIP_RENOIR) ?
+            ((pdevice->rad_info.family < CHIP_TONGA) ? 2048 : 4096) : 8192;
+         pCapabilities->maxExtent.height = (pdevice->rad_info.family < CHIP_RENOIR) ?
+            ((pdevice->rad_info.family < CHIP_TONGA) ? 1152 : 4096) : 4352;
+         break;
+      default:
+         break;
+      }
+   }
+
    // TODO
    return VK_SUCCESS;
 }

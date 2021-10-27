@@ -2644,6 +2644,17 @@ struct radv_video_session_params {
    };
 };
 
+/* needed for ac_gpu_info codecs */
+#define RADV_VIDEO_FORMAT_UNKNOWN 0
+#define RADV_VIDEO_FORMAT_MPEG12 1   /**< MPEG1, MPEG2 */
+#define RADV_VIDEO_FORMAT_MPEG4 2   /**< DIVX, XVID */
+#define RADV_VIDEO_FORMAT_VC1 3      /**< WMV */
+#define RADV_VIDEO_FORMAT_MPEG4_AVC 4/**< H.264 */
+#define RADV_VIDEO_FORMAT_HEVC 5     /**< H.265 */
+#define RADV_VIDEO_FORMAT_JPEG 6     /**< JPEG */
+#define RADV_VIDEO_FORMAT_VP9 7      /**< VP9 */
+#define RADV_VIDEO_FORMAT_AV1 8      /**< AV1 */
+
 bool radv_queue_internal_submit(struct radv_queue *queue, struct radeon_cmdbuf *cs);
 
 void radv_set_descriptor_set(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoint bind_point,
