@@ -631,25 +631,25 @@ radv_BindVideoSessionMemoryKHR(VkDevice _device,
 }
 
 /* add a new set register command to the IB */
-static void set_reg(struct radv_cmd_buffer *cmd_buffer, unsigned reg, uint32_t val)
+static void set_reg(struct radeon_cmdbuf *cs, unsigned reg, uint32_t val)
 {
-   struct radeon_cmdbuf *cs = cmd_buffer->cs;
    radeon_emit(cs, RDECODE_PKT0(reg >> 2, 0));
    radeon_emit(cs, val);
 }
 
-static void send_cmd(struct radv_cmd_buffer *cmd_buffer, unsigned cmd,
+static void send_cmd(struct radv_device *device,
+                     struct radeon_cmdbuf *cs, unsigned cmd,
                      struct radeon_winsys_bo *bo, uint32_t offset)
 {
-   struct radv_physical_device *pdev = cmd_buffer->device->physical_device;
+   struct radv_physical_device *pdev = device->physical_device;
    uint64_t addr;
 
-   radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, bo);
+   radv_cs_add_buffer(device->ws, cs, bo);
    addr = radv_buffer_get_va(bo);
    addr += offset;
-   set_reg(cmd_buffer, pdev->vid_dec_reg.data0, addr);
-   set_reg(cmd_buffer, pdev->vid_dec_reg.data1, addr >> 32);
-   set_reg(cmd_buffer, pdev->vid_dec_reg.cmd, cmd << 1);
+   set_reg(cs, pdev->vid_dec_reg.data0, addr);
+   set_reg(cs, pdev->vid_dec_reg.data1, addr >> 32);
+   set_reg(cs, pdev->vid_dec_reg.cmd, cmd << 1);
 }
 
 static void rvcn_dec_message_create(struct radv_video_session *vid,
@@ -1092,8 +1092,8 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
 
    rvcn_dec_message_create(vid, ptr, size);
 
-   send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
 
    cmd_buffer->video.vid = vid;
    cmd_buffer->video.params = params;
@@ -1119,8 +1119,8 @@ radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
    radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
                                 &ptr);
    rvcn_dec_message_destroy(vid->stream_handle, ptr, size);
-   send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
 }
 
 void
@@ -1167,27 +1167,27 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
 
    rvcn_dec_message_decode(vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
-   send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
 
    if (vid->dpb.mem && vid->dpb_type != DPB_DYNAMIC_TIER_2)
-      send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
+      send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
 
    if (vid->ctx.mem)
-      send_cmd(cmd_buffer, RDECODE_CMD_CONTEXT_BUFFER, vid->ctx.mem->bo, vid->ctx.offset);
+      send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_CONTEXT_BUFFER, vid->ctx.mem->bo, vid->ctx.offset);
 
-   send_cmd(cmd_buffer, RDECODE_CMD_BITSTREAM_BUFFER, src_buffer->bo, src_buffer->offset + frame_info->srcBufferOffset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_BITSTREAM_BUFFER, src_buffer->bo, src_buffer->offset + frame_info->srcBufferOffset);
 
    struct radv_image_view *dst_iv = radv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
    struct radv_image *img = dst_iv->image;
-   send_cmd(cmd_buffer, RDECODE_CMD_DECODING_TARGET_BUFFER, img->bo, img->offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_FEEDBACK_BUFFER, fb_bo, fb_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_DECODING_TARGET_BUFFER, img->bo, img->offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_FEEDBACK_BUFFER, fb_bo, fb_offset);
    if (have_it(vid))
-      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
+      send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
    else if (have_probs(vid))
-      send_cmd(cmd_buffer, RDECODE_CMD_PROB_TBL_BUFFER, NULL, 0);
+      send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_PROB_TBL_BUFFER, NULL, 0);
 
-   set_reg(cmd_buffer, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
+   set_reg(cmd_buffer->cs, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
 }
 
 void
