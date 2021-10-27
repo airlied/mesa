@@ -2627,9 +2627,19 @@ struct radv_video_session {
    uint32_t max_ref_pic_slots;
    uint32_t max_ref_pic_active;
 
-   uint32_t level;
    uint32_t stream_handle;
    unsigned stream_type;
+
+   union {
+      struct {
+         uint32_t level;
+         StdVideoH264ProfileIdc profile_idc;
+      } h264;
+      struct {
+         StdVideoH265ProfileIdc profile_idc;
+      } h265;
+   };
+
    bool interlaced;
    enum {
       DPB_MAX_RES = 0,
@@ -2659,6 +2669,16 @@ struct radv_video_session_params {
          uint32_t pps_std_count;
          StdVideoH264PictureParameterSet *pps_std;
       } h264_dec;
+
+      struct {
+         uint32_t max_sps_std_count;
+         uint32_t max_pps_std_count;
+
+         uint32_t sps_std_count;
+         StdVideoH265SequenceParameterSet *sps_std;
+         uint32_t pps_std_count;
+         StdVideoH265PictureParameterSet *pps_std;
+      } h265_dec;
    };
 };
 
