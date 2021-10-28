@@ -1011,6 +1011,13 @@ radv_GetQueryPoolResults(VkDevice _device, VkQueryPool queryPool, uint32_t first
       uint32_t available;
 
       switch (pool->type) {
+      case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
+	 radv_QueueWaitIdle(radv_queue_to_handle(device->queues[RADV_QUEUE_VIDEO_DEC]));
+         if (flags & VK_QUERY_RESULT_64_BIT)
+	    *(uint64_t *)dest = 1;
+	 else
+	    *(uint32_t *)dest = 1;
+	 break;
       case VK_QUERY_TYPE_TIMESTAMP:
       case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR:
       case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_SERIALIZATION_SIZE_KHR: {

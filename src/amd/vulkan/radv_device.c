@@ -5083,6 +5083,43 @@ radv_QueueSubmit2KHR(VkQueue _queue, uint32_t submitCount, const VkSubmitInfo2KH
          return result;
    }
 
+   if (queue->vk.queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+     radv_QueueWaitIdle(_queue);
+     struct radv_cmd_buffer *cmd_buffer = radv_cmd_buffer_from_handle(pSubmits[0].pCommandBufferInfos[0].commandBuffer);
+     uint32_t *ptr = queue->device->ws->buffer_map(cmd_buffer->video.fb_bo);
+     ptr += (cmd_buffer->video.fb_offset / 4);
+     for (unsigned i = 0; i < 64; i++) {
+       fprintf(stderr, "%08x ", ptr[i]);
+     }
+     fprintf(stderr, "\n");
+
+     fprintf(stderr, "sessionctx: ");
+     ptr = queue->device->ws->buffer_map(cmd_buffer->video.vid->sessionctx.mem->bo);
+     ptr += (cmd_buffer->video.vid->dpb.offset / 4);     
+     for (unsigned i = 0; i < 256; i++) {
+       fprintf(stderr, "%08x ", ptr[i]);
+     }
+     fprintf(stderr, "\n");     
+     fprintf(stderr, "ctx: ");
+     ptr = queue->device->ws->buffer_map(cmd_buffer->video.vid->ctx.mem->bo);
+     ptr += (cmd_buffer->video.vid->dpb.offset / 4);     
+     for (unsigned i = 0; i < 256; i++) {
+       fprintf(stderr, "%08x ", ptr[i]);
+     }
+     fprintf(stderr, "\n");
+     unsigned inc = cmd_buffer->video.vid->dpb_single;
+     for (unsigned d = 0; d < 5; d++) {
+       fprintf(stderr, "dpb%d: ", d);
+       ptr = queue->device->ws->buffer_map(cmd_buffer->video.vid->dpb.mem->bo);
+       ptr += (cmd_buffer->video.vid->dpb.offset / 4);
+       ptr += (inc * d)/4;
+       for (unsigned i = 0; i < 16; i++) {
+	 fprintf(stderr, "%08x ", ptr[i]);
+       }
+       fprintf(stderr, "\n");
+     }
+   }
+
    return VK_SUCCESS;
 }
 

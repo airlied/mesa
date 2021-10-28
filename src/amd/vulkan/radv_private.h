@@ -1525,6 +1525,9 @@ struct radv_cmd_buffer {
    struct {
       struct radv_video_session *vid;
       struct radv_video_session_params *params;
+      struct radeon_winsys_bo *fb_bo;
+      uint32_t fb_offset;
+      struct radeon_winsys_bo *dpb_bo;
    } video;
 };
 
@@ -2599,6 +2602,8 @@ struct radv_vid_mem {
    VkDeviceSize       size;
 };
 
+#define FB_IT_BUFFERS 5
+
 struct radv_video_session {
    struct vk_object_base base;
 
@@ -2620,12 +2625,15 @@ struct radv_video_session {
    } dpb_type;
    unsigned db_alignment;
    unsigned dpb_size;
+   unsigned dpb_single;
 
    struct radv_vid_mem sessionctx;
+   struct radv_vid_mem fb_it_probs[FB_IT_BUFFERS];
    struct radv_vid_mem ctx;
    struct radv_vid_mem dpb;
 
    unsigned dbg_frame_cnt;
+   unsigned cur_buffer;
 };
 
 struct radv_video_session_params {

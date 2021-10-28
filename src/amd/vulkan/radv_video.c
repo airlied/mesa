@@ -5,7 +5,7 @@
 // THIS violates the way vulkan works and send the VCN create/destroy on session
 // create/destroy. I don't think this is how things should work, and it changes
 // behaviour but doesn't seem to help - DEBUG ONLY
-#define SEND_ON_CREATE_HACK
+//#define SEND_ON_CREATE_HACK
 
 #define NUM_H264_REFS  17
 #define FB_BUFFER_OFFSET             0x1000
@@ -18,6 +18,13 @@ static void rvcn_dec_message_create(struct radv_video_session *vid,
 				    void *ptr, uint32_t size);
 static void rvcn_dec_message_destroy(uint32_t stream_handle,
 				     void *ptr, uint32_t size);
+
+static void next_buffer(struct radv_video_session *vid)
+{
+   vid->cur_buffer++;
+   vid->cur_buffer %= FB_IT_BUFFERS;
+}
+
 static void send_cmd(struct radv_device *device,
 		     struct radeon_cmdbuf *cs, unsigned cmd,
                      struct radeon_winsys_bo *bo, uint32_t offset);
@@ -274,13 +281,13 @@ static unsigned calc_dpb_size(struct radv_video_session *vid)
       }
       num_dpb_buffer++;
       max_references = MAX2(MIN2(NUM_H264_REFS, num_dpb_buffer), max_references);
+      vid->dpb_single = image_size;
       dpb_size = image_size * max_references;
    }
    return dpb_size;
 }
 
-#define MSG_CREATE 0
-#define MSG_DESTROY 1
+#ifdef SEND_ON_CREATE_HACK
 static void send_single_message_wait(struct radv_device *device, struct radv_video_session *vid,
 				     int msg)
 {
@@ -294,15 +301,14 @@ static void send_single_message_wait(struct radv_device *device, struct radv_vid
 
    uint32_t msg_size = sizeof(rvcn_dec_message_header_t);
 
-   if (msg == MSG_CREATE) {
+   if (msg == RDECODE_MSG_CREATE) {
      msg_size += sizeof(rvcn_dec_message_create_t);
      rvcn_dec_message_create(vid, ptr, msg_size);
    } else
      rvcn_dec_message_destroy(vid->stream_handle, ptr, msg_size);
    device->ws->buffer_unmap(bo);
-   //   send_cmd(device, cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(device, cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(device, cs, RDECODE_CMD_MSG_BUFFER, bo, 0);
-   radv_cs_add_buffer(device->ws, cs, bo);
 
    device->ws->cs_finalize(cs);
 
@@ -318,6 +324,8 @@ static void send_single_message_wait(struct radv_device *device, struct radv_vid
    device->ws->buffer_destroy(device->ws, bo);
 
 }
+#endif
+
 VkResult
 radv_CreateVideoSessionKHR(VkDevice _device,
                            const VkVideoSessionCreateInfoKHR *pCreateInfo,
@@ -363,7 +371,7 @@ radv_CreateVideoSessionKHR(VkDevice _device,
    }
 
    vid->stream_handle = si_vid_alloc_stream_handle();
-   vid->dbg_frame_cnt = 0;
+   vid->dbg_frame_cnt = 1;
 
    if (device->physical_device->rad_info.family >= CHIP_SIENNA_CICHLID &&
        (vid->stream_type == RDECODE_CODEC_VP9 || vid->stream_type == RDECODE_CODEC_AV1))
@@ -377,9 +385,6 @@ radv_CreateVideoSessionKHR(VkDevice _device,
 
    vid->dpb_size = calc_dpb_size(vid);
 
-#ifdef SEND_ON_CREATE_HACK
-   send_single_message_wait(device, vid, MSG_CREATE);
-#endif
    *pVideoSession = radv_video_session_to_handle(vid);
    return VK_SUCCESS;
 }
@@ -395,7 +400,7 @@ radv_DestroyVideoSessionKHR(VkDevice _device,
       return;
 
 #ifdef SEND_ON_CREATE_HACK
-   send_single_message_wait(device, vid, MSG_DESTROY);
+   send_single_message_wait(device, vid, RDECODE_MSG_DESTROY);
 #endif
    vk_object_base_finish(&vid->base);
    vk_free2(&device->vk.alloc, pAllocator, vid);
@@ -580,7 +585,7 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    RADV_FROM_HANDLE(radv_device, device, _device);
    RADV_FROM_HANDLE(radv_video_session, vid, videoSession);
    uint32_t memory_type_bits = (1u << device->physical_device->memory_properties.memoryTypeCount) - 1;
-   uint32_t num_memory_reqs = 2;
+   uint32_t num_memory_reqs = 2 + FB_IT_BUFFERS;
    int idx = 0;
 
    if (vid->stream_type == RDECODE_CODEC_H264_PERF || vid->stream_type == RDECODE_CODEC_H265)
@@ -591,18 +596,27 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    if (!pVideoSessionMemoryRequirements)
       return VK_SUCCESS;
 
+   memory_type_bits &= ~1;
    /* 1 buffer for session context */
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.size = RDECODE_SESSION_CONTEXT_SIZE;
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.alignment = 0;
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_type_bits;
-
    idx++;
+
+   for (unsigned i = 0; i < FB_IT_BUFFERS; i++) {
+     /* 4 buffers for fb/msg/it for session context */
+     pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.size = FB_BUFFER_OFFSET + FB_BUFFER_SIZE + IT_SCALING_TABLE_SIZE;
+     pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.alignment = 0;
+     pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_type_bits;
+     idx++;
+   }
+
    /* internal DPB? */
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.size = vid->dpb_size;
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.alignment = 0;
    pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_type_bits;
-
    idx++;
+
    if (vid->stream_type == RDECODE_CODEC_H264_PERF) {
       pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.size = align(calc_ctx_size_h264_perf(vid), 4096);
       pVideoSessionMemoryRequirements[idx].pMemoryRequirements->memoryRequirements.alignment = 0;
@@ -677,15 +691,23 @@ radv_BindVideoSessionMemoryKHR(VkDevice _device,
                                uint32_t videoSessionBindMemoryCount,
                                const VkVideoBindMemoryKHR *pVideoSessionBindMemories)
 {
+   RADV_FROM_HANDLE(radv_device, device, _device);
    RADV_FROM_HANDLE(radv_video_session, vid, videoSession);
+   unsigned idx = 0;
+   assert(videoSessionBindMemoryCount >= 2 + FB_IT_BUFFERS);
+   copy_bind(&vid->sessionctx, &pVideoSessionBindMemories[idx++]);
 
-   assert(videoSessionBindMemoryCount >= 2);
-   copy_bind(&vid->sessionctx, &pVideoSessionBindMemories[0]);
+   for (unsigned i = 0; i < FB_IT_BUFFERS; i++)
+     copy_bind(&vid->fb_it_probs[i], &pVideoSessionBindMemories[idx++]);
+   copy_bind(&vid->dpb, &pVideoSessionBindMemories[idx++]);
 
-   copy_bind(&vid->dpb, &pVideoSessionBindMemories[1]);
+   if (videoSessionBindMemoryCount == 2 + FB_IT_BUFFERS + 1)
+      copy_bind(&vid->ctx, &pVideoSessionBindMemories[idx++]);
 
-   if (videoSessionBindMemoryCount == 3)
-      copy_bind(&vid->ctx, &pVideoSessionBindMemories[2]);
+#ifdef SEND_ON_CREATE_HACK
+   send_single_message_wait(device, vid, RDECODE_MSG_CREATE);
+#endif
+
    return VK_SUCCESS;
 }
 
@@ -1141,19 +1163,24 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    RADV_FROM_HANDLE(radv_video_session, vid, pBeginInfo->videoSession);
    RADV_FROM_HANDLE(radv_video_session_params, params, pBeginInfo->videoSessionParameters);
 
-   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
 #if !defined(SEND_ON_CREATE_HACK)
    uint32_t size = sizeof(rvcn_dec_message_header_t) + sizeof(rvcn_dec_message_create_t);
 
    void *ptr;
    uint32_t out_offset;
 
-   radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
-                                &ptr);
+   char *base_ptr = cmd_buffer->device->ws->buffer_map(vid->fb_it_probs[vid->cur_buffer].mem->bo);
+   unsigned offset = vid->fb_it_probs[vid->cur_buffer].offset;
+
+   out_offset = offset;
+   ptr = base_ptr + out_offset;
 
    rvcn_dec_message_create(vid, ptr, size);
+   cmd_buffer->device->ws->buffer_unmap(vid->fb_it_probs[vid->cur_buffer].mem->bo);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, vid->fb_it_probs[vid->cur_buffer].mem->bo, out_offset);
 
-   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   next_buffer(vid);
 #endif
    cmd_buffer->video.vid = vid;
    cmd_buffer->video.params = params;
@@ -1177,11 +1204,19 @@ radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
    uint32_t size = sizeof(rvcn_dec_message_header_t);
    void *ptr;
    uint32_t out_offset;
-   radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
-                                &ptr);
+
+   char *base_ptr = cmd_buffer->device->ws->buffer_map(vid->fb_it_probs[vid->cur_buffer].mem->bo);
+   unsigned offset = vid->fb_it_probs[vid->cur_buffer].offset;
+
+   out_offset = offset;
+   ptr = base_ptr + out_offset;
+
    rvcn_dec_message_destroy(vid->stream_handle, ptr, size);
+
+   rvcn_dec_message_create(vid, ptr, size);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, vid->fb_it_probs[vid->cur_buffer].mem->bo, out_offset);
+   next_buffer(vid);
 #endif
 }
 
@@ -1213,23 +1248,37 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    }
 
    //encrypted
+   char *base_ptr = cmd_buffer->device->ws->buffer_map(vid->fb_it_probs[vid->cur_buffer].mem->bo);
+   unsigned offset = vid->fb_it_probs[vid->cur_buffer].offset;
+   fb_offset = offset + FB_BUFFER_OFFSET;
+   fb_ptr = base_ptr + fb_offset;
+   memset(fb_ptr, 0, FB_BUFFER_SIZE);
+   fb_bo = vid->fb_it_probs[vid->cur_buffer].mem->bo;
 
-   radv_cmd_buffer_upload_alloc(cmd_buffer, FB_BUFFER_SIZE, &fb_offset,
-                                &fb_ptr);
-   fb_bo = cmd_buffer->upload.upload_bo;
+   cmd_buffer->video.fb_bo = fb_bo;
+   cmd_buffer->video.fb_offset = fb_offset;
    if (have_it(vid)) {
-      radv_cmd_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_offset,
-                                   &it_ptr);
-      it_bo = cmd_buffer->upload.upload_bo;
+      it_offset = offset + FB_BUFFER_OFFSET + FB_BUFFER_SIZE;
+      it_ptr = base_ptr + it_offset;
+      it_bo = vid->fb_it_probs[vid->cur_buffer].mem->bo;
    }
 
-   radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
-                                &ptr);
-   msg_bo = cmd_buffer->upload.upload_bo;
+   out_offset = offset;
+   ptr = base_ptr + out_offset;
+   msg_bo = vid->fb_it_probs[vid->cur_buffer].mem->bo;
+   memset(ptr, 0, size);
 
    rvcn_dec_message_decode(vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   {
+     uint32_t *msg_ptr = ptr;
+     for (unsigned i = 0; i < size / 4; i++)
+       fprintf(stderr, "%08x ", msg_ptr[i]);
+     fprintf(stderr, "\n");
+   }
+
+   cmd_buffer->device->ws->buffer_unmap(vid->fb_it_probs[vid->cur_buffer].mem->bo);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
    if (vid->dpb.mem && vid->dpb_type != DPB_DYNAMIC_TIER_2)
       send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
@@ -1249,6 +1298,8 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
       send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_PROB_TBL_BUFFER, NULL, 0);
 
    set_reg(cmd_buffer->cs, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
+
+   next_buffer(vid);
 }
 
 void
