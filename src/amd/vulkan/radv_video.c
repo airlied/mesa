@@ -1116,7 +1116,8 @@ static rvcn_dec_message_hevc_t get_h265_msg(struct radv_video_session *vid,
    return result;
 }
 
-static bool rvcn_dec_message_decode(struct radv_video_session *vid,
+static bool rvcn_dec_message_decode(struct radv_device *device,
+                                    struct radv_video_session *vid,
                                     struct radv_video_session_params *params,
                                     void *ptr,
                                     void *it_ptr,
@@ -1132,6 +1133,8 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
 
    struct radv_image_plane *luma = &img->planes[0];
    struct radv_image_plane *chroma = &img->planes[1];
+   unsigned width = align(frame_info->codedExtent.width, VL_MACROBLOCK_WIDTH);
+   unsigned height = align(frame_info->codedExtent.height, VL_MACROBLOCK_HEIGHT);
 
    header = ptr;
    sizes += sizeof(rvcn_dec_message_header_t);
@@ -1176,8 +1179,8 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
 
    decode->stream_type = vid->stream_type;
    decode->decode_flags = 0;
-   decode->width_in_samples = frame_info->codedExtent.width;
-   decode->height_in_samples = frame_info->codedExtent.height;
+   decode->width_in_samples = width;
+   decode->height_in_samples = height;
 
    decode->bsd_size = frame_info->srcBufferRange;
 
@@ -1189,7 +1192,7 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
    decode->sc_coeff_size = 0;
 
    decode->sw_ctxt_size = RDECODE_SESSION_CONTEXT_SIZE;
-   decode->db_pitch = align(frame_info->codedExtent.width, vid->db_alignment);
+   decode->db_pitch = align(width, vid->db_alignment);
 
    decode->db_surf_tile_config = 0;
 
@@ -1223,7 +1226,7 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
 
    switch (vid->op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT: {
-      rvcn_dec_message_avc_t avc = get_h264_msg(vid, params, frame_info, it_ptr);
+      rvcn_dec_message_avc_t avc = get_h264_msg(device, vid, params, frame_info, it_ptr);
       memcpy(codec, (void *)&avc, sizeof(rvcn_dec_message_avc_t));
       index_codec->message_id = RDECODE_MESSAGE_AVC;
       break;
@@ -1300,8 +1303,8 @@ radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
    ptr = base_ptr + out_offset;
 
    rvcn_dec_message_destroy(vid->stream_handle, ptr, size);
+   cmd_buffer->device->ws->buffer_unmap(vid->fb_it_probs[vid->cur_buffer].mem->bo);
 
-   rvcn_dec_message_create(vid, ptr, size);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, vid->fb_it_probs[vid->cur_buffer].mem->bo, out_offset);
    next_buffer(vid);
@@ -1356,7 +1359,7 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    msg_bo = vid->fb_it_probs[vid->cur_buffer].mem->bo;
    memset(ptr, 0, size);
 
-   rvcn_dec_message_decode(vid, params, ptr, it_ptr, frame_info);
+   rvcn_dec_message_decode(cmd_buffer->device, vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    {
