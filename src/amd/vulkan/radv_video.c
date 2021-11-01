@@ -2,6 +2,8 @@
 
 #include "ac_vcn_dec_regs.h"
 
+#include "vl/vl_rbsp.h"
+
 // THIS violates the way vulkan works and send the VCN create/destroy on session
 // create/destroy. I don't think this is how things should work, and it changes
 // behaviour but doesn't seem to help - DEBUG ONLY
@@ -781,7 +783,89 @@ static void rvcn_dec_message_feedback(void *ptr)
    header->num_buffers = 0;
 }
 
-static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
+static void set_h264_slice_overrides(rvcn_dec_message_avc_t *result,
+                                     const struct VkVideoDecodeInfoKHR *frame_info,
+                                     const StdVideoH264SequenceParameterSet *sps,
+                                     const StdVideoH264PictureParameterSet *pps,
+                                     const char *slice_hdr,
+                                     unsigned slice_size)
+{
+  struct vl_vlc vlc;
+   unsigned sizes = frame_info->srcBufferRange;
+   const void *slice_hdrs[1] = { slice_hdr };
+   vl_vlc_init(&vlc, 1, slice_hdrs, &sizes);
+
+   assert(vl_vlc_peekbits(&vlc, 24) == 0x000001);
+
+   vl_vlc_eatbits(&vlc, 24);
+
+   /* forbidden_zero_bit */
+   vl_vlc_eatbits(&vlc, 1);
+
+   unsigned nal_ref_idc = vl_vlc_get_uimsbf(&vlc, 2);
+   unsigned nal_unit_type = vl_vlc_get_uimsbf(&vlc, 5);
+
+   assert(nal_unit_type == 1 || nal_unit_type == 5);
+
+   struct vl_rbsp rbsp;
+   vl_rbsp_init(&rbsp, &vlc, 128);
+
+   /* first_mb_in_slice */
+   unsigned tmp = vl_rbsp_ue(&rbsp);
+   fprintf(stderr, "tmp is %d\n", tmp);
+   tmp = vl_rbsp_ue(&rbsp);
+   unsigned slice_type = tmp % 5;
+   fprintf(stderr, "slice is %d\n", tmp);
+   tmp = vl_rbsp_ue(&rbsp);//pps id
+   fprintf(stderr, "pps is %d\n", tmp);
+
+   // can't get access to this
+   //   if (sps->separate_color_plane_flag)
+   //      vl_rbsp_u(&rbsp, 2);
+
+   unsigned frame_num = vl_rbsp_u(&rbsp, sps->log2_max_frame_num_minus4 + 4);
+   if (!sps->flags.frame_mbs_only_flag) {
+     unsigned field_pic_flags = vl_rbsp_u(&rbsp, 1);
+     fprintf(stderr, "field_pic_flags: %d\n", field_pic_flags);
+   }
+
+   if (nal_unit_type == 5) {
+     unsigned idr_pic_id = vl_rbsp_ue(&rbsp);
+     fprintf(stderr, "IDR PIC ID: %d\n", idr_pic_id);
+   }
+
+   if (sps->pic_order_cnt_type == 0) {
+     unsigned log2_max_pic_order_cnt_lsb = sps->log2_max_pic_order_cnt_lsb_minus4 + 4;
+     int pic_order_cnt_lsb = vl_rbsp_u(&rbsp, log2_max_pic_order_cnt_lsb);
+   } else
+     assert(0);
+
+   if (pps->flags.redundant_pic_cnt_present_flag)
+      /* redundant_pic_cnt */
+     vl_rbsp_ue(&rbsp);
+
+   if (slice_type == 0x1)
+     /* direct_spatial_mv_pred_flag */
+     vl_rbsp_u(&rbsp, 1);
+
+   result->num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_default_active_minus1;
+   result->num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_default_active_minus1;
+
+   if (slice_type != 1)
+     result->num_ref_idx_l1_active_minus1 = 0;
+   if (slice_type != 0x2) {
+      /* num_ref_idx_active_override_flag */
+     if (vl_rbsp_u(&rbsp, 1)) {
+       result->num_ref_idx_l0_active_minus1 = vl_rbsp_ue(&rbsp);
+
+       if (slice_type == 1)
+          result->num_ref_idx_l1_active_minus1 = vl_rbsp_ue(&rbsp);
+     }
+   }
+}
+
+static rvcn_dec_message_avc_t get_h264_msg(struct radv_device *device,
+                                           struct radv_video_session *vid,
                                            struct radv_video_session_params *params,
                                            const struct VkVideoDecodeInfoKHR *frame_info,
                                            void *it_ptr)
@@ -789,11 +873,19 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    rvcn_dec_message_avc_t result;
    const struct VkVideoDecodeH264PictureInfoEXT *h264_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_H264_PICTURE_INFO_EXT);
-
-   memset(&result, 0, sizeof(result));
+   RADV_FROM_HANDLE(radv_buffer, src_buffer, frame_info->srcBuffer);
 
    assert(params->h264_dec.sps_std_count > 0);
    const StdVideoH264SequenceParameterSet *sps = &params->h264_dec.sps_std[h264_pic_info->pStdPictureInfo->seq_parameter_set_id];
+   const StdVideoH264PictureParameterSet *pps = &params->h264_dec.pps_std[h264_pic_info->pStdPictureInfo->pic_parameter_set_id];
+
+   char *slice_hdr = device->ws->buffer_map(src_buffer->bo);
+   slice_hdr += src_buffer->offset + frame_info->srcBufferOffset;
+
+   memset(&result, 0, sizeof(result));
+
+   set_h264_slice_overrides(&result, frame_info, sps, pps, slice_hdr, frame_info->srcBufferRange);
+
    switch (sps->profile_idc) {
    case std_video_h264_profile_idc_baseline:
       result.profile = RDECODE_H264_PROFILE_BASELINE;
@@ -828,7 +920,6 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
 
    result.chroma_format = sps->chroma_format_idc;
 
-   const StdVideoH264PictureParameterSet *pps = &params->h264_dec.pps_std[h264_pic_info->pStdPictureInfo->pic_parameter_set_id];
    result.pps_info_flags = 0;
    result.pps_info_flags |= pps->flags.transform_8x8_mode_flag << 0;
    result.pps_info_flags |= pps->flags.redundant_pic_cnt_present_flag << 1;
@@ -859,9 +950,6 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
 
    memcpy(it_ptr, result.scaling_list_4x4, 6 * 16);
    memcpy((char *)it_ptr + 96, result.scaling_list_8x8, 2 * 64);
-
-   result.num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_default_active_minus1;
-   result.num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_default_active_minus1;
 
    result.curr_field_order_cnt_list[0] = h264_pic_info->pStdPictureInfo->PicOrderCnt[0];
    result.curr_field_order_cnt_list[1] = h264_pic_info->pStdPictureInfo->PicOrderCnt[1];
