@@ -877,16 +877,36 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_device *device,
    result.frame_num = h264_pic_info->pStdPictureInfo->frame_num;
 
    result.num_ref_frames = frame_info->referenceSlotCount;
-   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-      int idx = frame_info->pReferenceSlots[i].slotIndex;
-      const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
-         vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
 
-      result.frame_num_list[idx] = dpb_slot->pStdReferenceInfo->FrameNum;
-      result.field_order_cnt_list[idx][0] = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
-      result.field_order_cnt_list[idx][1] = dpb_slot->pStdReferenceInfo->PicOrderCnt[1];
+   bool sorted_bitfield[16];
+   memset(sorted_bitfield, 0, sizeof(sorted_bitfield));
+
+   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+      int32_t highest_pic_order_cnt_idx = -1;
+      int found_idx = -1;
+
+      /* find the next highest */
+      for (unsigned j = 0; j < frame_info->referenceSlotCount; j++) {
+         if (sorted_bitfield[j])
+            continue;
+         const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
+            vk_find_struct_const(frame_info->pReferenceSlots[j].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
+         if (dpb_slot->pStdReferenceInfo->PicOrderCnt[0] > highest_pic_order_cnt_idx) {
+            highest_pic_order_cnt_idx = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
+            found_idx = j;
+         }
+      }
+
+      sorted_bitfield[found_idx] = true;
+
+      const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
+         vk_find_struct_const(frame_info->pReferenceSlots[found_idx].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
+
+      result.frame_num_list[i] = dpb_slot->pStdReferenceInfo->FrameNum;
+      result.field_order_cnt_list[i][0] = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
+      result.field_order_cnt_list[i][1] = dpb_slot->pStdReferenceInfo->PicOrderCnt[1];
    }
-   result.decoded_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
+   result.decoded_pic_idx = result.frame_num;
 
    return result;
 }
