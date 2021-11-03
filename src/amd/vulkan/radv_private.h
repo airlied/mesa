@@ -2630,7 +2630,7 @@ struct radv_video_session {
    struct radv_vid_mem dpb;
 
    unsigned dbg_frame_cnt;
-   bool over_ride;
+   bool created;
 };
 
 struct radv_video_session_params {
