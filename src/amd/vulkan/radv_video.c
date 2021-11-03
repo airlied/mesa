@@ -279,6 +279,7 @@ radv_CreateVideoSessionKHR(VkDevice _device,
    if (!vid)
       return vk_error(device->instance, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   memset(vid, 0, sizeof(struct radv_video_session));
 
    vk_object_base_init(&device->vk, &vid->base, VK_OBJECT_TYPE_VIDEO_SESSION_KHR);
 
@@ -1093,7 +1094,8 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    rvcn_dec_message_create(vid, ptr, size);
 
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+   if (!vid->over_ride)
+      send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
 
    cmd_buffer->video.vid = vid;
    cmd_buffer->video.params = params;
@@ -1168,7 +1170,10 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    rvcn_dec_message_decode(vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
+   if (!vid->over_ride) {
+      vid->over_ride = true;
+   } else
+      send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
 
    if (vid->dpb.mem && vid->dpb_type != DPB_DYNAMIC_TIER_2)
       send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
