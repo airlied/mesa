@@ -409,7 +409,11 @@ radv_destroy_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
    if (cmd_buffer->upload.upload_bo)
       cmd_buffer->device->ws->buffer_destroy(cmd_buffer->device->ws, cmd_buffer->upload.upload_bo);
 
-   if (cmd_buffer->cs)
+   if (cmd_buffer->queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+      for (unsigned i = 0; i < cmd_buffer->num_used_cs_video; i++)
+         cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs_video[i]);
+      free(cmd_buffer->cs_video);
+   } else if (cmd_buffer->cs)
       cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs);
 
    for (unsigned i = 0; i < MAX_BIND_POINTS; i++) {
@@ -455,6 +459,13 @@ radv_create_cmd_buffer(struct radv_device *device, struct radv_cmd_pool *pool,
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
+   if (cmd_buffer->queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+      cmd_buffer->num_alloc_cs_video = 4;
+      cmd_buffer->cs_video = calloc(sizeof(cmd_buffer->cs_video[0]), cmd_buffer->num_alloc_cs_video);
+      cmd_buffer->num_used_cs_video = 1;
+      cmd_buffer->cs_video[0] = cmd_buffer->cs;
+   }
+
    vk_object_base_init(&device->vk, &cmd_buffer->meta_push_descriptors.base,
                        VK_OBJECT_TYPE_DESCRIPTOR_SET);
 
@@ -494,6 +505,18 @@ radv_reset_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
    cmd_buffer->gds_needed = false;
    cmd_buffer->gds_oa_needed = false;
    cmd_buffer->sample_positions_needed = false;
+
+   if (cmd_buffer->queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+      struct radeon_cmdbuf *cs = cmd_buffer->cs;
+      for (unsigned c = 0; c < cmd_buffer->num_used_cs_video; c++) {
+         if (cmd_buffer->cs_video[c] != cs) {
+            cmd_buffer->device->ws->cs_destroy(cmd_buffer->cs_video[c]);
+            cmd_buffer->cs_video[c] = NULL;
+         }
+      }
+      cmd_buffer->cs_video[0] = cs;
+      cmd_buffer->num_used_cs_video = 1;
+   }
 
    if (cmd_buffer->upload.upload_bo)
       radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, cmd_buffer->upload.upload_bo);

@@ -1526,6 +1526,10 @@ struct radv_cmd_buffer {
       struct radv_video_session *vid;
       struct radv_video_session_params *params;
    } video;
+
+   struct radeon_cmdbuf **cs_video;
+   int num_alloc_cs_video;
+   int num_used_cs_video;
 };
 
 struct radv_image;

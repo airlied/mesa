@@ -4755,30 +4755,44 @@ radv_queue_submit_deferred(struct radv_deferred_queue_submission *submission,
       if (result != VK_SUCCESS)
          goto fail;
    } else {
-      struct radeon_cmdbuf **cs_array =
-         malloc(sizeof(struct radeon_cmdbuf *) * (submission->cmd_buffer_count));
+      unsigned num_cmdbufs = 0;
+      if (queue->vk.queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+         for (uint32_t j = 0; j < submission->cmd_buffer_count; j++) {
+            RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, submission->cmd_buffers[j]);
+            num_cmdbufs += cmd_buffer->num_used_cs_video;
+         }
+      } else
+         num_cmdbufs = submission->cmd_buffer_count;
 
+      struct radeon_cmdbuf **cs_array =
+         malloc(sizeof(struct radeon_cmdbuf *) * (num_cmdbufs));
+
+      unsigned array_idx = 0;
       for (uint32_t j = 0; j < submission->cmd_buffer_count; j++) {
          RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, submission->cmd_buffers[j]);
          assert(cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-         cs_array[j] = cmd_buffer->cs;
+         if (queue->vk.queue_family_index == RADV_QUEUE_VIDEO_DEC) {
+            for (unsigned vid = 0; vid < cmd_buffer->num_used_cs_video; vid++)
+               cs_array[array_idx++] = cmd_buffer->cs_video[vid];
+         } else
+            cs_array[array_idx++] = cmd_buffer->cs;
          if ((cmd_buffer->usage_flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT))
             can_patch = false;
 
          cmd_buffer->status = RADV_CMD_BUFFER_STATUS_PENDING;
       }
 
-      for (uint32_t j = 0; j < submission->cmd_buffer_count; j += advance) {
+      for (uint32_t j = 0; j < num_cmdbufs; j += advance) {
          struct radeon_cmdbuf *initial_preamble =
             (do_flush && !j) ? initial_flush_preamble_cs : initial_preamble_cs;
-         advance = MIN2(max_cs_submission, submission->cmd_buffer_count - j);
+         advance = MIN2(max_cs_submission, num_cmdbufs - j);
 
          if (queue->device->trace_bo)
             *queue->device->trace_id_ptr = 0;
 
          sem_info.cs_emit_wait = j == 0;
-         sem_info.cs_emit_signal = j + advance == submission->cmd_buffer_count;
+         sem_info.cs_emit_signal = j + advance == num_cmdbufs;
 
          result = queue->device->ws->cs_submit(ctx, queue->vk.index_in_family, cs_array + j, advance,
                                                initial_preamble, continue_preamble_cs, &sem_info,
