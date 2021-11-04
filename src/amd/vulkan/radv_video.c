@@ -7,7 +7,7 @@
 // THIS violates the way vulkan works and send the VCN create/destroy on session
 // create/destroy. I don't think this is how things should work, and it changes
 // behaviour but doesn't seem to help - DEBUG ONLY
-//#define SEND_ON_CREATE_HACK
+#define SEND_ON_CREATE_HACK
 
 #define NUM_H264_REFS  17
 #define FB_BUFFER_OFFSET             0x1000
@@ -1254,7 +1254,7 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    RADV_FROM_HANDLE(radv_video_session, vid, pBeginInfo->videoSession);
    RADV_FROM_HANDLE(radv_video_session_params, params, pBeginInfo->videoSessionParameters);
 
-#if !defined(SEND_ON_CREATE_HACK)
+#if 1 //!defined(SEND_ON_CREATE_HACK)
    uint32_t size = sizeof(rvcn_dec_message_header_t) + sizeof(rvcn_dec_message_create_t);
 
    void *ptr;
@@ -1270,8 +1270,6 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    cmd_buffer->device->ws->buffer_unmap(vid->fb_it_probs[vid->cur_buffer].mem->bo);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, vid->fb_it_probs[vid->cur_buffer].mem->bo, out_offset);
-
-   next_buffer(vid);
 #endif
    cmd_buffer->video.vid = vid;
    cmd_buffer->video.params = params;
