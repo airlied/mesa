@@ -341,6 +341,7 @@ radv_CreateVideoSessionKHR(VkDevice _device,
    if (!vid)
       return vk_error(device->instance, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   memset(vid, 0, sizeof(struct radv_video_session));
 
    vk_object_base_init(&device->vk, &vid->base, VK_OBJECT_TYPE_VIDEO_SESSION_KHR);
 
