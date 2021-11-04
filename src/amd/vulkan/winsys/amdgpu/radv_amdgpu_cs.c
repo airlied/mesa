@@ -1072,11 +1072,16 @@ radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx, int queue_id
          if (preamble_cs)
             size += preamble_cs->cdw;
 
-         while (i + cnt < cs_count &&
-                GFX6_MAX_CS_SIZE - size >= radv_amdgpu_cs(cs_array[i + cnt])->base.cdw) {
-            size += radv_amdgpu_cs(cs_array[i + cnt])->base.cdw;
-            ++cnt;
-         }
+	 if (cs0->hw_ip == AMDGPU_HW_IP_VCN_DEC) {
+	    size += radv_amdgpu_cs(cs_array[i + cnt])->base.cdw;
+	    cnt++;
+	 } else {
+	    while (i + cnt < cs_count &&
+		   GFX6_MAX_CS_SIZE - size >= radv_amdgpu_cs(cs_array[i + cnt])->base.cdw) {
+	       size += radv_amdgpu_cs(cs_array[i + cnt])->base.cdw;
+	       ++cnt;
+	    }
+	 }
 
          while (!size || (size & 7)) {
             size++;
