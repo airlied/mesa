@@ -876,7 +876,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_device *device,
 
    result.frame_num = h264_pic_info->pStdPictureInfo->frame_num;
 
-   result.num_ref_frames = frame_info->referenceSlotCount;
+   result.num_ref_frames = 3;
 
    bool sorted_bitfield[16];
    memset(sorted_bitfield, 0, sizeof(sorted_bitfield));
