@@ -333,6 +333,11 @@ else
   with_dri_platform = 'none'
 endif
 
+with_vulkan_beta = get_option('vulkan-beta')
+if with_vulkan_beta
+  pre_args += '-DVK_ENABLE_BETA_EXTENSIONS'
+endif
+
 _platforms = get_option('platforms')
 if _platforms.contains('auto')
   if system_has_kms_drm
