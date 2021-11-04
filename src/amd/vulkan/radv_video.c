@@ -1090,6 +1090,10 @@ static void radv_cmd_buffer_add_video_cs(struct radv_cmd_buffer *cmd_buffer)
    cmd_buffer->num_used_cs_video++;
 
    cmd_buffer->cs = new_cs;
+
+   cmd_buffer->device->ws->cs_reset(cmd_buffer->cs);
+   if (cmd_buffer->upload.upload_bo)
+      radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, cmd_buffer->upload.upload_bo);
 }
 
 void
