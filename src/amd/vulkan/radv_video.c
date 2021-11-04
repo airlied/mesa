@@ -956,7 +956,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_device *device,
 
    result.frame_num = h264_pic_info->pStdPictureInfo->frame_num;
 
-   result.num_ref_frames = frame_info->referenceSlotCount;
+   result.num_ref_frames = sps->max_num_ref_frames;
    for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
       int idx = frame_info->pReferenceSlots[i].slotIndex;
       const struct VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot =
