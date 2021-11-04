@@ -104,6 +104,8 @@ ring_to_hw_ip(enum ring_type ring)
    }
 }
 
+static bool
+radv_amdgpu_ctx_wait_idle(struct radeon_winsys_ctx *rwctx, enum ring_type ring_type, int ring_index);
 struct radv_amdgpu_cs_request {
    /** Specify HW IP block type to which to send the IB. */
    unsigned ip_type;
@@ -1136,6 +1138,11 @@ radv_amdgpu_winsys_cs_submit_sysmem(struct radeon_winsys_ctx *_ctx, int queue_id
 
       sem_info->cs_emit_signal = (i == cs_count - cnt) ? emit_signal_sem : false;
       result = radv_amdgpu_cs_submit(ctx, &request, sem_info);
+
+      if (cs0->hw_ip == AMDGPU_HW_IP_VCN_DEC && cs_count > 1 && i < (cs_count - 1)) {
+         radv_assign_last_submit(ctx, &request);
+         radv_amdgpu_ctx_wait_idle((struct radeon_winsys_ctx *)ctx, RING_VCN_DEC, request.ring);
+      }
 
       free(request.handles);
       u_rwlock_rdunlock(&aws->global_bo_list.lock);
