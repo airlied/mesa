@@ -955,10 +955,12 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
                                     const struct VkVideoDecodeInfoKHR *frame_info)
 {
    rvcn_dec_message_header_t *header;
+   rvcn_dec_message_index_t *index_decode;
    rvcn_dec_message_index_t *index_codec;
    rvcn_dec_message_decode_t *decode;
+   rvcn_dec_message_create_t *create;
    void *codec;
-   unsigned sizes = 0, offset_decode, offset_codec;
+   unsigned sizes = 0, offset_decode, offset_codec, offset_create = 0;
    struct radv_image_view *dst_iv = radv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
    struct radv_image *img = dst_iv->image;
 
@@ -968,11 +970,22 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
    header = ptr;
    sizes += sizeof(rvcn_dec_message_header_t);
 
+   if (!vid->over_ride) {
+      index_decode = (void *)((char *)header + sizes);
+      sizes += sizeof(rvcn_dec_message_index_t);
+   } else
+      index_decode = &header->index[0];
+
    index_codec = (void *)((char *)header + sizes);
    sizes += sizeof(rvcn_dec_message_index_t);
 
    //encrypted
    //dpb > TIER_1
+   if (!vid->over_ride) {
+      offset_create = sizes;
+      create = (void *)((char *)header + sizes);
+      sizes += sizeof(rvcn_dec_message_create_t);
+   }
 
    offset_decode = sizes;
    decode = (void *)((char*)header + sizes);
@@ -988,15 +1001,29 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
 
    header->header_size = sizeof(rvcn_dec_message_header_t);
    header->total_size = sizes;
-   header->msg_type = RDECODE_MSG_DECODE;
+   header->msg_type = vid->over_ride ? RDECODE_MSG_DECODE : RDECODE_MSG_CREATE;
    header->stream_handle = vid->stream_handle;
    header->status_report_feedback_number = vid->dbg_frame_cnt++;
 
-   header->index[0].message_id = RDECODE_MESSAGE_DECODE;
-   header->index[0].offset = offset_decode;
-   header->index[0].size = sizeof(rvcn_dec_message_decode_t);
-   header->index[0].filled = 0;
-   header->num_buffers = 1;
+   int hdr_idx = 0;
+   if (!vid->over_ride) {
+     header->index[0].message_id = RDECODE_MESSAGE_CREATE;
+     header->index[0].offset = offset_create;
+     header->index[0].size = sizeof(rvcn_dec_message_create_t);
+     header->index[0].filled = 0;
+     ++header->num_buffers;
+
+     create->stream_type = vid->stream_type;
+     create->session_flags = 0;
+     create->width_in_samples = vid->max_coded.width;
+     create->height_in_samples = vid->max_coded.height;
+   }
+
+   index_decode->message_id = RDECODE_MESSAGE_DECODE;
+   index_decode->offset = offset_decode;
+   index_decode->size = sizeof(rvcn_dec_message_decode_t);
+   index_decode->filled = 0;
+   ++header->num_buffers;
 
    index_codec->offset = offset_codec;
    index_codec->size = sizeof(rvcn_dec_message_avc_t);
@@ -1006,6 +1033,7 @@ static bool rvcn_dec_message_decode(struct radv_video_session *vid,
    //encrypted
    // dpb_type
 
+   vid->over_ride = true;
    decode->stream_type = vid->stream_type;
    decode->decode_flags = 0;
    decode->width_in_samples = frame_info->codedExtent.width;
@@ -1083,6 +1111,7 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    RADV_FROM_HANDLE(radv_video_session, vid, pBeginInfo->videoSession);
    RADV_FROM_HANDLE(radv_video_session_params, params, pBeginInfo->videoSessionParameters);
 
+#if 0
    uint32_t size = sizeof(rvcn_dec_message_header_t) + sizeof(rvcn_dec_message_create_t);
 
    void *ptr;
@@ -1094,9 +1123,8 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    rvcn_dec_message_create(vid, ptr, size);
 
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   if (!vid->over_ride)
-      send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
-
+   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+#endif
    cmd_buffer->video.vid = vid;
    cmd_buffer->video.params = params;
 }
@@ -1113,16 +1141,20 @@ void
 radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
                           const VkVideoEndCodingInfoKHR *pEndCodingInfo)
 {
+  return;
+#if 0
    RADV_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_video_session *vid = cmd_buffer->video.vid;
    uint32_t size = sizeof(rvcn_dec_message_header_t);
    void *ptr;
    uint32_t out_offset;
+
    radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
                                 &ptr);
    rvcn_dec_message_destroy(vid->stream_handle, ptr, size);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
+#endif
 }
 
 void
@@ -1140,6 +1172,11 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
 
    size += sizeof(rvcn_dec_message_header_t);
    size += sizeof(rvcn_dec_message_index_t);
+
+   if (!vid->over_ride) {
+     size += sizeof(rvcn_dec_message_index_t);
+     size += sizeof(rvcn_dec_message_create_t);
+   }
    //encrypted
    //dpb
    size += sizeof(rvcn_dec_message_decode_t);
@@ -1170,10 +1207,7 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
    rvcn_dec_message_decode(vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   if (!vid->over_ride) {
-      vid->over_ride = true;
-   } else
-      send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
+   send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
 
    if (vid->dpb.mem && vid->dpb_type != DPB_DYNAMIC_TIER_2)
       send_cmd(cmd_buffer, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
