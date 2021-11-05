@@ -1255,7 +1255,7 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    RADV_FROM_HANDLE(radv_video_session, vid, pBeginInfo->videoSession);
    RADV_FROM_HANDLE(radv_video_session_params, params, pBeginInfo->videoSessionParameters);
 
-#if 1 //!defined(SEND_ON_CREATE_HACK)
+#if 0 //!defined(SEND_ON_CREATE_HACK)
    uint32_t size = sizeof(rvcn_dec_message_header_t) + sizeof(rvcn_dec_message_create_t);
 
    void *ptr;
@@ -1360,15 +1360,11 @@ radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
 
    rvcn_dec_message_decode(cmd_buffer->device, vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
-   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
-   {
-     uint32_t *msg_ptr = ptr;
-     for (unsigned i = 0; i < size / 4; i++)
-       fprintf(stderr, "%08x ", msg_ptr[i]);
-     fprintf(stderr, "\n");
-   }
-
    cmd_buffer->device->ws->buffer_unmap(vid->fb_it_probs[vid->cur_buffer].mem->bo);
+
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
+   send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
    if (vid->dpb.mem && vid->dpb_type != DPB_DYNAMIC_TIER_2)
       send_cmd(cmd_buffer->device, cmd_buffer->cs, RDECODE_CMD_DPB_BUFFER, vid->dpb.mem->bo, vid->dpb.offset);
