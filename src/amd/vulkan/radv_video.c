@@ -1152,6 +1152,10 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
 
+   /* pad out the IB to the 16 dword boundary - otherwise the fw seems to be unhappy */
+   for (unsigned i = 0; i < 4; i++)
+      radeon_emit(cmd_buffer->cs, 0x81ff);
+
    vid->fw_ctx_created = true;
 }
 
