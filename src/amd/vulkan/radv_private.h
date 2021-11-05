@@ -2654,6 +2654,7 @@ struct radv_video_session {
    struct radv_vid_mem dpb;
 
    unsigned dbg_frame_cnt;
+   bool fw_ctx_created;
 };
 
 struct radv_video_session_params {
