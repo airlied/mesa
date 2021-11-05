@@ -403,15 +403,6 @@ static void
 radv_physical_device_get_supported_extensions(const struct radv_physical_device *device,
                                               struct vk_device_extension_table *ext)
 {
-   bool enable_VK_EXT_display_control = false;
-
-   /* Only enable VK_EXT_display_control for vrcompositor (SteamVR) because one CTS test fails and
-    * the fix is still pending, see https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/12305.
-    */
-   if (device->instance->vk.app_info.app_name &&
-       !strcmp(device->instance->vk.app_info.app_name, "vrcompositor"))
-      enable_VK_EXT_display_control = true;
-
    *ext = (struct vk_device_extension_table){
       .KHR_8bit_storage = true,
       .KHR_16bit_storage = true,
@@ -490,7 +481,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_descriptor_indexing = true,
       .EXT_discard_rectangles = true,
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
-      .EXT_display_control = enable_VK_EXT_display_control,
+      .EXT_display_control = true,
 #endif
       .EXT_extended_dynamic_state = true,
       .EXT_extended_dynamic_state2 = true,
