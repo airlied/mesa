@@ -1139,6 +1139,9 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    void *ptr;
    uint32_t out_offset;
 
+   cmd_buffer->video.vid = vid;
+   cmd_buffer->video.params = params;
+
    radv_cmd_buffer_upload_alloc(cmd_buffer, size, &out_offset,
                                 &ptr);
 
@@ -1146,9 +1149,6 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
 
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
-
-   cmd_buffer->video.vid = vid;
-   cmd_buffer->video.params = params;
 }
 
 void
