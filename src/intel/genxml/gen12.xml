@@ -6795,11 +6795,11 @@
     <field name="Sub-Pel Mode" start="140" end="141" type="uint"/>
     <field name="Forward Transform Skip Check Enable" start="145" end="145" type="bool"/>
     <field name="Block-Based Skip Enable" start="147" end="147" type="bool"/>
-    <field name="Inter SAD Measure Adjustment" start="148" end="149" type="uint">
+    <field name="Inter SAD Measure Adjustment" start="148" end="149" type="uint" prefix="ISMA">
       <value name="None" value="0"/>
       <value name="Haar Transform Adjusted" value="2"/>
     </field>
-    <field name="Intra SAD Measure Adjustment" start="150" end="151" type="uint">
+    <field name="Intra SAD Measure Adjustment" start="150" end="151" type="uint" prefix="ISMA">
       <value name="None" value="0"/>
       <value name="Haar Transform Adjusted" value="2"/>
     </field>
@@ -6938,7 +6938,7 @@
     <field name="Media Command Opcode" start="23" end="26" type="uint" default="1"/>
     <field name="Pipeline" start="27" end="28" type="uint" default="2"/>
     <field name="Command Type" start="29" end="31" type="uint" default="3"/>
-    <field name="Standard Select" start="32" end="35" type="uint">
+    <field name="Standard Select" start="32" end="35" type="uint" prefix="SS">
       <value name="HEVC" value="0"/>
       <value name="VP9" value="1"/>
       <value name="AVC" value="2"/>
