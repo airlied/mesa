@@ -54,7 +54,7 @@ foreach f : gen_xml_files + ['gen_rt.xml']
     _name,
     input : ['gen_pack_header.py', f],
     output : _name,
-    command : [prog_python, '@INPUT@', '--engines=render,blitter'],
+    command : [prog_python, '@INPUT@', '--engines=render,blitter,video'],
     capture : true,
   )
 endforeach
