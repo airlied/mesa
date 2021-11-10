@@ -5348,7 +5348,7 @@
       <value name="JPEG_Chroma_Cr_QUANTIZER_MATRIX (or B)" value="2"/>
     </field>
     <group count="64" start="64" size="8">
-      <field name="Forward Quantizer Matrix 8x8" start="0" end="7" type="uint"/>
+      <field name="Forward Quantizer Matrix" start="0" end="7" type="uint"/>
     </group>
   </instruction>
 

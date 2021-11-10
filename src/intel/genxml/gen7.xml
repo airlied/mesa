@@ -3119,7 +3119,9 @@
       <value name="MPEG_INTRA_QUANTIZER_MATRIX" value="0"/>
       <value name="MPEG_NON_INTRA_QUANTIZER_MATRIX" value="1"/>
     </field>
-    <field name="Forward Quantizer Matrix" start="64" end="1087" type="uint"/>
+    <group count="64" start="64" size="8">
+      <field name="Forward Quantizer Matrix" start="0" end="7" type="uint"/>
+    </group>
   </instruction>
 
   <instruction name="MFX_STATE_POINTER" bias="2" length="2" engine="video">
