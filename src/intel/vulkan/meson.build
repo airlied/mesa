@@ -57,6 +57,7 @@ anv_per_hw_ver_files = files(
   'genX_pipeline.c',
   'genX_query.c',
   'genX_state.c',
+  'genX_video.c',
 )
 foreach g : [['70', ['gfx7_cmd_buffer.c']], ['75', ['gfx7_cmd_buffer.c']],
              ['80', ['gfx8_cmd_buffer.c']], ['90', ['gfx8_cmd_buffer.c']],
@@ -110,6 +111,7 @@ libanv_files = files(
   'anv_private.h',
   'anv_queue.c',
   'anv_util.c',
+  'anv_video.c',
   'anv_wsi.c',
 )
 

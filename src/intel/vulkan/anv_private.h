@@ -75,6 +75,7 @@
 #include "vk_command_buffer.h"
 #include "vk_queue.h"
 #include "vk_log.h"
+#include "vk_video.h"
 
 /* Pre-declarations needed for WSI entrypoints */
 struct wl_surface;
@@ -3200,6 +3201,11 @@ struct anv_cmd_buffer {
     * Used to increase allocation size for long command buffers.
     */
    uint32_t                                     total_batch_size;
+
+   struct {
+      struct anv_video_session *vid;
+      struct anv_video_session_params *params;
+   } video;
 };
 
 /* Determine whether we can chain a given cmd_buffer to another one. We need
@@ -4055,6 +4061,9 @@ struct anv_image {
       /** Location of the fast clear state.  */
       struct anv_image_memory_range fast_clear_memory_range;
    } planes[3];
+
+   struct anv_image_memory_range vid_dmv_top_surface;
+   struct anv_image_memory_range vid_dmv_bottom_surface;
 };
 
 /* The ordering of this enum is important */
@@ -4695,6 +4704,30 @@ struct anv_acceleration_structure {
    struct anv_address                           address;
 };
 
+struct anv_vid_mem {
+   uint32_t           bind_index;
+   struct anv_device_memory *mem;
+   VkDeviceSize       offset;
+   VkDeviceSize       size;
+};
+
+#define ANV_VIDEO_MEM_REQS 4
+#define ANV_MB_WIDTH 16
+#define ANV_MB_HEIGHT 16
+struct anv_video_session {
+   struct vk_video_session vk;
+
+   /* the decoder needs some private memory allocations */
+   struct anv_vid_mem intra_row_scratch;
+   struct anv_vid_mem deblocking_filter_row_scratch;
+   struct anv_vid_mem bsd_mpc_row_scratch;
+   struct anv_vid_mem mpr_row_store_scratch;
+};
+
+struct anv_video_session_params {
+   struct vk_video_session_parameters vk;
+};
+
 int anv_get_instance_entrypoint_index(const char *name);
 int anv_get_device_entrypoint_index(const char *name);
 int anv_get_physical_device_entrypoint_index(const char *name);
@@ -4823,6 +4856,8 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(anv_ycbcr_conversion, base,
 VK_DEFINE_NONDISP_HANDLE_CASTS(anv_performance_configuration_intel, base,
                                VkPerformanceConfigurationINTEL,
                                VK_OBJECT_TYPE_PERFORMANCE_CONFIGURATION_INTEL)
+VK_DEFINE_NONDISP_HANDLE_CASTS(anv_video_session, vk.base, VkVideoSessionKHR, VK_OBJECT_TYPE_VIDEO_SESSION_KHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(anv_video_session_params, vk.base, VkVideoSessionParametersKHR, VK_OBJECT_TYPE_VIDEO_SESSION_PARAMETERS_KHR)
 
 #define anv_genX(devinfo, thing) ({             \
    __typeof(&gfx9_##thing) genX_thing;          \

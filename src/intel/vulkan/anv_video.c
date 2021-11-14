@@ -1,0 +1,207 @@
+/*
+ * Copyright © 2021 Red Hat
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
+ */
+
+#include "anv_private.h"
+
+VkResult
+anv_CreateVideoSessionKHR(VkDevice _device,
+                           const VkVideoSessionCreateInfoKHR *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator,
+                           VkVideoSessionKHR *pVideoSession)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+
+   struct anv_video_session *vid =
+      vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*vid), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (!vid)
+      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   memset(vid, 0, sizeof(struct anv_video_session));
+
+   VkResult result = vk_video_session_object_init(&device->vk,
+						  &vid->vk,
+						  pCreateInfo);
+   if (result != VK_SUCCESS) {
+      vk_free2(&device->vk.alloc, pAllocator, vid);
+      return result;
+   }
+
+   *pVideoSession = anv_video_session_to_handle(vid);
+   return VK_SUCCESS;
+}
+
+void
+anv_DestroyVideoSessionKHR(VkDevice _device,
+                           VkVideoSessionKHR _session,
+                           const VkAllocationCallbacks *pAllocator)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+   ANV_FROM_HANDLE(anv_video_session, vid, _session);
+   if (!_session)
+      return;
+
+   vk_object_base_finish(&vid->vk.base);
+   vk_free2(&device->vk.alloc, pAllocator, vid);
+}
+
+VkResult
+anv_CreateVideoSessionParametersKHR(VkDevice _device,
+                                     const VkVideoSessionParametersCreateInfoKHR *pCreateInfo,
+                                     const VkAllocationCallbacks *pAllocator,
+                                     VkVideoSessionParametersKHR *pVideoSessionParameters)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+   ANV_FROM_HANDLE(anv_video_session, vid, pCreateInfo->videoSession);
+   struct anv_video_session_params *params =
+      vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*params), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (!params)
+      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   VkResult result = vk_video_session_parameters_object_init(&device->vk,
+                                                             &params->vk,
+                                                             &vid->vk,
+                                                             pCreateInfo);
+   if (result != VK_SUCCESS) {
+      vk_free2(&device->vk.alloc, pAllocator, params);
+      return result;
+   }
+
+   *pVideoSessionParameters = anv_video_session_params_to_handle(params);
+   return VK_SUCCESS;
+}
+
+void
+anv_DestroyVideoSessionParametersKHR(VkDevice _device,
+                                      VkVideoSessionParametersKHR _params,
+                                      const VkAllocationCallbacks *pAllocator)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+   ANV_FROM_HANDLE(anv_video_session_params, params, _params);
+   if (!_params)
+      return;
+   vk_video_session_parameters_object_finish(&params->vk);
+   vk_free2(&device->vk.alloc, pAllocator, params);
+}
+
+VkResult
+anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
+                                           const VkVideoProfileKHR *pVideoProfile,
+                                           VkVideoCapabilitiesKHR *pCapabilities)
+{
+   pCapabilities->capabilityFlags = 0;
+   pCapabilities->minBitstreamBufferOffsetAlignment = 4096;
+   pCapabilities->minBitstreamBufferSizeAlignment = 4096;
+   pCapabilities->videoPictureExtentGranularity.width = ANV_MB_WIDTH;
+   pCapabilities->videoPictureExtentGranularity.height = ANV_MB_HEIGHT;
+   pCapabilities->minExtent.width = ANV_MB_WIDTH;
+   pCapabilities->minExtent.height = ANV_MB_HEIGHT;
+   return VK_SUCCESS;
+}
+
+VkResult
+anv_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
+                                               const VkPhysicalDeviceVideoFormatInfoKHR *pVideoFormatInfo,
+                                               uint32_t *pVideoFormatPropertyCount,
+                                               VkVideoFormatPropertiesKHR *pVideoFormatProperties)
+{
+   *pVideoFormatPropertyCount = 1;
+
+   if (!pVideoFormatProperties)
+      return VK_SUCCESS;
+
+   pVideoFormatProperties[0].format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+   return VK_SUCCESS;
+}
+
+VkResult
+anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
+                                         VkVideoSessionKHR videoSession,
+                                         uint32_t *pVideoSessionMemoryRequirementsCount,
+                                         VkVideoGetMemoryPropertiesKHR *mem_reqs)
+{
+   ANV_FROM_HANDLE(anv_device, device, _device);
+   ANV_FROM_HANDLE(anv_video_session, vid, videoSession);
+   *pVideoSessionMemoryRequirementsCount = ANV_VIDEO_MEM_REQS;
+   if (!mem_reqs)
+      return VK_SUCCESS;
+
+   uint32_t width_in_mb = align(vid->vk.max_coded.width, ANV_MB_WIDTH) / ANV_MB_WIDTH;
+   uint32_t memory_types = (1ull << device->physical->memory.type_count) - 1;
+   /* intra row store is width in macroblocks * 64 */
+   mem_reqs[0].pMemoryRequirements->memoryRequirements.size = width_in_mb * 64;
+   mem_reqs[0].pMemoryRequirements->memoryRequirements.alignment = 4096;
+   mem_reqs[0].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_types;
+
+   /* deblocking filter row store is width in macroblocks * 64 * 4*/
+   mem_reqs[1].pMemoryRequirements->memoryRequirements.size = width_in_mb * 64 * 4;
+   mem_reqs[1].pMemoryRequirements->memoryRequirements.alignment = 4096;
+   mem_reqs[1].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_types;
+
+   /* bsd mpc row scratch is width in macroblocks * 64 * 2 */
+   mem_reqs[2].pMemoryRequirements->memoryRequirements.size = width_in_mb * 64 * 2;
+   mem_reqs[2].pMemoryRequirements->memoryRequirements.alignment = 4096;
+   mem_reqs[2].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_types;
+
+   /* mpr row scratch is width in macroblocks * 64 * 2 */
+   mem_reqs[3].pMemoryRequirements->memoryRequirements.size = width_in_mb * 64 * 2;
+   mem_reqs[3].pMemoryRequirements->memoryRequirements.alignment = 4096;
+   mem_reqs[3].pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_types;
+
+   return VK_SUCCESS;
+}
+
+VkResult
+anv_UpdateVideoSessionParametersKHR(VkDevice _device,
+                                     VkVideoSessionParametersKHR _params,
+                                     const VkVideoSessionParametersUpdateInfoKHR *pUpdateInfo)
+{
+   ANV_FROM_HANDLE(anv_video_session_params, params, _params);
+   vk_video_session_parameters_object_update(&params->vk, pUpdateInfo);
+   return VK_SUCCESS;
+}
+
+static void
+copy_bind(struct anv_vid_mem *dst,
+          const VkVideoBindMemoryKHR *src)
+{
+   dst->bind_index = src->memoryBindIndex;
+   dst->mem = anv_device_memory_from_handle(src->memory);
+   dst->offset = src->memoryOffset;
+   dst->size = src->memorySize;
+}
+
+VkResult
+anv_BindVideoSessionMemoryKHR(VkDevice _device,
+                              VkVideoSessionKHR videoSession,
+                              uint32_t bind_mem_count,
+                              const VkVideoBindMemoryKHR *bind_mem)
+{
+   ANV_FROM_HANDLE(anv_video_session, vid, videoSession);
+
+   assert(bind_mem_count == 4);
+   copy_bind(&vid->intra_row_scratch, &bind_mem[0]);
+   copy_bind(&vid->deblocking_filter_row_scratch, &bind_mem[1]);
+   copy_bind(&vid->bsd_mpc_row_scratch, &bind_mem[2]);
+   copy_bind(&vid->mpr_row_store_scratch, &bind_mem[3]);
+   return VK_SUCCESS;
+}
