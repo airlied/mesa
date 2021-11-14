@@ -340,6 +340,9 @@ genX(init_device_state)(struct anv_device *device)
       case I915_ENGINE_CLASS_RENDER:
          res = init_render_queue_state(queue);
          break;
+      case I915_ENGINE_CLASS_VIDEO:
+        res = VK_SUCCESS;
+	 break;
       default:
          res = vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
          break;

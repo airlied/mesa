@@ -368,11 +368,14 @@ anv_gem_create_context_engines(struct anv_device *device,
     */
    int last_engine_idx[] = {
       [I915_ENGINE_CLASS_RENDER] = -1,
+      [I915_ENGINE_CLASS_VIDEO] = -1,
    };
 
    int i915_engine_counts[] = {
       [I915_ENGINE_CLASS_RENDER] =
          anv_gem_count_engines(info, I915_ENGINE_CLASS_RENDER),
+      [I915_ENGINE_CLASS_VIDEO] =
+         anv_gem_count_engines(info, I915_ENGINE_CLASS_VIDEO),
    };
 
    /* For each queue, we look for the next instance that matches the class we

@@ -1732,6 +1732,8 @@ genX(BeginCommandBuffer)(
    if (cmd_buffer->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
       cmd_buffer->usage_flags &= ~VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 
+   if (cmd_buffer->pool->queue_family->engine_class == I915_ENGINE_CLASS_VIDEO)
+      return VK_SUCCESS;
    genX(cmd_buffer_emit_state_base_address)(cmd_buffer);
 
    /* We sometimes store vertex data in the dynamic state buffer for blorp
@@ -1894,6 +1896,10 @@ genX(EndCommandBuffer)(
    if (anv_batch_has_error(&cmd_buffer->batch))
       return cmd_buffer->batch.status;
 
+   if (cmd_buffer->pool->queue_family->engine_class == I915_ENGINE_CLASS_VIDEO) {
+      anv_cmd_buffer_end_batch_buffer(cmd_buffer);
+      return VK_SUCCESS;
+   }
    anv_measure_endcommandbuffer(cmd_buffer);
 
    /* We want every command buffer to start with the PMA fix in a known state,
