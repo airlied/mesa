@@ -272,6 +272,9 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_timeline_semaphore                = true,
       .KHR_uniform_buffer_standard_layout    = true,
       .KHR_variable_pointers                 = true,
+      .KHR_video_queue                       = device->video_decode_enabled,
+      .KHR_video_decode_queue                = device->video_decode_enabled,
+      .KHR_video_decode_h264                 = device->video_decode_enabled,
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -746,7 +749,8 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
             .engine_class = compute_class,
          };
       }
-      if (vid_count > 0) {
+
+      if (vid_count > 0 && pdevice->video_decode_enabled) {
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
             .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
             .queueCount = vid_count,
@@ -916,6 +920,8 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
 
    device->has_implicit_ccs = device->info.has_aux_map ||
                               device->info.verx10 >= 125;
+
+   device->video_decode_enabled = debug_get_bool_option("ANV_VIDEO_DECODE", false);
 
    /* Check if we can read the GPU timestamp register from the CPU */
    uint64_t u64_ignore;
@@ -2782,7 +2788,12 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
                properties->priorityCount = count;
                break;
             }
-
+            case VK_STRUCTURE_TYPE_QUEUE_FAMILY_VIDEO_PROPERTIES_KHR: {
+               VkQueueFamilyVideoPropertiesKHR *prop =
+                  (VkQueueFamilyVideoPropertiesKHR *)ext;
+               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
+               break;
+            }
             default:
                anv_debug_ignored_stype(ext->sType);
             }

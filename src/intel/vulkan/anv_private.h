@@ -924,6 +924,8 @@ struct anv_physical_device {
      * the total system ram to try and avoid running out of RAM.
      */
     bool                                        supports_48bit_addresses;
+    bool                                        video_decode_enabled;
+
     struct brw_compiler *                       compiler;
     struct isl_device                           isl_dev;
     struct intel_perf_config *                    perf;
