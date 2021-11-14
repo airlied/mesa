@@ -293,6 +293,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_transform_feedback                = true,
       .EXT_vertex_attribute_divisor          = true,
       .EXT_ycbcr_image_arrays                = true,
+      .EXT_ycbcr_2plane_444_formats          = true,
 #ifdef ANDROID
       .ANDROID_external_memory_android_hardware_buffer = true,
       .ANDROID_native_buffer                 = true,
@@ -1708,6 +1709,13 @@ void anv_GetPhysicalDeviceFeatures2(
          VkPhysicalDeviceSynchronization2FeaturesKHR *features =
             (VkPhysicalDeviceSynchronization2FeaturesKHR *)ext;
          features->synchronization2 = true;
+         break;
+      }
+
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_2_PLANE_444_FORMATS_FEATURES_EXT: {
+         VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *features =
+            (VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT *)ext;
+         features->ycbcr2plane444Formats = true;
          break;
       }
 
