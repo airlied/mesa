@@ -157,6 +157,9 @@ VkResult genX(CreateQueryPool)(
       break;
    }
 #endif
+   case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
+      uint64s_per_slot = 1;
+      break;
    default:
       assert(!"Invalid query type");
    }

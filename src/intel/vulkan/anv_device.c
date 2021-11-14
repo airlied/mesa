@@ -235,6 +235,8 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_timeline_semaphore                = true,
       .KHR_uniform_buffer_standard_layout    = true,
       .KHR_variable_pointers                 = true,
+      .KHR_video_queue                       = device->video_decode_enabled,
+      .KHR_video_decode_queue                = device->video_decode_enabled,
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -292,6 +294,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_texel_buffer_alignment            = true,
       .EXT_transform_feedback                = true,
       .EXT_vertex_attribute_divisor          = true,
+      .EXT_video_decode_h264                 = device->video_decode_enabled,
       .EXT_ycbcr_image_arrays                = true,
       .EXT_ycbcr_2plane_444_formats          = true,
 #ifdef ANDROID
@@ -727,7 +730,7 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
             .engine_class = I915_ENGINE_CLASS_RENDER,
          };
       }
-      if (vid_count > 0) {
+      if (vid_count > 0 && pdevice->video_decode_enabled) {
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
             .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
             .queueCount = vid_count,
@@ -925,6 +928,10 @@ anv_physical_device_try_create(struct anv_instance *instance,
    device->use_call_secondary =
       device->use_softpin &&
       !env_var_as_boolean("ANV_DISABLE_SECONDARY_CMD_BUFFER_CALLS", false);
+
+#ifdef VK_ENABLE_BETA_EXTENSIONS
+   device->video_decode_enabled = env_var_as_boolean("ANV_VIDEO_DECODE", false);
+#endif
 
    /* We first got the A64 messages on broadwell and we can only use them if
     * we can pass addresses directly into the shader which requires softpin.
@@ -2602,6 +2609,12 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
                break;
             }
 
+            case VK_STRUCTURE_TYPE_VIDEO_QUEUE_FAMILY_PROPERTIES_2_KHR: {
+               VkVideoQueueFamilyProperties2KHR *prop =
+                  (VkVideoQueueFamilyProperties2KHR *)ext;
+               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_EXT;
+               break;
+            }
             default:
                anv_debug_ignored_stype(ext->sType);
             }
