@@ -65,6 +65,7 @@ i915_gem_create_context_engines(int fd,
       [INTEL_ENGINE_CLASS_RENDER] = -1,
       [INTEL_ENGINE_CLASS_COPY] = -1,
       [INTEL_ENGINE_CLASS_COMPUTE] = -1,
+      [INTEL_ENGINE_CLASS_VIDEO] = -1,
    };
 
    int engine_counts[] = {
@@ -74,6 +75,8 @@ i915_gem_create_context_engines(int fd,
          intel_engines_count(info, INTEL_ENGINE_CLASS_COPY),
       [INTEL_ENGINE_CLASS_COMPUTE] =
          intel_engines_count(info, INTEL_ENGINE_CLASS_COMPUTE),
+      [INTEL_ENGINE_CLASS_VIDEO] =
+         intel_engines_count(info, INTEL_ENGINE_CLASS_VIDEO),
    };
 
    /* For each queue, we look for the next instance that matches the class we
@@ -83,7 +86,8 @@ i915_gem_create_context_engines(int fd,
       enum intel_engine_class engine_class = engine_classes[i];
       assert(engine_class == INTEL_ENGINE_CLASS_RENDER ||
              engine_class == INTEL_ENGINE_CLASS_COPY ||
-             engine_class == INTEL_ENGINE_CLASS_COMPUTE);
+             engine_class == INTEL_ENGINE_CLASS_COMPUTE ||
+             engine_class == INTEL_ENGINE_CLASS_VIDEO);
       if (engine_counts[engine_class] <= 0)
          return false;
 
