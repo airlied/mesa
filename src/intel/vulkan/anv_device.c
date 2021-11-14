@@ -3003,10 +3003,15 @@ VkResult anv_CreateDevice(
          INTEL_BATCH_DECODE_OFFSETS |
          INTEL_BATCH_DECODE_FLOATS;
 
-      intel_batch_decode_ctx_init(&device->decoder_ctx,
+      intel_batch_decode_ctx_init(&device->decoder_ctx[0],
                                   &physical_device->info,
                                   stderr, decode_flags, NULL,
                                   decode_get_bo, NULL, device);
+      intel_batch_decode_ctx_init(&device->decoder_ctx[1],
+                                  &physical_device->info,
+                                  stderr, decode_flags, NULL,
+                                  decode_get_bo, NULL, device);
+      device->decoder_ctx[1].engine = I915_ENGINE_CLASS_VIDEO;
    }
 
    device->physical = physical_device;
@@ -3417,8 +3422,10 @@ void anv_DestroyDevice(
 
    anv_gem_destroy_context(device, device->context_id);
 
-   if (INTEL_DEBUG(DEBUG_BATCH))
-      intel_batch_decode_ctx_finish(&device->decoder_ctx);
+   if (INTEL_DEBUG(DEBUG_BATCH)) {
+      intel_batch_decode_ctx_finish(&device->decoder_ctx[0]);
+      intel_batch_decode_ctx_finish(&device->decoder_ctx[1]);
+   }
 
    close(device->fd);
 

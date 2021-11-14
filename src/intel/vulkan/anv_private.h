@@ -1248,7 +1248,7 @@ struct anv_device {
     int                                         _lost;
     int                                         lost_reported;
 
-    struct intel_batch_decode_ctx               decoder_ctx;
+    struct intel_batch_decode_ctx               decoder_ctx[2];
     /*
      * When decoding a anv_cmd_buffer, we might need to search for BOs through
      * the cmd_buffer's list.
