@@ -38,9 +38,9 @@ anv_CreateVideoSessionKHR(VkDevice _device,
 
    memset(vid, 0, sizeof(struct anv_video_session));
 
-   VkResult result = vk_video_session_object_init(&device->vk,
-						  &vid->vk,
-						  pCreateInfo);
+   VkResult result = vk_video_session_init(&device->vk,
+                                           &vid->vk,
+                                           pCreateInfo);
    if (result != VK_SUCCESS) {
       vk_free2(&device->vk.alloc, pAllocator, vid);
       return result;
@@ -77,10 +77,10 @@ anv_CreateVideoSessionParametersKHR(VkDevice _device,
    if (!params)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   VkResult result = vk_video_session_parameters_object_init(&device->vk,
-                                                             &params->vk,
-                                                             &vid->vk,
-                                                             pCreateInfo);
+   VkResult result = vk_video_session_parameters_init(&device->vk,
+                                                      &params->vk,
+                                                      &vid->vk,
+                                                      pCreateInfo);
    if (result != VK_SUCCESS) {
       vk_free2(&device->vk.alloc, pAllocator, params);
       return result;
@@ -99,7 +99,7 @@ anv_DestroyVideoSessionParametersKHR(VkDevice _device,
    ANV_FROM_HANDLE(anv_video_session_params, params, _params);
    if (!_params)
       return;
-   vk_video_session_parameters_object_finish(&params->vk);
+   vk_video_session_parameters_finish(&device->vk, &params->vk);
    vk_free2(&device->vk.alloc, pAllocator, params);
 }
 
@@ -176,7 +176,7 @@ anv_UpdateVideoSessionParametersKHR(VkDevice _device,
                                      const VkVideoSessionParametersUpdateInfoKHR *pUpdateInfo)
 {
    ANV_FROM_HANDLE(anv_video_session_params, params, _params);
-   vk_video_session_parameters_object_update(&params->vk, pUpdateInfo);
+   vk_video_session_parameters_update(&params->vk, pUpdateInfo);
    return VK_SUCCESS;
 }
 
