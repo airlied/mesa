@@ -90,7 +90,7 @@ set_avc_ref_idx_reference_list(const VkVideoDecodeInfoKHR *frame_info,
                                uint count) {
    unsigned i = 0;
    for(i = 0; i < count; i++) {
-      if (count >= frame_info->referenceSlotCount) {
+      if (i >= frame_info->referenceSlotCount) {
          avc_ref_idx->ReferenceListEntry[i] = 0xff;
       } else {
          /* Shameless lifted from intel-vaapi
