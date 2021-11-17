@@ -274,7 +274,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
 #if GFX_VERx10 >= 75
    anv_batch_emit(&cmd_buffer->batch, GENX(MFD_AVC_PICID_STATE), picid) {
-     //      picid.PictureIDRemappingDisable = 1;
+      picid.PictureIDRemappingDisable = 1;
    }
 #endif
    unsigned w_mb = align(img->vk.extent.width, ANV_MB_WIDTH) / ANV_MB_WIDTH;
@@ -323,12 +323,12 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_DIRECTMODE_STATE), avc_directmode) {
       /* bind reference frame DMV */
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
-         const VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot_info = vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
-         avc_directmode.DirectMVBufferAddress[i] = anv_image_address(ref_iv->image,
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_frames[i].pPictureResource->imageViewBinding);
+	 int idx = i;
+         avc_directmode.DirectMVBufferAddress[idx] = anv_image_address(ref_iv->image,
                                                                      &ref_iv->image->vid_dmv_top_surface);
-         avc_directmode.POCList[2 * i] = dpb_slot_info->pStdReferenceInfo->PicOrderCnt[0];
-         avc_directmode.POCList[2 * i + 1] = dpb_slot_info->pStdReferenceInfo->PicOrderCnt[1];
+         avc_directmode.POCList[2 * idx] = ref_frames[i].pic_order_cnt[0];
+         avc_directmode.POCList[2 * idx + 1] = ref_frames[i].pic_order_cnt[1];
       }
 #if GFX_VERx10 == 70
       avc_directmode.DirectMVBufferWriteAddress[0] = anv_image_address(img,
@@ -337,25 +337,57 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
       avc_directmode.DirectMVBufferWriteAddress = anv_image_address(img,
                                                                     &img->vid_dmv_top_surface);
 #endif
+      fprintf(stderr, "poc cur %x %x\n", h264_pic_info->pStdPictureInfo->PicOrderCnt[0],
+              h264_pic_info->pStdPictureInfo->PicOrderCnt[1]);
       avc_directmode.POCList[32] = h264_pic_info->pStdPictureInfo->PicOrderCnt[0];
       avc_directmode.POCList[33] = h264_pic_info->pStdPictureInfo->PicOrderCnt[1];
    }
 
-   if (slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_P ||
-       slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_SP ||
-       slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {
-      anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_REF_IDX_STATE), avc_ref_idx) {
-         set_avc_ref_idx_reference_list(frame_info, &avc_ref_idx, slice_params.num_ref_idx_l0_active_minus1 + 1);
-      }
-   }
    if (slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {
+      /* the B frame lists have to be sorted specially. */
+      int32_t sorted_l0_idxs[32], sorted_l1_idxs[32];
+      uint32_t curr_poc = h264_pic_info->pStdPictureInfo->PicOrderCnt[0];
+      int lens[2];
+      lens[0] = vk_video_sort_b_l0_ref_frames(frame_info->referenceSlotCount,
+                                              curr_poc,
+                                              ref_frames,
+                                              sorted_l0_idxs);
+      lens[1] = vk_video_sort_b_l1_ref_frames(frame_info->referenceSlotCount,
+                                              curr_poc,
+                                              ref_frames,
+                                              sorted_l1_idxs);
+
+      if (slice_params.num_ref_idx_l0_active_minus1 == slice_params.num_ref_idx_l1_active_minus1) {
+         int32_t tmp = sorted_l1_idxs[0];
+         sorted_l1_idxs[0] = sorted_l1_idxs[1];
+         sorted_l1_idxs[1] = tmp;
+      }
+
+      /* have to sort from highest short term poc down to current poc, then up */
+      anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_REF_IDX_STATE), avc_ref_idx) {
+         set_avc_ref_idx_reference_list(frame_info, ref_frames, &avc_ref_idx, slice_params.num_ref_idx_l0_active_minus1 + 1,
+                                        sorted_l0_idxs);
+      }
+      /* opposite */
       anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_REF_IDX_STATE), avc_ref_idx) {
          avc_ref_idx.ReferencePictureListSelect = 1;
-         set_avc_ref_idx_reference_list(frame_info, &avc_ref_idx, slice_params.num_ref_idx_l1_active_minus1 + 1);
+         set_avc_ref_idx_reference_list(frame_info, ref_frames, &avc_ref_idx, slice_params.num_ref_idx_l1_active_minus1 + 1,
+                                        sorted_l1_idxs);
+      }
+   } else if (slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_P ||
+              slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_SP) {
+      /* the P frame list is in the correct order from sorted_refs */
+      int32_t sorted_p_idxs[32];
+      vk_video_sort_p_ref_frames(frame_info->referenceSlotCount,
+                                 ref_frames,
+                                 sorted_p_idxs);
+      anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_REF_IDX_STATE), avc_ref_idx) {
+         set_avc_ref_idx_reference_list(frame_info, ref_frames, &avc_ref_idx, slice_params.num_ref_idx_l0_active_minus1 + 1,
+                                        sorted_p_idxs);
       }
    }
 
-   if (pps->flags.weighted_pred_flag){
+   if (pps->flags.weighted_pred_flag) {
       if (slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_P ||
           slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_SP ||
           slice_params.slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {

@@ -576,27 +576,25 @@ static int do_ascend_sort(const struct vk_video_h264_reference *refs,
 }
 
 
-void vk_video_sort_b_l0_ref_frames(uint32_t count,
-                                   uint32_t list_len,
-                                   uint32_t curr_poc,
-                                   const struct vk_video_h264_reference *refs,
-                                   int32_t *sorted_poc_idxs)
+int vk_video_sort_b_l0_ref_frames(uint32_t count,
+                                  uint32_t curr_poc,
+                                  const struct vk_video_h264_reference *refs,
+                                  int32_t *sorted_poc_idxs)
 {
    int len;
 
    len = do_descend_sort(refs, count, INT_MIN, curr_poc, sorted_poc_idxs);
-   do_ascend_sort(refs, count, curr_poc, INT_MAX, sorted_poc_idxs + len);
+   return do_ascend_sort(refs, count, curr_poc, INT_MAX, sorted_poc_idxs + len);
 }
 
-void vk_video_sort_b_l1_ref_frames(uint32_t count,
-                                   uint32_t list_len,
-                                   uint32_t curr_poc,
-                                   const struct vk_video_h264_reference *refs,
-                                   int32_t *sorted_poc_idxs)
+int vk_video_sort_b_l1_ref_frames(uint32_t count,
+                                  uint32_t curr_poc,
+                                  const struct vk_video_h264_reference *refs,
+                                  int32_t *sorted_poc_idxs)
 {
    int len;
    len = do_ascend_sort(refs, count, curr_poc, INT_MAX, sorted_poc_idxs);
-   do_descend_sort(refs, count, INT_MIN, curr_poc, sorted_poc_idxs + len);
+   return do_descend_sort(refs, count, INT_MIN, curr_poc, sorted_poc_idxs + len);
 }
 
 void vk_fill_video_reference_info(const VkVideoDecodeInfoKHR *frame_info,
