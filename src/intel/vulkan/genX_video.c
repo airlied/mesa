@@ -84,11 +84,16 @@ static void avc_fill_weight_offset_table(struct vk_video_h264_slice_params *slic
 #undef getter
 }
 
+/* find the correct reference images for avc idx */
+
 static inline void
 set_avc_ref_idx_reference_list(const VkVideoDecodeInfoKHR *frame_info,
+                               const struct vk_video_h264_reference *refs,
                                struct GENX(MFX_AVC_REF_IDX_STATE) *avc_ref_idx,
-                               uint count) {
-   unsigned i = 0;
+                               uint count,
+                               int32_t *sorted_idx)
+{
+   unsigned i;
    for(i = 0; i < count; i++) {
       if (i >= frame_info->referenceSlotCount) {
          avc_ref_idx->ReferenceListEntry[i] = 0xff;
@@ -110,12 +115,13 @@ set_avc_ref_idx_reference_list(const VkVideoDecodeInfoKHR *frame_info,
           * reference", and subsequently making it "used for long-term
           * reference" to fit the definition of Bit6 here
           */
-         const VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot_info = vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
-         const StdVideoDecodeH264ReferenceInfo *ref_info = dpb_slot_info->pStdReferenceInfo;
+         int idx = sorted_idx ? sorted_idx[i] : i;
+
+         const struct vk_video_h264_reference *ref_info = &refs[idx];
          avc_ref_idx->ReferenceListEntry[i] = (
             (ref_info->flags.is_long_term << 6) |
             ((ref_info->flags.top_field_flag ^ ref_info->flags.bottom_field_flag ^ 1) << 5) |
-            (i << 1) |
+            (idx << 1) |
             ((ref_info->flags.top_field_flag ^ 1) & ref_info->flags.bottom_field_flag)
          );
       }
@@ -146,6 +152,10 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
                                   src_buffer->address.offset, frame_info->srcBufferRange, 0);
    vk_video_parse_h264_slice_header(frame_info, sps, pps, slice_map, &slice_params);
    anv_gem_munmap(cmd_buffer->device, slice_map, frame_info->srcBufferRange);
+
+   struct vk_video_h264_reference ref_frames[32] = { 0 };
+
+   vk_fill_video_reference_info(frame_info, ref_frames);
 
    anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), flush) {
       flush.DWordLength = 2;
@@ -199,7 +209,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
 
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_frames[i].pPictureResource->imageViewBinding);
          buf.ReferencePictureAddress[i] = anv_image_address(ref_iv->image,
                                                             &ref_iv->image->planes[0].primary_surface.memory_range);
       }
