@@ -312,11 +312,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
       index_obj.MFXIndirectBitstreamObjectAddress = anv_address_add(src_buffer->address,
                                                                     frame_info->srcBufferOffset);
 #if GFX_VER == 7
-      index_obj.MFXIndirectBitstreamObjectAccessUpperBound = anv_address_add(src_buffer->address,
-                                                                             frame_info->srcBufferOffset + frame_info->srcBufferRange);
-#else
-      index_obj.MFXIndirectBitstreamObjectUpperBound = anv_address_add(src_buffer->address,
-                                                                       frame_info->srcBufferOffset + frame_info->srcBufferRange);
+      index_obj.MFXIndirectBitstreamObjectAccessUpperBound = (struct anv_address) { NULL, 0x80000000 };
 #endif
    }
 
