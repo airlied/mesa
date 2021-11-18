@@ -250,6 +250,8 @@ pred_weight_table(struct vk_video_h264_slice_params *params,
          params->luma_weight_l0[i] = vl_rbsp_se(rbsp);
          /* luma_offset_l0[i] */
          params->luma_offset_l0[i] = vl_rbsp_se(rbsp);
+      } else {
+         params->luma_weight_l0[i] = 1 << params->luma_log2_weight_denom;
       }
       if (ChromaArrayType != 0) {
          /* chroma_weight_l0_flag */
@@ -261,7 +263,10 @@ pred_weight_table(struct vk_video_h264_slice_params *params,
                /* chroma_offset_l0[i][j] */
                params->chroma_offset_l0[i][j] = vl_rbsp_se(rbsp);
             }
-         }
+         } else {
+            params->chroma_weight_l0[i][0] = 1 << params->chroma_log2_weight_denom;
+            params->chroma_weight_l0[i][1] = 1 << params->chroma_log2_weight_denom;
+	 }
       }
    }
 
