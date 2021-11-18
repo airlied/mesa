@@ -189,23 +189,41 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    }
 
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_PIPE_BUF_ADDR_STATE), buf) {
-      if (slice_params.disable_deblocking_filter_idc == 1)
+      if (slice_params.disable_deblocking_filter_idc == 1) {
          buf.PreDeblockingDestinationAddress = anv_image_address(img,
                                                                  &img->planes[0].primary_surface.memory_range);
-      else
+      } else {
          buf.PostDeblockingDestinationAddress = anv_image_address(img,
                                                                   &img->planes[0].primary_surface.memory_range);
+      }
+#if GFX_VERx10 >= 75 && GFX_VER < 9
+      buf.PreDeblockingDestinationMOCS = anv_mocs(cmd_buffer->device, buf.PreDeblockingDestinationAddress.bo, 0);
+      buf.PostDeblockingDestinationMOCS = anv_mocs(cmd_buffer->device, buf.PostDeblockingDestinationAddress.bo, 0);
+      buf.OriginalUncompressedPictureSourceMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+      buf.StreamOutDataDestinationMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+#endif
+
+
 #if GFX_VER == 8
       buf.IntraRowStoreScratchBufferAddressHigh = (struct anv_address) { vid->intra_row_scratch.mem->bo,
          vid->intra_row_scratch.offset };
+      buf.IntraRowStoreScratchBufferMOCS = anv_mocs(cmd_buffer->device, vid->intra_row_scratch.mem->bo, 0);
       buf.DeblockingFilterRowStoreScratchAddressHigh = (struct anv_address) { vid->deblocking_filter_row_scratch.mem->bo, vid->deblocking_filter_row_scratch.offset };
 #else
       buf.IntraRowStoreScratchBufferAddress = (struct anv_address) { vid->intra_row_scratch.mem->bo, vid->intra_row_scratch.offset };
+#if GFX_VERx10 >= 75 && GFX_VER < 9
+      buf.IntraRowStoreScratchBufferMOCS = anv_mocs(cmd_buffer->device, vid->intra_row_scratch.mem->bo, 0);
+#endif
 #if GFX_VERx10 == 70
       buf.DeblockingFilterRowStoreScratchBufferAddress = (struct anv_address) { vid->deblocking_filter_row_scratch.mem->bo, vid->deblocking_filter_row_scratch.offset };
 #else
       buf.DeblockingFilterRowStoreScratchAddress = (struct anv_address) { vid->deblocking_filter_row_scratch.mem->bo, vid->deblocking_filter_row_scratch.offset };
 #endif
+#endif
+#if GFX_VERx10 >= 75 && GFX_VER < 8
+      buf.DeblockingFilterRowStoreScratchMOCS = anv_mocs(cmd_buffer->device, vid->deblocking_filter_row_scratch.mem->bo, 0);
+      buf.MBStatusBufferMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+      buf.MBILDBStreamOutBufferMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
 #endif
 
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
@@ -218,9 +236,17 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_BSP_BUF_BASE_ADDR_STATE), bsp) {
       bsp.BSDMPCRowStoreScratchBufferAddress = (struct anv_address) { vid->bsd_mpc_row_scratch.mem->bo,
          vid->bsd_mpc_row_scratch.offset };
+#if GFX_VERx10 == 75
+      bsp.BSDMPCRowStoreScratchBufferMOCS = anv_mocs(cmd_buffer->device, vid->bsd_mpc_row_scratch.mem->bo, 0);
+#endif
+
       bsp.MPRRowStoreScratchBufferAddress = (struct anv_address) { vid->mpr_row_store_scratch.mem->bo,
          vid->mpr_row_store_scratch.offset };
       //         bsp.BitplaneReadBufferAddress = ro_bo(NULL, 0);
+#if GFX_VERx10 == 75
+      bsp.MPRRowStoreScratchBufferMOCS = anv_mocs(cmd_buffer->device, vid->mpr_row_store_scratch.mem->bo, 0);
+      bsp.BitplaneReadBufferMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+#endif
    }
 
    if (pps->flags.pic_scaling_matrix_present_flag) {
@@ -311,6 +337,14 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_IND_OBJ_BASE_ADDR_STATE), index_obj) {
       index_obj.MFXIndirectBitstreamObjectAddress = anv_address_add(src_buffer->address,
                                                                     frame_info->srcBufferOffset);
+#if GFX_VERx10 == 75
+      index_obj.MFXIndirectBitstreamObjectMOCS = anv_mocs(cmd_buffer->device, src_buffer->address.bo,
+                                                          0);
+      index_obj.MFXIndirectMVObjectMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+      index_obj.MFDIndirectITCOEFFObjectMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+      index_obj.MFDIndirectITDBLKObjectMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+      index_obj.MFCIndirectPAKBSEObjectMOCS = anv_mocs(cmd_buffer->device, NULL, 0);
+#endif
 #if GFX_VER == 7
       index_obj.MFXIndirectBitstreamObjectAccessUpperBound = (struct anv_address) { NULL, 0x80000000 };
 #endif
