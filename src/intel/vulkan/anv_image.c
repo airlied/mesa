@@ -807,18 +807,18 @@ static VkResult
 add_video_buffers(struct anv_device *device,
                   struct anv_image *image)
 {
-   unsigned w_mb = image->vk.extent.width / ANV_MB_WIDTH;
-   unsigned h_mb = image->vk.extent.height / ANV_MB_HEIGHT;
+   unsigned w_mb = align(image->vk.extent.width, ANV_MB_WIDTH) / ANV_MB_WIDTH;
+   unsigned h_mb = align(image->vk.extent.height, ANV_MB_HEIGHT) / ANV_MB_HEIGHT;
 
    unsigned size = w_mb * h_mb * 128;
    ASSERTED bool ok;
 
    ok = image_binding_grow(device, image, ANV_IMAGE_MEMORY_BINDING_PLANE_0,
-                           ANV_OFFSET_IMPLICIT, size, 4096, &image->vid_dmv_top_surface);
+                           ANV_OFFSET_IMPLICIT, size, 65536, &image->vid_dmv_top_surface);
    /* bottom surface is only on gen7.5 and earlier. */
    if (device->info.ver < 8)
       ok = image_binding_grow(device, image, ANV_IMAGE_MEMORY_BINDING_PLANE_0,
-                              ANV_OFFSET_IMPLICIT, size, 4096, &image->vid_dmv_bottom_surface);
+                              ANV_OFFSET_IMPLICIT, size, 65536, &image->vid_dmv_bottom_surface);
    return ok;
 }
 
