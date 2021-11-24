@@ -4087,6 +4087,7 @@ struct anv_vid_mem {
 };
 
 #define ANV_VIDEO_MEM_REQS_H264 4
+#define ANV_VIDEO_MEM_REQS_H265 9
 #define ANV_MB_WIDTH 16
 #define ANV_MB_HEIGHT 16
 
@@ -4101,6 +4102,17 @@ struct anv_video_session {
          struct anv_vid_mem bsd_mpc_row_scratch;
          struct anv_vid_mem mpr_row_store_scratch;
       } h264;
+      struct {
+         struct anv_vid_mem deblocking_filter_line_buffer;
+         struct anv_vid_mem deblocking_filter_tile_line_buffer;
+         struct anv_vid_mem deblocking_filter_tile_column_buffer;
+         struct anv_vid_mem metadata_line_buffer;
+         struct anv_vid_mem metadata_tile_line_buffer;
+         struct anv_vid_mem metadata_tile_column_buffer;
+         struct anv_vid_mem sao_line_buffer;
+         struct anv_vid_mem sao_tile_line_buffer;
+         struct anv_vid_mem sao_tile_column_buffer;
+      } h265;
    };
 };
 

@@ -313,6 +313,92 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    };
 }
 
+#if GFX_VER >= 9
+static void
+anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
+                      const VkVideoDecodeInfoKHR *frame_info)
+{
+   ANV_FROM_HANDLE(anv_buffer, src_buffer, frame_info->srcBuffer);
+   struct anv_video_session *vid = cmd_buffer->video.vid;
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), flush) {
+      flush.DWordLength = 2;
+      flush.VideoPipelineCacheInvalidate = 1;
+   };
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_PIPE_MODE_SELECT), sel) {
+      sel.DWordLength = 2;
+      sel.CodecSelect = Decode;
+      sel.CodecStandardSelect = HEVC;
+   }
+
+   const struct anv_image_view *iv = anv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
+   const struct anv_image *img = iv->image;
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_SURFACE_STATE), ss) {
+      ss.SurfacePitch = img->planes[0].primary_surface.isl.row_pitch_B - 1;
+      ss.SurfaceFormat = PLANAR_420_8;
+      ss.YOffsetforUCb = align(frame_info->dstPictureResource.codedExtent.height, 32);
+   }
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_PIPE_BUF_ADDR_STATE), buf) {
+      buf.DeblockingFilterLineBufferAddress = (struct anv_address) { vid->h265.deblocking_filter_line_buffer.mem->bo, vid->h265.deblocking_filter_line_buffer.offset };
+      buf.DeblockingFilterTileLineBufferAddress = (struct anv_address) { vid->h265.deblocking_filter_tile_line_buffer.mem->bo, vid->h265.deblocking_filter_tile_line_buffer.offset };
+      buf.DeblockingFilterTileColumnBufferAddress = (struct anv_address) { vid->h265.deblocking_filter_tile_column_buffer.mem->bo, vid->h265.deblocking_filter_tile_column_buffer.offset };
+      buf.MetadataLineBufferAddress = (struct anv_address) { vid->h265.metadata_line_buffer.mem->bo, vid->h265.metadata_line_buffer.offset };
+      buf.MetadataTileLineBufferAddress = (struct anv_address) { vid->h265.metadata_tile_line_buffer.mem->bo, vid->h265.metadata_tile_line_buffer.offset };
+      buf.MetadataTileColumnBufferAddress = (struct anv_address) { vid->h265.metadata_tile_column_buffer.mem->bo, vid->h265.metadata_tile_column_buffer.offset };
+      buf.SAOLineBufferAddress = (struct anv_address) { vid->h265.sao_line_buffer.mem->bo, vid->h265.sao_line_buffer.offset };
+      buf.SAOTileLineBufferAddress = (struct anv_address) { vid->h265.sao_tile_line_buffer.mem->bo, vid->h265.sao_tile_line_buffer.offset };
+      buf.SAOTileColumnBufferAddress = (struct anv_address) { vid->h265.sao_tile_column_buffer.mem->bo, vid->h265.sao_tile_column_buffer.offset };
+
+      for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
+         buf.ReferencePictureAddress[idx] = anv_image_address(ref_iv->image,
+                                                            &ref_iv->image->planes[0].primary_surface.memory_range);
+      }
+   }
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_QM_STATE), qm) {
+
+   }
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_QM_STATE), qm) {
+
+   }
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_QM_STATE), qm) {
+
+   }
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_QM_STATE), qm) {
+
+   }
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_PIC_STATE), pic) {
+
+   }
+
+   //Tile state?
+
+   // ind obj base addr
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_IND_OBJ_BASE_ADDR_STATE), ind) {
+      ind.HCPIndirectBitstreamObjectBaseAddress = anv_address_add(src_buffer->address,
+                                                                  frame_info->srcBufferOffset);
+
+   }
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_SLICE_STATE), ss) {
+
+   }
+
+   // ref idx state
+   // weightoffset state
+   // bsd object
+   anv_batch_emit(&cmd_buffer->batch, GENX(HCP_BSD_OBJECT), bsd) {
+      bsd.IndirectBSDDataLength = frame_info->srcBufferRange;
+      bsd.IndirectBSDDataStartAddress = 0;
+   }
+}
+#endif
+
 void
 genX(CmdDecodeVideoKHR)(VkCommandBuffer commandBuffer,
                         const VkVideoDecodeInfoKHR *frame_info)
@@ -322,6 +408,11 @@ genX(CmdDecodeVideoKHR)(VkCommandBuffer commandBuffer,
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       anv_h264_decode_video(cmd_buffer, frame_info);
       break;
+#if GFX_VER >= 9
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+      anv_h265_decode_video(cmd_buffer, frame_info);
+      break;
+#endif
    default:
       assert(0);
    }

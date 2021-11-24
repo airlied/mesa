@@ -197,6 +197,32 @@ get_h264_video_session_mem_reqs(struct anv_video_session *vid,
    mem_reqs[3].memoryRequirements.memoryTypeBits = memory_types;
 }
 
+#define ANV_H265_VID_MEM_DEBLOCKING_FILTER_LINE_BUFFER 0
+#define ANV_H265_VID_MEM_DEBLOCKING_FILTER_TILE_LINE_BUFFER 1
+#define ANV_H265_VID_MEM_DEBLOCKING_FILTER_TILE_COLUMN_BUFFER 2
+#define ANV_H265_VID_MEM_METADATA_LINE_BUFFER 3
+#define ANV_H265_VID_MEM_METADATA_TILE_LINE_BUFFER 4
+#define ANV_H265_VID_MEM_METADATA_TILE_COLUMN_BUFFER 5
+#define ANV_H265_VID_MEM_SAO_LINE_BUFFER 6
+#define ANV_H265_VID_MEM_SAO_TILE_LINE_BUFFER 7
+#define ANV_H265_VID_MEM_SAO_TILE_COLUMN_BUFFER 8
+
+static void
+get_h265_video_session_mem_reqs(struct anv_video_session *vid,
+                                VkVideoSessionMemoryRequirementsKHR *mem_reqs,
+                                uint32_t memory_types)
+{
+   //line buffer
+   //tile line buffer
+   //tile column buffer
+   //metadata line buffer
+   //metadata tile line buffer
+   //metadata tile column buffer
+   //sao line buffer
+   //sao tile line buffer
+   //sao tile column buffer
+}
+
 VkResult
 anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
                                          VkVideoSessionKHR videoSession,
@@ -210,6 +236,9 @@ anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       *pVideoSessionMemoryRequirementsCount = ANV_VIDEO_MEM_REQS_H264;
       break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+      *pVideoSessionMemoryRequirementsCount = ANV_VIDEO_MEM_REQS_H265;
+      break;
    default:
       unreachable("unknown codec");
    }
@@ -220,6 +249,9 @@ anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       get_h264_video_session_mem_reqs(vid, mem_reqs, memory_types);
+      break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+      get_h265_video_session_mem_reqs(vid, mem_reqs, memory_types);
       break;
    default:
       unreachable("unknown codec");
@@ -270,6 +302,42 @@ anv_BindVideoSessionMemoryKHR(VkDevice _device,
             break;
          case ANV_H264_VID_MEM_MPR_ROW_SCRATCH:
             copy_bind(&vid->h264.mpr_row_store_scratch, &bind_mem[i]);
+            break;
+         default:
+            assert(0);
+            break;
+         }
+      }
+      break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+      for (unsigned i = 0; i < bind_mem_count; i++) {
+         switch (bind_mem[i].memoryBindIndex) {
+         case ANV_H265_VID_MEM_DEBLOCKING_FILTER_LINE_BUFFER:
+            copy_bind(&vid->h265.deblocking_filter_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_DEBLOCKING_FILTER_TILE_LINE_BUFFER:
+            copy_bind(&vid->h265.deblocking_filter_tile_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_DEBLOCKING_FILTER_TILE_COLUMN_BUFFER:
+            copy_bind(&vid->h265.deblocking_filter_tile_column_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_METADATA_LINE_BUFFER:
+            copy_bind(&vid->h265.metadata_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_METADATA_TILE_LINE_BUFFER:
+            copy_bind(&vid->h265.metadata_tile_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_METADATA_TILE_COLUMN_BUFFER:
+            copy_bind(&vid->h265.metadata_tile_column_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_SAO_LINE_BUFFER:
+            copy_bind(&vid->h265.sao_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_SAO_TILE_LINE_BUFFER:
+            copy_bind(&vid->h265.sao_tile_line_buffer, &bind_mem[i]);
+            break;
+         case ANV_H265_VID_MEM_SAO_TILE_COLUMN_BUFFER:
+            copy_bind(&vid->h265.sao_tile_column_buffer, &bind_mem[i]);
             break;
          default:
             assert(0);

@@ -275,6 +275,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_video_queue                       = device->video_decode_enabled,
       .KHR_video_decode_queue                = device->video_decode_enabled,
       .KHR_video_decode_h264                 = device->video_decode_enabled,
+      .KHR_video_decode_h265                 = device->video_decode_enabled && device->info.ver >= 9,
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -2792,6 +2793,8 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
                VkQueueFamilyVideoPropertiesKHR *prop =
                   (VkQueueFamilyVideoPropertiesKHR *)ext;
                prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
+               if (pdevice->info.ver >= 8)
+                  prop->videoCodecOperations |= VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR;
                break;
             }
             default:
