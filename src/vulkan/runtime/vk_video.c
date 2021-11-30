@@ -407,8 +407,7 @@ vk_video_parse_h264_slice_header(const struct VkVideoDecodeInfoKHR *frame_info,
       /* unsigned pic_order_cnt_lsb */ vl_rbsp_u(&rbsp, log2_max_pic_order_cnt_lsb);
       if (0) {//pps->flags.bottom_field_pic_order_in_frame_present_flag && !field_pic_flag) {
          /* delta_pic-order_cnt[1] */ vl_rbsp_se(&rbsp);
-      } else
-         assert(0);
+      }
    }
 
    if (pps->flags.redundant_pic_cnt_present_flag)
@@ -490,6 +489,7 @@ vk_fill_video_reference_info(const VkVideoDecodeInfoKHR *frame_info,
    for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
       const VkVideoDecodeH264DpbSlotInfoEXT *dpb_slot_info = vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_EXT);
       ref_slots[i].pPictureResource = frame_info->pReferenceSlots[i].pPictureResource;
+      ref_slots[i].slot_index = frame_info->pReferenceSlots[i].slotIndex;
 
       ref_slots[i].frame_num = dpb_slot_info->pStdReferenceInfo->FrameNum;
       ref_slots[i].flags = dpb_slot_info->pStdReferenceInfo->flags;

@@ -128,6 +128,7 @@ void vk_video_parse_h264_slice_header(const struct VkVideoDecodeInfoKHR *frame_i
 struct vk_video_h264_reference {
    const VkVideoPictureResourceKHR *pPictureResource;
    StdVideoDecodeH264ReferenceInfoFlags flags;
+   uint32_t slot_index;
    int16_t frame_num;
    int32_t pic_order_cnt[2];
 };

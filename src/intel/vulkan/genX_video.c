@@ -115,10 +115,12 @@ set_avc_ref_idx_reference_list(const VkVideoDecodeInfoKHR *frame_info,
           */
          int idx = sorted_idx ? sorted_idx[i] : i;
          const struct vk_video_h264_reference *ref_info = &ref_slots[idx];
+         fprintf(stderr, "mapping %d %d to %d\n", i, idx, ref_info->slot_index);
+
          avc_ref_idx->ReferenceListEntry[i] = (
             (ref_info->flags.is_long_term << 6) |
             ((ref_info->flags.top_field_flag ^ ref_info->flags.bottom_field_flag ^ 1) << 5) |
-            (idx << 1) |
+            (ref_info->slot_index << 1) |
             ((ref_info->flags.top_field_flag ^ 1) & ref_info->flags.bottom_field_flag)
          );
       }
@@ -224,8 +226,9 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
 
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
-         buf.ReferencePictureAddress[i] = anv_image_address(ref_iv->image,
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_slots[i].pPictureResource->imageViewBinding);
+         int idx = ref_slots[i].slot_index;
+         buf.ReferencePictureAddress[idx] = anv_image_address(ref_iv->image,
                                                             &ref_iv->image->planes[0].primary_surface.memory_range);
       }
    }
@@ -350,11 +353,12 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_DIRECTMODE_STATE), avc_directmode) {
       /* bind reference frame DMV */
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+         int idx = ref_slots[i].slot_index;
          const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_slots[i].pPictureResource->imageViewBinding);
-         avc_directmode.DirectMVBufferAddress[i] = anv_image_address(ref_iv->image,
+         avc_directmode.DirectMVBufferAddress[idx] = anv_image_address(ref_iv->image,
                                                                      &ref_iv->image->vid_dmv_top_surface);
-         avc_directmode.POCList[2 * i] = ref_slots[i].pic_order_cnt[0];
-         avc_directmode.POCList[2 * i + 1] = ref_slots[i].pic_order_cnt[1];
+         avc_directmode.POCList[2 * idx] = ref_slots[i].pic_order_cnt[0];
+         avc_directmode.POCList[2 * idx + 1] = ref_slots[i].pic_order_cnt[1];
       }
 #if GFX_VERx10 == 70
       avc_directmode.DirectMVBufferWriteAddress[0] = anv_image_address(img,
