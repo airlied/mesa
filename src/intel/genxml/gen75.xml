@@ -2734,8 +2734,8 @@
     </group>
   </instruction>
 
-  <instruction name="MFX_AVC_IMG_STATE" bias="2" length="14" engine="video">
-    <field name="DWord Length" start="0" end="11" type="uint" default="12"/>
+  <instruction name="MFX_AVC_IMG_STATE" bias="2" length="17" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="15"/>
     <field name="SubOpcode B" start="16" end="20" type="uint" default="0"/>
     <field name="SubOpcode A" start="21" end="23" type="uint" default="0"/>
     <field name="Media Command Opcode" start="24" end="26" type="uint" default="1"/>
@@ -3002,7 +3002,7 @@
       <value name="Third highest priority" value="2"/>
       <value name="Lowest priority" value="3"/>
     </field>
-    <field name="Bitplane Read Buffer - Address" start="230" end="255" type="uint"/>
+    <field name="Bitplane Read Buffer - Address" start="230" end="255" type="address"/>
   </instruction>
 
   <instruction name="MFX_DBK_OBJECT" bias="2" length="13" engine="video">
@@ -3063,7 +3063,9 @@
       <value name="MPEG_INTRA_QUANTIZER_MATRIX" value="0"/>
       <value name="MPEG_NON_INTRA_QUANTIZER_MATRIX" value="1"/>
     </field>
-    <field name="Forward Quantizer Matrix" start="64" end="1087" type="uint"/>
+    <group count="64" start="64" size="8">
+      <field name="Forward Quantizer Matrix" start="0" end="7" type="uint"/>
+    </group>
   </instruction>
 
   <instruction name="MFX_IND_OBJ_BASE_ADDR_STATE" bias="2" length="26" engine="video">
@@ -3841,7 +3843,7 @@
     <field name="Command Type" start="29" end="31" type="uint" default="0"/>
   </instruction>
 
-  <instruction name="MI_STORE_DATA_IMM" bias="2" length="4">
+  <instruction name="MI_STORE_DATA_IMM" bias="2" length="4" engine="render">
     <field name="DWord Length" start="0" end="5" type="uint" default="2"/>
     <field name="Use Global GTT" start="22" end="22" type="bool"/>
     <field name="MI Command Opcode" start="23" end="28" type="uint" default="32"/>
