@@ -172,6 +172,9 @@ vk_video_session_parameters_init(struct vk_device *device,
          params->h264_dec.sps_std_count = templ->h264_dec.sps_std_count;
          typed_memcpy(params->h264_dec.pps_std, templ->h264_dec.pps_std, templ->h264_dec.pps_std_count);
          params->h264_dec.pps_std_count = templ->h264_dec.pps_std_count;
+      } else {
+         params->h264_dec.sps_std_count = 0;
+         params->h264_dec.pps_std_count = 0;
       }
 
       if (h264_create->pParametersAddInfo)
@@ -207,6 +210,9 @@ vk_video_session_parameters_init(struct vk_device *device,
          params->h265_dec.sps_std_count = templ->h265_dec.sps_std_count;
          typed_memcpy(params->h265_dec.pps_std, templ->h265_dec.pps_std, templ->h265_dec.pps_std_count);
          params->h265_dec.pps_std_count = templ->h265_dec.pps_std_count;
+      } else {
+         params->h265_dec.sps_std_count = 0;
+         params->h265_dec.pps_std_count = 0;
       }
 
       if (h265_create->pParametersAddInfo)
