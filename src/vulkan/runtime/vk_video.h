@@ -83,13 +83,17 @@ VkResult vk_video_session_init(struct vk_device *device,
 VkResult vk_video_session_parameters_init(struct vk_device *device,
                                           struct vk_video_session_parameters *params,
                                           const struct vk_video_session *vid,
+                                          const struct vk_video_session_parameters *templ,
                                           const VkVideoSessionParametersCreateInfoKHR *create_info);
 
-void vk_video_session_parameters_update(struct vk_video_session_parameters *params,
-                                        const VkVideoSessionParametersUpdateInfoKHR *update);
+VkResult vk_video_session_parameters_update(struct vk_video_session_parameters *params,
+                                            const VkVideoSessionParametersUpdateInfoKHR *update);
 
 void vk_video_session_parameters_finish(struct vk_device *device,
                                         struct vk_video_session_parameters *params);
+
+const StdVideoH264SequenceParameterSet *vk_video_find_h264_sps(const struct vk_video_session_parameters *params, uint32_t sps_id);
+const StdVideoH264PictureParameterSet *vk_video_find_h264_pps(const struct vk_video_session_parameters *params, uint32_t pps_id);
 
 struct vk_video_h264_slice_params {
    uint16_t slice_data_bit_offset;
