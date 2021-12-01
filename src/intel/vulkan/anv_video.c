@@ -73,6 +73,7 @@ anv_CreateVideoSessionParametersKHR(VkDevice _device,
 {
    ANV_FROM_HANDLE(anv_device, device, _device);
    ANV_FROM_HANDLE(anv_video_session, vid, pCreateInfo->videoSession);
+   ANV_FROM_HANDLE(anv_video_session_params, templ, pCreateInfo->videoSessionParametersTemplate);
    struct anv_video_session_params *params =
       vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*params), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (!params)
@@ -81,6 +82,7 @@ anv_CreateVideoSessionParametersKHR(VkDevice _device,
    VkResult result = vk_video_session_parameters_init(&device->vk,
                                                       &params->vk,
                                                       &vid->vk,
+                                                      templ ? &templ->vk : NULL,
                                                       pCreateInfo);
    if (result != VK_SUCCESS) {
       vk_free2(&device->vk.alloc, pAllocator, params);
@@ -198,8 +200,7 @@ anv_UpdateVideoSessionParametersKHR(VkDevice _device,
                                      const VkVideoSessionParametersUpdateInfoKHR *pUpdateInfo)
 {
    ANV_FROM_HANDLE(anv_video_session_params, params, _params);
-   vk_video_session_parameters_update(&params->vk, pUpdateInfo);
-   return VK_SUCCESS;
+   return vk_video_session_parameters_update(&params->vk, pUpdateInfo);
 }
 
 static void

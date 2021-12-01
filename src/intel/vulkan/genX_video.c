@@ -144,8 +144,8 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    const struct VkVideoDecodeH264PictureInfoEXT *h264_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_H264_PICTURE_INFO_EXT);
-   const StdVideoH264SequenceParameterSet *sps = &params->vk.h264_dec.sps_std[h264_pic_info->pStdPictureInfo->seq_parameter_set_id];
-   const StdVideoH264PictureParameterSet *pps = &params->vk.h264_dec.pps_std[h264_pic_info->pStdPictureInfo->pic_parameter_set_id];
+   const StdVideoH264SequenceParameterSet *sps = vk_video_find_h264_sps(&params->vk, h264_pic_info->pStdPictureInfo->seq_parameter_set_id);
+   const StdVideoH264PictureParameterSet *pps = vk_video_find_h264_pps(&params->vk, h264_pic_info->pStdPictureInfo->pic_parameter_set_id);
    struct vk_video_h264_reference ref_slots[32];
 
    vk_fill_video_reference_info(frame_info, ref_slots);
