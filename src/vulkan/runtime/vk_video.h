@@ -117,6 +117,13 @@ struct vk_video_h264_slice_params {
    uint8_t chroma_weight_l1_flag[32];
    int16_t chroma_weight_l1[32][2];
    int16_t chroma_offset_l1[32][2];
+
+   int16_t num_mod_l0;
+   int16_t mod_pic_nums_idc_l0[16];
+   int16_t mod_val_l0[16];
+   int16_t num_mod_l1;
+   int16_t mod_pic_nums_idc_l1[16];
+   int16_t mod_val_l1[16];
 };
 
 void vk_video_parse_h264_slice_header(const struct VkVideoDecodeInfoKHR *frame_info,
@@ -139,6 +146,8 @@ void vk_fill_video_reference_info(const VkVideoDecodeInfoKHR *frame_info,
 
 void vk_video_sort_p_ref_frames(uint32_t count,
                                 const struct vk_video_h264_reference *refs,
+                                const struct vk_video_h264_slice_params *params,
+                                int32_t curr_frame_num,
                                 int32_t *sorted_idxs);
 int vk_video_sort_b_l0_ref_frames(uint32_t count,
                                   uint32_t curr_poc,

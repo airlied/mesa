@@ -203,41 +203,44 @@ vk_video_session_parameters_finish(struct vk_device *device,
 
 static void
 ref_pic_list_mod(struct vl_rbsp *rbsp,
-                 StdVideoH264SliceType slice_type)
+                 struct vk_video_h264_slice_params *params)
 {
    unsigned modification_of_pic_nums_idc;
-
-   if (slice_type != STD_VIDEO_H264_SLICE_TYPE_I) {
+   int idx = 0;
+   if (params->slice_type != STD_VIDEO_H264_SLICE_TYPE_I) {
       /* ref_pic_list_modification_flag_l0 */
       if (vl_rbsp_u(rbsp, 1)) {
          do {
             modification_of_pic_nums_idc = vl_rbsp_ue(rbsp);
-            if (modification_of_pic_nums_idc == 0 ||
-                modification_of_pic_nums_idc == 1)
+            if (modification_of_pic_nums_idc < 3) {
+               params->mod_pic_nums_idc_l0[idx] = modification_of_pic_nums_idc;
                /* abs_diff_pic_num_minus1 */
-               vl_rbsp_ue(rbsp);
-            else if (modification_of_pic_nums_idc == 2)
                /* long_term_pic_num */
-               vl_rbsp_ue(rbsp);
+               params->mod_val_l0[idx] = vl_rbsp_ue(rbsp);
+               idx++;
+            }
          } while (modification_of_pic_nums_idc != 3);
       }
    }
+   params->num_mod_l0 = idx;
 
-   if (slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {
+   idx = 0;
+   if (params->slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {
       /* ref_pic_list_modification_flag_l1 */
       if (vl_rbsp_u(rbsp, 1)) {
          do {
             modification_of_pic_nums_idc = vl_rbsp_ue(rbsp);
-            if (modification_of_pic_nums_idc == 0 ||
-                modification_of_pic_nums_idc == 1)
+            if (modification_of_pic_nums_idc < 3) {
+               params->mod_pic_nums_idc_l1[idx] = modification_of_pic_nums_idc;
                /* abs_diff_pic_num_minus1 */
-               vl_rbsp_ue(rbsp);
-            else if (modification_of_pic_nums_idc == 2)
                /* long_term_pic_num */
-               vl_rbsp_ue(rbsp);
+               params->mod_val_l1[idx] = vl_rbsp_ue(rbsp);
+               idx++;
+            }
          } while (modification_of_pic_nums_idc != 3);
       }
    }
+   params->num_mod_l1 = idx;
 }
 
 /*
@@ -437,7 +440,7 @@ vk_video_parse_h264_slice_header(const struct VkVideoDecodeInfoKHR *frame_info,
    if (nal_unit_type == 20 || nal_unit_type == 21)
       assert(0);
    else
-      ref_pic_list_mod(&rbsp, params->slice_type);
+      ref_pic_list_mod(&rbsp, params);
 
    if ((pps->flags.weighted_pred_flag && params->slice_type == STD_VIDEO_H264_SLICE_TYPE_P) ||
        (pps->weighted_bipred_idc == 1 && params->slice_type == STD_VIDEO_H264_SLICE_TYPE_B))
@@ -505,6 +508,8 @@ vk_fill_video_reference_info(const VkVideoDecodeInfoKHR *frame_info,
 void
 vk_video_sort_p_ref_frames(uint32_t count,
                            const struct vk_video_h264_reference *refs,
+                           const struct vk_video_h264_slice_params *params,
+                           int32_t curr_frame_num,
                            int32_t *sorted_idxs)
 {
    int32_t sorted_fn_refs[32];
@@ -529,6 +534,44 @@ vk_video_sort_p_ref_frames(uint32_t count,
       if (found_idx >= 0 && found_idx < count) {
          sorted_idxs[i] = found_idx;
          sorted_fn_refs[i] = to_find;
+      }
+   }
+
+   if (params->num_mod_l0 > 0) {
+      for (unsigned m = 0; m < params->num_mod_l0; m++) {
+         int op = params->mod_pic_nums_idc_l0[m];
+
+         switch (op) {
+         case 0:
+         case 1: {
+            unsigned new_pic_num = curr_frame_num;
+            unsigned abs_diff_pic_num = params->mod_val_l0[m] + 1;
+            if (op == 0)
+               new_pic_num -= abs_diff_pic_num;
+            else
+               new_pic_num += abs_diff_pic_num;
+
+            /* find the new pic num */
+            unsigned i;
+            for (i = 0; i < count; i++) {
+               if (refs[sorted_idxs[i]].frame_num == new_pic_num) {
+                  break;
+               }
+            }
+            if (i < count) {
+               int found_idx = sorted_idxs[i];
+               /* move all the higher index down one. */
+               memmove(&sorted_idxs[i], &sorted_idxs[i + 1], (count - i - 1) * sizeof(int32_t));
+               memmove(&sorted_idxs[m + 1], &sorted_idxs[m], (count - m - 1) * sizeof(int32_t));
+               sorted_idxs[m] = found_idx;
+            }
+            curr_frame_num = new_pic_num;
+            break;
+         }
+         case 2:
+         default:
+            assert(0);
+         }
       }
    }
 }
