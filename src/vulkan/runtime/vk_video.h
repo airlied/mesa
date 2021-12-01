@@ -148,6 +148,7 @@ void vk_video_sort_p_ref_frames(uint32_t count,
                                 const struct vk_video_h264_reference *refs,
                                 const struct vk_video_h264_slice_params *params,
                                 int32_t curr_frame_num,
+                                int32_t max_frame_num,
                                 int32_t *sorted_idxs);
 int vk_video_sort_b_l0_ref_frames(uint32_t count,
                                   uint32_t curr_poc,

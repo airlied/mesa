@@ -510,6 +510,7 @@ vk_video_sort_p_ref_frames(uint32_t count,
                            const struct vk_video_h264_reference *refs,
                            const struct vk_video_h264_slice_params *params,
                            int32_t curr_frame_num,
+                           int32_t max_frame_num,
                            int32_t *sorted_idxs)
 {
    int32_t sorted_fn_refs[32];
@@ -550,6 +551,7 @@ vk_video_sort_p_ref_frames(uint32_t count,
                new_pic_num -= abs_diff_pic_num;
             else
                new_pic_num += abs_diff_pic_num;
+            new_pic_num &= max_frame_num - 1;
 
             /* find the new pic num */
             unsigned i;

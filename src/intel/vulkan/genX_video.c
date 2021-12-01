@@ -398,6 +398,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
                                  ref_slots,
                                  &slice_params,
                                  h264_pic_info->pStdPictureInfo->frame_num,
+                                 (1 << (sps->log2_max_frame_num_minus4 + 4)),
                                  sorted_p_idxs);
 
       anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_REF_IDX_STATE), avc_ref_idx) {
