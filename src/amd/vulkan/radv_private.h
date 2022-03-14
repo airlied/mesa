@@ -246,6 +246,8 @@ enum radv_queue_family {
    RADV_QUEUE_GENERAL,
    RADV_QUEUE_COMPUTE,
    RADV_QUEUE_TRANSFER,
+   RADV_QUEUE_VIDEO_DEC,
+   RADV_QUEUE_VIDEO_ENC,
    RADV_MAX_QUEUE_FAMILIES,
    RADV_QUEUE_FOREIGN = RADV_MAX_QUEUE_FAMILIES,
    RADV_QUEUE_IGNORED,
@@ -725,6 +727,16 @@ vk_queue_to_radv(const struct radv_physical_device *phys_dev, int queue_family_i
 
 enum amd_ip_type radv_queue_family_to_ring(struct radv_physical_device *physical_device,
                                          enum radv_queue_family f);
+
+static inline bool
+radv_has_uvd(struct radv_physical_device *phys_dev)
+{
+   enum radeon_family family = phys_dev->rad_info.family;
+   /* Only support UVD on TONGA+ */
+   if (family < CHIP_TONGA)
+      return false;
+   return phys_dev->rad_info.ip[AMD_IP_UVD].num_queues > 0;
+}
 
 struct radv_queue_ring_info {
    uint32_t scratch_size_per_wave;

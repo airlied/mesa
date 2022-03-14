@@ -252,6 +252,9 @@ radv_fill_buffer(struct radv_cmd_buffer *cmd_buffer, const struct radv_image *im
    bool use_compute = radv_prefer_compute_dma(cmd_buffer->device, size, NULL, bo);
    uint32_t flush_bits = 0;
 
+   if (cmd_buffer->qf == RADV_QUEUE_VIDEO_DEC)
+      return 0;
+
    assert(!(va & 3));
    assert(!(size & 3));
 

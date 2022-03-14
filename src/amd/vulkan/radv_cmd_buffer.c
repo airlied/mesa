@@ -323,6 +323,10 @@ radv_queue_family_to_ring(struct radv_physical_device *physical_device,
       return AMD_IP_COMPUTE;
    case RADV_QUEUE_TRANSFER:
       return AMD_IP_SDMA;
+   case RADV_QUEUE_VIDEO_DEC:
+      return radv_has_uvd(physical_device) ? AMD_IP_UVD : AMD_IP_VCN_DEC;
+   case RADV_QUEUE_VIDEO_ENC:
+      return AMD_IP_VCN_ENC;
    default:
       unreachable("Unknown queue family");
    }
@@ -5950,7 +5954,8 @@ radv_EndCommandBuffer(VkCommandBuffer commandBuffer)
 
    radv_emit_mip_change_flush_default(cmd_buffer);
 
-   if (cmd_buffer->qf != RADV_QUEUE_TRANSFER) {
+   if (cmd_buffer->qf == RADV_QUEUE_GENERAL ||
+       cmd_buffer->qf == RADV_QUEUE_COMPUTE) {
       if (cmd_buffer->device->physical_device->rad_info.gfx_level == GFX6)
          cmd_buffer->state.flush_bits |=
             RADV_CMD_FLAG_CS_PARTIAL_FLUSH | RADV_CMD_FLAG_PS_PARTIAL_FLUSH | RADV_CMD_FLAG_WB_L2;
@@ -5990,7 +5995,8 @@ radv_EndCommandBuffer(VkCommandBuffer commandBuffer)
    /* Make sure CP DMA is idle at the end of IBs because the kernel
     * doesn't wait for it.
     */
-   si_cp_dma_wait_for_idle(cmd_buffer);
+   if (cmd_buffer->qf != RADV_QUEUE_VIDEO_DEC)
+      si_cp_dma_wait_for_idle(cmd_buffer);
 
    radv_describe_end_cmd_buffer(cmd_buffer);
 

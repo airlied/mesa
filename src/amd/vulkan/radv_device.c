@@ -5333,7 +5333,8 @@ radv_update_preambles(struct radv_queue_state *queue, struct radv_device *device
                       struct vk_command_buffer *const *cmd_buffers, uint32_t cmd_buffer_count,
                       bool *use_perf_counters, bool *use_ace)
 {
-   if (queue->qf == RADV_QUEUE_TRANSFER)
+   if (queue->qf != RADV_QUEUE_GENERAL &&
+       queue->qf != RADV_QUEUE_COMPUTE)
       return VK_SUCCESS;
 
    /* Figure out the needs of the current submission.
