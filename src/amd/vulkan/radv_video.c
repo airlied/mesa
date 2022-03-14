@@ -81,3 +81,157 @@ radv_init_physical_device_decoder(struct radv_physical_device *pdevice)
       break;
    }
 }
+
+VkResult
+radv_CreateVideoSessionKHR(VkDevice _device,
+                           const VkVideoSessionCreateInfoKHR *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator,
+                           VkVideoSessionKHR *pVideoSession)
+{
+   RADV_FROM_HANDLE(radv_device, device, _device);
+
+   struct radv_video_session *vid =
+      vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*vid), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (!vid)
+      return vk_error(device->instance, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   memset(vid, 0, sizeof(struct radv_video_session));
+
+   VkResult result = vk_video_session_init(&device->vk,
+                                           &vid->vk,
+                                           pCreateInfo);
+   if (result != VK_SUCCESS) {
+      vk_free2(&device->vk.alloc, pAllocator, vid);
+      return result;
+   }
+
+   *pVideoSession = radv_video_session_to_handle(vid);
+   return VK_SUCCESS;
+}
+
+void
+radv_DestroyVideoSessionKHR(VkDevice _device,
+                            VkVideoSessionKHR _session,
+                            const VkAllocationCallbacks *pAllocator)
+{
+   RADV_FROM_HANDLE(radv_device, device, _device);
+   RADV_FROM_HANDLE(radv_video_session, vid, _session);
+   if (!_session)
+      return;
+
+   vk_object_base_finish(&vid->vk.base);
+   vk_free2(&device->vk.alloc, pAllocator, vid);
+}
+
+
+VkResult
+radv_CreateVideoSessionParametersKHR(VkDevice _device,
+                                     const VkVideoSessionParametersCreateInfoKHR *pCreateInfo,
+                                     const VkAllocationCallbacks *pAllocator,
+                                     VkVideoSessionParametersKHR *pVideoSessionParameters)
+{
+   RADV_FROM_HANDLE(radv_device, device, _device);
+   RADV_FROM_HANDLE(radv_video_session, vid, pCreateInfo->videoSession);
+   RADV_FROM_HANDLE(radv_video_session_params, templ, pCreateInfo->videoSessionParametersTemplate);
+   struct radv_video_session_params *params =
+      vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*params), 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (!params)
+      return vk_error(device->instance, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   VkResult result = vk_video_session_parameters_init(&device->vk,
+                                                      &params->vk,
+                                                      &vid->vk,
+                                                      templ ? &templ->vk : NULL,
+                                                      pCreateInfo);
+   if (result != VK_SUCCESS) {
+      vk_free2(&device->vk.alloc, pAllocator, params);
+      return result;
+   }
+
+   *pVideoSessionParameters = radv_video_session_params_to_handle(params);
+   return VK_SUCCESS;
+}
+
+void
+radv_DestroyVideoSessionParametersKHR(VkDevice _device,
+                                      VkVideoSessionParametersKHR _params,
+                                      const VkAllocationCallbacks *pAllocator)
+{
+   RADV_FROM_HANDLE(radv_device, device, _device);
+   RADV_FROM_HANDLE(radv_video_session_params, params, _params);
+
+   vk_video_session_parameters_finish(&device->vk, &params->vk);
+   vk_free2(&device->vk.alloc, pAllocator, params);
+}
+
+VkResult
+radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
+                                           const VkVideoProfileInfoKHR *pVideoProfile,
+                                           VkVideoCapabilitiesKHR *pCapabilities)
+{
+   RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
+
+   pCapabilities->flags = 0;
+   return VK_SUCCESS;
+}
+
+VkResult
+radv_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
+                                               const VkPhysicalDeviceVideoFormatInfoKHR *pVideoFormatInfo,
+                                               uint32_t *pVideoFormatPropertyCount,
+                                               VkVideoFormatPropertiesKHR *pVideoFormatProperties)
+{
+   return VK_SUCCESS;
+}
+
+VkResult
+radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
+                                          VkVideoSessionKHR videoSession,
+                                          uint32_t *pMemoryRequirementsCount,
+                                          VkVideoSessionMemoryRequirementsKHR *pMemoryRequirements)
+{
+   return VK_SUCCESS;
+}
+
+VkResult
+radv_UpdateVideoSessionParametersKHR(VkDevice _device,
+                                     VkVideoSessionParametersKHR videoSessionParameters,
+                                     const VkVideoSessionParametersUpdateInfoKHR *pUpdateInfo)
+{
+   RADV_FROM_HANDLE(radv_video_session_params, params, videoSessionParameters);
+
+   return vk_video_session_parameters_update(&params->vk, pUpdateInfo);
+}
+
+VkResult
+radv_BindVideoSessionMemoryKHR(VkDevice _device,
+                               VkVideoSessionKHR videoSession,
+                               uint32_t videoSessionBindMemoryCount,
+                               const VkBindVideoSessionMemoryInfoKHR *pBindSessionMemoryInfos)
+{
+   return VK_SUCCESS;
+}
+
+void
+radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
+                            const VkVideoBeginCodingInfoKHR *pBeginInfo)
+{
+}
+
+void
+radv_CmdControlVideoCodingKHR(VkCommandBuffer commandBuffer,
+                              const VkVideoCodingControlInfoKHR *pCodingControlInfo)
+{
+}
+
+void
+radv_CmdEndVideoCodingKHR(VkCommandBuffer commandBuffer,
+                          const VkVideoEndCodingInfoKHR *pEndCodingInfo)
+{
+}
+
+void
+radv_CmdDecodeVideoKHR(VkCommandBuffer commandBuffer,
+                       const VkVideoDecodeInfoKHR *frame_info)
+{
+}
