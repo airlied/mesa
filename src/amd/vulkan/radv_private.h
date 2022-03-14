@@ -346,6 +346,13 @@ struct radv_physical_device {
 
    uint32_t num_perfcounters;
    struct radv_perfcounter_desc *perfcounters;
+
+   struct {
+      unsigned data0;
+      unsigned data1;
+      unsigned cmd;
+      unsigned cntl;
+   } vid_dec_reg;
 };
 
 struct radv_instance {
@@ -3233,6 +3240,9 @@ radv_queue_ring(struct radv_queue *queue)
 {
    return radv_queue_family_to_ring(queue->device->physical_device, queue->state.qf);
 }
+
+/* radv_video */
+void radv_init_physical_device_decoder(struct radv_physical_device *pdevice);
 
 /**
  * Helper used for debugging compiler issues by enabling/disabling LLVM for a
