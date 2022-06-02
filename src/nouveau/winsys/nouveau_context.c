@@ -7,6 +7,7 @@
 
 #include "nvtypes.h"
 #include "classes/cl902d.h"
+#include "classes/clc5c0.h"
 
 int
 nouveau_ws_context_create(struct nouveau_ws_device *dev, struct nouveau_ws_context **out)
@@ -28,6 +29,22 @@ nouveau_ws_context_create(struct nouveau_ws_device *dev, struct nouveau_ws_conte
                           &(*out)->eng2d);
    if (ret)
       goto fail_2d;
+
+   uint32_t obj_class = 0xa140;//NVF0_P2MF_CLASS;
+   ret = nouveau_object_new((*out)->channel, 0xbeef323f, obj_class, NULL, 0,
+                            &(*out)->m2mf);
+   if (ret) {
+      FREE(*out);
+      return ret;
+   }
+
+   obj_class = TURING_COMPUTE_A;
+   ret = nouveau_object_new((*out)->channel, 0xbeef00c0, obj_class, NULL, 0,
+                          &(*out)->compute);
+   if (ret) {
+      FREE(*out);
+      return ret;
+   }
 
    return 0;
 
