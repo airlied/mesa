@@ -156,6 +156,13 @@ nouveau_ws_device_new(int fd)
    else
       device->local_mem_domain = NOUVEAU_GEM_DOMAIN_VRAM;
 
+   uint64_t value;
+   if (nouveau_getparam(dev, NOUVEAU_GETPARAM_GRAPH_UNITS, &value))
+      goto out_dev;
+   device->base.gpc_count = value & 0x000000ff;
+   device->base.mp_count = value >> 8;
+   device->base.mp_count_compute = device->base.mp_count;
+
    return &device->base;
 
 out_dev:
