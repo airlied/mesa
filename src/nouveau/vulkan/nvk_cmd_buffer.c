@@ -53,6 +53,75 @@ nvk_reset_cmd_buffer(struct nvk_cmd_buffer *cmd_buffer)
    return cmd_buffer->record_result;
 }
 
+static bool
+nvk_cmd_buffer_resize_upload_buf(struct nvk_cmd_buffer *cmd_buffer, uint64_t min_needed)
+{
+   uint64_t new_size;
+   struct nouveau_ws_bo *bo = NULL;
+   struct nvk_cmd_buffer_upload *upload;
+   struct nvk_device *device = (struct nvk_device *)cmd_buffer->vk.base.device;
+
+   new_size = MAX2(min_needed, 16 * 1024);
+   new_size = MAX2(new_size, 2 * cmd_buffer->upload.size);
+
+   uint32_t flags = NOUVEAU_WS_BO_GART | NOUVEAU_WS_BO_MAP;
+   bo = nouveau_ws_bo_new(device->pdev->dev, new_size, 0, flags);
+
+   nouveau_ws_push_ref(cmd_buffer->push, bo, NOUVEAU_WS_BO_RD);
+   if (cmd_buffer->upload.upload_bo) {
+      upload = malloc(sizeof(*upload));
+
+      if (!upload) {
+         cmd_buffer->record_result = VK_ERROR_OUT_OF_HOST_MEMORY;
+         nouveau_ws_bo_destroy(bo);
+         return false;
+      }
+
+      memcpy(upload, &cmd_buffer->upload, sizeof(*upload));
+      list_add(&upload->list, &cmd_buffer->upload.list);
+   }
+
+   cmd_buffer->upload.upload_bo = bo;
+   cmd_buffer->upload.size = new_size;
+   cmd_buffer->upload.offset = 0;
+   cmd_buffer->upload.map = nouveau_ws_bo_map(cmd_buffer->upload.upload_bo, NOUVEAU_WS_BO_WR);
+
+   if (!cmd_buffer->upload.map) {
+      cmd_buffer->record_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      return false;
+   }
+
+   return true;
+}
+
+bool
+nvk_cmd_buffer_upload_alloc(struct nvk_cmd_buffer *cmd_buffer, unsigned size,
+                             unsigned *out_offset, void **ptr)
+{
+   assert(size % 4 == 0);
+
+   /* Align to the scalar cache line size if it results in this allocation
+    * being placed in less of them.
+    */
+   unsigned offset = cmd_buffer->upload.offset;
+   unsigned line_size = 256;//for compute dispatches
+   unsigned gap = align(offset, line_size) - offset;
+   if ((size & ~(line_size - 1)) > gap)
+      offset = align(offset, line_size);
+
+   if (offset + size > cmd_buffer->upload.size) {
+      if (!nvk_cmd_buffer_resize_upload_buf(cmd_buffer, size))
+         return false;
+      offset = 0;
+   }
+
+   *out_offset = offset;
+   *ptr = cmd_buffer->upload.map + offset;
+
+   cmd_buffer->upload.offset = offset + size;
+   return true;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_CreateCommandPool(VkDevice _device, const VkCommandPoolCreateInfo *pCreateInfo,
                       const VkAllocationCallbacks *pAllocator, VkCommandPool *pCmdPool)
