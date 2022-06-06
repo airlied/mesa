@@ -10,6 +10,34 @@
 
 #include "vulkan/wsi/wsi_common.h"
 
+static int
+nvc0_screen_resize_tls_area(struct nvk_device *device,
+                            uint32_t lpos, uint32_t lneg, uint32_t cstack)
+{
+   struct nouveau_ws_bo *bo = NULL;
+   uint64_t size = (lpos + lneg) * 32 + cstack;
+
+   if (size >= (1 << 20)) {
+      return -1;
+   }
+
+   size *= 64; /* max warps */
+   size  = align(size, 0x8000);
+   size *= device->pdev->dev->mp_count;
+
+   size = align(size, 1 << 17);
+
+   bo = nouveau_ws_bo_new(device->pdev->dev, size, (1 << 17), NOUVEAU_WS_BO_LOCAL);
+   if (!bo)
+      return -1;
+
+   /* Make sure that the pushbuf has acquired a reference to the old tls
+    * segment, as it may have commands that will reference it.
+    */
+   device->tls = bo;
+   return 0;
+}
+
 static VkResult
 nvk_queue_submit(struct vk_queue *queue, struct vk_queue_submit *submission)
 {
@@ -107,6 +135,11 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
 
    device->pdev = physical_device;
 
+   if (nvc0_screen_resize_tls_area(device, 128 * 16, 0, 0x200)) {
+      result = vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
+      goto fail_mutex;
+   }
+
    *pDevice = nvk_device_to_handle(device);
 
    return VK_SUCCESS;
@@ -132,6 +165,7 @@ nvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    if (!device)
       return;
 
+   nouveau_ws_bo_destroy(device->tls);
    pthread_cond_destroy(&device->queue_submit);
    pthread_mutex_destroy(&device->mutex);
    vk_queue_finish(&device->queue);

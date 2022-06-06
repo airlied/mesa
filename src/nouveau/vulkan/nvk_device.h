@@ -15,6 +15,8 @@ struct nvk_device {
 
    struct nouveau_ws_context *ctx;
 
+   struct nouveau_ws_bo *tls;
+
    struct vk_queue queue;
 
    pthread_mutex_t mutex;
