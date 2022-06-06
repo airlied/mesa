@@ -1,5 +1,7 @@
 #include "nvk_cmd_buffer.h"
 
+#include "nvk_buffer.h"
+#include "nvk_descriptor_set.h"
 #include "nvk_device.h"
 #include "nvk_physical_device.h"
 
@@ -294,4 +296,49 @@ nvk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 
 VKAPI_ATTR void VKAPI_CALL
 nvk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDependencyInfo *pDependencyInfo) {
+}
+
+static void
+nvk_set_descriptor_set(struct nvk_cmd_buffer *cmd_buffer, VkPipelineBindPoint bind_point,
+                       struct nvk_descriptor_set *set, unsigned idx)
+{
+   struct nvk_descriptor_state *descriptors_state =
+      nvk_get_descriptors_state(cmd_buffer, bind_point);
+
+   descriptors_state->sets[idx] = set;
+
+   descriptors_state->valid |= (1u << idx); /* active descriptors */
+   descriptors_state->dirty |= (1u << idx);
+}
+
+static void
+nvk_bind_descriptor_set(struct nvk_cmd_buffer *cmd_buffer, VkPipelineBindPoint bind_point,
+                        struct nvk_descriptor_set *set, unsigned idx)
+{
+
+   nvk_set_descriptor_set(cmd_buffer, bind_point, set, idx);
+
+   if (set->bo)
+      nouveau_ws_push_ref(cmd_buffer->push, set->bo, NOUVEAU_WS_BO_RD);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_CmdBindDescriptorSets(
+    VkCommandBuffer                             commandBuffer,
+    VkPipelineBindPoint                         pipelineBindPoint,
+    VkPipelineLayout                            _layout,
+    uint32_t                                    firstSet,
+    uint32_t                                    descriptorSetCount,
+    const VkDescriptorSet*                      pDescriptorSets,
+    uint32_t                                    dynamicOffsetCount,
+    const uint32_t*                             pDynamicOffsets)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd_buffer, commandBuffer);
+
+   for (unsigned i = 0; i < descriptorSetCount; ++i) {
+      unsigned set_idx = i + firstSet;
+      VK_FROM_HANDLE(nvk_descriptor_set, set, pDescriptorSets[i]);
+
+      nvk_bind_descriptor_set(cmd_buffer, pipelineBindPoint, set, set_idx);
+   }
 }
