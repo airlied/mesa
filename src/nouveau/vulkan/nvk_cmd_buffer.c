@@ -48,7 +48,9 @@ nvk_reset_cmd_buffer(struct nvk_cmd_buffer *cmd_buffer)
 
    nouveau_ws_push_reset(cmd_buffer->push);
 
-   return VK_SUCCESS;
+   cmd_buffer->record_result = VK_SUCCESS;
+
+   return cmd_buffer->record_result;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -217,7 +219,8 @@ nvk_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegin
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 {
-   return VK_SUCCESS;
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+   return cmd->record_result;
 }
 
 VKAPI_ATTR void VKAPI_CALL

@@ -24,6 +24,8 @@ struct nvk_cmd_buffer {
 
    struct nouveau_ws_push *push;
    bool reset_on_submit;
+
+   VkResult record_result;
 };
 
 VkResult nvk_reset_cmd_buffer(struct nvk_cmd_buffer *cmd_buffer);
