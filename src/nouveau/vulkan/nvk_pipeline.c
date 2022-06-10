@@ -24,16 +24,6 @@ nvk_graphics_pipeline_create(struct nvk_device *device,
    unreachable("Graphics pipelines not yet implemented");
 }
 
-static VkResult
-nvk_compute_pipeline_create(struct nvk_device *device,
-                            struct vk_pipeline_cache *cache,
-                            const VkComputePipelineCreateInfo *pCreateInfo,
-                            const VkAllocationCallbacks *pAllocator,
-                            VkPipeline *pPipeline)
-{
-   unreachable("Compute pipelines not yet implemented");
-}
-
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_CreateGraphicsPipelines(VkDevice _device,
                             VkPipelineCache pipelineCache,

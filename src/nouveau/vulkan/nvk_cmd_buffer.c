@@ -2,10 +2,33 @@
 
 #include "nvk_buffer.h"
 #include "nvk_descriptor_set.h"
+#include "nvk_descriptor_set_layout.h"
 #include "nvk_device.h"
+#include "nvk_device_memory.h"
+#include "nvk_pipeline.h"
+#include "nvk_pipeline_layout.h"
 #include "nvk_physical_device.h"
 
 #include "nouveau_push.h"
+#include "nouveau_context.h"
+
+#include "nouveau/nouveau.h"
+
+#include "cla1c0.h"
+#include "nvk_cla0c0.h"
+#include "nvk_clc3c0.h"
+
+#include "drf.h"
+#include "cla0c0qmd.h"
+#include "clc0c0qmd.h"
+#include "clc3c0qmd.h"
+
+#define NVA0C0_QMDV00_06_VAL_SET(p,a...) NVVAL_MW_SET((p), NVA0C0, QMDV00_06, ##a)
+#define NVA0C0_QMDV00_06_DEF_SET(p,a...) NVDEF_MW_SET((p), NVA0C0, QMDV00_06, ##a)
+#define NVC0C0_QMDV02_01_VAL_SET(p,a...) NVVAL_MW_SET((p), NVC0C0, QMDV02_01, ##a)
+#define NVC0C0_QMDV02_01_DEF_SET(p,a...) NVDEF_MW_SET((p), NVC0C0, QMDV02_01, ##a)
+#define NVC3C0_QMDV02_02_VAL_SET(p,a...) NVVAL_MW_SET((p), NVC3C0, QMDV02_02, ##a)
+#define NVC3C0_QMDV02_02_DEF_SET(p,a...) NVDEF_MW_SET((p), NVC3C0, QMDV02_02, ##a)
 
 static void
 nvk_destroy_cmd_buffer(struct nvk_cmd_buffer *cmd_buffer)
@@ -274,6 +297,61 @@ nvk_ResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags 
    return nvk_reset_cmd_buffer(cmd_buffer);
 }
 
+static void nve4_begin_compute(struct nvk_cmd_buffer *cmd)
+{
+   struct nvk_device *dev = (struct nvk_device *)cmd->vk.base.device;
+   struct nvk_physical_device *pdev = dev->pdev;
+
+   nouveau_ws_push_ref(cmd->push, dev->tls, NOUVEAU_WS_BO_RDWR);
+   P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_A);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_A(cmd->push, dev->tls->offset >> 32);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_B(cmd->push, dev->tls->offset & 0xffffffff);
+
+   /* No idea why there are 2. Divide size by 2 to be safe.
+    * Actually this might be per-MP TEMP size and looks like I'm only using
+    * 2 MPs instead of all 8.
+    */
+   uint64_t temp_size = dev->tls->size / dev->pdev->dev->mp_count;
+   P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A(cmd->push, temp_size >> 32);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B(cmd->push, temp_size & ~0x7fff);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C(cmd->push, 0xff);
+
+   if (pdev->compute_class < VOLTA_COMPUTE_A) {
+      P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_THROTTLED_A);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_A(cmd->push, temp_size >> 32);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(cmd->push, temp_size & ~0x7fff);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(cmd->push, 0xff);
+   }
+
+   if (pdev->compute_class < VOLTA_COMPUTE_A) {
+      P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_WINDOW(cmd->push, 0xff << 24);
+
+      P_MTHD(cmd->push, NVA0C0, SET_SHADER_SHARED_MEMORY_WINDOW);
+      P_NVA0C0_SET_SHADER_SHARED_MEMORY_WINDOW(cmd->push, 0xfe << 24);
+
+      // TODO CODE_ADDRESS_HIGH
+   } else {
+      uint64_t temp = 0xfeULL << 24;
+
+      P_MTHD(cmd->push, NVC3C0, SET_SHADER_SHARED_MEMORY_WINDOW_A);
+      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_A(cmd->push, temp >> 32);
+      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_B(cmd->push, temp & 0xffffffff);
+
+      temp = 0xffULL << 24;
+      P_MTHD(cmd->push, NVC3C0, SET_SHADER_LOCAL_MEMORY_WINDOW_A);
+      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A(cmd->push, temp >> 32);
+      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B(cmd->push, temp & 0xffffffff);
+   }
+
+   P_MTHD(cmd->push, NVA0C0, SET_SPA_VERSION);
+   P_NVA0C0_SET_SPA_VERSION(cmd->push, { .major = pdev->compute_class >= KEPLER_COMPUTE_B ? 0x4 : 0x3 });
+
+   P_MTHD(cmd->push, NVA0C0, INVALIDATE_SHADER_CACHES_NO_WFI);
+   P_NVA0C0_INVALIDATE_SHADER_CACHES_NO_WFI(cmd->push, { .constant = CONSTANT_TRUE });
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo *pBeginInfo)
 {
@@ -283,6 +361,12 @@ nvk_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegin
       cmd->reset_on_submit = true;
    else
       cmd->reset_on_submit = false;
+
+   struct nvk_device *dev = (struct nvk_device *)cmd->vk.base.device;
+   struct nvk_physical_device *pdev = dev->pdev;
+
+   if (pdev->dev->chipset >= 0xe0)
+      nve4_begin_compute(cmd);
 
    return VK_SUCCESS;
 }
@@ -323,6 +407,22 @@ nvk_bind_descriptor_set(struct nvk_cmd_buffer *cmd_buffer, VkPipelineBindPoint b
 }
 
 VKAPI_ATTR void VKAPI_CALL
+nvk_CmdBindPipeline(
+    VkCommandBuffer                             commandBuffer,
+    VkPipelineBindPoint                         pipelineBindPoint,
+    VkPipeline                                  _pipeline)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+   VK_FROM_HANDLE(nvk_pipeline, pipeline, _pipeline);
+
+   if (pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE) {
+      cmd->cp = (struct nvk_compute_pipeline *)pipeline;
+
+      nouveau_ws_push_ref(cmd->push, pipeline->shaders[MESA_SHADER_COMPUTE].bo, NOUVEAU_WS_BO_RD);
+   }
+}
+
+VKAPI_ATTR void VKAPI_CALL
 nvk_CmdBindDescriptorSets(
     VkCommandBuffer                             commandBuffer,
     VkPipelineBindPoint                         pipelineBindPoint,
@@ -341,4 +441,92 @@ nvk_CmdBindDescriptorSets(
 
       nvk_bind_descriptor_set(cmd_buffer, pipelineBindPoint, set, set_idx);
    }
+}
+
+static void
+gv100_compute_setup_launch_desc(uint32_t *qmd,
+                                uint32_t x, uint32_t y, uint32_t z)
+{
+   NVC3C0_QMDV02_02_VAL_SET(qmd, CTA_RASTER_WIDTH, x);
+   NVC3C0_QMDV02_02_VAL_SET(qmd, CTA_RASTER_HEIGHT, y);
+   NVC3C0_QMDV02_02_VAL_SET(qmd, CTA_RASTER_DEPTH, z);
+}
+
+static inline void
+gp100_cp_launch_desc_set_cb(uint32_t *qmd, unsigned index, uint32_t size, uint64_t address)
+{
+   NVC0C0_QMDV02_01_VAL_SET(qmd, CONSTANT_BUFFER_ADDR_LOWER, index, address);
+   NVC0C0_QMDV02_01_VAL_SET(qmd, CONSTANT_BUFFER_ADDR_UPPER, index, address >> 32);
+   NVC0C0_QMDV02_01_VAL_SET(qmd, CONSTANT_BUFFER_SIZE_SHIFTED4, index,
+                                 DIV_ROUND_UP(size, 16));
+   NVC0C0_QMDV02_01_DEF_SET(qmd, CONSTANT_BUFFER_VALID, index, TRUE);
+}
+
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_CmdDispatch(
+    VkCommandBuffer                             commandBuffer,
+    uint32_t                                    groupCountX,
+    uint32_t                                    groupCountY,
+    uint32_t                                    groupCountZ)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+   uint32_t *qmd;
+   uint32_t qmd_offset;
+
+   struct nvk_descriptor_state *desc = nvk_get_descriptors_state(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+
+   /* bind the descriptor to the ubo */
+   uint32_t scratch_len_dw = 3 + 3 + 1 + 1; /* grid, block, 0, work dim */
+   scratch_len_dw += util_bitcount(desc->valid) * 2;
+   uint32_t *scratch;
+   uint32_t scratch_offset;
+   uint64_t scratch_base = 0;
+   if (!nvk_cmd_buffer_upload_alloc(cmd, scratch_len_dw * 4, &scratch_offset, (void **)&scratch))
+         return;
+
+   scratch_base = cmd->upload.upload_bo->offset + scratch_offset;
+
+   uint32_t grid[3] = { groupCountX, groupCountY, groupCountZ };
+
+   P_MTHD(cmd->push, NVA0C0, OFFSET_OUT_UPPER);
+   P_NVA0C0_OFFSET_OUT_UPPER(cmd->push, scratch_base >> 32);
+   P_NVA0C0_OFFSET_OUT(cmd->push, scratch_base & 0xffffffff);
+   P_MTHD(cmd->push, NVA0C0, LINE_LENGTH_IN);
+   P_NVA0C0_LINE_LENGTH_IN(cmd->push, scratch_len_dw * 4);
+   P_NVA0C0_LINE_COUNT(cmd->push, 0x1);
+
+   P_1INC(cmd->push, NVA0C0, LAUNCH_DMA);
+   P_NVA0C0_LAUNCH_DMA(cmd->push,
+                       { .dst_memory_layout = DST_MEMORY_LAYOUT_PITCH,
+                         .sysmembar_disable = SYSMEMBAR_DISABLE_TRUE });
+   P_INLINE_ARRAY(cmd->push, cmd->cp->base.shaders[MESA_SHADER_COMPUTE].cp.block_size, 3);
+   P_INLINE_ARRAY(cmd->push, grid, 3);
+   P_INLINE_DATA(cmd->push, 0);
+   P_INLINE_DATA(cmd->push, 0);
+   unsigned sets = desc->valid;
+   while (sets) {
+      int set = u_bit_scan(&sets);
+      uint64_t set_addr = desc->sets[set]->bo->offset + desc->sets[set]->bo_offset;
+      P_INLINE_DATA(cmd->push, set_addr & 0xffffffff);
+      P_INLINE_DATA(cmd->push, set_addr >> 32);
+   }
+
+   if (!nvk_cmd_buffer_upload_alloc(cmd, 512, &qmd_offset, (void **)&qmd))
+         return;
+
+   memcpy(qmd, cmd->cp->qmd_template, 256);
+   gv100_compute_setup_launch_desc(qmd, groupCountX, groupCountY, groupCountZ);
+
+   gp100_cp_launch_desc_set_cb(qmd, 1, 256, scratch_base);
+   uint64_t desc_gpuaddr = cmd->upload.upload_bo->offset + qmd_offset;
+
+   P_MTHD(cmd->push, NVA0C0, INVALIDATE_SHADER_CACHES_NO_WFI);
+   P_NVA0C0_INVALIDATE_SHADER_CACHES_NO_WFI(cmd->push, { .constant = CONSTANT_TRUE });
+
+   P_MTHD(cmd->push, NVA0C0, SEND_PCAS_A);
+   P_NVA0C0_SEND_PCAS_A(cmd->push, desc_gpuaddr >> 8);
+   P_IMMD(cmd->push, NVA0C0, SEND_SIGNALING_PCAS_B,
+          { .invalidate = INVALIDATE_TRUE,
+            .schedule = SCHEDULE_TRUE });
 }

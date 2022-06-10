@@ -10,6 +10,7 @@ struct lower_descriptors_ctx {
   nir_address_format desc_addr_format;
   nir_address_format ubo_addr_format;
   nir_address_format ssbo_addr_format;
+  uint32_t set_base_offset;
 };
 
 static bool
@@ -36,8 +37,6 @@ lower_load_vulkan_descriptor(nir_builder *b, nir_intrinsic_instr *intrin,
   if (ctx->clamp_desc_array_bounds)
     index = nir_umin(b, index, nir_imm_int(b, binding_layout->array_size - 1));
 
-  const uint32_t desc_ubo_index = set; /* TODO */
-
   assert(binding_layout->stride > 0);
   nir_ssa_def *desc_ubo_offset = nir_iadd_imm(
       b, nir_imul_imm(b, index, binding_layout->stride), binding_layout->offset);
@@ -45,13 +44,56 @@ lower_load_vulkan_descriptor(nir_builder *b, nir_intrinsic_instr *intrin,
   unsigned desc_align = (1 << (ffs(binding_layout->stride) - 1));
   desc_align = MIN2(desc_align, 16);
 
+  nir_ssa_def *ubo0 =
+     nir_load_ubo(b, 1, 64, nir_imm_int(b, 0), nir_imm_int(b, (ctx->set_base_offset + set * 2) * 4),
+                   .align_mul = 8, .align_offset = 0, .range = ~0);
+
   nir_ssa_def *desc =
-      nir_load_ubo(b, 4, 32, nir_imm_int(b, desc_ubo_index), desc_ubo_offset,
-                   .align_mul = 16, .align_offset = 0, .range = ~0);
+     nir_load_global_constant_offset(b, 4, 32, ubo0, desc_ubo_offset,
+                     .align_mul = 16, .align_offset = 0);
 
   nir_ssa_def_rewrite_uses(&intrin->dest.ssa, desc);
 
   return true;
+}
+
+static bool
+lower_load_ssbo(nir_builder *b, nir_intrinsic_instr *intrin,
+                const struct lower_descriptors_ctx *ctx) {
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   nir_ssa_def *addr = nir_channels(b, intrin->src[1].ssa, 0x3);
+   addr = nir_pack_bits(b, addr, 64);
+   nir_ssa_def *val = nir_load_global(b, addr, 4, nir_dest_num_components(intrin->dest), nir_dest_bit_size(intrin->dest));
+
+   nir_ssa_def_rewrite_uses(&intrin->dest.ssa, val);
+   return true;
+}
+
+static bool
+lower_load_global_constant_offset(nir_builder *b, nir_intrinsic_instr *intrin,
+                                  const struct lower_descriptors_ctx *ctx) {
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   nir_ssa_def *addr = nir_iadd(b, intrin->src[0].ssa, nir_u2u64(b, intrin->src[1].ssa));
+   nir_ssa_def *val = nir_load_global(b, addr, 4, nir_dest_num_components(intrin->dest), nir_dest_bit_size(intrin->dest));
+
+   nir_ssa_def_rewrite_uses(&intrin->dest.ssa, val);
+   return true;
+}
+
+static bool
+lower_store_ssbo(nir_builder *b, nir_intrinsic_instr *intrin,
+                const struct lower_descriptors_ctx *ctx) {
+   b->cursor = nir_before_instr(&intrin->instr);
+   nir_ssa_def *pkd = nir_vec2(b, intrin->src[1].ssa, intrin->src[2].ssa);
+   pkd = nir_pack_bits(b, pkd, 64);
+//   nir_ssa_def *addr = nir_iadd(b, pkd, nir_u2u64(b, intrin->src[2].ssa));
+   nir_ssa_def *addr = pkd;
+   nir_store_global(b, addr, 4, intrin->src[0].ssa, 0x1);
+
+   nir_instr_remove(&intrin->instr);
+   return true;
 }
 
 static void get_resource_deref_binding(nir_builder *b, nir_deref_instr *deref,
@@ -116,6 +158,15 @@ static bool lower_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
   switch (intrin->intrinsic) {
   case nir_intrinsic_load_vulkan_descriptor:
     return lower_load_vulkan_descriptor(b, intrin, ctx);
+
+  case nir_intrinsic_load_global_constant_offset:
+     return lower_load_global_constant_offset(b, intrin, ctx);
+
+  case nir_intrinsic_load_ssbo:
+     return lower_load_ssbo(b, intrin, ctx);
+
+  case nir_intrinsic_store_ssbo:
+     return lower_store_ssbo(b, intrin, ctx);
 
   case nir_intrinsic_image_deref_load:
   case nir_intrinsic_image_deref_store:
@@ -200,6 +251,7 @@ bool nvk_nir_lower_descriptors(nir_shader *nir,
       .ssbo_addr_format = robust_buffer_access
                               ? nir_address_format_64bit_bounded_global
                               : nir_address_format_64bit_global_32bit_offset,
+      .set_base_offset = 8,
   };
   return nir_shader_instructions_pass(
       nir, lower_descriptors_instr,

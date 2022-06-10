@@ -3,6 +3,8 @@
 
 #include "nvk_private.h"
 
+#include "nouveau_push.h"
+
 #include "vulkan/runtime/vk_command_buffer.h"
 #include "vulkan/runtime/vk_command_pool.h"
 
@@ -44,6 +46,8 @@ struct nvk_cmd_buffer {
    struct nvk_cmd_buffer_upload upload;
 
    VkResult record_result;
+   struct nvk_compute_pipeline *cp;
+
    struct nvk_descriptor_state descriptors[MAX_BIND_POINTS];
 };
 
@@ -69,4 +73,5 @@ nvk_get_descriptors_state(struct nvk_cmd_buffer *cmd_buffer, VkPipelineBindPoint
 bool
 nvk_cmd_buffer_upload_alloc(struct nvk_cmd_buffer *cmd_buffer, unsigned size,
                             unsigned *out_offset, void **ptr);
+
 #endif

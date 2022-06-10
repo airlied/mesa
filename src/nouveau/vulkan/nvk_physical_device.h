@@ -7,6 +7,7 @@
 
 #include "vulkan/runtime/vk_physical_device.h"
 
+#include "nir.h"
 #include "wsi_common.h"
 
 struct nvk_instance;
@@ -28,6 +29,9 @@ struct nvk_physical_device {
    uint8_t mem_type_cnt;
 
    const struct vk_sync_type *sync_types[2];
+   nir_shader_compiler_options nir_options;
+
+   uint32_t compute_class;
 };
 
 VK_DEFINE_HANDLE_CASTS(nvk_physical_device,

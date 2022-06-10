@@ -4,10 +4,25 @@
 #include "nvk_entrypoints.h"
 #include "nvk_format.h"
 #include "nvk_instance.h"
+#include "nvk_shader.h"
 #include "nvk_wsi.h"
 
 #include "vulkan/runtime/vk_device.h"
 #include "vulkan/wsi/wsi_common.h"
+
+#include "vulkan/util/vk_enum_defines.h"
+
+#include "cl90c0.h"
+#include "cl91c0.h"
+#include "cla0c0.h"
+#include "cla1c0.h"
+#include "clb0c0.h"
+#include "clb1c0.h"
+#include "clc0c0.h"
+#include "clc1c0.h"
+#include "clc3c0.h"
+#include "clc5c0.h"
+
 
 VKAPI_ATTR void VKAPI_CALL
 nvk_GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
@@ -220,6 +235,40 @@ nvk_physical_device_try_create(struct nvk_instance *instance,
 
       device->mem_heaps[0].size = ndev->gart_size;
       device->mem_types[0].propertyFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+   }
+
+   switch (device->dev->chipset & ~0xf) {
+   case 0x160:
+      device->compute_class = TURING_COMPUTE_A;
+      break;
+   case 0x140:
+      device->compute_class = VOLTA_COMPUTE_A;
+      break;
+   case 0x130:
+      device->compute_class = (device->dev->chipset == 0x130 || device->dev->chipset == 0x13b) ?
+         PASCAL_COMPUTE_A : PASCAL_COMPUTE_B;
+      break;
+   case 0x120:
+      device->compute_class = MAXWELL_COMPUTE_B;
+      break;
+   case 0x110:
+      device->compute_class = MAXWELL_COMPUTE_A;
+      break;
+   case 0x100:
+   case 0xf0:
+      device->compute_class = KEPLER_COMPUTE_B;
+      break;
+   case 0xe0:
+      device->compute_class = KEPLER_COMPUTE_A;
+      break;
+   case 0xc0:
+   case 0xd0:
+      /* In theory, GF110+ should also support FERMI_COMPUTE_B but,
+       * in practice, a ILLEGAL_CLASS dmesg fail appears when using it. */
+      device->compute_class = FERMI_COMPUTE_A;
+      break;
+   default:
+      unreachable("unsupported chipset\n");
    }
 
    unsigned st_idx = 0;
