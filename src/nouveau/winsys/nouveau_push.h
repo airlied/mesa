@@ -31,6 +31,10 @@ int nouveau_ws_push_submit(struct nouveau_ws_push *, struct nouveau_ws_device *,
 void nouveau_ws_push_ref(struct nouveau_ws_push *, struct nouveau_ws_bo *, enum nouveau_ws_bo_map_flags);
 void nouveau_ws_push_reset(struct nouveau_ws_push *);
 
+#define SUBC_NVA0C0 1
+#define SUBC_NVC0C0 1
+#define SUBC_NVC3C0 1
+
 #define SUBC_NV902D 3
 
 #define SUBC_NV90B5 4
