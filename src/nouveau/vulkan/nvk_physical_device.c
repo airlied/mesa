@@ -75,6 +75,11 @@ nvk_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          .maxImageArrayLayers = 2048,
          .maxImageDimension1D = pdevice->dev->chipset >= 0x130 ? 0x8000 : 0x4000,
          .maxImageDimension2D = pdevice->dev->chipset >= 0x130 ? 0x8000 : 0x4000,
+         .maxComputeSharedMemorySize = 49152, /* aligned with what NVIDIA vulkan exposes */
+         .maxComputeWorkGroupCount = {0x7fffffff, 65535, 65535},
+         .maxComputeWorkGroupInvocations = 1024,
+         .maxComputeWorkGroupSize = {1024, 1024, 64},
+         .maxStorageBufferRange = UINT32_MAX,
          .nonCoherentAtomSize = 64,
       },
 
