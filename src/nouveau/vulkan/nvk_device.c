@@ -11,7 +11,8 @@
 #include "vulkan/wsi/wsi_common.h"
 
 #include "nvk_cla0c0.h"
-#include "clc3c0.h"
+#include "cla1c0.h"
+#include "nvk_clc3c0.h"
 
 static VkResult
 nvk_update_preamble_push(struct nvk_queue_state *qs, struct nvk_device *dev,
@@ -53,6 +54,30 @@ nvk_update_preamble_push(struct nvk_queue_state *qs, struct nvk_device *dev,
       P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(push, temp_size & ~0x7fff);
       P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(push, 0xff);
    }
+
+   if (dev->pdev->compute_class < VOLTA_COMPUTE_A) {
+      P_MTHD(push, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_WINDOW(push, 0xff << 24);
+
+      P_MTHD(push, NVA0C0, SET_SHADER_SHARED_MEMORY_WINDOW);
+      P_NVA0C0_SET_SHADER_SHARED_MEMORY_WINDOW(push, 0xfe << 24);
+
+      // TODO CODE_ADDRESS_HIGH
+   } else {
+      uint64_t temp = 0xfeULL << 24;
+
+      P_MTHD(push, NVC3C0, SET_SHADER_SHARED_MEMORY_WINDOW_A);
+      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_A(push, temp >> 32);
+      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_B(push, temp & 0xffffffff);
+
+      temp = 0xffULL << 24;
+      P_MTHD(push, NVC3C0, SET_SHADER_LOCAL_MEMORY_WINDOW_A);
+      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A(push, temp >> 32);
+      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B(push, temp & 0xffffffff);
+   }
+
+   P_MTHD(push, NVA0C0, SET_SPA_VERSION);
+   P_NVA0C0_SET_SPA_VERSION(push, { .major = dev->pdev->compute_class >= KEPLER_COMPUTE_B ? 0x4 : 0x3 });
 
    if (qs->push)
       nouveau_ws_push_destroy(qs->push);

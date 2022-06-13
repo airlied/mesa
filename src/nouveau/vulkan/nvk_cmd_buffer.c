@@ -321,30 +321,6 @@ nve4_begin_compute(struct nvk_cmd_buffer *cmd)
 
    cmd->tls_space_needed = calc_tls_size(dev, 128 * 16, 0, 0x200);
 
-   if (pdev->compute_class < VOLTA_COMPUTE_A) {
-      P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_WINDOW(cmd->push, 0xff << 24);
-
-      P_MTHD(cmd->push, NVA0C0, SET_SHADER_SHARED_MEMORY_WINDOW);
-      P_NVA0C0_SET_SHADER_SHARED_MEMORY_WINDOW(cmd->push, 0xfe << 24);
-
-      // TODO CODE_ADDRESS_HIGH
-   } else {
-      uint64_t temp = 0xfeULL << 24;
-
-      P_MTHD(cmd->push, NVC3C0, SET_SHADER_SHARED_MEMORY_WINDOW_A);
-      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_A(cmd->push, temp >> 32);
-      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_B(cmd->push, temp & 0xffffffff);
-
-      temp = 0xffULL << 24;
-      P_MTHD(cmd->push, NVC3C0, SET_SHADER_LOCAL_MEMORY_WINDOW_A);
-      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A(cmd->push, temp >> 32);
-      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B(cmd->push, temp & 0xffffffff);
-   }
-
-   P_MTHD(cmd->push, NVA0C0, SET_SPA_VERSION);
-   P_NVA0C0_SET_SPA_VERSION(cmd->push, { .major = pdev->compute_class >= KEPLER_COMPUTE_B ? 0x4 : 0x3 });
-
    P_MTHD(cmd->push, NVA0C0, INVALIDATE_SHADER_CACHES_NO_WFI);
    P_NVA0C0_INVALIDATE_SHADER_CACHES_NO_WFI(cmd->push, { .constant = CONSTANT_TRUE });
 }
