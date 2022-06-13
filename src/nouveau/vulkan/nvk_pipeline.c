@@ -6,6 +6,8 @@
 
 #include "vk_pipeline_cache.h"
 
+#include "nvk_nvc0_3d.h"
+
 static void
 nvk_pipeline_destroy(struct nvk_device *device,
                      struct nvk_pipeline *pipeline,

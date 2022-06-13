@@ -26,3 +26,22 @@ foreach cl : nvk_classes
     depend_files: nvk_cl_header_depend_files,
   )
 endforeach
+
+nv3d = [
+  'nvc0',
+]
+
+nvk_cl_nv_header_depend_files = [
+  files('class_parser_nv.py')
+]
+
+cl_nv_generated = []
+foreach cl : nv3d
+  cl_nv_generated += custom_target(
+    cl + '.h',
+    input : ['class_parser_nv.py', cl+'_3d.xml.h'],
+    output : 'nvk_'+cl+'_3d.h',
+    command : [prog_python, '@INPUT0@', '--in_h', '@INPUT1@', '--out_h', '@OUTPUT0@'],
+    depend_files: nvk_cl_nv_header_depend_files,
+  )
+endforeach
