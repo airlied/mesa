@@ -297,32 +297,29 @@ nvk_ResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags 
    return nvk_reset_cmd_buffer(cmd_buffer);
 }
 
-static void nve4_begin_compute(struct nvk_cmd_buffer *cmd)
+static uint64_t
+calc_tls_size(struct nvk_device *device,
+              uint32_t lpos, uint32_t lneg, uint32_t cstack)
+{
+   uint64_t size = (lpos + lneg) * 32 + cstack;
+
+   assert (size < (1 << 20));
+
+   size *= 64; /* max warps */
+   size  = align(size, 0x8000);
+   size *= device->pdev->dev->mp_count;
+
+   size = align(size, 1 << 17);
+   return size;
+}
+
+static void
+nve4_begin_compute(struct nvk_cmd_buffer *cmd)
 {
    struct nvk_device *dev = (struct nvk_device *)cmd->vk.base.device;
    struct nvk_physical_device *pdev = dev->pdev;
 
-   nouveau_ws_push_ref(cmd->push, dev->tls, NOUVEAU_WS_BO_RDWR);
-   P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_A);
-   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_A(cmd->push, dev->tls->offset >> 32);
-   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_B(cmd->push, dev->tls->offset & 0xffffffff);
-
-   /* No idea why there are 2. Divide size by 2 to be safe.
-    * Actually this might be per-MP TEMP size and looks like I'm only using
-    * 2 MPs instead of all 8.
-    */
-   uint64_t temp_size = dev->tls->size / dev->pdev->dev->mp_count;
-   P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
-   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A(cmd->push, temp_size >> 32);
-   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B(cmd->push, temp_size & ~0x7fff);
-   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C(cmd->push, 0xff);
-
-   if (pdev->compute_class < VOLTA_COMPUTE_A) {
-      P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_THROTTLED_A);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_A(cmd->push, temp_size >> 32);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(cmd->push, temp_size & ~0x7fff);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(cmd->push, 0xff);
-   }
+   cmd->tls_space_needed = calc_tls_size(dev, 128 * 16, 0, 0x200);
 
    if (pdev->compute_class < VOLTA_COMPUTE_A) {
       P_MTHD(cmd->push, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);

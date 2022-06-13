@@ -10,40 +10,89 @@
 
 #include "vulkan/wsi/wsi_common.h"
 
-static int
-nvc0_screen_resize_tls_area(struct nvk_device *device,
-                            uint32_t lpos, uint32_t lneg, uint32_t cstack)
-{
-   struct nouveau_ws_bo *bo = NULL;
-   uint64_t size = (lpos + lneg) * 32 + cstack;
+#include "nvk_cla0c0.h"
+#include "clc3c0.h"
 
-   if (size >= (1 << 20)) {
-      return -1;
+static VkResult
+nvk_update_preamble_push(struct nvk_queue_state *qs, struct nvk_device *dev,
+                         const struct nvk_queue_alloc_info *needs)
+{
+   struct nouveau_ws_bo *tls_bo = qs->tls_bo;
+   VkResult result;
+   if (needs->tls_size > qs->alloc_info.tls_size) {
+      tls_bo = nouveau_ws_bo_new(dev->pdev->dev,
+                                 needs->tls_size, (1 << 17), NOUVEAU_WS_BO_LOCAL);
+      if (!tls_bo) {
+         result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+         goto fail;
+      }
    }
 
-   size *= 64; /* max warps */
-   size  = align(size, 0x8000);
-   size *= device->pdev->dev->mp_count;
+   if (tls_bo != qs->tls_bo) {
+      if (qs->tls_bo)
+         nouveau_ws_bo_destroy(qs->tls_bo);
+      qs->tls_bo = tls_bo;
+   }
 
-   size = align(size, 1 << 17);
+   struct nouveau_ws_push *push = nouveau_ws_push_new(dev->pdev->dev, 256);
 
-   bo = nouveau_ws_bo_new(device->pdev->dev, size, (1 << 17), NOUVEAU_WS_BO_LOCAL);
-   if (!bo)
-      return -1;
+   nouveau_ws_push_ref(push, qs->tls_bo, NOUVEAU_WS_BO_RDWR);
+   P_MTHD(push, NVA0C0, SET_SHADER_LOCAL_MEMORY_A);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_A(push, qs->tls_bo->offset >> 32);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_B(push, qs->tls_bo->offset & 0xffffffff);
 
-   /* Make sure that the pushbuf has acquired a reference to the old tls
-    * segment, as it may have commands that will reference it.
-    */
-   device->tls = bo;
+   uint64_t temp_size = qs->tls_bo->size / dev->pdev->dev->mp_count;
+   P_MTHD(push, NVA0C0, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A(push, temp_size >> 32);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B(push, temp_size & ~0x7fff);
+   P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C(push, 0xff);
+
+   if (dev->pdev->compute_class < VOLTA_COMPUTE_A) {
+      P_MTHD(push, NVA0C0, SET_SHADER_LOCAL_MEMORY_THROTTLED_A);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_A(push, temp_size >> 32);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(push, temp_size & ~0x7fff);
+      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(push, 0xff);
+   }
+
+   if (qs->push)
+      nouveau_ws_push_destroy(qs->push);
+   qs->push = push;
    return 0;
+ fail:
+   return vk_error(qs, result);
 }
 
 static VkResult
-nvk_queue_submit(struct vk_queue *queue, struct vk_queue_submit *submission)
+nvk_update_preambles(struct nvk_queue_state *qs, struct nvk_device *device,
+                     struct vk_command_buffer *const *cmd_buffers, uint32_t cmd_buffer_count)
 {
-   struct nvk_device *device = container_of(queue->base.device, struct nvk_device, vk);
+   struct nvk_queue_alloc_info needs = { 0 };
+   for (uint32_t i = 0; i < cmd_buffer_count; i++) {
+      struct nvk_cmd_buffer *cmd = (struct nvk_cmd_buffer *)cmd_buffers[i];
+      needs.tls_size = MAX2(needs.tls_size, cmd->tls_space_needed);
+   }
+
+   if (needs.tls_size == qs->alloc_info.tls_size)
+      return VK_SUCCESS;
+   return nvk_update_preamble_push(qs, device, &needs);
+}
+
+static VkResult
+nvk_queue_submit(struct vk_queue *vkqueue, struct vk_queue_submit *submission)
+{
+   struct nvk_device *device = container_of(vkqueue->base.device, struct nvk_device, vk);
+   struct nvk_queue *queue = container_of(vkqueue, struct nvk_queue, vk);
+   VkResult result;
+
+   result = nvk_update_preambles(&queue->state, device, submission->command_buffers,
+                                 submission->command_buffer_count);
+   if (result != VK_SUCCESS)
+      return result;
 
    pthread_mutex_lock(&device->mutex);
+
+   if (queue->state.push)
+      nouveau_ws_push_submit(queue->state.push, device->pdev->dev, device->ctx);
    for (unsigned i = 0; i < submission->command_buffer_count; i++) {
       struct nvk_cmd_buffer *cmd = (struct nvk_cmd_buffer *)submission->command_buffers[i];
 
@@ -105,7 +154,7 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
       goto fail_init;
    }
 
-   result = vk_queue_init(&device->queue, &device->vk, &pCreateInfo->pQueueCreateInfos[0], 0);
+   result = vk_queue_init(&device->queue.vk, &device->vk, &pCreateInfo->pQueueCreateInfos[0], 0);
    if (result != VK_SUCCESS)
       goto fail_ctx;
 
@@ -131,14 +180,9 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    }
    pthread_condattr_destroy(&condattr);
 
-   device->queue.driver_submit = nvk_queue_submit;
+   device->queue.vk.driver_submit = nvk_queue_submit;
 
    device->pdev = physical_device;
-
-   if (nvc0_screen_resize_tls_area(device, 128 * 16, 0, 0x200)) {
-      result = vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
-      goto fail_mutex;
-   }
 
    *pDevice = nvk_device_to_handle(device);
 
@@ -147,7 +191,7 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
 fail_mutex:
    pthread_mutex_destroy(&device->mutex);
 fail_queue:
-   vk_queue_finish(&device->queue);
+   vk_queue_finish(&device->queue.vk);
 fail_ctx:
    nouveau_ws_context_destroy(device->ctx);
 fail_init:
@@ -165,10 +209,13 @@ nvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    if (!device)
       return;
 
-   nouveau_ws_bo_destroy(device->tls);
+   if (device->queue.state.push)
+      nouveau_ws_push_destroy(device->queue.state.push);
+   if (device->queue.state.tls_bo)
+      nouveau_ws_bo_destroy(device->queue.state.tls_bo);
    pthread_cond_destroy(&device->queue_submit);
    pthread_mutex_destroy(&device->mutex);
-   vk_queue_finish(&device->queue);
+   vk_queue_finish(&device->queue.vk);
    vk_device_finish(&device->vk);
    nouveau_ws_context_destroy(device->ctx);
    vk_free(&device->vk.alloc, device);

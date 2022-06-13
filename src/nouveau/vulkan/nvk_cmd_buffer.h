@@ -49,6 +49,8 @@ struct nvk_cmd_buffer {
    struct nvk_compute_pipeline *cp;
 
    struct nvk_descriptor_state descriptors[MAX_BIND_POINTS];
+
+   uint64_t tls_space_needed;
 };
 
 VkResult nvk_reset_cmd_buffer(struct nvk_cmd_buffer *cmd_buffer);
