@@ -362,6 +362,7 @@ nvk_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegin
    struct nvk_device *dev = (struct nvk_device *)cmd->vk.base.device;
    struct nvk_physical_device *pdev = dev->pdev;
 
+   /* this could be made optional for non-compute cmdbuffers */
    if (pdev->dev->chipset >= 0xe0)
       nve4_begin_compute(cmd);
 
