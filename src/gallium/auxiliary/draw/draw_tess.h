@@ -67,7 +67,7 @@ struct draw_tess_ctrl_shader {
 #ifdef DRAW_LLVM_AVAILABLE
    struct draw_tcs_inputs *tcs_input;
    struct draw_tcs_outputs *tcs_output;
-   struct draw_tcs_jit_context *jit_context;
+   struct lp_jit_resources *jit_resources;
    struct draw_tcs_llvm_variant *current_variant;
 #endif
 };
@@ -94,7 +94,7 @@ struct draw_tess_eval_shader {
 
 #ifdef DRAW_LLVM_AVAILABLE
    struct draw_tes_inputs *tes_input;
-   struct draw_tes_jit_context *jit_context;
+   struct lp_jit_resources *jit_resources;
    struct draw_tes_llvm_variant *current_variant;
 #endif
 };

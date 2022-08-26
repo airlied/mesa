@@ -2273,8 +2273,8 @@ emit_tex( struct lp_build_tgsi_soa_context *bld,
    params.sample_key = sample_key;
    params.texture_index = unit;
    params.sampler_index = unit;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_type = bld->thread_data_type;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.coords = coords;
@@ -2444,8 +2444,8 @@ emit_sample(struct lp_build_tgsi_soa_context *bld,
    params.sample_key = sample_key;
    params.texture_index = texture_unit;
    params.sampler_index = sampler_unit;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_type = bld->thread_data_type;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.coords = coords;
@@ -2584,8 +2584,8 @@ emit_fetch_texels( struct lp_build_tgsi_soa_context *bld,
     * can exceed this.
     */
    params.sampler_index = 0;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_type = bld->thread_data_type;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.coords = coords;
@@ -2671,8 +2671,8 @@ emit_size_query( struct lp_build_tgsi_soa_context *bld,
    params.texture_unit = unit;
    params.texture_unit_offset = NULL;
    params.target = pipe_target;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.is_sviewinfo = TRUE;
    params.lod_property = lod_property;
    params.explicit_lod = explicit_lod;
@@ -3460,8 +3460,8 @@ img_load_emit(
    memset(&params, 0, sizeof(params));
 
    params.type = bld->bld_base.base.type;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_type = bld->thread_data_type;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.coords = coords;
@@ -3610,8 +3610,8 @@ img_store_emit(
    memset(&params, 0, sizeof(params));
 
    params.type = bld->bld_base.base.type;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_type = bld->thread_data_type;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.coords = coords;
@@ -3721,8 +3721,8 @@ resq_emit(
       params.int_type = bld->bld_base.int_bld.type;
       params.texture_unit = buf;
       params.target = tgsi_to_pipe_tex_target(target);
-      params.context_type = bld->context_type;
-      params.context_ptr = bld->context_ptr;
+      params.resources_type = bld->resources_type;
+      params.resources_ptr = bld->resources_ptr;
       params.sizes_out = emit_data->output;
 
       bld->image->emit_size_query(bld->image,
@@ -3763,9 +3763,8 @@ img_atomic_emit(
    memset(&params, 0, sizeof(params));
 
    params.type = bld->bld_base.base.type;
-   params.context_type = bld->context_type;
-   params.context_ptr = bld->context_ptr;
-   params.thread_data_type = bld->thread_data_type;
+   params.resources_type = bld->resources_type;
+   params.resources_ptr = bld->resources_ptr;
    params.thread_data_ptr = bld->thread_data_ptr;
    params.exec_mask = mask_vec(bld_base);
    params.image_index = emit_data->inst->Src[0].Register.Index;
@@ -4499,6 +4498,8 @@ lp_build_tgsi_soa(struct gallivm_state *gallivm,
    bld.indirect_files = params->info->indirect_files;
    bld.context_type = params->context_type;
    bld.context_ptr = params->context_ptr;
+   bld.resources_type = params->resources_type;
+   bld.resources_ptr = params->resources_ptr;
    bld.thread_data_type =  params->thread_data_type;
    bld.thread_data_ptr = params->thread_data_ptr;
    bld.image = params->image;

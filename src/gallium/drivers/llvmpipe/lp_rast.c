@@ -361,6 +361,7 @@ lp_rast_shade_tile(struct lp_rasterizer_task *task,
          /* run shader on 4x4 block */
          BEGIN_JIT_CALL(state, task);
          variant->jit_function[RAST_WHOLE](&state->jit_context,
+                                           &state->jit_resources,
                                             tile_x + x, tile_y + y,
                                             inputs->frontfacing,
                                             GET_A0(inputs),
@@ -468,6 +469,7 @@ lp_rast_shade_quads_mask_sample(struct lp_rasterizer_task *task,
       /* run shader on 4x4 block */
       BEGIN_JIT_CALL(state, task);
       variant->jit_function[RAST_EDGE_TEST](&state->jit_context,
+                                            &state->jit_resources,
                                             x, y,
                                             inputs->frontfacing,
                                             GET_A0(inputs),
@@ -511,7 +513,7 @@ lp_rast_blit_tile_to_dest(struct lp_rasterizer_task *task,
    const struct lp_rast_shader_inputs *inputs = arg.shade_tile;
    const struct lp_rast_state *state = task->state;
    struct lp_fragment_shader_variant *variant = state->variant;
-   const struct lp_jit_texture *texture = &state->jit_context.textures[0];
+   const struct lp_jit_texture *texture = &state->jit_resources.textures[0];
    struct pipe_surface *cbuf = scene->fb.cbufs[0];
    const unsigned face_slice = cbuf->u.tex.first_layer;
    const unsigned level = cbuf->u.tex.level;

@@ -1559,8 +1559,8 @@ static void emit_image_op(struct lp_build_nir_context *bld_base,
    struct gallivm_state *gallivm = bld_base->base.gallivm;
 
    params->type = bld_base->base.type;
-   params->context_type = bld->context_type;
-   params->context_ptr = bld->context_ptr;
+   params->resources_type = bld->resources_type;
+   params->resources_ptr = bld->resources_ptr;
    params->thread_data_type = bld->thread_data_type;
    params->thread_data_ptr = bld->thread_data_ptr;
    params->exec_mask = mask_vec(bld_base);
@@ -1582,9 +1582,8 @@ static void emit_image_size(struct lp_build_nir_context *bld_base,
    struct gallivm_state *gallivm = bld_base->base.gallivm;
 
    params->int_type = bld_base->int_bld.type;
-   params->context_type = bld->context_type;
-   params->context_ptr = bld->context_ptr;
-
+   params->resources_type = bld->resources_type;
+   params->resources_ptr = bld->resources_ptr;
    if (params->texture_unit_offset)
       params->texture_unit_offset = LLVMBuildExtractElement(gallivm->builder, params->texture_unit_offset,
                                                             first_active_invocation(bld_base), "");
@@ -1639,8 +1638,8 @@ static void emit_tex(struct lp_build_nir_context *bld_base,
    struct gallivm_state *gallivm = bld_base->base.gallivm;
 
    params->type = bld_base->base.type;
-   params->context_type = bld->context_type;
-   params->context_ptr = bld->context_ptr;
+   params->resources_type = bld->resources_type;
+   params->resources_ptr = bld->resources_ptr;
    params->thread_data_type = bld->thread_data_type;
    params->thread_data_ptr = bld->thread_data_ptr;
 
@@ -1709,9 +1708,8 @@ static void emit_tex_size(struct lp_build_nir_context *bld_base,
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
 
    params->int_type = bld_base->int_bld.type;
-   params->context_type = bld->context_type;
-   params->context_ptr = bld->context_ptr;
-
+   params->resources_type = bld->resources_type;
+   params->resources_ptr = bld->resources_ptr;
    if (params->texture_unit_offset)
       params->texture_unit_offset = LLVMBuildExtractElement(bld_base->base.gallivm->builder,
                                                              params->texture_unit_offset,
@@ -2732,8 +2730,8 @@ void lp_build_nir_soa(struct gallivm_state *gallivm,
    bld.sampler = params->sampler;
 //   bld.bld_base.info = params->info;
 
-   bld.context_type = params->context_type;
-   bld.context_ptr = params->context_ptr;
+   bld.resources_type = params->resources_type;
+   bld.resources_ptr = params->resources_ptr;
    bld.thread_data_type = params->thread_data_type;
    bld.thread_data_ptr = params->thread_data_ptr;
    bld.bld_base.aniso_filter_table = params->aniso_filter_table;

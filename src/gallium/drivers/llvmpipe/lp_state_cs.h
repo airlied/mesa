@@ -82,6 +82,8 @@ struct lp_compute_shader_variant
    LLVMTypeRef jit_cs_context_type;
    LLVMTypeRef jit_cs_context_ptr_type;
    LLVMTypeRef jit_cs_thread_data_type;
+   LLVMTypeRef jit_resources_type;
+   LLVMTypeRef jit_resources_ptr_type;
    LLVMTypeRef jit_cs_thread_data_ptr_type;
 
    LLVMValueRef function;
@@ -123,6 +125,7 @@ struct lp_compute_shader {
 
 struct lp_cs_exec {
    struct lp_jit_cs_context jit_context;
+   struct lp_jit_resources jit_resources;
    struct lp_compute_shader_variant *variant;
 };
 

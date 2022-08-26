@@ -83,46 +83,15 @@ enum {
  */
 struct draw_jit_context
 {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-
    float (*planes) [DRAW_TOTAL_CLIP_PLANES][4];
    struct pipe_viewport_state *viewports;
 };
 
 enum {
-   DRAW_JIT_CTX_CONSTANTS            = 0,
-   DRAW_JIT_CTX_SSBOS                = 1,
-   DRAW_JIT_CTX_TEXTURES             = 2,
-   DRAW_JIT_CTX_SAMPLERS             = 3,
-   DRAW_JIT_CTX_IMAGES               = 4,
-   DRAW_JIT_CTX_ANISO_FILTER_TABLE   = 5,
-   DRAW_JIT_CTX_PLANES               = 6,
-   DRAW_JIT_CTX_VIEWPORT             = 7,
+   DRAW_JIT_CTX_PLANES               = 0,
+   DRAW_JIT_CTX_VIEWPORT             = 1,
    DRAW_JIT_CTX_NUM_FIELDS
 };
-
-#define draw_jit_context_constants(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_CONSTANTS, "constants")
-
-#define draw_jit_context_ssbos(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_SSBOS, "ssbos")
-
-#define draw_jit_context_textures(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_TEXTURES, "textures")
-
-#define draw_jit_context_samplers(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_SAMPLERS, "samplers")
-
-#define draw_jit_context_images(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_IMAGES, "images")
-
-#define draw_jit_context_aniso_filter_table(_variant, _ptr) \
-   lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
 
 #define draw_jit_context_planes(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, DRAW_JIT_CTX_PLANES, "planes")
@@ -173,13 +142,6 @@ enum {
  */
 struct draw_gs_jit_context
 {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-
    float (*planes) [DRAW_TOTAL_CLIP_PLANES][4];
    struct pipe_viewport_state *viewports;
 
@@ -189,37 +151,13 @@ struct draw_gs_jit_context
 };
 
 enum {
-   DRAW_GS_JIT_CTX_CONSTANTS = DRAW_JIT_CTX_CONSTANTS,
-   DRAW_GS_JIT_CTX_SSBOS = DRAW_JIT_CTX_SSBOS,
-   DRAW_GS_JIT_CTX_TEXTURES = DRAW_JIT_CTX_TEXTURES,
-   DRAW_GS_JIT_CTX_SAMPLERS = DRAW_JIT_CTX_SAMPLERS,
-   DRAW_GS_JIT_CTX_IMAGES = DRAW_JIT_CTX_IMAGES,
-   DRAW_GS_JIT_CTX_ANISO_FILTER_TABLE = DRAW_JIT_CTX_ANISO_FILTER_TABLE,
-   DRAW_GS_JIT_CTX_PLANES = 6,
-   DRAW_GS_JIT_CTX_VIEWPORT = 7,
-   DRAW_GS_JIT_CTX_PRIM_LENGTHS = 8,
-   DRAW_GS_JIT_CTX_EMITTED_VERTICES = 9,
-   DRAW_GS_JIT_CTX_EMITTED_PRIMS = 10,
-   DRAW_GS_JIT_CTX_NUM_FIELDS = 11
+   DRAW_GS_JIT_CTX_PLANES = 0,
+   DRAW_GS_JIT_CTX_VIEWPORT = 1,
+   DRAW_GS_JIT_CTX_PRIM_LENGTHS = 2,
+   DRAW_GS_JIT_CTX_EMITTED_VERTICES = 3,
+   DRAW_GS_JIT_CTX_EMITTED_PRIMS = 4,
+   DRAW_GS_JIT_CTX_NUM_FIELDS = 5
 };
-
-#define draw_gs_jit_context_constants(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_CONSTANTS, "constants")
-
-#define draw_gs_jit_context_ssbos(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_SSBOS, "ssbos")
-
-#define draw_gs_jit_context_textures(_variant, _ptr)                    \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_TEXTURES, "textures")
-
-#define draw_gs_jit_context_samplers(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_SAMPLERS, "samplers")
-
-#define draw_gs_jit_context_images(_variant, _ptr)                      \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_IMAGES, "images")
-
-#define draw_gs_jit_context_aniso_filter_table(_variant, _ptr) \
-   lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
 
 #define draw_gs_jit_context_planes(_gallivm, _ptr) \
    lp_build_struct_get(_gallivm, _ptr, DRAW_GS_JIT_CTX_PLANES, "planes")
@@ -237,82 +175,9 @@ enum {
    lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_GS_JIT_CTX_EMITTED_PRIMS, "emitted_prims")
 
 
-struct draw_tcs_jit_context {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-};
-
-enum {
-   DRAW_TCS_JIT_CTX_CONSTANTS = DRAW_JIT_CTX_CONSTANTS,
-   DRAW_TCS_JIT_CTX_SSBOS = DRAW_JIT_CTX_SSBOS,
-   DRAW_TCS_JIT_CTX_TEXTURES = DRAW_JIT_CTX_TEXTURES,
-   DRAW_TCS_JIT_CTX_SAMPLERS = DRAW_JIT_CTX_SAMPLERS,
-   DRAW_TCS_JIT_CTX_IMAGES = DRAW_JIT_CTX_IMAGES,
-   DRAW_TCS_JIT_CTX_ANISO_FILTER_TABLE = DRAW_JIT_CTX_ANISO_FILTER_TABLE,
-   DRAW_TCS_JIT_CTX_NUM_FIELDS = 6,
-};
-
-#define draw_tcs_jit_context_constants(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_CONSTANTS, "constants")
-
-#define draw_tcs_jit_context_ssbos(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_SSBOS, "ssbos")
-
-#define draw_tcs_jit_context_textures(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_TEXTURES, "textures")
-
-#define draw_tcs_jit_context_samplers(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_SAMPLERS, "samplers")
-
-#define draw_tcs_jit_context_images(_variant, _ptr)                      \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_IMAGES, "images")
-
-#define draw_tcs_jit_context_aniso_filter_table(_variant, _ptr) \
-   lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TCS_JIT_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
-
-struct draw_tes_jit_context {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-};
-
-enum {
-   DRAW_TES_JIT_CTX_CONSTANTS = DRAW_JIT_CTX_CONSTANTS,
-   DRAW_TES_JIT_CTX_SSBOS = DRAW_JIT_CTX_SSBOS,
-   DRAW_TES_JIT_CTX_TEXTURES = DRAW_JIT_CTX_TEXTURES,
-   DRAW_TES_JIT_CTX_SAMPLERS = DRAW_JIT_CTX_SAMPLERS,
-   DRAW_TES_JIT_CTX_IMAGES = DRAW_JIT_CTX_IMAGES,
-   DRAW_TES_JIT_CTX_ANISO_FILTER_TABLE = DRAW_JIT_CTX_ANISO_FILTER_TABLE,
-   DRAW_TES_JIT_CTX_NUM_FIELDS = 6,
-};
-
-#define draw_tes_jit_context_constants(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_CONSTANTS, "constants")
-
-#define draw_tes_jit_context_ssbos(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_SSBOS, "ssbos")
-
-#define draw_tes_jit_context_textures(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_TEXTURES, "textures")
-
-#define draw_tes_jit_context_samplers(_variant, _ptr) \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_SAMPLERS, "samplers")
-
-#define draw_tes_jit_context_images(_variant, _ptr)                      \
-   lp_build_struct_get_ptr2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_IMAGES, "images")
-
-#define draw_tes_jit_context_aniso_filter_table(_variant, _ptr) \
-   lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_TES_JIT_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
-
 typedef boolean
 (*draw_jit_vert_func)(struct draw_jit_context *context,
+                      const struct lp_jit_resources *resources,
                       struct vertex_header *io,
                       const struct draw_vertex_buffer vbuffers[PIPE_MAX_ATTRIBS],
                       unsigned count,
@@ -328,6 +193,7 @@ typedef boolean
 
 typedef int
 (*draw_gs_jit_func)(struct draw_gs_jit_context *context,
+                    const struct lp_jit_resources *resources,
                     float inputs[6][PIPE_MAX_SHADER_INPUTS][TGSI_NUM_CHANNELS][TGSI_NUM_CHANNELS],
                     struct vertex_header **output,
                     unsigned num_prims,
@@ -337,14 +203,14 @@ typedef int
                     unsigned view_id);
 
 typedef int
-(*draw_tcs_jit_func)(struct draw_tcs_jit_context *context,
+(*draw_tcs_jit_func)(const struct lp_jit_resources *resources,
                      float inputs[32][NUM_TCS_INPUTS][TGSI_NUM_CHANNELS],
                      float outputs[32][PIPE_MAX_SHADER_INPUTS][TGSI_NUM_CHANNELS],
                      uint32_t prim_id, uint32_t patch_vertices_in,
                      unsigned view_id);
 
 typedef int
-(*draw_tes_jit_func)(struct draw_tes_jit_context *context,
+(*draw_tes_jit_func)(const struct lp_jit_resources *resources,
                      float inputs[32][PIPE_MAX_SHADER_INPUTS][TGSI_NUM_CHANNELS],
                      struct vertex_header *io,
                      uint32_t prim_id, uint32_t num_tess_coord,
@@ -553,6 +419,9 @@ struct draw_llvm_variant
    LLVMTypeRef context_type;
    LLVMTypeRef context_ptr_type;
 
+   LLVMTypeRef resources_type;
+   LLVMTypeRef resources_ptr_type;
+   
    LLVMTypeRef buffer_type;
    LLVMTypeRef buffer_ptr_type;
 
@@ -584,6 +453,9 @@ struct draw_gs_llvm_variant
    LLVMTypeRef context_type;
    LLVMTypeRef context_ptr_type;
 
+   LLVMTypeRef resources_type;
+   LLVMTypeRef resources_ptr_type;
+
    LLVMTypeRef vertex_header_type;
    LLVMTypeRef vertex_header_ptr_type;
 
@@ -610,8 +482,8 @@ struct draw_tcs_llvm_variant
    struct gallivm_state *gallivm;
 
    /* LLVM JIT builder types */
-   LLVMTypeRef context_type;
-   LLVMTypeRef context_ptr_type;
+   LLVMTypeRef resources_type;
+   LLVMTypeRef resources_ptr_type;
    LLVMTypeRef input_array_type;
    LLVMTypeRef output_array_type;
 
@@ -636,8 +508,8 @@ struct draw_tes_llvm_variant
    struct gallivm_state *gallivm;
 
    /* LLVM JIT builder types */
-   LLVMTypeRef context_type;
-   LLVMTypeRef context_ptr_type;
+   LLVMTypeRef resources_type;
+   LLVMTypeRef resources_ptr_type;
    LLVMTypeRef vertex_header_ptr_type;
    LLVMTypeRef input_array_type;
    LLVMTypeRef patch_input_array_type;
@@ -705,8 +577,11 @@ struct draw_llvm {
 
    struct draw_jit_context jit_context;
    struct draw_gs_jit_context gs_jit_context;
-   struct draw_tcs_jit_context tcs_jit_context;
-   struct draw_tes_jit_context tes_jit_context;
+
+   struct lp_jit_resources jit_resources;
+   struct lp_jit_resources gs_jit_resources;
+   struct lp_jit_resources tcs_jit_resources;
+   struct lp_jit_resources tes_jit_resources;
 
    struct draw_llvm_variant_list_item vs_variants_list;
    int nr_variants;

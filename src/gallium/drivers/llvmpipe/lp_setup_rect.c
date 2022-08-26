@@ -147,7 +147,7 @@ lp_setup_is_blit(const struct lp_setup_context *setup,
        * Detect blits.
        */
       const struct lp_jit_texture *texture =
-         &setup->fs.current.jit_context.textures[0];
+         &setup->fs.current.jit_resources.textures[0];
 
       /* XXX: dadx vs dady confusion below?
        */

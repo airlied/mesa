@@ -842,8 +842,8 @@ lp_build_lod_selector(struct lp_build_sample_context *bld,
        * This is hit during mipmap generation.
        */
       LLVMValueRef min_lod =
-         dynamic_state->min_lod(bld->gallivm, bld->context_type,
-                                bld->context_ptr, sampler_unit);
+         dynamic_state->min_lod(bld->gallivm, bld->resources_type,
+                                bld->resources_ptr, sampler_unit);
 
       lod = lp_build_broadcast_scalar(lodf_bld, min_lod);
    } else {
@@ -940,8 +940,8 @@ lp_build_lod_selector(struct lp_build_sample_context *bld,
       /* add sampler lod bias */
       if (bld->static_sampler_state->lod_bias_non_zero) {
          LLVMValueRef sampler_lod_bias =
-            dynamic_state->lod_bias(bld->gallivm, bld->context_type,
-                                    bld->context_ptr, sampler_unit);
+            dynamic_state->lod_bias(bld->gallivm, bld->resources_type,
+                                    bld->resources_ptr, sampler_unit);
          sampler_lod_bias = lp_build_broadcast_scalar(lodf_bld,
                                                       sampler_lod_bias);
          lod = LLVMBuildFAdd(builder, lod, sampler_lod_bias, "sampler_lod_bias");
@@ -954,16 +954,16 @@ lp_build_lod_selector(struct lp_build_sample_context *bld,
       /* clamp lod */
       if (bld->static_sampler_state->apply_max_lod) {
          LLVMValueRef max_lod =
-            dynamic_state->max_lod(bld->gallivm, bld->context_type,
-                                   bld->context_ptr, sampler_unit);
+            dynamic_state->max_lod(bld->gallivm, bld->resources_type,
+                                   bld->resources_ptr, sampler_unit);
          max_lod = lp_build_broadcast_scalar(lodf_bld, max_lod);
 
          lod = lp_build_min(lodf_bld, lod, max_lod);
       }
       if (bld->static_sampler_state->apply_min_lod) {
          LLVMValueRef min_lod =
-            dynamic_state->min_lod(bld->gallivm, bld->context_type,
-                                   bld->context_ptr, sampler_unit);
+            dynamic_state->min_lod(bld->gallivm, bld->resources_type,
+                                   bld->resources_ptr, sampler_unit);
          min_lod = lp_build_broadcast_scalar(lodf_bld, min_lod);
 
          lod = lp_build_max(lodf_bld, lod, min_lod);

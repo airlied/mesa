@@ -398,6 +398,7 @@ llvm_gs_run(struct draw_geometry_shader *shader,
    }
 
    shader->current_variant->jit_func(shader->jit_context,
+                                     shader->jit_resources,
                                      shader->gs_input->data,
                                      input,
                                      input_primitives,
@@ -905,6 +906,7 @@ draw_create_geometry_shader(struct draw_context *draw,
       gs->run = llvm_gs_run;
 
       gs->jit_context = &draw->llvm->gs_jit_context;
+      gs->jit_resources = &draw->llvm->gs_jit_resources;
 
       llvm_gs->variant_key_size =
          draw_gs_llvm_variant_key_size(

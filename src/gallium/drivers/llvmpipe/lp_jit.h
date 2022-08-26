@@ -75,13 +75,6 @@ enum {
  */
 struct lp_jit_context
 {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-
    float alpha_ref_value;
 
    uint32_t stencil_ref_front, stencil_ref_back;
@@ -100,12 +93,6 @@ struct lp_jit_context
  * lp_jit_context struct above.
  */
 enum {
-   LP_JIT_CTX_CONSTANTS = 0,
-   LP_JIT_CTX_SSBOS,
-   LP_JIT_CTX_TEXTURES,
-   LP_JIT_CTX_SAMPLERS,
-   LP_JIT_CTX_IMAGES,
-   LP_JIT_CTX_ANISO_FILTER_TABLE,
    LP_JIT_CTX_ALPHA_REF,
    LP_JIT_CTX_STENCIL_REF_FRONT,
    LP_JIT_CTX_STENCIL_REF_BACK,
@@ -115,25 +102,6 @@ enum {
    LP_JIT_CTX_SAMPLE_MASK,
    LP_JIT_CTX_COUNT
 };
-
-
-#define lp_jit_context_constants(_gallivm, _type, _ptr) \
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CTX_CONSTANTS, "constants")
-
-#define lp_jit_context_ssbos(_gallivm, _type, _ptr)			\
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CTX_SSBOS, "ssbos")
-
-#define lp_jit_context_textures(_gallivm, _type, _ptr) \
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CTX_TEXTURES, "textures")
-
-#define lp_jit_context_samplers(_gallivm, _type, _ptr) \
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CTX_SAMPLERS, "samplers")
-
-#define lp_jit_context_images(_gallivm, _type, _ptr) \
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CTX_IMAGES, "images")
-
-#define lp_jit_context_aniso_filter_table(_gallivm, _type, _ptr)         \
-   lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
 
 #define lp_jit_context_alpha_ref_value(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CTX_ALPHA_REF, "alpha_ref_value")
@@ -221,6 +189,7 @@ enum {
  */
 typedef void
 (*lp_jit_frag_func)(const struct lp_jit_context *context,
+                    const struct lp_jit_resources *res,
                     uint32_t x,
                     uint32_t y,
                     uint32_t facing,
@@ -348,13 +317,6 @@ enum {
 
 struct lp_jit_cs_context
 {
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-   const float *aniso_filter_table;
-
    const void *kernel_args;
 
    uint32_t shared_size;
@@ -365,12 +327,6 @@ struct lp_jit_cs_context
  * lp_jit_context struct above.
  */
 enum {
-   LP_JIT_CS_CTX_CONSTANTS = 0,
-   LP_JIT_CS_CTX_SSBOS,
-   LP_JIT_CS_CTX_TEXTURES, /* must match the LP_JIT_CTX_TEXTURES */
-   LP_JIT_CS_CTX_SAMPLERS,
-   LP_JIT_CS_CTX_IMAGES,
-   LP_JIT_CS_CTX_ANISO_FILTER_TABLE,
    LP_JIT_CS_CTX_KERNEL_ARGS,
    LP_JIT_CS_CTX_SHARED_SIZE,
    LP_JIT_CS_CTX_COUNT
@@ -394,14 +350,15 @@ enum {
 #define lp_jit_cs_context_aniso_filter_table(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CS_CTX_ANISO_FILTER_TABLE, "aniso_filter_table")
 
-#define lp_jit_cs_context_shared_size(_gallivm, _type, _ptr) \
-   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CS_CTX_SHARED_SIZE, "shared_size")
-
 #define lp_jit_cs_context_kernel_args(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CS_CTX_KERNEL_ARGS, "kernel_args")
 
+#define lp_jit_cs_context_shared_size(_gallivm, _type, _ptr) \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_CS_CTX_SHARED_SIZE, "shared_size")
+
 typedef void
 (*lp_jit_cs_func)(const struct lp_jit_cs_context *context,
+                  const struct lp_jit_resources *resources,
                   uint32_t x,
                   uint32_t y,
                   uint32_t z,

@@ -39,9 +39,6 @@ enum {
    LP_JIT_BUFFER_NUM_FIELDS,
 };
 
-LLVMTypeRef
-lp_build_create_jit_buffer_type(struct gallivm_state *gallivm);
-
 LLVMValueRef
 lp_llvm_buffer_base(struct gallivm_state *gallivm,
                     LLVMValueRef buffers_ptr,
@@ -82,9 +79,6 @@ enum {
    LP_JIT_TEXTURE_NUM_FIELDS  /* number of fields above */
 };
 
-LLVMTypeRef
-lp_build_create_jit_texture_type(struct gallivm_state *gallivm);
-
 struct lp_jit_sampler
 {
    float min_lod;
@@ -102,9 +96,6 @@ enum {
    LP_JIT_SAMPLER_MAX_ANISO,
    LP_JIT_SAMPLER_NUM_FIELDS  /* number of fields above */
 };
-
-LLVMTypeRef
-lp_build_create_jit_sampler_type(struct gallivm_state *gallivm);
 
 struct lp_jit_image
 {
@@ -130,7 +121,43 @@ enum {
    LP_JIT_IMAGE_NUM_FIELDS  /* number of fields above */
 };
 
-LLVMTypeRef
-lp_build_create_jit_image_type(struct gallivm_state *gallivm);
+struct lp_jit_resources {
+   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
+   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
+   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
+   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
+   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
+   const float *aniso_filter_table;
+};
 
+enum {
+   LP_JIT_RES_CONSTANTS = 0,
+   LP_JIT_RES_SSBOS,
+   LP_JIT_RES_TEXTURES,
+   LP_JIT_RES_SAMPLERS,
+   LP_JIT_RES_IMAGES,
+   LP_JIT_RES_ANISO_FILTER_TABLE,
+   LP_JIT_RES_COUNT,
+};
+
+#define lp_jit_resources_constants(_gallivm, _type, _ptr)                \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_RES_CONSTANTS, "constants")
+
+#define lp_jit_resources_ssbos(_gallivm, _type, _ptr)                    \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_RES_SSBOS, "ssbos")
+
+#define lp_jit_resources_textures(_gallivm, _type, _ptr)                 \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_RES_TEXTURES, "textures")
+
+#define lp_jit_resources_samplers(_gallivm, _type, _ptr)                 \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_RES_SAMPLERS, "samplers")
+
+#define lp_jit_resources_images(_gallivm, _type, _ptr)                   \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_RES_IMAGES, "images")
+
+#define lp_jit_resources_aniso_filter_table(_gallivm, _type, _ptr)       \
+   lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_RES_ANISO_FILTER_TABLE, "aniso_filter_table")
+
+LLVMTypeRef
+lp_build_jit_resources_type(struct gallivm_state *gallivm);
 #endif

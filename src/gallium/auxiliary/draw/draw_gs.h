@@ -100,6 +100,7 @@ struct draw_geometry_shader {
 #ifdef DRAW_LLVM_AVAILABLE
    struct draw_gs_inputs *gs_input;
    struct draw_gs_jit_context *jit_context;
+   struct lp_jit_resources *jit_resources;
    struct draw_gs_llvm_variant *current_variant;
    struct vertex_header *gs_output[PIPE_MAX_VERTEX_STREAMS];
 

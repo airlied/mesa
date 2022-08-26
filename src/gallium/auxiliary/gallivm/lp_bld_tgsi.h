@@ -269,6 +269,8 @@ struct lp_build_tgsi_params {
    const LLVMValueRef (*inputs)[4];
    LLVMTypeRef context_type;
    LLVMValueRef context_ptr;
+   LLVMTypeRef resources_type;
+   LLVMValueRef resources_ptr;
    LLVMTypeRef thread_data_type;
    LLVMValueRef thread_data_ptr;
    const struct lp_build_sampler_soa *sampler;
@@ -525,6 +527,8 @@ struct lp_build_tgsi_soa_context
    LLVMValueRef (*outputs)[TGSI_NUM_CHANNELS];
    LLVMTypeRef context_type;
    LLVMValueRef context_ptr;
+   LLVMTypeRef resources_type;
+   LLVMValueRef resources_ptr;
    LLVMTypeRef thread_data_type;
    LLVMValueRef thread_data_ptr;
 

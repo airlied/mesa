@@ -145,7 +145,8 @@ llvm_store_tcs_output(struct draw_tess_ctrl_shader *shader,
 static void
 llvm_tcs_run(struct draw_tess_ctrl_shader *shader, uint32_t prim_id)
 {
-   shader->current_variant->jit_func(shader->jit_context, shader->tcs_input->data, shader->tcs_output->data, prim_id,
+   shader->current_variant->jit_func(shader->jit_resources,
+                                     shader->tcs_input->data, shader->tcs_output->data, prim_id,
                                      shader->draw->pt.vertices_per_patch, shader->draw->pt.user.viewid);
 }
 #endif
@@ -307,7 +308,8 @@ llvm_tes_run(struct draw_tess_eval_shader *shader,
              struct pipe_tessellation_factors *tess_factors,
              struct vertex_header *output)
 {
-   shader->current_variant->jit_func(shader->jit_context, shader->tes_input->data, output, prim_id,
+   shader->current_variant->jit_func(shader->jit_resources,
+                                     shader->tes_input->data, output, prim_id,
                                      tess_data->num_domain_points, tess_data->domain_points_u, tess_data->domain_points_v,
                                      tess_factors->outer_tf, tess_factors->inner_tf, patch_vertices_in,
                                      shader->draw->pt.user.viewid);
@@ -457,7 +459,7 @@ draw_create_tess_ctrl_shader(struct draw_context *draw,
       tcs->tcs_output = align_malloc(sizeof(struct draw_tcs_outputs), 16);
       memset(tcs->tcs_output, 0, sizeof(struct draw_tcs_outputs));
 
-      tcs->jit_context = &draw->llvm->tcs_jit_context;
+      tcs->jit_resources = &draw->llvm->tcs_jit_resources;
       llvm_tcs->variant_key_size =
          draw_tcs_llvm_variant_key_size(
                                         tcs->info.file_max[TGSI_FILE_SAMPLER]+1,
@@ -582,7 +584,7 @@ draw_create_tess_eval_shader(struct draw_context *draw,
       tes->tes_input = align_malloc(sizeof(struct draw_tes_inputs), 16);
       memset(tes->tes_input, 0, sizeof(struct draw_tes_inputs));
 
-      tes->jit_context = &draw->llvm->tes_jit_context;
+      tes->jit_resources = &draw->llvm->tes_jit_resources;
       llvm_tes->variant_key_size =
          draw_tes_llvm_variant_key_size(
                                         tes->info.file_max[TGSI_FILE_SAMPLER]+1,

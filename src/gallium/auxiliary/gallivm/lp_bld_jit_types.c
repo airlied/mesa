@@ -31,7 +31,7 @@
 #include "lp_bld_jit_types.h"
 
 
-LLVMTypeRef
+static LLVMTypeRef
 lp_build_create_jit_buffer_type(struct gallivm_state *gallivm)
 {
    LLVMContextRef lc = gallivm->context;
@@ -96,7 +96,7 @@ lp_llvm_buffer_num_elements(struct gallivm_state *gallivm,
    return lp_llvm_buffer_member(gallivm, buffers_ptr, buffers_offset, buffers_limit, LP_JIT_BUFFER_NUM_ELEMENTS, "num_elements");
 }
 
-LLVMTypeRef
+static LLVMTypeRef
 lp_build_create_jit_texture_type(struct gallivm_state *gallivm)
 {
    LLVMContextRef lc = gallivm->context;
@@ -158,7 +158,7 @@ lp_build_create_jit_texture_type(struct gallivm_state *gallivm)
    return texture_type;
 }
 
-LLVMTypeRef
+static LLVMTypeRef
 lp_build_create_jit_sampler_type(struct gallivm_state *gallivm)
 {
    LLVMContextRef lc = gallivm->context;
@@ -194,7 +194,7 @@ lp_build_create_jit_sampler_type(struct gallivm_state *gallivm)
    return sampler_type;
 }
 
-LLVMTypeRef
+static LLVMTypeRef
 lp_build_create_jit_image_type(struct gallivm_state *gallivm)
 {
    LLVMContextRef lc = gallivm->context;
@@ -236,4 +236,52 @@ lp_build_create_jit_image_type(struct gallivm_state *gallivm)
                           gallivm->target, image_type,
                           LP_JIT_IMAGE_SAMPLE_STRIDE);
    return image_type;
+}
+
+LLVMTypeRef
+lp_build_jit_resources_type(struct gallivm_state *gallivm)
+{
+   LLVMTypeRef elem_types[LP_JIT_RES_COUNT];
+   LLVMTypeRef resources_type;
+   LLVMTypeRef texture_type, sampler_type, image_type, buffer_type;
+
+   buffer_type = lp_build_create_jit_buffer_type(gallivm);
+   texture_type = lp_build_create_jit_texture_type(gallivm);
+   sampler_type = lp_build_create_jit_sampler_type(gallivm);
+   image_type = lp_build_create_jit_image_type(gallivm);
+   elem_types[LP_JIT_RES_CONSTANTS] = LLVMArrayType(buffer_type,
+                                                    LP_MAX_TGSI_CONST_BUFFERS);
+   elem_types[LP_JIT_RES_SSBOS] =
+      LLVMArrayType(buffer_type, LP_MAX_TGSI_SHADER_BUFFERS);
+   elem_types[LP_JIT_RES_TEXTURES] = LLVMArrayType(texture_type,
+                                                   PIPE_MAX_SHADER_SAMPLER_VIEWS);
+   elem_types[LP_JIT_RES_SAMPLERS] = LLVMArrayType(sampler_type,
+                                                   PIPE_MAX_SAMPLERS);
+   elem_types[LP_JIT_RES_IMAGES] = LLVMArrayType(image_type,
+                                                 PIPE_MAX_SHADER_IMAGES);
+   elem_types[LP_JIT_RES_ANISO_FILTER_TABLE] = LLVMPointerType(LLVMFloatTypeInContext(gallivm->context), 0);
+
+   resources_type = LLVMStructTypeInContext(gallivm->context, elem_types,
+                                            ARRAY_SIZE(elem_types), 0);
+
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, constants,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_CONSTANTS);
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, ssbos,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_SSBOS);
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, textures,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_TEXTURES);
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, samplers,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_SAMPLERS);
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, images,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_IMAGES);
+   LP_CHECK_MEMBER_OFFSET(struct lp_jit_resources, aniso_filter_table,
+                          gallivm->target, resources_type,
+                          LP_JIT_RES_ANISO_FILTER_TABLE);
+
+   return resources_type;
 }

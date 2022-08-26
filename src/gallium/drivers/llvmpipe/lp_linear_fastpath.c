@@ -66,8 +66,8 @@ lp_linear_blit_rgba_blit(const struct lp_rast_state *state,
                          uint8_t *color,
                          unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
-   const struct lp_jit_texture *texture = &context->textures[0];
+   const struct lp_jit_resources *resources = &state->jit_resources;
+   const struct lp_jit_texture *texture = &resources->textures[0];
 
    LP_DBG(DEBUG_RAST, "%s\n", __func__);
 
@@ -115,8 +115,8 @@ lp_linear_blit_rgb1_blit(const struct lp_rast_state *state,
                uint8_t *color,
                unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
-   const struct lp_jit_texture *texture = &context->textures[0];
+   const struct lp_jit_resources *resources = &state->jit_resources;
+   const struct lp_jit_texture *texture = &resources->textures[0];
 
    LP_DBG(DEBUG_RAST, "%s\n", __func__);
 

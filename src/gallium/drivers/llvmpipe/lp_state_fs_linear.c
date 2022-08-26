@@ -360,8 +360,8 @@ blit_rgba_blit(const struct lp_rast_state *state,
                uint8_t *color,
                unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
-   const struct lp_jit_texture *texture = &context->textures[0];
+   const struct lp_jit_resources *resources = &state->jit_resources;
+   const struct lp_jit_texture *texture = &resources->textures[0];
    const uint8_t *src;
    unsigned src_stride;
    int src_x, src_y;
@@ -412,8 +412,8 @@ blit_rgb1_blit(const struct lp_rast_state *state,
                uint8_t *color,
                unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
-   const struct lp_jit_texture *texture = &context->textures[0];
+   const struct lp_jit_resources *resources = &state->jit_resources;
+   const struct lp_jit_texture *texture = &resources->textures[0];
    const uint8_t *src;
    unsigned src_stride;
    int src_x, src_y;
@@ -472,14 +472,14 @@ blit_rgba(const struct lp_rast_state *state,
           uint8_t *color,
           unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
+   const struct lp_jit_resources *resources = &state->jit_resources;
    struct nearest_sampler samp;
    struct color_blend blend;
 
    LP_DBG(DEBUG_RAST, "%s\n", __func__);
 
    if (!init_nearest_sampler(&samp,
-                             &context->textures[0],
+                             &resources->textures[0],
                              x, y, width, height,
                              a0[1][0], dadx[1][0], dady[1][0],
                              a0[1][1], dadx[1][1], dady[1][1],
@@ -511,7 +511,7 @@ blit_rgb1(const struct lp_rast_state *state,
           uint8_t *color,
           unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
+   const struct lp_jit_resources *resources = &state->jit_resources;
    struct nearest_sampler samp;
    struct color_blend blend;
    struct shader shader;
@@ -519,7 +519,7 @@ blit_rgb1(const struct lp_rast_state *state,
    LP_DBG(DEBUG_RAST, "%s\n", __func__);
 
    if (!init_nearest_sampler(&samp,
-                             &context->textures[0],
+                             &resources->textures[0],
                              x, y, width, height,
                              a0[1][0], dadx[1][0], dady[1][0],
                              a0[1][1], dadx[1][1], dady[1][1],
@@ -555,14 +555,14 @@ blit_rgba_blend_premul(const struct lp_rast_state *state,
                        uint8_t *color,
                        unsigned stride)
 {
-   const struct lp_jit_context *context = &state->jit_context;
+   const struct lp_jit_resources *resources = &state->jit_resources;
    struct nearest_sampler samp;
    struct color_blend blend;
 
    LP_DBG(DEBUG_RAST, "%s\n", __func__);
 
    if (!init_nearest_sampler(&samp,
-                             &context->textures[0],
+                             &resources->textures[0],
                              x, y, width, height,
                              a0[1][0], dadx[1][0], dady[1][0],
                              a0[1][1], dadx[1][1], dady[1][1],

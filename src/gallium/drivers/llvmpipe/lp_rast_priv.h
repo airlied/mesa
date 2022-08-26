@@ -271,6 +271,7 @@ lp_rast_shade_quads_all(struct lp_rasterizer_task *task,
       /* run shader on 4x4 block */
       BEGIN_JIT_CALL(state, task);
       variant->jit_function[RAST_WHOLE](&state->jit_context,
+                                        &state->jit_resources,
                                         x, y,
                                         inputs->frontfacing,
                                         GET_A0(inputs),

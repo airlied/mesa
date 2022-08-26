@@ -104,10 +104,10 @@ lp_fs_linear_run(const struct lp_rast_state *state,
    if (variant->shader->base.type == PIPE_SHADER_IR_TGSI) {
       nr_consts = (info->base.file_max[TGSI_FILE_CONSTANT] + 1) * 4;
    } else {
-      nr_consts = state->jit_context.constants[0].num_elements;
+      nr_consts = state->jit_resources.constants[0].num_elements;
    }
    for (int i = 0; i < nr_consts; i++){
-      float val = state->jit_context.constants[0].f[i];
+      float val = state->jit_resources.constants[0].f[i];
       if (val < 0.0f || val > 1.0f) {
          if (LP_DEBUG & DEBUG_LINEAR2)
             debug_printf("  -- const[%d] out of range %f\n", i, val);
@@ -181,7 +181,7 @@ lp_fs_linear_run(const struct lp_rast_state *state,
 
       if (!lp_linear_init_sampler(&samp[i], tex_info,
                   lp_fs_variant_key_sampler_idx(&variant->key, samp_unit),
-                  &state->jit_context.textures[tex_unit],
+                  &state->jit_resources.textures[tex_unit],
                   x, y, width, height, a0, dadx, dady)) {
          if (LP_DEBUG & DEBUG_LINEAR2)
             debug_printf("  -- init_sampler(%d) failed\n", i);

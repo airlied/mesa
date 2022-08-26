@@ -239,7 +239,7 @@ check_opaque(const struct lp_setup_context *setup,
 
    const struct lp_tgsi_channel_info *alpha_info = &variant->shader->info.cbuf[0][3];
    if (alpha_info->file == TGSI_FILE_CONSTANT) {
-      const float *constants = setup->fs.current.jit_context.constants[0].f;
+      const float *constants = setup->fs.current.jit_resources.constants[0].f;
       float alpha = constants[alpha_info->u.index*4 +
                               alpha_info->swizzle];
       return alpha == 1.0f;

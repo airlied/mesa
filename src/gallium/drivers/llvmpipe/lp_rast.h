@@ -86,6 +86,7 @@ struct lp_rast_state {
     * the fragment shader, such as blend color and alpha ref value.
     */
    struct lp_jit_context jit_context;
+   struct lp_jit_resources jit_resources;
 
    /* The shader itself.  Probably we also need to pass a pointer to
     * the tile color/z/stencil data somehow
