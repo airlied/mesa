@@ -24,6 +24,8 @@
 #ifndef LP_BLD_JIT_TYPES_H
 #define LP_BLD_JIT_TYPES_H
 
+struct lp_sampler_dynamic_state;
+
 struct lp_jit_buffer
 {
    union {
@@ -160,4 +162,10 @@ enum {
 
 LLVMTypeRef
 lp_build_jit_resources_type(struct gallivm_state *gallivm);
+
+void
+lp_build_jit_fill_sampler_dynamic_state(struct lp_sampler_dynamic_state *state);
+void
+lp_build_jit_fill_image_dynamic_state(struct lp_sampler_dynamic_state *state);
 #endif
+

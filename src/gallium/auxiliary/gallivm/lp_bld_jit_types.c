@@ -25,6 +25,7 @@
 #include "gallivm/lp_bld.h"
 #include "gallivm/lp_bld_init.h"
 #include "gallivm/lp_bld_struct.h"
+#include "gallivm/lp_bld_sample.h"
 #include "gallivm/lp_bld_const.h"
 #include "gallivm/lp_bld_debug.h"
 #include "gallivm/lp_bld_ir_common.h"
@@ -284,4 +285,320 @@ lp_build_jit_resources_type(struct gallivm_state *gallivm)
                           LP_JIT_RES_ANISO_FILTER_TABLE);
 
    return resources_type;
+}
+
+
+/**
+ * Fetch the specified member of the lp_jit_texture structure.
+ * \param emit_load  if TRUE, emit the LLVM load instruction to actually
+ *                   fetch the field's value.  Otherwise, just emit the
+ *                   GEP code to address the field.
+ *
+ * @sa http://llvm.org/docs/GetElementPtr.html
+ */
+static LLVMValueRef
+lp_build_llvm_texture_member(struct gallivm_state *gallivm,
+                             LLVMTypeRef resources_type,
+                             LLVMValueRef resources_ptr,
+                             unsigned texture_unit,
+                             LLVMValueRef texture_unit_offset,
+                             unsigned member_index,
+                             const char *member_name,
+                             boolean emit_load,
+                             LLVMTypeRef *out_type)
+{
+   LLVMBuilderRef builder = gallivm->builder;
+   LLVMValueRef indices[4];
+
+   assert(texture_unit < PIPE_MAX_SHADER_SAMPLER_VIEWS);
+
+   /* resources[0] */
+   indices[0] = lp_build_const_int32(gallivm, 0);
+   /* resources[0].textures */
+   indices[1] = lp_build_const_int32(gallivm, LP_JIT_RES_TEXTURES);
+   /* resources[0].textures[unit] */
+   indices[2] = lp_build_const_int32(gallivm, texture_unit);
+   if (texture_unit_offset) {
+      indices[2] = LLVMBuildAdd(gallivm->builder, indices[2],
+                                texture_unit_offset, "");
+      LLVMValueRef cond =
+         LLVMBuildICmp(gallivm->builder, LLVMIntULT,
+                       indices[2],
+                       lp_build_const_int32(gallivm,
+                                            PIPE_MAX_SHADER_SAMPLER_VIEWS), "");
+      indices[2] = LLVMBuildSelect(gallivm->builder, cond, indices[2],
+                                   lp_build_const_int32(gallivm,
+                                                        texture_unit), "");
+   }
+   /* resources[0].textures[unit].member */
+   indices[3] = lp_build_const_int32(gallivm, member_index);
+
+   LLVMValueRef ptr =
+      LLVMBuildGEP2(builder, resources_type, resources_ptr, indices, ARRAY_SIZE(indices), "");
+
+   LLVMValueRef res;
+   if (emit_load) {
+      LLVMTypeRef tex_type = LLVMStructGetTypeAtIndex(resources_type, LP_JIT_RES_TEXTURES);
+      LLVMTypeRef res_type = LLVMStructGetTypeAtIndex(LLVMGetElementType(tex_type), member_index);
+      res = LLVMBuildLoad2(builder, res_type, ptr, "");
+   } else
+      res = ptr;
+
+   if (out_type) {
+      LLVMTypeRef tex_type = LLVMStructGetTypeAtIndex(resources_type, LP_JIT_RES_TEXTURES);
+      LLVMTypeRef res_type = LLVMStructGetTypeAtIndex(LLVMGetElementType(tex_type), member_index);
+      *out_type = res_type;
+   }
+
+   lp_build_name(res, "resources.texture%u.%s", texture_unit, member_name);
+
+   return res;
+}
+
+
+/**
+ * Helper macro to instantiate the functions that generate the code to
+ * fetch the members of lp_jit_texture to fulfill the sampler code
+ * generator requests.
+ *
+ * This complexity is the price we have to pay to keep the texture
+ * sampler code generator a reusable module without dependencies to
+ * llvmpipe internals.
+ */
+#define LP_BUILD_LLVM_TEXTURE_MEMBER(_name, _index, _emit_load)  \
+   static LLVMValueRef \
+   lp_build_llvm_texture_##_name(struct gallivm_state *gallivm, \
+                                 LLVMTypeRef resources_type,    \
+                                 LLVMValueRef resources_ptr,    \
+                                 unsigned texture_unit,         \
+                                 LLVMValueRef texture_unit_offset)      \
+   { \
+      return lp_build_llvm_texture_member(gallivm, resources_type, resources_ptr, \
+                                          texture_unit, texture_unit_offset, \
+                                          _index, #_name, _emit_load, NULL ); \
+   }
+
+#define LP_BUILD_LLVM_TEXTURE_MEMBER_OUTTYPE(_name, _index, _emit_load)  \
+   static LLVMValueRef \
+   lp_build_llvm_texture_##_name(struct gallivm_state *gallivm, \
+                           LLVMTypeRef resources_type, \
+                           LLVMValueRef resources_ptr, \
+                           unsigned texture_unit,    \
+                           LLVMValueRef texture_unit_offset, \
+                           LLVMTypeRef *out_type)            \
+   { \
+      return lp_build_llvm_texture_member(gallivm, resources_type, resources_ptr, \
+                                          texture_unit, texture_unit_offset, \
+                                          _index, #_name, _emit_load, out_type ); \
+   }
+
+LP_BUILD_LLVM_TEXTURE_MEMBER(width,      LP_JIT_TEXTURE_WIDTH, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(height,     LP_JIT_TEXTURE_HEIGHT, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(depth,      LP_JIT_TEXTURE_DEPTH, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(first_level, LP_JIT_TEXTURE_FIRST_LEVEL, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(last_level, LP_JIT_TEXTURE_LAST_LEVEL, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(base_ptr,   LP_JIT_TEXTURE_BASE, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER_OUTTYPE(row_stride, LP_JIT_TEXTURE_ROW_STRIDE, FALSE)
+LP_BUILD_LLVM_TEXTURE_MEMBER_OUTTYPE(img_stride, LP_JIT_TEXTURE_IMG_STRIDE, FALSE)
+LP_BUILD_LLVM_TEXTURE_MEMBER_OUTTYPE(mip_offsets, LP_JIT_TEXTURE_MIP_OFFSETS, FALSE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(num_samples, LP_JIT_TEXTURE_NUM_SAMPLES, TRUE)
+LP_BUILD_LLVM_TEXTURE_MEMBER(sample_stride, LP_JIT_TEXTURE_SAMPLE_STRIDE, TRUE)
+
+/**
+ * Fetch the specified member of the lp_jit_sampler structure.
+ * \param emit_load  if TRUE, emit the LLVM load instruction to actually
+ *                   fetch the field's value.  Otherwise, just emit the
+ *                   GEP code to address the field.
+ *
+ * @sa http://llvm.org/docs/GetElementPtr.html
+ */
+static LLVMValueRef
+lp_build_llvm_sampler_member(struct gallivm_state *gallivm,
+                             LLVMTypeRef resources_type,
+                             LLVMValueRef resources_ptr,
+                             unsigned sampler_unit,
+                             unsigned member_index,
+                             const char *member_name,
+                             boolean emit_load)
+{
+   LLVMBuilderRef builder = gallivm->builder;
+   LLVMValueRef indices[4];
+
+   assert(sampler_unit < PIPE_MAX_SAMPLERS);
+
+   /* resources[0] */
+   indices[0] = lp_build_const_int32(gallivm, 0);
+   /* resources[0].samplers */
+   indices[1] = lp_build_const_int32(gallivm, LP_JIT_RES_SAMPLERS);
+   /* resources[0].samplers[unit] */
+   indices[2] = lp_build_const_int32(gallivm, sampler_unit);
+   /* resources[0].samplers[unit].member */
+   indices[3] = lp_build_const_int32(gallivm, member_index);
+
+   LLVMValueRef ptr =
+      LLVMBuildGEP2(builder, resources_type, resources_ptr, indices, ARRAY_SIZE(indices), "");
+
+   LLVMValueRef res;
+   if (emit_load) {
+      LLVMTypeRef samp_type = LLVMStructGetTypeAtIndex(resources_type, LP_JIT_RES_SAMPLERS);
+      LLVMTypeRef res_type = LLVMStructGetTypeAtIndex(LLVMGetElementType(samp_type), member_index);
+      res = LLVMBuildLoad2(builder, res_type, ptr, "");
+   } else
+      res = ptr;
+
+   lp_build_name(res, "resources.sampler%u.%s", sampler_unit, member_name);
+
+   return res;
+}
+
+
+#define LP_BUILD_LLVM_SAMPLER_MEMBER(_name, _index, _emit_load)   \
+   static LLVMValueRef                                            \
+   lp_build_llvm_sampler_##_name( struct gallivm_state *gallivm,  \
+                                  LLVMTypeRef resources_type,     \
+                                  LLVMValueRef resources_ptr,     \
+                                  unsigned sampler_unit)          \
+   {                                                              \
+      return lp_build_llvm_sampler_member(gallivm, resources_type, resources_ptr, \
+                                          sampler_unit, _index, #_name, _emit_load ); \
+   }
+
+
+LP_BUILD_LLVM_SAMPLER_MEMBER(min_lod,    LP_JIT_SAMPLER_MIN_LOD, TRUE)
+LP_BUILD_LLVM_SAMPLER_MEMBER(max_lod,    LP_JIT_SAMPLER_MAX_LOD, TRUE)
+LP_BUILD_LLVM_SAMPLER_MEMBER(lod_bias,   LP_JIT_SAMPLER_LOD_BIAS, TRUE)
+LP_BUILD_LLVM_SAMPLER_MEMBER(border_color, LP_JIT_SAMPLER_BORDER_COLOR, FALSE)
+LP_BUILD_LLVM_SAMPLER_MEMBER(max_aniso, LP_JIT_SAMPLER_MAX_ANISO, TRUE)
+
+/**
+ * Fetch the specified member of the lp_jit_image structure.
+ * \param emit_load  if TRUE, emit the LLVM load instruction to actually
+ *                   fetch the field's value.  Otherwise, just emit the
+ *                   GEP code to address the field.
+ *
+ * @sa http://llvm.org/docs/GetElementPtr.html
+ */
+static LLVMValueRef
+lp_build_llvm_image_member(struct gallivm_state *gallivm,
+                           LLVMTypeRef resources_type,
+                           LLVMValueRef resources_ptr,
+                           unsigned image_unit,
+                           LLVMValueRef image_unit_offset,
+                           unsigned member_index,
+                           const char *member_name,
+                           boolean emit_load)
+{
+   LLVMBuilderRef builder = gallivm->builder;
+   LLVMValueRef indices[4];
+
+   assert(image_unit < PIPE_MAX_SHADER_IMAGES);
+
+   /* resources[0] */
+   indices[0] = lp_build_const_int32(gallivm, 0);
+   /* resources[0].images */
+   indices[1] = lp_build_const_int32(gallivm, LP_JIT_RES_IMAGES);
+   /* resources[0].images[unit] */
+   indices[2] = lp_build_const_int32(gallivm, image_unit);
+   if (image_unit_offset) {
+      indices[2] = LLVMBuildAdd(gallivm->builder, indices[2], image_unit_offset, "");
+      LLVMValueRef cond = LLVMBuildICmp(gallivm->builder, LLVMIntULT, indices[2], lp_build_const_int32(gallivm, PIPE_MAX_SHADER_IMAGES), "");
+      indices[2] = LLVMBuildSelect(gallivm->builder, cond, indices[2], lp_build_const_int32(gallivm, image_unit), "");
+   }
+   /* resources[0].images[unit].member */
+   indices[3] = lp_build_const_int32(gallivm, member_index);
+
+   LLVMValueRef ptr =
+      LLVMBuildGEP2(builder, resources_type, resources_ptr, indices, ARRAY_SIZE(indices), "");
+
+   LLVMValueRef res;
+   if (emit_load) {
+      LLVMTypeRef img_type = LLVMStructGetTypeAtIndex(resources_type, LP_JIT_RES_IMAGES);
+      LLVMTypeRef res_type = LLVMStructGetTypeAtIndex(LLVMGetElementType(img_type), member_index);
+      res = LLVMBuildLoad2(builder, res_type, ptr, "");
+   } else
+      res = ptr;
+
+   lp_build_name(res, "resources.image%u.%s", image_unit, member_name);
+
+   return res;
+}
+
+/**
+ * Helper macro to instantiate the functions that generate the code to
+ * fetch the members of lp_jit_image to fulfill the sampler code
+ * generator requests.
+ *
+ * This complexity is the price we have to pay to keep the image
+ * sampler code generator a reusable module without dependencies to
+ * llvmpipe internals.
+ */
+#define LP_BUILD_LLVM_IMAGE_MEMBER(_name, _index, _emit_load)  \
+   static LLVMValueRef \
+   lp_build_llvm_image_##_name( struct gallivm_state *gallivm,               \
+                                LLVMTypeRef resources_type,             \
+                                LLVMValueRef resources_ptr,             \
+                                unsigned image_unit, LLVMValueRef image_unit_offset) \
+   { \
+      return lp_build_llvm_image_member(gallivm, resources_type, resources_ptr, \
+                                  image_unit, image_unit_offset, \
+                                  _index, #_name, _emit_load );  \
+   }
+
+#define LP_BUILD_LLVM_IMAGE_MEMBER_OUTTYPE(_name, _index, _emit_load)  \
+   static LLVMValueRef \
+   lp_build_llvm_image_##_name( struct gallivm_state *gallivm,               \
+                                LLVMTypeRef resources_type,             \
+                                LLVMValueRef resources_ptr,             \
+                                unsigned image_unit, LLVMValueRef image_unit_offset, \
+                                LLVMTypeRef *out_type)                  \
+   { \
+      assert(!out_type);                                                \
+      return lp_build_llvm_image_member(gallivm, resources_type, resources_ptr,    \
+                                        image_unit, image_unit_offset,  \
+                                        _index, #_name, _emit_load );   \
+   }
+
+LP_BUILD_LLVM_IMAGE_MEMBER(width,      LP_JIT_IMAGE_WIDTH, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER(height,     LP_JIT_IMAGE_HEIGHT, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER(depth,      LP_JIT_IMAGE_DEPTH, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER(base_ptr,   LP_JIT_IMAGE_BASE, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER_OUTTYPE(row_stride, LP_JIT_IMAGE_ROW_STRIDE, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER_OUTTYPE(img_stride, LP_JIT_IMAGE_IMG_STRIDE, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER(num_samples, LP_JIT_IMAGE_NUM_SAMPLES, TRUE)
+LP_BUILD_LLVM_IMAGE_MEMBER(sample_stride, LP_JIT_IMAGE_SAMPLE_STRIDE, TRUE)
+
+void
+lp_build_jit_fill_sampler_dynamic_state(struct lp_sampler_dynamic_state *state)
+{
+   state->width = lp_build_llvm_texture_width;
+   state->height = lp_build_llvm_texture_height;
+   state->depth = lp_build_llvm_texture_depth;
+   state->first_level = lp_build_llvm_texture_first_level;
+   state->last_level = lp_build_llvm_texture_last_level;
+   state->base_ptr = lp_build_llvm_texture_base_ptr;
+   state->row_stride = lp_build_llvm_texture_row_stride;
+   state->img_stride = lp_build_llvm_texture_img_stride;
+   state->mip_offsets = lp_build_llvm_texture_mip_offsets;
+   state->num_samples = lp_build_llvm_texture_num_samples;
+   state->sample_stride = lp_build_llvm_texture_sample_stride;
+
+   state->min_lod = lp_build_llvm_sampler_min_lod;
+   state->max_lod = lp_build_llvm_sampler_max_lod;
+   state->lod_bias = lp_build_llvm_sampler_lod_bias;
+   state->border_color = lp_build_llvm_sampler_border_color;
+   state->max_aniso = lp_build_llvm_sampler_max_aniso;
+}
+
+void
+lp_build_jit_fill_image_dynamic_state(struct lp_sampler_dynamic_state *state)
+{
+   state->width = lp_build_llvm_image_width;
+   state->height = lp_build_llvm_image_height;
+
+   state->depth = lp_build_llvm_image_depth;
+   state->base_ptr = lp_build_llvm_image_base_ptr;
+   state->row_stride = lp_build_llvm_image_row_stride;
+   state->img_stride = lp_build_llvm_image_img_stride;
+   state->num_samples = lp_build_llvm_image_num_samples;
+   state->sample_stride = lp_build_llvm_image_sample_stride;
 }
