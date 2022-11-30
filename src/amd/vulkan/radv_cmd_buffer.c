@@ -546,8 +546,9 @@ radv_cmd_buffer_resize_upload_buf(struct radv_cmd_buffer *cmd_buffer, uint64_t m
 }
 
 bool
-radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer, unsigned size,
-                             unsigned *out_offset, void **ptr)
+radv_cmd_buffer_upload_alloc_aligned(struct radv_cmd_buffer *cmd_buffer, unsigned size,
+                                     unsigned alignment,
+                                     unsigned *out_offset, void **ptr)
 {
    assert(size % 4 == 0);
 
@@ -562,6 +563,8 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer, unsigned size,
    if ((size & (line_size - 1)) > gap)
       offset = align(offset, line_size);
 
+   if (alignment)
+      offset = align(offset, alignment);
    if (offset + size > cmd_buffer->upload.size) {
       if (!radv_cmd_buffer_resize_upload_buf(cmd_buffer, size))
          return false;
@@ -573,6 +576,13 @@ radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer, unsigned size,
 
    cmd_buffer->upload.offset = offset + size;
    return true;
+}
+
+bool
+radv_cmd_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer, unsigned size,
+                             unsigned *out_offset, void **ptr)
+{
+   return radv_cmd_buffer_upload_alloc_aligned(cmd_buffer, size, 0, out_offset, ptr);
 }
 
 bool
