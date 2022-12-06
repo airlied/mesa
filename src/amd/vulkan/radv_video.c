@@ -212,13 +212,18 @@ radv_CreateVideoSessionKHR(VkDevice _device,
    }
 
    vid->interlaced = false;
+   vid->dpb_type = DPB_MAX_RES;
 
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       vid->stream_type = RDECODE_CODEC_H264_PERF;
+      if (device->physical_device->rad_info.family >= CHIP_NAVI21)
+         vid->dpb_type = DPB_DYNAMIC_TIER_2;
       break;
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
       vid->stream_type = RDECODE_CODEC_H265;
+      if (device->physical_device->rad_info.family >= CHIP_NAVI21)
+         vid->dpb_type = DPB_DYNAMIC_TIER_2;
       break;
    default:
       return VK_ERROR_FEATURE_NOT_PRESENT;
@@ -226,7 +231,6 @@ radv_CreateVideoSessionKHR(VkDevice _device,
 
    vid->stream_handle = si_vid_alloc_stream_handle();
    vid->dbg_frame_cnt = 0;
-   vid->dpb_type = DPB_MAX_RES;
    vid->db_alignment = (device->physical_device->rad_info.family >= CHIP_RENOIR &&
                         vid->vk.max_coded.width > 32 &&
                         (vid->stream_type == RDECODE_CODEC_H265 &&
@@ -333,6 +337,9 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
       pCapabilities->maxDpbSlots = NUM_H264_REFS;
       pCapabilities->maxActiveReferencePictures = NUM_H264_REFS;
 
+      /* for h264 on navi21+ separate dpb images should work */
+      if (pdevice->rad_info.family >= CHIP_NAVI21)
+         pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
       ext->fieldOffsetGranularity.x = 0;
       ext->fieldOffsetGranularity.y = 0;
       ext->maxLevelIdc = 51;
@@ -343,6 +350,9 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_H265_CAPABILITIES_KHR);
       pCapabilities->maxDpbSlots = NUM_H264_REFS;
       pCapabilities->maxActiveReferencePictures = NUM_H265_REFS;
+      /* for h265 on navi21+ separate dpb images should work */
+      if (pdevice->rad_info.family >= CHIP_NAVI21)
+         pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
       ext->maxLevelIdc = 51;
       break;
    }
@@ -589,7 +599,8 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag << 1;
    result.sps_info_flags |= sps->flags.frame_mbs_only_flag << 2;
    result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag << 3;
-   result.sps_info_flags |= 1 << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
+   if (vid->dpb_type != DPB_DYNAMIC_TIER_2)
+      result.sps_info_flags |= 1 << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
 
    result.bit_depth_luma_minus8 = sps->bit_depth_luma_minus8;
    result.bit_depth_chroma_minus8 = sps->bit_depth_chroma_minus8;
@@ -635,6 +646,11 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    result.frame_num = h264_pic_info->pStdPictureInfo->frame_num;
 
    result.num_ref_frames = sps->max_num_ref_frames;
+   result.non_existing_frame_flags = 0;
+   result.used_for_reference_flags = 0;
+
+   memset(result.ref_frame_list, 0xff, sizeof(unsigned char) * 16);
+   memset(result.frame_num_list, 0, sizeof(unsigned int) * 16);
    for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
       int idx = frame_info->pReferenceSlots[i].slotIndex;
       const struct VkVideoDecodeH264DpbSlotInfoKHR *dpb_slot =
@@ -643,7 +659,23 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
       result.frame_num_list[idx] = idx;
       result.field_order_cnt_list[idx][0] = dpb_slot->pStdReferenceInfo->PicOrderCnt[0];
       result.field_order_cnt_list[idx][1] = dpb_slot->pStdReferenceInfo->PicOrderCnt[1];
+
+      result.ref_frame_list[idx] = idx;
+
+      if (dpb_slot->pStdReferenceInfo->flags.top_field_flag)
+         result.used_for_reference_flags |= (1 << (2 * idx));
+      if (dpb_slot->pStdReferenceInfo->flags.bottom_field_flag)
+         result.used_for_reference_flags |= (1 << (2 * idx + 1));
+      else
+         result.used_for_reference_flags |= (3 << (2 * idx));
+
+      if (dpb_slot->pStdReferenceInfo->flags.used_for_long_term_reference)
+        result.ref_frame_list[idx] |= 0x80;
+      if (dpb_slot->pStdReferenceInfo->flags.is_non_existing)
+         result.non_existing_frame_flags |= 1 << idx;
+
    }
+   result.curr_pic_ref_frame_num = frame_info->referenceSlotCount;
    result.decoded_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
 
    return result;
@@ -800,18 +832,21 @@ static rvcn_dec_message_hevc_t get_h265_msg(struct radv_device *device,
    return result;
 }
 
-static bool rvcn_dec_message_decode(struct radv_device *device,
+static bool rvcn_dec_message_decode(struct radv_cmd_buffer *cmd_buffer,
                                     struct radv_video_session *vid,
                                     struct radv_video_session_params *params,
                                     void *ptr,
                                     void *it_ptr,
                                     const struct VkVideoDecodeInfoKHR *frame_info)
 {
+   struct radv_device *device = cmd_buffer->device;
    rvcn_dec_message_header_t *header;
    rvcn_dec_message_index_t *index_codec;
    rvcn_dec_message_decode_t *decode;
+   rvcn_dec_message_index_t *index_dynamic_dpb = NULL;
+   rvcn_dec_message_dynamic_dpb_t2_t *dynamic_dpb_t2 = NULL;
    void *codec;
-   unsigned sizes = 0, offset_decode, offset_codec;
+   unsigned sizes = 0, offset_decode, offset_codec, offset_dynamic_dpb;
    struct radv_image_view *dst_iv = radv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
    struct radv_image *img = dst_iv->image;
    struct radv_image_plane *luma = &img->planes[0];
@@ -825,9 +860,20 @@ static bool rvcn_dec_message_decode(struct radv_device *device,
    index_codec = (void *)((char *)header + sizes);
    sizes += sizeof(rvcn_dec_message_index_t);
 
+   if (vid->dpb_type == DPB_DYNAMIC_TIER_2) {
+      index_dynamic_dpb = (void *)((char *)header + sizes);
+      sizes += sizeof(rvcn_dec_message_index_t);
+   }
+
    offset_decode = sizes;
    decode = (void *)((char*)header + sizes);
    sizes += sizeof(rvcn_dec_message_decode_t);
+
+   if (vid->dpb_type == DPB_DYNAMIC_TIER_2) {
+      offset_dynamic_dpb = sizes;
+      dynamic_dpb_t2 = (void*)((char *)header + sizes);
+      sizes += sizeof(rvcn_dec_message_dynamic_dpb_t2_t);
+   }
 
    offset_codec = sizes;
    codec = (void *)((char *)header + sizes);
@@ -851,6 +897,14 @@ static bool rvcn_dec_message_decode(struct radv_device *device,
    index_codec->filled = 0;
    ++header->num_buffers;
 
+   if (vid->dpb_type == DPB_DYNAMIC_TIER_2) {
+      index_dynamic_dpb->message_id = RDECODE_MESSAGE_DYNAMIC_DPB;
+      index_dynamic_dpb->offset = offset_dynamic_dpb;
+      index_dynamic_dpb->filled = 0;
+      ++header->num_buffers;
+      index_dynamic_dpb->size = sizeof(rvcn_dec_message_dynamic_dpb_t2_t);
+   }
+
    decode->stream_type = vid->stream_type;
    decode->decode_flags = 0;
    decode->width_in_samples = frame_info->dstPictureResource.codedExtent.width;
@@ -872,8 +926,6 @@ static bool rvcn_dec_message_decode(struct radv_device *device,
        (vid->stream_type == RDECODE_CODEC_H265 &&
         vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10))
       decode->db_aligned_height = align(frame_info->dstPictureResource.codedExtent.height, 64);
-
-   decode->db_surf_tile_config = 0;
 
    decode->dt_pitch = luma->surface.u.gfx9.surf_pitch * luma->surface.blk_w;
    decode->dt_uv_pitch = chroma->surface.u.gfx9.surf_pitch * chroma->surface.blk_w;
@@ -921,6 +973,39 @@ static bool rvcn_dec_message_decode(struct radv_device *device,
    }
 
    decode->hw_ctxt_size = vid->ctx.size;
+
+   if (vid->dpb_type != DPB_DYNAMIC_TIER_2)
+      return true;
+
+   uint64_t addr;
+   for (int i = 0; i < frame_info->referenceSlotCount; i++) {
+      struct radv_image_view *f_dpb_iv = radv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+      struct radv_image *dpb_img = f_dpb_iv->image;
+      int idx = frame_info->pReferenceSlots[i].slotIndex;
+
+      radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, dpb_img->bindings[0].bo);
+      addr = radv_buffer_get_va(dpb_img->bindings[0].bo) + dpb_img->bindings[0].offset;
+
+      dynamic_dpb_t2->dpbAddrLo[idx] = addr;
+      dynamic_dpb_t2->dpbAddrHi[idx] = addr >> 32;
+      ++dynamic_dpb_t2->dpbArraySize;
+   }
+
+   radv_cs_add_buffer(cmd_buffer->device->ws, cmd_buffer->cs, dpb->bindings[0].bo);
+   addr = radv_buffer_get_va(dpb->bindings[0].bo);
+
+   dynamic_dpb_t2->dpbCurrLo = addr;
+   dynamic_dpb_t2->dpbCurrHi = addr >> 32;
+
+   decode->decode_flags = 1;
+   dynamic_dpb_t2->dpbConfigFlags = 0;
+   dynamic_dpb_t2->dpbLumaPitch = luma->surface.u.gfx9.surf_pitch;
+   dynamic_dpb_t2->dpbLumaAlignedHeight = luma->surface.u.gfx9.surf_height;
+   dynamic_dpb_t2->dpbLumaAlignedSize = luma->surface.u.gfx9.surf_slice_size;
+
+   dynamic_dpb_t2->dpbChromaPitch = chroma->surface.u.gfx9.surf_pitch;
+   dynamic_dpb_t2->dpbChromaAlignedHeight = chroma->surface.u.gfx9.surf_height;
+   dynamic_dpb_t2->dpbChromaAlignedSize = chroma->surface.u.gfx9.surf_slice_size;
 
    return true;
 }
@@ -1446,9 +1531,13 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
    uint32_t out_offset, fb_offset, it_offset = 0;
    struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL;
 
-   size += sizeof(rvcn_dec_message_header_t);
-   size += sizeof(rvcn_dec_message_index_t);
-   size += sizeof(rvcn_dec_message_decode_t);
+   size += sizeof(rvcn_dec_message_header_t); /* header */
+   size += sizeof(rvcn_dec_message_index_t);  /* codec */
+   if (vid->dpb_type == DPB_DYNAMIC_TIER_2) {
+      size += sizeof(rvcn_dec_message_index_t);
+      size += sizeof(rvcn_dec_message_dynamic_dpb_t2_t);
+   }
+   size += sizeof(rvcn_dec_message_decode_t);   /* decode */
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       size += sizeof(rvcn_dec_message_avc_t);
@@ -1473,7 +1562,7 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
                                 &ptr);
    msg_bo = cmd_buffer->upload.upload_bo;
 
-   rvcn_dec_message_decode(cmd_buffer->device, vid, params, ptr, it_ptr, frame_info);
+   rvcn_dec_message_decode(cmd_buffer, vid, params, ptr, it_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
