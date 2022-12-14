@@ -394,15 +394,40 @@ radv_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
        (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR))
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
+
    *pVideoFormatPropertyCount = 1;
+
+   bool need_10bit = false;
+   const struct VkVideoProfileListInfoKHR *prof_list = (struct VkVideoProfileListInfoKHR *)
+      vk_find_struct_const(pVideoFormatInfo->pNext, VIDEO_PROFILE_LIST_INFO_KHR);
+   if (prof_list) {
+      for (unsigned i = 0; i < prof_list->profileCount; i++) {
+         const VkVideoProfileInfoKHR *profile = &prof_list->pProfiles[i];
+         if (profile->lumaBitDepth & VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR)
+            need_10bit = true;
+      }
+   }
+
+   (*pVideoFormatPropertyCount)++;
+   if (need_10bit)
+      (*pVideoFormatPropertyCount)++;
 
    if (!pVideoFormatProperties)
       return VK_SUCCESS;
 
-   pVideoFormatProperties[0].format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-   pVideoFormatProperties[0].imageType = VK_IMAGE_TYPE_2D;
-   pVideoFormatProperties[0].imageTiling = VK_IMAGE_TILING_OPTIMAL;
-   pVideoFormatProperties[0].imageUsageFlags = pVideoFormatInfo->imageUsage;
+   int idx = 0;
+   pVideoFormatProperties[idx].format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+   pVideoFormatProperties[idx].imageType = VK_IMAGE_TYPE_2D;
+   pVideoFormatProperties[idx].imageTiling = VK_IMAGE_TILING_OPTIMAL;
+   pVideoFormatProperties[idx].imageUsageFlags = pVideoFormatInfo->imageUsage;
+   idx++;
+   if (need_10bit) {
+      pVideoFormatProperties[idx].format = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
+      pVideoFormatProperties[idx].imageType = VK_IMAGE_TYPE_2D;
+      pVideoFormatProperties[idx].imageTiling = VK_IMAGE_TILING_OPTIMAL;
+      pVideoFormatProperties[idx].imageUsageFlags = pVideoFormatInfo->imageUsage;
+      idx++;
+   }
    return VK_SUCCESS;
 }
 
@@ -817,7 +842,7 @@ static rvcn_dec_message_hevc_t get_h265_msg(struct radv_device *device,
    }
 
    if (vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10) {
-      if (0) { //TODO target->buffer_format == PIPE_FORMAT_P010 || target->buffer_format == PIPE_FORMAT_P016)
+      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16) {
          result.p010_mode = 1;
          result.msb_mode = 1;
       } else {
