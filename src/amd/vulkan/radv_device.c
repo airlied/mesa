@@ -561,10 +561,10 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
-      .KHR_video_queue = device->video_decode_enabled,
-      .KHR_video_decode_queue = device->video_decode_enabled,
-      .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && device->video_decode_enabled,
-      .KHR_video_decode_h265 = VIDEO_CODEC_H265DEC && device->video_decode_enabled,
+      .KHR_video_queue = !!(device->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
+      .KHR_video_decode_queue = !!(device->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
+      .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && !!(device->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
+      .KHR_video_decode_h265 = VIDEO_CODEC_H265DEC && !!(device->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
       .KHR_vulkan_memory_model = true,
       .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
@@ -711,7 +711,7 @@ radv_physical_device_init_queue_table(struct radv_physical_device *pdevice)
       idx++;
    }
 
-   if (pdevice->video_decode_enabled) {
+   if (pdevice->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
       if (pdevice->rad_info.ip[AMD_IP_VCN_DEC].num_queues > 0) {
          pdevice->vk_queue_to_radv[idx] = RADV_QUEUE_VIDEO_DEC;
          idx++;
@@ -857,8 +857,6 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    device->ws->query_info(device->ws, &device->rad_info);
 
    device->use_llvm = instance->debug_flags & RADV_DEBUG_LLVM;
-
-   device->video_decode_enabled = debug_get_bool_option("RADV_VIDEO_DECODE", false);
 
 #ifndef LLVM_AVAILABLE
    if (device->use_llvm) {
@@ -1124,6 +1122,7 @@ static const struct debug_control radv_perftest_options[] = {{"localbos", RADV_P
                                                              {"rtwave64", RADV_PERFTEST_RT_WAVE_64},
                                                              {"gpl", RADV_PERFTEST_GPL},
                                                              {"ngg_streamout", RADV_PERFTEST_NGG_STREAMOUT},
+                                                             {"video_decode", RADV_PERFTEST_VIDEO_DECODE},
                                                              {NULL, 0}};
 
 const char *
@@ -2853,7 +2852,7 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
        !(pdevice->instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
       num_queue_families++;
 
-   if (pdevice->video_decode_enabled) {
+   if (pdevice->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
       if (pdevice->rad_info.ip[AMD_IP_VCN_DEC].num_queues > 0)
          num_queue_families++;
 
@@ -2895,7 +2894,7 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
       }
    }
 
-   if (pdevice->video_decode_enabled) {
+   if (pdevice->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
       if (pdevice->rad_info.ip[AMD_IP_VCN_DEC].num_queues > 0) {
          if (*pCount > idx) {
             *pQueueFamilyProperties[idx] = (VkQueueFamilyProperties){
