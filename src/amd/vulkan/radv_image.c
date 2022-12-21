@@ -524,7 +524,7 @@ radv_patch_image_from_extra_info(struct radv_device *device, struct radv_image *
    if (result != VK_SUCCESS)
       return result;
 
-   if (image->plane_count > 1)
+   if (image->plane_count > 1 && !image->disjoint)
       add_shareable = true;
    for (unsigned plane = 0; plane < image->plane_count; ++plane) {
       if (create_info->bo_metadata) {
