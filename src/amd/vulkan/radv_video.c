@@ -28,6 +28,7 @@
 #include "radv_private.h"
 
 #include "ac_vcn_dec.h"
+#include "ac_vcn_av1_default.h"
 #include "ac_uvd_dec.h"
 
 #define NUM_H264_REFS 17
@@ -193,6 +194,32 @@ static unsigned calc_ctx_size_h265_main10(struct radv_video_session *vid)
    db_left_tile_pxl_size = coeff_10bit * (max_mb_address * 2 * 2048 + 1024);
 
    return cm_buffer_size + db_left_tile_ctx_size + db_left_tile_pxl_size;
+}
+
+static unsigned calc_ctx_size_av1(struct radv_video_session *vid)
+{
+   unsigned frame_ctxt_size = align(sizeof(rvcn_av1_frame_context_t), 2048);
+   unsigned ctx_size = (9 + 4) * frame_ctxt_size + 9 * 64 * 34 * 512 + 9 * 64 * 34 * 256 * 5;
+
+   int num_64x64_CTB_8k = 68;
+   int num_128x128_CTB_8k = 34;
+   int sdb_pitch_64x64 = align(32 * num_64x64_CTB_8k, 256) * 2;
+   int sdb_pitch_128x128 = align(32 * num_128x128_CTB_8k, 256) * 2;
+   int sdb_lf_size_ctb_64x64 = sdb_pitch_64x64 * (align(1728, 64) / 64);
+   int sdb_lf_size_ctb_128x128 = sdb_pitch_128x128 * (align(3008, 64) / 64);
+   int sdb_superres_size_ctb_64x64 = sdb_pitch_64x64 * (align(3232, 64) / 64);
+   int sdb_superres_size_ctb_128x128 = sdb_pitch_128x128 * (align(6208, 64) / 64);
+   int sdb_output_size_ctb_64x64 = sdb_pitch_64x64 * (align(1312, 64) / 64);
+   int sdb_output_size_ctb_128x128 = sdb_pitch_128x128 * (align(2336, 64) / 64);
+   int sdb_fg_avg_luma_size_ctb_64x64 = sdb_pitch_64x64 * (align(384, 64) / 64);
+   int sdb_fg_avg_luma_size_ctb_128x128 = sdb_pitch_128x128 * (align(640, 64) / 64);
+
+   ctx_size += (MAX2(sdb_lf_size_ctb_64x64, sdb_lf_size_ctb_128x128) +
+                MAX2(sdb_superres_size_ctb_64x64, sdb_superres_size_ctb_128x128) +
+                MAX2(sdb_output_size_ctb_64x64, sdb_output_size_ctb_128x128) +
+                MAX2(sdb_fg_avg_luma_size_ctb_64x64, sdb_fg_avg_luma_size_ctb_128x128)) * 2  + 68 * 512;
+
+   return ctx_size;
 }
 
 VkResult
@@ -465,7 +492,7 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    if (device->physical_device->rad_info.family >= CHIP_POLARIS10)
       num_memory_reqs++;
 
-   if (vid->stream_type == RDECODE_CODEC_H264_PERF || vid->stream_type == RDECODE_CODEC_H265)
+   if (vid->stream_type == RDECODE_CODEC_H264_PERF || vid->stream_type == RDECODE_CODEC_H265 || vid->stream_type == RDECODE_CODEC_AV1)
       num_memory_reqs++;
 
    *pMemoryRequirementsCount = num_memory_reqs;
@@ -498,6 +525,12 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
          ctx_size = calc_ctx_size_h265_main(vid);
       pMemoryRequirements[idx].memoryBindIndex = RADV_BIND_DECODER_CTX;
       pMemoryRequirements[idx].memoryRequirements.size = align(ctx_size, 4096);
+      pMemoryRequirements[idx].memoryRequirements.alignment = 0;
+      pMemoryRequirements[idx].memoryRequirements.memoryTypeBits = memory_type_bits;
+   }
+   if (vid->stream_type == RDECODE_CODEC_AV1) {
+      pMemoryRequirements[idx].memoryBindIndex = RADV_BIND_DECODER_CTX;
+      pMemoryRequirements[idx].memoryRequirements.size = align(calc_ctx_size_av1(vid), 4096);
       pMemoryRequirements[idx].memoryRequirements.alignment = 0;
       pMemoryRequirements[idx].memoryRequirements.memoryTypeBits = memory_type_bits;
    }
