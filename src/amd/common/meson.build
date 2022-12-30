@@ -100,6 +100,7 @@ amd_common_files = files(
   'amd_family.c',
   'ac_perfcounter.c',
   'ac_perfcounter.h',
+  'ac_vcn_av1_default.h',
 )
 
 if dep_elf.found()

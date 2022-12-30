@@ -38,7 +38,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "radeon_vcn_av1_default.h"
+#include "ac_vcn_av1_default.h"
 
 #define FB_BUFFER_OFFSET             0x1000
 #define FB_BUFFER_SIZE               2048
