@@ -686,6 +686,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
          device->vk.instance->app_info.engine_name &&
          strcmp(device->vk.instance->app_info.engine_name, "vkd3d") == 0,
       .VALVE_mutable_descriptor_type = true,
+      .MESA_video_decode_av1 = !!(device->instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
    };
 }
 
@@ -2969,7 +2970,7 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
             VkQueueFamilyVideoPropertiesKHR *prop =
                (VkQueueFamilyVideoPropertiesKHR *)ext;
             if (pQueueFamilyProperties[i].queueFamilyProperties.queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR)
-               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR | VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR;
+               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR | VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR | VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA;
             break;
          }
          default:

@@ -32,6 +32,8 @@
 
 #define NUM_H264_REFS 17
 #define NUM_H265_REFS 8
+#define NUM_AV1_REFS   8
+#define NUM_AV1_REFS_PER_FRAME 7
 #define FB_BUFFER_OFFSET             0x1000
 #define FB_BUFFER_SIZE               2048
 #define FB_BUFFER_SIZE_TONGA     (2048 * 64)
@@ -119,6 +121,11 @@ radv_init_physical_device_decoder(struct radv_physical_device *pdevice)
 static bool have_it(struct radv_video_session *vid)
 {
    return vid->stream_type == RDECODE_CODEC_H264_PERF || vid->stream_type == RDECODE_CODEC_H265;
+}
+
+static bool have_probs(struct radv_video_session *vid)
+{
+   return vid->stream_type == RDECODE_CODEC_AV1;
 }
 
 static unsigned calc_ctx_size_h264_perf(struct radv_video_session *vid)
@@ -225,6 +232,11 @@ radv_CreateVideoSessionKHR(VkDevice _device,
       if (device->physical_device->rad_info.family >= CHIP_NAVI21)
          vid->dpb_type = DPB_DYNAMIC_TIER_2;
       break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA:
+      vid->stream_type = RDECODE_CODEC_AV1;
+      if (device->physical_device->rad_info.family >= CHIP_NAVI21)
+         vid->dpb_type = DPB_DYNAMIC_TIER_2;
+      break;
    default:
       return VK_ERROR_FEATURE_NOT_PRESENT;
    }
@@ -233,8 +245,9 @@ radv_CreateVideoSessionKHR(VkDevice _device,
    vid->dbg_frame_cnt = 0;
    vid->db_alignment = (device->physical_device->rad_info.family >= CHIP_RENOIR &&
                         vid->vk.max_coded.width > 32 &&
+                        (vid->stream_type == RDECODE_CODEC_AV1 ||
                         (vid->stream_type == RDECODE_CODEC_H265 &&
-                         vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10)) ? 64 : 32;
+                         vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10))) ? 64 : 32;
 
    *pVideoSession = radv_video_session_to_handle(vid);
    return VK_SUCCESS;
@@ -309,6 +322,9 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
       break;
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
       cap = &pdevice->rad_info.dec_caps.codec_info[RADV_VIDEO_FORMAT_HEVC];
+      break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA:
+      cap = &pdevice->rad_info.dec_caps.codec_info[RADV_VIDEO_FORMAT_AV1];
       break;
    default:
       unreachable("unsupported operation");
@@ -857,11 +873,23 @@ static rvcn_dec_message_hevc_t get_h265_msg(struct radv_device *device,
    return result;
 }
 
+static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
+                                          struct radv_video_session *vid,
+                                          struct radv_video_session_params *params,
+                                          const struct VkVideoDecodeInfoKHR *frame_info,
+                                          void *probs_ptr)
+{
+   rvcn_dec_message_av1_t result;
+   memset(&result, 0, sizeof(result));
+ 
+   return result;
+}
+
 static bool rvcn_dec_message_decode(struct radv_cmd_buffer *cmd_buffer,
                                     struct radv_video_session *vid,
                                     struct radv_video_session_params *params,
                                     void *ptr,
-                                    void *it_ptr,
+                                    void *it_probs_ptr,
                                     const struct VkVideoDecodeInfoKHR *frame_info)
 {
    struct radv_device *device = cmd_buffer->device;
@@ -982,15 +1010,21 @@ static bool rvcn_dec_message_decode(struct radv_cmd_buffer *cmd_buffer,
 
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR: {
-      rvcn_dec_message_avc_t avc = get_h264_msg(vid, params, frame_info, it_ptr);
+      rvcn_dec_message_avc_t avc = get_h264_msg(vid, params, frame_info, it_probs_ptr);
       memcpy(codec, (void *)&avc, sizeof(rvcn_dec_message_avc_t));
       index_codec->message_id = RDECODE_MESSAGE_AVC;
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR: {
-      rvcn_dec_message_hevc_t hevc = get_h265_msg(device, vid, params, frame_info, it_ptr);
+      rvcn_dec_message_hevc_t hevc = get_h265_msg(device, vid, params, frame_info, it_probs_ptr);
       memcpy(codec, (void *)&hevc, sizeof(rvcn_dec_message_hevc_t));
       index_codec->message_id = RDECODE_MESSAGE_HEVC;
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
+      rvcn_dec_message_av1_t av1 = get_av1_msg(device, vid, params, frame_info, it_probs_ptr);
+      memcpy(codec, (void *)&av1, sizeof(rvcn_dec_message_av1_t));
+      index_codec->message_id = RDECODE_MESSAGE_AV1;
       break;
    }
    default:
@@ -1499,25 +1533,25 @@ radv_uvd_decode_video(struct radv_cmd_buffer *cmd_buffer,
    struct radv_video_session *vid = cmd_buffer->video.vid;
    struct radv_video_session_params *params = cmd_buffer->video.params;
    unsigned size = sizeof(struct ruvd_msg);
-   void *ptr, *fb_ptr, *it_ptr = NULL;
-   uint32_t out_offset, fb_offset, it_offset = 0;
-   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL;
+   void *ptr, *fb_ptr, *it_probs_ptr = NULL;
+   uint32_t out_offset, fb_offset, it_probs_offset = 0;
+   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_probs_bo = NULL;
    unsigned fb_size = (cmd_buffer->device->physical_device->rad_info.family == CHIP_TONGA) ? FB_BUFFER_SIZE_TONGA : FB_BUFFER_SIZE;
 
    radv_vid_buffer_upload_alloc(cmd_buffer, fb_size, &fb_offset,
                                 &fb_ptr);
    fb_bo = cmd_buffer->upload.upload_bo;
    if (have_it(vid)) {
-      radv_vid_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_offset,
-                                   &it_ptr);
-      it_bo = cmd_buffer->upload.upload_bo;
+      radv_vid_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_probs_offset,
+                                   &it_probs_ptr);
+      it_probs_bo = cmd_buffer->upload.upload_bo;
    }
 
    radv_vid_buffer_upload_alloc(cmd_buffer, size, &out_offset,
                                 &ptr);
    msg_bo = cmd_buffer->upload.upload_bo;
 
-   ruvd_dec_message_decode(cmd_buffer->device, vid, params, ptr, it_ptr, frame_info);
+   ruvd_dec_message_decode(cmd_buffer->device, vid, params, ptr, it_probs_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    if (vid->sessionctx.mem)
       send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
@@ -1539,7 +1573,7 @@ radv_uvd_decode_video(struct radv_cmd_buffer *cmd_buffer,
    send_cmd(cmd_buffer, RDECODE_CMD_DECODING_TARGET_BUFFER, img->bindings[0].bo, img->bindings[0].offset);
    send_cmd(cmd_buffer, RDECODE_CMD_FEEDBACK_BUFFER, fb_bo, fb_offset);
    if (have_it(vid))
-      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
+      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_probs_bo, it_probs_offset);
 
    set_reg(cmd_buffer, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
 }
@@ -1552,9 +1586,9 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
    struct radv_video_session *vid = cmd_buffer->video.vid;
    struct radv_video_session_params *params = cmd_buffer->video.params;
    unsigned size = 0;
-   void *ptr, *fb_ptr, *it_ptr = NULL;
-   uint32_t out_offset, fb_offset, it_offset = 0;
-   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_bo = NULL;
+   void *ptr, *fb_ptr, *it_probs_ptr = NULL;
+   uint32_t out_offset, fb_offset, it_probs_offset = 0;
+   struct radeon_winsys_bo *msg_bo, *fb_bo, *it_probs_bo = NULL;
 
    size += sizeof(rvcn_dec_message_header_t); /* header */
    size += sizeof(rvcn_dec_message_index_t);  /* codec */
@@ -1570,6 +1604,9 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
       size += sizeof(rvcn_dec_message_hevc_t);
       break;
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA:
+      size += sizeof(rvcn_dec_message_av1_t);
+      break;
    default:
       unreachable("unsupported codec.");
    }
@@ -1578,16 +1615,20 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
                                 &fb_ptr);
    fb_bo = cmd_buffer->upload.upload_bo;
    if (have_it(vid)) {
-      radv_vid_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_offset,
-                                   &it_ptr);
-      it_bo = cmd_buffer->upload.upload_bo;
+      radv_vid_buffer_upload_alloc(cmd_buffer, IT_SCALING_TABLE_SIZE, &it_probs_offset,
+                                   &it_probs_ptr);
+      it_probs_bo = cmd_buffer->upload.upload_bo;
+   } else if (have_probs(vid)) {
+      radv_vid_buffer_upload_alloc(cmd_buffer, sizeof(rvcn_dec_av1_segment_fg_t), &it_probs_offset,
+                                   &it_probs_ptr);
+      it_probs_bo = cmd_buffer->upload.upload_bo;
    }
 
    radv_vid_buffer_upload_alloc(cmd_buffer, size, &out_offset,
                                 &ptr);
    msg_bo = cmd_buffer->upload.upload_bo;
 
-   rvcn_dec_message_decode(cmd_buffer, vid, params, ptr, it_ptr, frame_info);
+   rvcn_dec_message_decode(cmd_buffer, vid, params, ptr, it_probs_ptr, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, msg_bo, out_offset);
@@ -1608,7 +1649,10 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
    send_cmd(cmd_buffer, RDECODE_CMD_DECODING_TARGET_BUFFER, img->bindings[0].bo, img->bindings[0].offset);
    send_cmd(cmd_buffer, RDECODE_CMD_FEEDBACK_BUFFER, fb_bo, fb_offset);
    if (have_it(vid))
-      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
+      send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_probs_bo, it_probs_offset);
+   else if (have_probs(vid))
+      send_cmd(cmd_buffer, RDECODE_CMD_PROB_TBL_BUFFER, it_probs_bo, it_probs_offset);
+
 
    set_reg(cmd_buffer, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
 }
