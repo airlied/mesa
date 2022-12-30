@@ -57,6 +57,9 @@ typedef struct StdVideoAV1FilmGrainParameters {
 } StdVideoAV1FilmGrainParameters;
 
 typedef struct StdVideoDecodeAV1PictureInfo {
+   StdVideoAV1Profile profile;
+   StdVideoAV1Level level;
+
    StdVideoAV1PictureParameterSet picture_parameter;
 } StdVideoDecodeAV1PictureInfo;
 

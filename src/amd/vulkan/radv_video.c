@@ -935,6 +935,8 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
 
+   result.profile = av1_pic_info->pStdPictureInfo->profile;
+
    result.sb_size = av1_pic_info->pStdPictureInfo->picture_parameter.sequence_info_flags.use_128x128_superblock;
    result.interp_filter = av1_pic_info->pStdPictureInfo->picture_parameter.interp_filter;
    for (i = 0; i < 2; ++i)
@@ -962,6 +964,30 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_restoration_type[0] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type;
    result.frame_restoration_type[1] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type;
    result.frame_restoration_type[2] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type;
+
+   unsigned lr_unit_size[3];
+   if (av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type ||
+       av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type ||
+       av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type) {
+      lr_unit_size[0] = 1 << (6 + av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_unit_shift);
+      lr_unit_size[1] = 1 << (6 + av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_unit_shift -
+                              av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_uv_shift);
+      lr_unit_size[2] = lr_unit_size[1];
+   } else {
+      lr_unit_size[0] = lr_unit_size[1] = lr_unit_size[2] = 1 << 8;
+   }
+
+   for (i = 0; i < 3; ++i) {
+      int log2_num = 0;
+      int unit_size = lr_unit_size[i];
+      if (unit_size) {
+         while (unit_size >>= 1)
+            log2_num++;
+         result.log2_restoration_unit_size_minus5[i] = log2_num - 5;
+      } else {
+         result.log2_restoration_unit_size_minus5[i] = 0;
+      }
+   }
 
    result.uncompressed_header_size = 0;
    for (i = 0; i < 7; ++i) {
@@ -1215,6 +1241,8 @@ static bool rvcn_dec_message_decode(struct radv_cmd_buffer *cmd_buffer,
       decode->dt_luma_bottom_offset = decode->dt_luma_top_offset;
       decode->dt_chroma_bottom_offset = decode->dt_chroma_top_offset;
    }
+   if (vid->stream_type == RDECODE_CODEC_AV1)
+      decode->db_pitch_uv = chroma->surface.u.gfx9.surf_pitch * chroma->surface.blk_w;
 
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR: {
