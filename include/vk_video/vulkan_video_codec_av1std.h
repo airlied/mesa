@@ -121,6 +121,12 @@ typedef struct StdVideoAV1PictureControlParameterSet {
    uint32_t disable_frame_end_update_cdf : 1;
 } StdVideoAV1PictureControlParameterSet;
 
+typedef struct StdVideoAV1LoopFilterInfoParameterSet {
+   uint8_t sharpness_level : 3;
+   uint8_t mode_ref_delta_enabled;
+   uint8_t mode_ref_delta_update;
+} StdVideoAV1LoopFilterInfoParameterSet;
+
 typedef struct StdVideoAV1PictureParameterSet {
    uint32_t bit_depth_idx;
    uint8_t matrix_coefficients;
@@ -136,6 +142,7 @@ typedef struct StdVideoAV1PictureParameterSet {
    uint8_t filter_level_v;
 
    int8_t ref_deltas[8];
+   int8_t mode_deltas[2];
    uint8_t base_qindex;
    int8_t y_dc_delta_q;
    int8_t u_dc_delta_q;
@@ -148,8 +155,10 @@ typedef struct StdVideoAV1PictureParameterSet {
    uint8_t     cdef_y_strengths[8];
    uint8_t     cdef_uv_strengths[8];
 
+   StdVideoAV1SequenceInfoFlags sequence_info_flags;
    StdVideoAV1PictureControlParameterSet picture_control;
    StdVideoAV1ModeControlParameterSet mode_control;
+   StdVideoAV1LoopFilterInfoParameterSet loop_filter;
    StdVideoAV1QMatrixParameterSet qmatrix;
    StdVideoAV1LoopRestorationParameterSet loop_restoration;
    StdVideoAV1WarpedMotionParameters wm[7];

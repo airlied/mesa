@@ -880,6 +880,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                           void *probs_ptr)
 {
    rvcn_dec_message_av1_t result;
+   unsigned i;
    const struct VkVideoDecodeAV1PictureInfoMESA *av1_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_MESA);
    memset(&result, 0, sizeof(result));
@@ -899,6 +900,17 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
 
+   result.sb_size = av1_pic_info->pStdPictureInfo->picture_parameter.sequence_info_flags.use_128x128_superblock;
+   result.interp_filter = av1_pic_info->pStdPictureInfo->picture_parameter.interp_filter;
+   for (i = 0; i < 2; ++i)
+      result.filter_level[i] = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level[i];
+   result.filter_level_u = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level_u;
+   result.filter_level_v = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level_v;
+   result.sharpness_level = av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.sharpness_level;
+   for (i = 0; i < 8; ++i)
+      result.ref_deltas[i] = av1_pic_info->pStdPictureInfo->picture_parameter.ref_deltas[i];
+   for (i = 0; i < 2; ++i)
+      result.mode_deltas[i] = av1_pic_info->pStdPictureInfo->picture_parameter.mode_deltas[i];
    result.base_qindex = av1_pic_info->pStdPictureInfo->picture_parameter.base_qindex;
    result.y_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.y_dc_delta_q;
    result.u_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_dc_delta_q;
@@ -906,6 +918,15 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.u_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_ac_delta_q;
    result.v_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_ac_delta_q;
 
+   result.cdef_damping = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_damping_minus_3 + 3;
+   result.cdef_bits = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_bits;
+   for (i = 0; i < 8; ++i) {
+      result.cdef_strengths[i] = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_y_strengths[i];
+      result.cdef_uv_strengths[i] = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_uv_strengths[i];
+   }
+   result.frame_restoration_type[0] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type;
+   result.frame_restoration_type[1] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type;
+   result.frame_restoration_type[2] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type;
    return result;
 }
 
