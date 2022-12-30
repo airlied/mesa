@@ -880,7 +880,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                           void *probs_ptr)
 {
    rvcn_dec_message_av1_t result;
-   unsigned i;
+   unsigned i, j;
    const struct VkVideoDecodeAV1PictureInfoMESA *av1_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_MESA);
    memset(&result, 0, sizeof(result));
@@ -927,6 +927,14 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_restoration_type[0] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type;
    result.frame_restoration_type[1] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type;
    result.frame_restoration_type[2] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type;
+
+   result.uncompressed_header_size = 0;
+   for (i = 0; i < 7; ++i) {
+      result.global_motion[i + 1].wmtype = (rvcn_dec_transformation_type_e)av1_pic_info->pStdPictureInfo->picture_parameter.wm[i].wm_type;
+      for (j = 0; j < 6; ++j)
+         result.global_motion[i + 1].wmmat[j] = av1_pic_info->pStdPictureInfo->picture_parameter.wm[i].wm_mat[j];
+   }
+
    return result;
 }
 
