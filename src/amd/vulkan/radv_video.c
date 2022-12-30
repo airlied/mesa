@@ -935,6 +935,26 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
 
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.mode_ref_delta_enabled
+                                 << RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_ENABLED_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_ENABLED_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.mode_ref_delta_update
+                                 << RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_UPDATE_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_UPDATE_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_q_present_flag
+                                 << RDECODE_FRAME_HDR_INFO_AV1_DELTA_Q_PRESENT_FLAG_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_DELTA_Q_PRESENT_FLAG_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_lf_present_flag
+                                 << RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_PRESENT_FLAG_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_PRESENT_FLAG_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.reduced_tx_set_used
+                                 << RDECODE_FRAME_HDR_INFO_AV1_REDUCED_TX_SET_USED_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_REDUCED_TX_SET_USED_MASK;
+
    result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.enabled
                                  << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_MASK;
@@ -946,6 +966,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.temporal_update
                                  << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_lf_multi
+                                 << RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_MASK;
 
    result.profile = av1_pic_info->pStdPictureInfo->profile;
 
