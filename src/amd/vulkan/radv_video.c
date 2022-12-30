@@ -880,8 +880,32 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                           void *probs_ptr)
 {
    rvcn_dec_message_av1_t result;
+   const struct VkVideoDecodeAV1PictureInfoMESA *av1_pic_info =
+      vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_MESA);
    memset(&result, 0, sizeof(result));
- 
+
+   result.frame_header_flags = (av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.show_frame
+                                << RDECODE_FRAME_HDR_INFO_AV1_SHOW_FRAME_SHIFT) &
+                                RDECODE_FRAME_HDR_INFO_AV1_SHOW_FRAME_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.disable_cdf_update
+                                << RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_SHIFT) &
+                                RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_MASK;
+   result.frame_header_flags |= ((!av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.disable_frame_end_update_cdf)
+                                << RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_MASK;
+
+   result.frame_header_flags |= ((av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.frame_type ==
+                                  2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
+
+   result.base_qindex = av1_pic_info->pStdPictureInfo->picture_parameter.base_qindex;
+   result.y_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.y_dc_delta_q;
+   result.u_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_dc_delta_q;
+   result.v_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_dc_delta_q;
+   result.u_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_ac_delta_q;
+   result.v_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_ac_delta_q;
+
    return result;
 }
 

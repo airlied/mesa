@@ -56,6 +56,9 @@ typedef struct StdVideoAV1FilmGrainParameters {
    uint16_t cr_offset;
 } StdVideoAV1FilmGrainParameters;
 
+typedef struct StdVideoDecodeAV1PictureInfo {
+   StdVideoAV1PictureParameterSet picture_parameter;
+} StdVideoDecodeAV1PictureInfo;
 
 #ifdef __cplusplus
 }

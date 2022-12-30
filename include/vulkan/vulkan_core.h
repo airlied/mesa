@@ -999,6 +999,7 @@ typedef enum VkStructureType {
     VK_STRUCTURE_TYPE_MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT = 1000351002,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_BUILTINS_FEATURES_ARM = 1000497000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_BUILTINS_PROPERTIES_ARM = 1000497001,
+    VK_STRUCTURE_TYPE_VIDEO_DECODE_AV1_PICTURE_INFO_MESA = 100507001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTERS_FEATURES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES,
     VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
@@ -16871,11 +16872,18 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(
 #include "vk_video/vulkan_video_codec_av1std.h"
 #include "vk_video/vulkan_video_codec_av1std_decode.h"
 
-typedef struct VkVideoDecodeAV1CapabilitiesKHR {
+typedef struct VkVideoDecodeAV1CapabilitiesMESA {
     VkStructureType         sType;
     void*                   pNext;
     VkBool32 large_scale_tile_support;
-} VkVideoDecodeAV1CapabiltiesKHR;
+} VkVideoDecodeAV1CapabiltiesMESA;
+
+typedef struct VkVideoDecodeAV1PictureInfoMESA {
+    VkStructureType                         sType;
+    const void*                             pNext;
+    const StdVideoDecodeAV1PictureInfo*     pStdPictureInfo;
+} VkVideoDecodeAV1PictureInfoMESA;
+
 #ifdef __cplusplus
 }
 #endif

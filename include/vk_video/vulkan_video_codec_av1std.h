@@ -112,6 +112,7 @@ typedef struct StdVideoAV1ModeControlParameterSet {
 
 typedef struct StdVideoAV1PictureControlParameterSet {
    uint32_t frame_type : 2;
+   uint32_t show_frame : 1;
    uint32_t error_resilient_mode : 1;
    uint32_t disable_cdf_update : 1;
    uint32_t use_superres : 1;
