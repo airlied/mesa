@@ -59,6 +59,19 @@ typedef enum StdVideoAV1TransformationType {
    STD_VIDEO_AV1_TRANSFORMATION_AFFINE = 3,
 } StdVideoAV1TransformationType;
 
+typedef struct StdVideoAV1SegmentationFlags {
+   uint32_t enabled : 1;
+   uint32_t update_map : 1;
+   uint32_t temporal_update : 1;
+   uint32_t update_data : 1;
+} StdVideoAV1SegmentationFlags;
+
+typedef struct StdVideoAV1Segmentation {
+   StdVideoAV1SegmentationFlags flags;
+   int16_t                 feature_data[8][8];
+   uint8_t                 feature_mask[8];
+} StdVideoAV1Segmentation;
+
 typedef struct StdVideoAV1SequenceInfoFlags {
    uint32_t still_picture : 1;
    uint32_t use_128x128_superblock : 1;
@@ -156,6 +169,7 @@ typedef struct StdVideoAV1PictureParameterSet {
    uint8_t     cdef_uv_strengths[8];
 
    StdVideoAV1SequenceInfoFlags sequence_info_flags;
+   StdVideoAV1Segmentation segmentation_info;
    StdVideoAV1PictureControlParameterSet picture_control;
    StdVideoAV1ModeControlParameterSet mode_control;
    StdVideoAV1LoopFilterInfoParameterSet loop_filter;

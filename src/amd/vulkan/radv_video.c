@@ -935,6 +935,18 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
 
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.enabled
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.update_map
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_UPDATE_MAP_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_UPDATE_MAP_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.temporal_update
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_MASK;
+
    result.profile = av1_pic_info->pStdPictureInfo->profile;
 
    result.sb_size = av1_pic_info->pStdPictureInfo->picture_parameter.sequence_info_flags.use_128x128_superblock;
@@ -955,6 +967,13 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.u_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_ac_delta_q;
    result.v_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_ac_delta_q;
 
+   for (i = 0; i < 8; ++i) {
+      for (j = 0; j < 8; ++j)
+         result.feature_data[i][j] = av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_data[i][j];
+      result.feature_mask[i] = av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_mask[i];
+   }
+   memcpy(probs_ptr, &av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_data, 128);
+   memcpy(((char *)probs_ptr + 128), &av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_mask, 8);
    result.cdef_damping = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_damping_minus_3 + 3;
    result.cdef_bits = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_bits;
    for (i = 0; i < 8; ++i) {
