@@ -7852,6 +7852,7 @@ typedef enum VkVideoCodecOperationFlagBitsKHR {
 #endif
     VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR = 0x00000001,
     VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR = 0x00000002,
+    VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA = 0x01000000,
     VK_VIDEO_CODEC_OPERATION_FLAG_BITS_MAX_ENUM_KHR = 0x7FFFFFFF
 } VkVideoCodecOperationFlagBitsKHR;
 typedef VkFlags VkVideoCodecOperationFlagsKHR;
@@ -16863,6 +16864,18 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(
     uint32_t                                    stride);
 #endif
 
+#define VK_MESA_video_decode_av1 1
+#define VK_MESA_VIDEO_DECODE_AV1_SPEC_VERSION 1
+#define VK_MESA_VIDEO_DECODE_AV1_EXTENSION_NAME "VK_MESA_video_decode_av1"
+
+#include "vk_video/vulkan_video_codec_av1std.h"
+#include "vk_video/vulkan_video_codec_av1std_decode.h"
+
+typedef struct VkVideoDecodeAV1CapabilitiesKHR {
+    VkStructureType         sType;
+    void*                   pNext;
+    VkBool32 large_scale_tile_support;
+} VkVideoDecodeAV1CapabiltiesKHR;
 #ifdef __cplusplus
 }
 #endif
