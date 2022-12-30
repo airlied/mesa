@@ -354,6 +354,7 @@ struct radv_physical_device {
       unsigned cmd;
       unsigned cntl;
    } vid_dec_reg;
+   uint32_t av1_version;
 };
 
 struct radv_instance {

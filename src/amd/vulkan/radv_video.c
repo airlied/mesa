@@ -70,6 +70,8 @@ static unsigned si_vid_alloc_stream_handle()
 void
 radv_init_physical_device_decoder(struct radv_physical_device *pdevice)
 {
+   pdevice->av1_version = RDECODE_AV1_VER_0;
+
    switch (pdevice->rad_info.family) {
    case CHIP_VEGA10:
    case CHIP_VEGA12:
