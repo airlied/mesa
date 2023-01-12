@@ -56,6 +56,9 @@ vk_video_session_init(struct vk_device *device,
       vid->h265.profile_idc = h265_profile->stdProfileIdc;
       break;
    }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
+      break;
+   };
    default:
       return VK_ERROR_FEATURE_NOT_PRESENT;
    }

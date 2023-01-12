@@ -401,6 +401,11 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
       ext->maxLevelIdc = 51;
       break;
    }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
+      struct VkVideoDecodeAV1CapabilitiesMESA *ext =
+         vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
+      break;
+   }
    default:
       break;
    }
@@ -414,6 +419,12 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          pCapabilities->maxCodedExtent.height = (pdevice->rad_info.family < CHIP_TONGA) ? 1152 : 4096;
          break;
       case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+         pCapabilities->maxCodedExtent.width = (pdevice->rad_info.family < CHIP_RENOIR) ?
+            ((pdevice->rad_info.family < CHIP_TONGA) ? 2048 : 4096) : 8192;
+         pCapabilities->maxCodedExtent.height = (pdevice->rad_info.family < CHIP_RENOIR) ?
+            ((pdevice->rad_info.family < CHIP_TONGA) ? 1152 : 4096) : 4352;
+         break;
+      case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA:
          pCapabilities->maxCodedExtent.width = (pdevice->rad_info.family < CHIP_RENOIR) ?
             ((pdevice->rad_info.family < CHIP_TONGA) ? 2048 : 4096) : 8192;
          pCapabilities->maxCodedExtent.height = (pdevice->rad_info.family < CHIP_RENOIR) ?
