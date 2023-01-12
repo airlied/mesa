@@ -545,7 +545,10 @@ radv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
       pMemoryRequirements[idx].memoryBindIndex = RADV_BIND_DECODER_CTX;
       pMemoryRequirements[idx].memoryRequirements.size = align(calc_ctx_size_av1(vid), 4096);
       pMemoryRequirements[idx].memoryRequirements.alignment = 0;
-      pMemoryRequirements[idx].memoryRequirements.memoryTypeBits = memory_type_bits;
+      pMemoryRequirements[idx].memoryRequirements.memoryTypeBits = 0;
+      for (unsigned i = 0; i < device->physical_device->memory_properties.memoryTypeCount; i++)
+         if (device->physical_device->memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+            pMemoryRequirements[idx].memoryRequirements.memoryTypeBits |= (1 << i);
    }
    return VK_SUCCESS;
 }
