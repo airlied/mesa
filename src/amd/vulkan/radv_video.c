@@ -404,6 +404,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
       struct VkVideoDecodeAV1CapabilitiesMESA *ext =
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
+      pCapabilities->maxDpbSlots = 8;
+      pCapabilities->maxActiveReferencePictures = 8;
       break;
    }
    default:
