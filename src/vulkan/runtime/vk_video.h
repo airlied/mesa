@@ -74,6 +74,10 @@ struct vk_video_session_parameters {
          uint32_t std_pps_count;
          StdVideoH265PictureParameterSet *std_pps;
       } h265_dec;
+
+      struct {
+         StdVideoAV1SequenceHeader seq_hdr;
+      } av1_dec;
    };
 };
 

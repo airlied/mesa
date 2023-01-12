@@ -920,101 +920,101 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_MESA);
    memset(&result, 0, sizeof(result));
 
-   result.frame_header_flags = (av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.show_frame
+   result.frame_header_flags = (av1_pic_info->frame_header->flags.show_frame
                                 << RDECODE_FRAME_HDR_INFO_AV1_SHOW_FRAME_SHIFT) &
                                 RDECODE_FRAME_HDR_INFO_AV1_SHOW_FRAME_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.disable_cdf_update
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.disable_cdf_update
                                 << RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_SHIFT) &
                                 RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_MASK;
-   result.frame_header_flags |= ((!av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.disable_frame_end_update_cdf)
+   result.frame_header_flags |= ((!av1_pic_info->frame_header->flags.disable_frame_end_update_cdf)
                                 << RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_MASK;
 
-   result.frame_header_flags |= ((av1_pic_info->pStdPictureInfo->picture_parameter.picture_control.frame_type ==
+   result.frame_header_flags |= ((av1_pic_info->frame_header->frame_type ==
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.mode_ref_delta_enabled
+   result.frame_header_flags |= (av1_pic_info->frame_header->loop_filter.flags.loop_filter_delta_enabled
                                  << RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_ENABLED_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_ENABLED_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.mode_ref_delta_update
+   result.frame_header_flags |= (av1_pic_info->frame_header->loop_filter.flags.loop_filter_delta_update
                                  << RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_UPDATE_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_UPDATE_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_q_present_flag
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.delta_q_present
                                  << RDECODE_FRAME_HDR_INFO_AV1_DELTA_Q_PRESENT_FLAG_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_DELTA_Q_PRESENT_FLAG_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_lf_present_flag
+   result.frame_header_flags |= (av1_pic_info->frame_header->delta_q.flags.delta_lf_present
                                  << RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_PRESENT_FLAG_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_PRESENT_FLAG_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.reduced_tx_set_used
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.reduced_tx_set
                                  << RDECODE_FRAME_HDR_INFO_AV1_REDUCED_TX_SET_USED_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_REDUCED_TX_SET_USED_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.enabled
+   result.frame_header_flags |= (av1_pic_info->frame_header->segmentation.flags.segmentation_enabled
                                  << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_ENABLED_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.update_map
+   result.frame_header_flags |= (av1_pic_info->frame_header->segmentation.flags.segmentation_update_map
                                  << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_UPDATE_MAP_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_UPDATE_MAP_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.flags.temporal_update
+   result.frame_header_flags |= (av1_pic_info->frame_header->segmentation.flags.segmentation_temporal_update
                                  << RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_SEGMENTATION_TEMPORAL_UPDATE_MASK;
 
-   result.frame_header_flags |= (av1_pic_info->pStdPictureInfo->picture_parameter.mode_control.delta_lf_multi
+   result.frame_header_flags |= (av1_pic_info->frame_header->delta_q.flags.delta_lf_multi
                                  << RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_MASK;
 
-   result.profile = av1_pic_info->pStdPictureInfo->profile;
+   result.profile = params->vk.av1_dec.seq_hdr.seq_profile;
 
-   result.sb_size = av1_pic_info->pStdPictureInfo->picture_parameter.sequence_info_flags.use_128x128_superblock;
-   result.interp_filter = av1_pic_info->pStdPictureInfo->picture_parameter.interp_filter;
+   result.sb_size = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
+   result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
    for (i = 0; i < 2; ++i)
-      result.filter_level[i] = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level[i];
-   result.filter_level_u = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level_u;
-   result.filter_level_v = av1_pic_info->pStdPictureInfo->picture_parameter.filter_level_v;
-   result.sharpness_level = av1_pic_info->pStdPictureInfo->picture_parameter.loop_filter.sharpness_level;
+      result.filter_level[i] = av1_pic_info->frame_header->loop_filter.loop_filter_level[i];
+//   result.filter_level_u = av1_pic_info->frame_header->filter_level_u;
+//   result.filter_level_v = av1_pic_info->frame_header->filter_level_v;
+   result.sharpness_level = av1_pic_info->frame_header->loop_filter.loop_filter_sharpness;
    for (i = 0; i < 8; ++i)
-      result.ref_deltas[i] = av1_pic_info->pStdPictureInfo->picture_parameter.ref_deltas[i];
+      result.ref_deltas[i] = av1_pic_info->frame_header->loop_filter.loop_filter_ref_deltas[i];
    for (i = 0; i < 2; ++i)
-      result.mode_deltas[i] = av1_pic_info->pStdPictureInfo->picture_parameter.mode_deltas[i];
-   result.base_qindex = av1_pic_info->pStdPictureInfo->picture_parameter.base_qindex;
-   result.y_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.y_dc_delta_q;
-   result.u_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_dc_delta_q;
-   result.v_dc_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_dc_delta_q;
-   result.u_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.u_ac_delta_q;
-   result.v_ac_delta_q = av1_pic_info->pStdPictureInfo->picture_parameter.v_ac_delta_q;
+      result.mode_deltas[i] = av1_pic_info->frame_header->loop_filter.loop_filter_mode_deltas[i];
+   result.base_qindex = av1_pic_info->frame_header->quantization.base_q_idx;
+   result.y_dc_delta_q = av1_pic_info->frame_header->quantization.delta_q_y_dc;
+   result.u_dc_delta_q = av1_pic_info->frame_header->quantization.delta_q_u_dc;
+   result.v_dc_delta_q = av1_pic_info->frame_header->quantization.delta_q_v_dc;
+   result.u_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_u_ac;
+   result.v_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_v_ac;
 
    for (i = 0; i < 8; ++i) {
       for (j = 0; j < 8; ++j)
-         result.feature_data[i][j] = av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_data[i][j];
-      result.feature_mask[i] = av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_mask[i];
+         result.feature_data[i][j] = av1_pic_info->frame_header->segmentation.feature_value[i][j];
+      result.feature_mask[i] = av1_pic_info->frame_header->segmentation.feature_enabled[i][0];
    }
-   memcpy(probs_ptr, &av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_data, 128);
-   memcpy(((char *)probs_ptr + 128), &av1_pic_info->pStdPictureInfo->picture_parameter.segmentation_info.feature_mask, 8);
-   result.cdef_damping = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_damping_minus_3 + 3;
-   result.cdef_bits = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_bits;
+   memcpy(probs_ptr, &av1_pic_info->frame_header->segmentation.feature_value, 128);
+   memcpy(((char *)probs_ptr + 128), &av1_pic_info->frame_header->segmentation.feature_enabled, 8);
+   result.cdef_damping = av1_pic_info->frame_header->cdef.cdef_damping_minus_3 + 3;
+   result.cdef_bits = av1_pic_info->frame_header->cdef.cdef_bits;
    for (i = 0; i < 8; ++i) {
-      result.cdef_strengths[i] = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_y_strengths[i];
-      result.cdef_uv_strengths[i] = av1_pic_info->pStdPictureInfo->picture_parameter.cdef_uv_strengths[i];
+      result.cdef_strengths[i] = av1_pic_info->frame_header->cdef.cdef_y_pri_strength[i];
+      result.cdef_uv_strengths[i] = av1_pic_info->frame_header->cdef.cdef_uv_pri_strength[i];
    }
-   result.frame_restoration_type[0] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type;
-   result.frame_restoration_type[1] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type;
-   result.frame_restoration_type[2] = av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type;
+   result.frame_restoration_type[0] = av1_pic_info->frame_header->lr.lr_type[0];
+   result.frame_restoration_type[1] = av1_pic_info->frame_header->lr.lr_type[1];
+   result.frame_restoration_type[2] = av1_pic_info->frame_header->lr.lr_type[2];
 
    unsigned lr_unit_size[3];
-   if (av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.yframe_restoration_type ||
-       av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.cbframe_restoration_type ||
-       av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.crframe_restoration_type) {
-      lr_unit_size[0] = 1 << (6 + av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_unit_shift);
-      lr_unit_size[1] = 1 << (6 + av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_unit_shift -
-                              av1_pic_info->pStdPictureInfo->picture_parameter.loop_restoration.lr_uv_shift);
+   if (av1_pic_info->frame_header->lr.lr_type[0] ||
+       av1_pic_info->frame_header->lr.lr_type[1] ||
+       av1_pic_info->frame_header->lr.lr_type[2]) {
+      lr_unit_size[0] = 1 << (6 + av1_pic_info->frame_header->lr.lr_unit_shift);
+      lr_unit_size[1] = 1 << (6 + av1_pic_info->frame_header->lr.lr_unit_shift -
+                              av1_pic_info->frame_header->lr.lr_uv_shift);
       lr_unit_size[2] = lr_unit_size[1];
    } else {
       lr_unit_size[0] = lr_unit_size[1] = lr_unit_size[2] = 1 << 8;
@@ -1034,9 +1034,18 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
 
    result.uncompressed_header_size = 0;
    for (i = 0; i < 7; ++i) {
-      result.global_motion[i + 1].wmtype = (rvcn_dec_transformation_type_e)av1_pic_info->pStdPictureInfo->picture_parameter.wm[i].wm_type;
+      if (av1_pic_info->frame_header->warped_motion[i].flags.is_global)
+         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_IDENTITY;
+      else if (av1_pic_info->frame_header->warped_motion[i].flags.is_rot_zoom)
+         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_ROTZOOM;
+      else if (av1_pic_info->frame_header->warped_motion[i].flags.is_translation)
+         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_TRANSLATION;
       for (j = 0; j < 6; ++j)
-         result.global_motion[i + 1].wmmat[j] = av1_pic_info->pStdPictureInfo->picture_parameter.wm[i].wm_mat[j];
+         result.global_motion[i + 1].wmmat[j] = av1_pic_info->frame_header->warped_motion[i].gm_params[j];
+   }
+   for (i = 0; i < av1_pic_info->tile_list->nb_tiles && i < 256; ++i) {
+      result.tile_info[i].offset = av1_pic_info->tile_list->tile_list[i].offset;
+      result.tile_info[i].size = av1_pic_info->tile_list->tile_list[i].size;
    }
 
    return result;

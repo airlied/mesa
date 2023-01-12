@@ -16872,18 +16872,6 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountEXT(
 #include "vk_video/vulkan_video_codec_av1std.h"
 #include "vk_video/vulkan_video_codec_av1std_decode.h"
 
-typedef struct VkVideoDecodeAV1CapabilitiesMESA {
-    VkStructureType         sType;
-    void*                   pNext;
-    VkBool32 large_scale_tile_support;
-} VkVideoDecodeAV1CapabiltiesMESA;
-
-typedef struct VkVideoDecodeAV1PictureInfoMESA {
-    VkStructureType                         sType;
-    const void*                             pNext;
-    const StdVideoDecodeAV1PictureInfo*     pStdPictureInfo;
-} VkVideoDecodeAV1PictureInfoMESA;
-
 #ifdef __cplusplus
 }
 #endif
