@@ -1074,6 +1074,35 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.u_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_u_ac;
    result.v_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_v_ac;
 
+   result.qm_y = av1_pic_info->frame_header->quantization.qm_y | 0xf0;
+   result.qm_u = av1_pic_info->frame_header->quantization.qm_u | 0xf0;
+   result.qm_v = av1_pic_info->frame_header->quantization.qm_v | 0xf0;
+   result.delta_q_res = av1_pic_info->frame_header->delta_q.delta_q_res;
+   result.delta_lf_res = av1_pic_info->frame_header->delta_q.delta_lf_res;
+   result.tile_cols = 1 << av1_pic_info->frame_header->tiling.tile_cols_log2;
+   result.tile_rows = 1 << av1_pic_info->frame_header->tiling.tile_rows_log2;
+
+   result.tx_mode = av1_pic_info->frame_header->tx_mode;
+   result.reference_mode = (av1_pic_info->frame_header->flags.reference_select == 1) ? 2 : 0;
+   result.chroma_format = params->vk.av1_dec.seq_hdr.color_config.flags.mono_chrome ? 0 : 1;
+   result.tile_size_bytes = av1_pic_info->frame_header->tiling.tile_size_bytes_minus1;
+   result.context_update_tile_id = av1_pic_info->frame_header->tiling.context_update_tile_id;
+#if 0
+   for (i = 0; i < 65; ++i) {
+      result.tile_col_start_sb[i] = pic->picture_parameter.tile_col_start_sb[i];
+      result.tile_row_start_sb[i] = pic->picture_parameter.tile_row_start_sb[i];
+   }
+#endif
+   result.max_width = params->vk.av1_dec.seq_hdr.max_frame_width_minus_1 + 1;
+   result.max_height = params->vk.av1_dec.seq_hdr.max_frame_height_minus_1 + 1;
+   //TODO
+   if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
+      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 2;
+   else if (params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth)
+      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 1;
+   else
+      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 0;
+
    for (i = 0; i < 8; ++i) {
       for (j = 0; j < 8; ++j)
          result.feature_data[i][j] = av1_pic_info->frame_header->segmentation.feature_value[i][j];
