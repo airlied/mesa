@@ -927,6 +927,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_header_flags |= (av1_pic_info->frame_header->flags.disable_cdf_update
                                 << RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_SHIFT) &
                                 RDECODE_FRAME_HDR_INFO_AV1_DISABLE_CDF_UPDATE_MASK;
+
    result.frame_header_flags |= ((!av1_pic_info->frame_header->flags.disable_frame_end_update_cdf)
                                 << RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_REFRESH_FRAME_CONTEXT_MASK;
@@ -934,6 +935,70 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_header_flags |= ((av1_pic_info->frame_header->frame_type ==
                                   2 /* INTRA_ONLY_FRAME */) << RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_INTRA_ONLY_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.allow_intrabc
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_INTRABC_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ALLOW_INTRABC_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.allow_high_precision_mv
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_HIGH_PRECISION_MV_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ALLOW_HIGH_PRECISION_MV_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.color_config.flags.mono_chrome
+                                 << RDECODE_FRAME_HDR_INFO_AV1_MONOCHROME_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_MONOCHROME_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.skip_mode_present
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SKIP_MODE_FLAG_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SKIP_MODE_FLAG_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.using_qmatrix
+                                 << RDECODE_FRAME_HDR_INFO_AV1_USING_QMATRIX_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_USING_QMATRIX_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_filter_intra
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_FILTER_INTRA_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_FILTER_INTRA_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_intra_edge_filter
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_INTRA_EDGE_FILTER_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_INTRA_EDGE_FILTER_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_interintra_compound
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_INTERINTRA_COMPOUND_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_INTERINTRA_COMPOUND_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_masked_compound
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_MASKED_COMPOUND_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_MASKED_COMPOUND_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.allow_warped_motion
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_WARPED_MOTION_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ALLOW_WARPED_MOTION_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_dual_filter
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_DUAL_FILTER_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_DUAL_FILTER_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_order_hint
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_ORDER_HINT_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_ORDER_HINT_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_jnt_comp
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_JNT_COMP_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ENABLE_JNT_COMP_MASK;
+
+   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_ref_frame_mvs
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_REF_FRAME_MVS_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ALLOW_REF_FRAME_MVS_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.allow_screen_content_tools
+                                 << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_SCREEN_CONTENT_TOOLS_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_ALLOW_SCREEN_CONTENT_TOOLS_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.force_integer_mv
+                                 << RDECODE_FRAME_HDR_INFO_AV1_CUR_FRAME_FORCE_INTEGER_MV_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_CUR_FRAME_FORCE_INTEGER_MV_MASK;
 
    result.frame_header_flags |= (av1_pic_info->frame_header->loop_filter.flags.loop_filter_delta_enabled
                                  << RDECODE_FRAME_HDR_INFO_AV1_MODE_REF_DELTA_ENABLED_SHIFT) &
@@ -970,6 +1035,18 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_header_flags |= (av1_pic_info->frame_header->delta_q.flags.delta_lf_multi
                                  << RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_DELTA_LF_MULTI_MASK;
+
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.is_motion_mode_switchable
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SWITCHABLE_SKIP_MODE_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SWITCHABLE_SKIP_MODE_MASK;
+
+   result.frame_header_flags |= ((!av1_pic_info->frame_header->refresh_frame_flags)
+                                 << RDECODE_FRAME_HDR_INFO_AV1_SKIP_REFERENCE_UPDATE_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_SKIP_REFERENCE_UPDATE_MASK;
+
+   result.frame_header_flags |= ((!params->vk.av1_dec.seq_hdr.flags.enable_ref_frame_mvs)
+                                 << RDECODE_FRAME_HDR_INFO_AV1_DISABLE_REF_FRAME_MVS_SHIFT) &
+                                 RDECODE_FRAME_HDR_INFO_AV1_DISABLE_REF_FRAME_MVS_MASK;
 
    result.profile = params->vk.av1_dec.seq_hdr.seq_profile;
 
