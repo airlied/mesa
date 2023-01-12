@@ -1144,6 +1144,23 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       }
    }
 
+   if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit ||
+       params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth) {
+      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 ||
+          vid->vk.picture_format == VK_FORMAT_G16_B16R16_2PLANE_420_UNORM) {
+         result.p010_mode = 1;
+         result.msb_mode = 1;
+      } else {
+         result.luma_10to8 = 1;
+         result.chroma_10to8 = 1;
+      }
+   }
+   rvcn_dec_film_grain_params_t* fg_params = &result.film_grain;
+   fg_params->apply_grain = av1_pic_info->frame_header->film_grain.flags.apply_grain;
+   if (fg_params->apply_grain) {
+//      rvcn_dec_av1_fg_init_buf_t *fg_buf = (rvcn_dec_av1_fg_init_buf_t *)(dec->probs + 256);
+   }
+
    result.uncompressed_header_size = 0;
    for (i = 0; i < 7; ++i) {
       if (av1_pic_info->frame_header->warped_motion[i].flags.is_global)
