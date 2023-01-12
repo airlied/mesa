@@ -1048,7 +1048,13 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                  << RDECODE_FRAME_HDR_INFO_AV1_DISABLE_REF_FRAME_MVS_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_DISABLE_REF_FRAME_MVS_MASK;
 
+   result.current_frame_id = av1_pic_info->frame_header->current_frame_id;
+   result.frame_offset = av1_pic_info->frame_header->order_hint;
    result.profile = params->vk.av1_dec.seq_hdr.seq_profile;
+   result.is_annexb = 0;
+
+   result.frame_type = av1_pic_info->frame_header->frame_type;
+   result.primary_ref_frame = av1_pic_info->frame_header->primary_ref_frame;
 
    result.sb_size = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
    result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
