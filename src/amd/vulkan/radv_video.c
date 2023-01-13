@@ -1402,6 +1402,19 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.superres_upscaled_width = av1_pic_info->frame_header->frame_width_minus_1 + 1;
    result.order_hint_bits = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1;
 
+   int idx;
+   for (i = 0; i < frame_info->referenceSlotCount; i++) {
+      idx = frame_info->pReferenceSlots[i].slotIndex;
+      result.ref_frame_map[i] = idx;
+   }
+
+   for (; i < NUM_AV1_REFS; ++i) {
+      result.ref_frame_map[i] = 0x7f;
+   }
+   for (i = 0; i < NUM_AV1_REFS_PER_FRAME; ++i) {
+      result.frame_refs[i] = av1_pic_info->frame_header->ref_frame_idx[i];
+   }
+
    if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
       result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 4;
    else if (params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth)
