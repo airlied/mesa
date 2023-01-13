@@ -1361,9 +1361,15 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.u_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_u_ac;
    result.v_ac_delta_q = av1_pic_info->frame_header->quantization.delta_q_v_ac;
 
-   result.qm_y = av1_pic_info->frame_header->quantization.qm_y | 0xf0;
-   result.qm_u = av1_pic_info->frame_header->quantization.qm_u | 0xf0;
-   result.qm_v = av1_pic_info->frame_header->quantization.qm_v | 0xf0;
+   if (av1_pic_info->frame_header->flags.using_qmatrix) {
+      result.qm_y = av1_pic_info->frame_header->quantization.qm_y | 0xf0;
+      result.qm_u = av1_pic_info->frame_header->quantization.qm_u | 0xf0;
+      result.qm_v = av1_pic_info->frame_header->quantization.qm_v | 0xf0;
+   } else {
+      result.qm_y = 0xff;
+      result.qm_u = 0xff;
+      result.qm_v = 0xff;
+   }
    result.delta_q_res = (1 << av1_pic_info->frame_header->delta_q.delta_q_res);
    result.delta_lf_res = (1 << av1_pic_info->frame_header->delta_q.delta_lf_res);
    result.tile_cols = 1 << av1_pic_info->frame_header->tiling.tile_cols_log2;
