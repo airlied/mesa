@@ -1364,8 +1364,8 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.qm_y = av1_pic_info->frame_header->quantization.qm_y | 0xf0;
    result.qm_u = av1_pic_info->frame_header->quantization.qm_u | 0xf0;
    result.qm_v = av1_pic_info->frame_header->quantization.qm_v | 0xf0;
-   result.delta_q_res = av1_pic_info->frame_header->delta_q.delta_q_res;
-   result.delta_lf_res = av1_pic_info->frame_header->delta_q.delta_lf_res;
+   result.delta_q_res = (1 << av1_pic_info->frame_header->delta_q.delta_q_res);
+   result.delta_lf_res = (1 << av1_pic_info->frame_header->delta_q.delta_lf_res);
    result.tile_cols = 1 << av1_pic_info->frame_header->tiling.tile_cols_log2;
    result.tile_rows = 1 << av1_pic_info->frame_header->tiling.tile_rows_log2;
 
