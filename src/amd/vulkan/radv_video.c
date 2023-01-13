@@ -1407,15 +1407,18 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    else
       result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 0;
 
+   int16_t *feature_data = (int16_t *)probs_ptr;
+   int fd_idx = 0;
    for (i = 0; i < 8; ++i) {
       result.feature_mask[i] = 0;
       for (j = 0; j < 8; ++j) {
          result.feature_mask[i] |= (av1_pic_info->frame_header->segmentation.feature_enabled[i][j] << j);
          result.feature_data[i][j] = av1_pic_info->frame_header->segmentation.feature_value[i][j];
+         feature_data[fd_idx++] = result.feature_data[i][j];
       }
    }
-   memcpy(probs_ptr, &av1_pic_info->frame_header->segmentation.feature_value, 128);
-   memcpy(((char *)probs_ptr + 128), &av1_pic_info->frame_header->segmentation.feature_enabled, 8);
+
+   memcpy(((char *)probs_ptr + 128), result.feature_mask, 8);
    result.cdef_damping = av1_pic_info->frame_header->cdef.cdef_damping_minus_3 + 3;
    result.cdef_bits = av1_pic_info->frame_header->cdef.cdef_bits;
    for (i = 0; i < 8; ++i) {
