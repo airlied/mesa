@@ -967,6 +967,12 @@ fill_tile_col_row_info(rvcn_dec_message_av1_t *result,
       assert(0);//TODO
    }
 }
+enum {
+    AV1_RESTORE_NONE       = 0,
+    AV1_RESTORE_WIENER     = 1,
+    AV1_RESTORE_SGRPROJ    = 2,
+    AV1_RESTORE_SWITCHABLE = 3,
+};
 
 static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                           struct radv_video_session *vid,
@@ -1164,7 +1170,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.height = av1_pic_info->frame_header->render_height_minus_1 + 1;
    result.superres_upscaled_width = av1_pic_info->frame_header->frame_width_minus_1 + 1;
    result.order_hint_bits = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1;
-   //TODO
+
    if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
       result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 4;
    else if (params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth)
@@ -1189,9 +1195,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       result.cdef_uv_strengths[i] = (av1_pic_info->frame_header->cdef.cdef_uv_pri_strength[i] << 2) +
          av1_pic_info->frame_header->cdef.cdef_uv_sec_strength[i];
    }
-   result.frame_restoration_type[0] = av1_pic_info->frame_header->lr.lr_type[0];
-   result.frame_restoration_type[1] = av1_pic_info->frame_header->lr.lr_type[1];
-   result.frame_restoration_type[2] = av1_pic_info->frame_header->lr.lr_type[2];
+   uint8_t remap_lr_type[4] = {AV1_RESTORE_NONE, AV1_RESTORE_SWITCHABLE, AV1_RESTORE_WIENER, AV1_RESTORE_SGRPROJ};
+   result.frame_restoration_type[0] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[0]];
+   result.frame_restoration_type[1] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[1]];
+   result.frame_restoration_type[2] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[2]];
 
    unsigned lr_unit_size[3];
    if (av1_pic_info->frame_header->lr.lr_type[0] ||
