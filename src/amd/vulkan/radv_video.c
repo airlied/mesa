@@ -1150,19 +1150,25 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.context_update_tile_id = av1_pic_info->frame_header->tiling.context_update_tile_id;
 
    fill_tile_col_row_info(&result, params, av1_pic_info);
-#if 0
-   for (i = 0; i < 65; ++i) {
-      result.tile_col_start_sb[i] = pic->picture_parameter.tile_col_start_sb[i];
-      result.tile_row_start_sb[i] = pic->picture_parameter.tile_row_start_sb[i];
-   }
-#endif
    result.max_width = params->vk.av1_dec.seq_hdr.max_frame_width_minus_1 + 1;
    result.max_height = params->vk.av1_dec.seq_hdr.max_frame_height_minus_1 + 1;
+   if (av1_pic_info->frame_header->flags.use_superres) {
+      assert(0);
+//      result.width = ((av1_pic_info->frame_header->render_width_minus1 + 1) * 8 + pic->picture_parameter.superres_scale_denominator / 2) /
+//         pic->picture_parameter.superres_scale_denominator;
+//      result.superres_scale_denominator = pic->picture_parameter.superres_scale_denominator;
+   } else {
+      result.width = av1_pic_info->frame_header->render_width_minus_1 + 1;
+//      result.superres_scale_denominator = pic->picture_parameter.superres_scale_denominator;
+   }
+   result.height = av1_pic_info->frame_header->render_height_minus_1 + 1;
+   result.superres_upscaled_width = av1_pic_info->frame_header->frame_width_minus_1 + 1;
+   result.order_hint_bits = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1;
    //TODO
    if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
-      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 2;
+      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 4;
    else if (params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth)
-      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 1;
+      result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 2;
    else
       result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 0;
 
