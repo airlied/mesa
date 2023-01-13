@@ -1184,8 +1184,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.cdef_damping = av1_pic_info->frame_header->cdef.cdef_damping_minus_3 + 3;
    result.cdef_bits = av1_pic_info->frame_header->cdef.cdef_bits;
    for (i = 0; i < 8; ++i) {
-      result.cdef_strengths[i] = av1_pic_info->frame_header->cdef.cdef_y_pri_strength[i];
-      result.cdef_uv_strengths[i] = av1_pic_info->frame_header->cdef.cdef_uv_pri_strength[i];
+      result.cdef_strengths[i] = (av1_pic_info->frame_header->cdef.cdef_y_pri_strength[i] << 2) +
+         av1_pic_info->frame_header->cdef.cdef_y_sec_strength[i];
+      result.cdef_uv_strengths[i] = (av1_pic_info->frame_header->cdef.cdef_uv_pri_strength[i] << 2) +
+         av1_pic_info->frame_header->cdef.cdef_uv_sec_strength[i];
    }
    result.frame_restoration_type[0] = av1_pic_info->frame_header->lr.lr_type[0];
    result.frame_restoration_type[1] = av1_pic_info->frame_header->lr.lr_type[1];
