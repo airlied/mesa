@@ -404,8 +404,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
       struct VkVideoDecodeAV1CapabilitiesMESA *ext =
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
-      pCapabilities->maxDpbSlots = 8;
-      pCapabilities->maxActiveReferencePictures = 8;
+      pCapabilities->maxDpbSlots = NUM_AV1_REFS;
+      pCapabilities->maxActiveReferencePictures = NUM_AV1_REFS_PER_FRAME;
       break;
    }
    default:
@@ -1072,6 +1072,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_type = av1_pic_info->frame_header->frame_type;
    result.primary_ref_frame = av1_pic_info->frame_header->primary_ref_frame;
 
+   result.curr_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
    result.sb_size = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
    result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
    for (i = 0; i < 2; ++i)
@@ -1120,9 +1121,11 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       result.bit_depth_luma_minus8 = result.bit_depth_chroma_minus8 = 0;
 
    for (i = 0; i < 8; ++i) {
-      for (j = 0; j < 8; ++j)
+      result.feature_mask[i] = 0;
+      for (j = 0; j < 8; ++j) {
+         result.feature_mask[i] |= (av1_pic_info->frame_header->segmentation.feature_enabled[i][j] << j);
          result.feature_data[i][j] = av1_pic_info->frame_header->segmentation.feature_value[i][j];
-      result.feature_mask[i] = av1_pic_info->frame_header->segmentation.feature_enabled[i][0];
+      }
    }
    memcpy(probs_ptr, &av1_pic_info->frame_header->segmentation.feature_value, 128);
    memcpy(((char *)probs_ptr + 128), &av1_pic_info->frame_header->segmentation.feature_enabled, 8);

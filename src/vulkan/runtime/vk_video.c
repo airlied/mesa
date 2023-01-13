@@ -231,7 +231,7 @@ vk_video_session_parameters_init(struct vk_device *device,
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
       const struct VkVideoDecodeAV1SessionParametersCreateInfoMESA *av1_create =
          vk_find_struct_const(create_info->pNext, VIDEO_DECODE_AV1_SESSION_PARAMETERS_CREATE_INFO_MESA);
-      if (av1_create)
+      if (av1_create && av1_create->pParametersAddInfo)
          params->av1_dec.seq_hdr = *av1_create->pParametersAddInfo->sequence_header;
       break;
    }
