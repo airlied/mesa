@@ -974,6 +974,9 @@ enum {
     AV1_RESTORE_SWITCHABLE = 3,
 };
 
+#define AV1_SUPERRES_NUM 8
+#define AV1_SUPERRES_DENOM_MIN 9
+
 #define LUMA_BLOCK_SIZE_Y 73
 #define LUMA_BLOCK_SIZE_X 82
 #define CHROMA_BLOCK_SIZE_Y 38
@@ -1384,14 +1387,14 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    fill_tile_col_row_info(&result, params, av1_pic_info);
    result.max_width = params->vk.av1_dec.seq_hdr.max_frame_width_minus_1 + 1;
    result.max_height = params->vk.av1_dec.seq_hdr.max_frame_height_minus_1 + 1;
+   result.superres_scale_denominator = av1_pic_info->frame_header->flags.use_superres ?
+      av1_pic_info->frame_header->coded_denom + AV1_SUPERRES_DENOM_MIN :
+      AV1_SUPERRES_NUM;
    if (av1_pic_info->frame_header->flags.use_superres) {
-      assert(0);
 //      result.width = ((av1_pic_info->frame_header->render_width_minus1 + 1) * 8 + pic->picture_parameter.superres_scale_denominator / 2) /
 //         pic->picture_parameter.superres_scale_denominator;
-//      result.superres_scale_denominator = pic->picture_parameter.superres_scale_denominator;
    } else {
       result.width = av1_pic_info->frame_header->render_width_minus_1 + 1;
-//      result.superres_scale_denominator = pic->picture_parameter.superres_scale_denominator;
    }
    result.height = av1_pic_info->frame_header->render_height_minus_1 + 1;
    result.superres_upscaled_width = av1_pic_info->frame_header->frame_width_minus_1 + 1;
