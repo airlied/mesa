@@ -924,6 +924,50 @@ static rvcn_dec_message_hevc_t get_h265_msg(struct radv_device *device,
    return result;
 }
 
+static void
+fill_tile_col_row_info(rvcn_dec_message_av1_t *result,
+                       const struct radv_video_session_params *params,
+                       const struct VkVideoDecodeAV1PictureInfoMESA *av1_pic_info)
+{
+   unsigned mi_cols = 2 * ((params->vk.av1_dec.seq_hdr.max_frame_width_minus_1 + 8) >> 3);
+   unsigned mi_rows = 2 * ((params->vk.av1_dec.seq_hdr.max_frame_height_minus_1 + 8) >> 3);
+   unsigned tile_cols_log2 = av1_pic_info->frame_header->tiling.tile_cols_log2;
+   unsigned tile_rows_log2 = av1_pic_info->frame_header->tiling.tile_rows_log2;
+   unsigned sb_cols, sb_rows;
+   unsigned width_sb, height_sb;
+   unsigned start_sb;
+   unsigned i;
+
+   sb_cols = (params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock) ?
+      ((mi_cols + 31) >> 5) : ((mi_cols + 15) >> 4);
+   sb_rows = (params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock) ?
+      ((mi_rows + 31) >> 5) : ((mi_rows + 15) >> 4);
+
+   width_sb = sb_cols;
+   height_sb = sb_rows;
+   if (av1_pic_info->frame_header->tiling.flags.uniform_tile_spacing_flag) {
+      unsigned tile_width_sb, tile_height_sb;
+      tile_width_sb = (sb_cols + (1 << tile_cols_log2) - 1) >> tile_cols_log2;
+      i = 0;
+      for (start_sb = 0; start_sb < sb_cols; start_sb += tile_width_sb) {
+         result->tile_col_start_sb[i] = start_sb;
+         i++;
+      }
+      result->tile_col_start_sb[i] = sb_cols;
+
+      tile_height_sb = (sb_rows + (1 << tile_rows_log2) - 1) >> tile_rows_log2;
+      i = 0;
+      for (start_sb = 0; start_sb < sb_rows; start_sb += tile_height_sb) {
+         result->tile_row_start_sb[i] = start_sb;
+         i++;
+      }
+      result->tile_row_start_sb[i] = sb_rows;
+   } else {
+      unsigned widest_tile_sb = 0;
+      assert(0);//TODO
+   }
+}
+
 static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                           struct radv_video_session *vid,
                                           struct radv_video_session_params *params,
@@ -1104,6 +1148,8 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.chroma_format = params->vk.av1_dec.seq_hdr.color_config.flags.mono_chrome ? 0 : 1;
    result.tile_size_bytes = av1_pic_info->frame_header->tiling.tile_size_bytes_minus1;
    result.context_update_tile_id = av1_pic_info->frame_header->tiling.context_update_tile_id;
+
+   fill_tile_col_row_info(&result, params, av1_pic_info);
 #if 0
    for (i = 0; i < 65; ++i) {
       result.tile_col_start_sb[i] = pic->picture_parameter.tile_col_start_sb[i];
