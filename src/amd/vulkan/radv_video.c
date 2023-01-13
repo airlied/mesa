@@ -1238,7 +1238,50 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    rvcn_dec_film_grain_params_t* fg_params = &result.film_grain;
    fg_params->apply_grain = av1_pic_info->frame_header->film_grain.flags.apply_grain;
    if (fg_params->apply_grain) {
-//      rvcn_dec_av1_fg_init_buf_t *fg_buf = (rvcn_dec_av1_fg_init_buf_t *)(dec->probs + 256);
+      rvcn_dec_av1_fg_init_buf_t *fg_buf = (rvcn_dec_av1_fg_init_buf_t *)((char *)probs_ptr + 256);
+      fg_params->random_seed = av1_pic_info->frame_header->film_grain.grain_seed;
+      fg_params->grain_scale_shift = av1_pic_info->frame_header->film_grain.grain_scale_shift;
+      fg_params->scaling_shift = av1_pic_info->frame_header->film_grain.grain_scaling_minus_8 + 8;
+      fg_params->chroma_scaling_from_luma =
+         av1_pic_info->frame_header->film_grain.flags.chroma_scaling_from_luma;
+      fg_params->num_y_points = av1_pic_info->frame_header->film_grain.num_y_points;
+      fg_params->num_cb_points = av1_pic_info->frame_header->film_grain.num_cb_points;
+      fg_params->num_cr_points = av1_pic_info->frame_header->film_grain.num_cr_points;
+      fg_params->cb_mult = av1_pic_info->frame_header->film_grain.cb_mult;
+      fg_params->cb_luma_mult = av1_pic_info->frame_header->film_grain.cb_luma_mult;
+      fg_params->cb_offset = av1_pic_info->frame_header->film_grain.cb_offset;
+      fg_params->cr_mult = av1_pic_info->frame_header->film_grain.cr_mult;
+      fg_params->cr_luma_mult = av1_pic_info->frame_header->film_grain.cr_luma_mult;
+      fg_params->cr_offset = av1_pic_info->frame_header->film_grain.cr_offset;
+//      fg_params->bit_depth_minus_8 = pic->picture_parameter.bit_depth_idx << 1;
+      for (i = 0; i < fg_params->num_y_points; ++i) {
+         fg_params->scaling_points_y[i][0] = av1_pic_info->frame_header->film_grain.point_y_value[i];
+         fg_params->scaling_points_y[i][1] = av1_pic_info->frame_header->film_grain.point_y_scaling[i];
+      }
+      for (i = 0; i < fg_params->num_cb_points; ++i) {
+         fg_params->scaling_points_cb[i][0] = av1_pic_info->frame_header->film_grain.point_cb_value[i];
+         fg_params->scaling_points_cb[i][1] = av1_pic_info->frame_header->film_grain.point_cb_scaling[i];
+      }
+      for (i = 0; i < fg_params->num_cr_points; ++i) {
+         fg_params->scaling_points_cr[i][0] = av1_pic_info->frame_header->film_grain.point_cr_value[i];
+         fg_params->scaling_points_cr[i][1] = av1_pic_info->frame_header->film_grain.point_cr_scaling[i];
+      }
+
+      fg_params->ar_coeff_lag = av1_pic_info->frame_header->film_grain.ar_coeff_lag;
+      fg_params->ar_coeff_shift =
+         av1_pic_info->frame_header->film_grain.ar_coeff_shift_minus_6 + 6;
+
+      for (i = 0; i < 24; ++i)
+         fg_params->ar_coeffs_y[i] = av1_pic_info->frame_header->film_grain.ar_coeffs_y_plus_128[i] - 128;
+
+      for (i = 0; i < 25; ++i) {
+         fg_params->ar_coeffs_cb[i] = av1_pic_info->frame_header->film_grain.ar_coeffs_cb_plus_128[i] - 128;
+         fg_params->ar_coeffs_cr[i] = av1_pic_info->frame_header->film_grain.ar_coeffs_cr_plus_128[i] - 128;
+      }
+
+      fg_params->overlap_flag = av1_pic_info->frame_header->film_grain.flags.overlap_flag;
+      fg_params->clip_to_restricted_range =
+         av1_pic_info->frame_header->film_grain.flags.clip_to_restricted_range;
    }
 
    result.uncompressed_header_size = 0;
