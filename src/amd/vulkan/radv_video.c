@@ -263,8 +263,8 @@ radv_CreateVideoSessionKHR(VkDevice _device,
       break;
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA:
       vid->stream_type = RDECODE_CODEC_AV1;
-//      if (device->physical_device->rad_info.family >= CHIP_NAVI21)
-//         vid->dpb_type = DPB_DYNAMIC_TIER_2;
+      if (device->physical_device->rad_info.family >= CHIP_NAVI21)
+         vid->dpb_type = DPB_DYNAMIC_TIER_2;
       break;
    default:
       return VK_ERROR_FEATURE_NOT_PRESENT;
@@ -406,8 +406,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
       pCapabilities->maxDpbSlots = NUM_AV1_REFS;
       pCapabilities->maxActiveReferencePictures = NUM_AV1_REFS_PER_FRAME;
-//      if (pdevice->rad_info.family >= CHIP_NAVI21)
-//         pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
+      if (pdevice->rad_info.family >= CHIP_NAVI21)
+         pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
       break;
    }
    default:
