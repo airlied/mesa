@@ -1279,7 +1279,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
                                  << RDECODE_FRAME_HDR_INFO_AV1_ENABLE_JNT_COMP_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_ENABLE_JNT_COMP_MASK;
 
-   result.frame_header_flags |= (params->vk.av1_dec.seq_hdr.flags.enable_ref_frame_mvs
+   result.frame_header_flags |= (av1_pic_info->frame_header->flags.use_ref_frame_mvs
                                  << RDECODE_FRAME_HDR_INFO_AV1_ALLOW_REF_FRAME_MVS_SHIFT) &
                                  RDECODE_FRAME_HDR_INFO_AV1_ALLOW_REF_FRAME_MVS_MASK;
 
