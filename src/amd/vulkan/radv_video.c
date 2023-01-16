@@ -1412,7 +1412,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       result.ref_frame_map[i] = 0x7f;
    }
    for (i = 0; i < NUM_AV1_REFS_PER_FRAME; ++i) {
-      result.frame_refs[i] = av1_pic_info->frame_header->ref_frame_idx[i];
+      result.frame_refs[i] = result.ref_frame_map[av1_pic_info->frame_header->ref_frame_idx[i]];
    }
 
    if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
