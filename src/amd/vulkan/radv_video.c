@@ -1355,8 +1355,8 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
    for (i = 0; i < 2; ++i)
       result.filter_level[i] = av1_pic_info->frame_header->loop_filter.loop_filter_level[i];
-//   result.filter_level_u = av1_pic_info->frame_header->filter_level_u;
-//   result.filter_level_v = av1_pic_info->frame_header->filter_level_v;
+   result.filter_level_u = av1_pic_info->frame_header->loop_filter.loop_filter_level[2];
+   result.filter_level_v = av1_pic_info->frame_header->loop_filter.loop_filter_level[3];
    result.sharpness_level = av1_pic_info->frame_header->loop_filter.loop_filter_sharpness;
    for (i = 0; i < 8; ++i)
       result.ref_deltas[i] = av1_pic_info->frame_header->loop_filter.loop_filter_ref_deltas[i];
