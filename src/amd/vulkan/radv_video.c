@@ -1505,7 +1505,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
       fg_params->cr_mult = av1_pic_info->frame_header->film_grain.cr_mult;
       fg_params->cr_luma_mult = av1_pic_info->frame_header->film_grain.cr_luma_mult;
       fg_params->cr_offset = av1_pic_info->frame_header->film_grain.cr_offset;
-//      fg_params->bit_depth_minus_8 = pic->picture_parameter.bit_depth_idx << 1;
+      fg_params->bit_depth_minus_8 = result.bit_depth_luma_minus8;
       for (i = 0; i < fg_params->num_y_points; ++i) {
          fg_params->scaling_points_y[i][0] = av1_pic_info->frame_header->film_grain.point_y_value[i];
          fg_params->scaling_points_y[i][1] = av1_pic_info->frame_header->film_grain.point_y_scaling[i];
