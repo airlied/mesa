@@ -404,7 +404,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA: {
       struct VkVideoDecodeAV1CapabilitiesMESA *ext =
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
-      pCapabilities->maxDpbSlots = NUM_AV1_REFS;
+      pCapabilities->maxDpbSlots = NUM_AV1_REFS + 1;
       pCapabilities->maxActiveReferencePictures = NUM_AV1_REFS_PER_FRAME;
       if (pdevice->rad_info.family >= CHIP_NAVI21)
          pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
@@ -1347,7 +1347,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.frame_type = av1_pic_info->frame_header->frame_type;
    result.primary_ref_frame = av1_pic_info->frame_header->primary_ref_frame;
 
-   result.curr_pic_idx = frame_info->pSetupReferenceSlot->slotIndex;
+   const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
+      vk_find_struct_const(frame_info->pSetupReferenceSlot->pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
+   result.curr_pic_idx = dpb_slot->unique_idx;
+
    result.sb_size = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
    result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
    for (i = 0; i < 2; ++i)
@@ -1404,8 +1407,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
 
    int idx;
    for (i = 0; i < frame_info->referenceSlotCount; i++) {
+      const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
+         vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
       idx = frame_info->pReferenceSlots[i].slotIndex;
-      result.ref_frame_map[i] = idx;
+      result.ref_frame_map[i] = dpb_slot->unique_idx;
    }
 
    for (; i < NUM_AV1_REFS; ++i) {

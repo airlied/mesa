@@ -393,6 +393,7 @@ typedef struct VkVideoDecodeAV1DpbSlotInfoMESA {
     VkStructureType sType;
     const void *pNext;
     const StdVideoDecodeAV1ReferenceInfo *pStdReferenceInfo;
+    uint32_t unique_idx;
 } VkVideoDecodeAV1DpbSlotInfoMESA;
 
 typedef struct VkVideoDecodeAV1SessionParametersAddInfoMESA {
