@@ -1487,6 +1487,37 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
          result.chroma_10to8 = 1;
       }
    }
+
+   result.preskip_segid = 0;
+   result.last_active_segid = 0;
+   for (i = 0; i < 8; i++) {
+      for (j = 0; j < 8; j++) {
+         if (result.feature_mask[i] & (1 << j)) {
+            result.last_active_segid = i;
+            if (j >= 5)
+               result.preskip_segid = 1;
+         }
+      }
+   }
+   result.seg_lossless_flag = 0;
+   for (i = 0; i < 8; ++i) {
+      int av1_get_qindex, qindex;
+      int segfeature_active = result.feature_mask[i] & (1 << 0);
+      if (segfeature_active) {
+         int seg_qindex = result.base_qindex +
+            result.feature_data[i][0];
+         av1_get_qindex = seg_qindex < 0 ? 0 : (seg_qindex > 255 ? 255 : seg_qindex);
+      } else {
+         av1_get_qindex = result.base_qindex;
+      }
+      qindex = av1_pic_info->frame_header->segmentation.flags.segmentation_enabled ?
+               av1_get_qindex :
+         result.base_qindex;
+      result.seg_lossless_flag |= (((qindex == 0) && result.y_dc_delta_q == 0 &&
+                                    result.u_dc_delta_q == 0 && result.v_dc_delta_q == 0 &&
+                                    result.u_ac_delta_q == 0 && result.v_ac_delta_q == 0) << i);
+   }
+
    rvcn_dec_film_grain_params_t* fg_params = &result.film_grain;
    fg_params->apply_grain = av1_pic_info->frame_header->film_grain.flags.apply_grain;
    if (fg_params->apply_grain) {
