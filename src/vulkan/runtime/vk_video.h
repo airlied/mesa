@@ -76,7 +76,7 @@ struct vk_video_session_parameters {
       } h265_dec;
 
       struct {
-         StdVideoAV1SequenceHeader seq_hdr;
+         StdVideoAV1MESASequenceHeader seq_hdr;
       } av1_dec;
    };
 };

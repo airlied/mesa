@@ -1369,7 +1369,7 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
 
    const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
       vk_find_struct_const(frame_info->pSetupReferenceSlot->pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
-   result.curr_pic_idx = dpb_slot->unique_idx;
+   result.curr_pic_idx = dpb_slot->frameIdx;
 
    result.sb_size = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
    result.interp_filter = av1_pic_info->frame_header->interpolation_filter;
@@ -1425,12 +1425,10 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    result.superres_upscaled_width = av1_pic_info->frame_header->frame_width_minus_1 + 1;
    result.order_hint_bits = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1;
 
-   int idx;
    for (i = 0; i < frame_info->referenceSlotCount; i++) {
-      const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
+      const struct VkVideoDecodeAV1DpbSlotInfoMESA *ref_dpb_slot =
          vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
-      idx = frame_info->pReferenceSlots[i].slotIndex;
-      result.ref_frame_map[i] = dpb_slot->unique_idx;
+      result.ref_frame_map[i] = ref_dpb_slot->frameIdx;
    }
 
    for (; i < NUM_AV1_REFS; ++i) {
