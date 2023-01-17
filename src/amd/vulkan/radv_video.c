@@ -966,7 +966,27 @@ fill_tile_col_row_info(rvcn_dec_message_av1_t *result,
       result->tile_row_start_sb[i] = sb_rows;
    } else {
       unsigned widest_tile_sb = 0;
-      assert(0);//TODO
+
+      start_sb = 0;
+      for (i = 0; start_sb < sb_cols; ++i) {
+         unsigned size_sb;
+
+         result->tile_col_start_sb[i] = start_sb;
+         size_sb = av1_pic_info->frame_header->tiling.width_in_sbs_minus_1[i] + 1;
+         widest_tile_sb = MAX2(size_sb, widest_tile_sb);
+         start_sb += size_sb;
+         width_sb -= size_sb;
+      }
+      result->tile_col_start_sb[i] = start_sb + width_sb;
+
+      start_sb = 0;
+      for (i = 0; start_sb < sb_rows; ++i) {
+         unsigned height_in_sbs_minus_1 = av1_pic_info->frame_header->tiling.height_in_sbs_minus_1[i];
+         result->tile_row_start_sb[i] = start_sb;
+         start_sb += height_in_sbs_minus_1 + 1;
+         height_sb -= height_in_sbs_minus_1 + 1;
+      }
+      result->tile_row_start_sb[i] = start_sb + height_sb;
    }
 }
 enum {
