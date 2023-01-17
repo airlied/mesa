@@ -1569,15 +1569,15 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    }
 
    result.uncompressed_header_size = 0;
-   for (i = 0; i < 7; ++i) {
+   for (i = 0; i < 8; ++i) {
       if (av1_pic_info->frame_header->warped_motion[i].flags.is_global)
-         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_IDENTITY;
+         result.global_motion[i].wmtype = RVCN_DEC_AV1_IDENTITY;
       else if (av1_pic_info->frame_header->warped_motion[i].flags.is_rot_zoom)
-         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_ROTZOOM;
+         result.global_motion[i].wmtype = RVCN_DEC_AV1_ROTZOOM;
       else if (av1_pic_info->frame_header->warped_motion[i].flags.is_translation)
-         result.global_motion[i + 1].wmtype = RVCN_DEC_AV1_TRANSLATION;
+         result.global_motion[i].wmtype = RVCN_DEC_AV1_TRANSLATION;
       for (j = 0; j < 6; ++j)
-         result.global_motion[i + 1].wmmat[j] = av1_pic_info->frame_header->warped_motion[i].gm_params[j];
+         result.global_motion[i].wmmat[j] = av1_pic_info->frame_header->warped_motion[i].gm_params[j];
    }
    for (i = 0; i < av1_pic_info->tile_list->nb_tiles && i < 256; ++i) {
       result.tile_info[i].offset = av1_pic_info->tile_list->tile_list[i].offset;
