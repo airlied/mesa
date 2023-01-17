@@ -119,8 +119,8 @@ typedef struct StdVideoAV1TilingFlags {
 
 typedef struct StdVideoAV1Tiling {
     StdVideoAV1TilingFlags flags;
-    uint8_t tile_cols_log2;
-    uint8_t tile_rows_log2;
+    uint8_t tile_cols;
+    uint8_t tile_rows;
     uint8_t width_in_sbs_minus_1[64];
     uint8_t height_in_sbs_minus_1[64];
     uint16_t context_update_tile_id;

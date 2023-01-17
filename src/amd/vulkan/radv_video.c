@@ -933,8 +933,8 @@ fill_tile_col_row_info(rvcn_dec_message_av1_t *result,
 {
    unsigned mi_cols = 2 * ((params->vk.av1_dec.seq_hdr.max_frame_width_minus_1 + 8) >> 3);
    unsigned mi_rows = 2 * ((params->vk.av1_dec.seq_hdr.max_frame_height_minus_1 + 8) >> 3);
-   unsigned tile_cols_log2 = av1_pic_info->frame_header->tiling.tile_cols_log2;
-   unsigned tile_rows_log2 = av1_pic_info->frame_header->tiling.tile_rows_log2;
+   unsigned tile_cols_log2 = util_logbase2_ceil(av1_pic_info->frame_header->tiling.tile_cols);
+   unsigned tile_rows_log2 = util_logbase2_ceil(av1_pic_info->frame_header->tiling.tile_rows);
    unsigned sb_cols, sb_rows;
    unsigned width_sb, height_sb;
    unsigned start_sb;
@@ -1380,8 +1380,8 @@ static rvcn_dec_message_av1_t get_av1_msg(struct radv_device *device,
    }
    result.delta_q_res = (1 << av1_pic_info->frame_header->delta_q.delta_q_res);
    result.delta_lf_res = (1 << av1_pic_info->frame_header->delta_q.delta_lf_res);
-   result.tile_cols = 1 << av1_pic_info->frame_header->tiling.tile_cols_log2;
-   result.tile_rows = 1 << av1_pic_info->frame_header->tiling.tile_rows_log2;
+   result.tile_cols = av1_pic_info->frame_header->tiling.tile_cols;
+   result.tile_rows = av1_pic_info->frame_header->tiling.tile_rows;
 
    result.tx_mode = av1_pic_info->frame_header->tx_mode;
    result.reference_mode = (av1_pic_info->frame_header->flags.reference_select == 1) ? 2 : 0;
