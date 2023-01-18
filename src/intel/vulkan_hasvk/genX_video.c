@@ -149,7 +149,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    vk_fill_video_reference_info(frame_info, ref_slots);
 #if USE_SHORT == 0
-   void *slice_map = anv_gem_mmap(cmd_buffer->device, src_buffer->address.bo,
+   void *slice_map = anv_gem_mmap(cmd_buffer->device, src_buffer->address.bo->gem_handle,
                                   src_buffer->address.offset, frame_info->srcBufferRange, 0);
    vk_video_parse_h264_slice_header(frame_info, sps, pps, slice_map, &slice_params);
    anv_gem_munmap(cmd_buffer->device, slice_map, frame_info->srcBufferRange);

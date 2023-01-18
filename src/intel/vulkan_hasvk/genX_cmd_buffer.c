@@ -86,6 +86,13 @@ is_render_queue_cmd_buffer(const struct anv_cmd_buffer *cmd_buffer)
    return (queue_family->queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
 }
 
+static bool
+is_video_queue_cmd_buffer(const struct anv_cmd_buffer *cmd_buffer)
+{
+   struct anv_queue_family *queue_family = cmd_buffer->queue_family;
+   return (queue_family->queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR) != 0;
+}
+
 void
 genX(cmd_buffer_emit_state_base_address)(struct anv_cmd_buffer *cmd_buffer)
 {
@@ -1309,6 +1316,8 @@ genX(BeginCommandBuffer)(
    if (cmd_buffer->vk.level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
       cmd_buffer->usage_flags &= ~VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 
+   if (is_video_queue_cmd_buffer(cmd_buffer))
+      return VK_SUCCESS;
    trace_intel_begin_cmd_buffer(&cmd_buffer->trace);
 
    genX(cmd_buffer_emit_state_base_address)(cmd_buffer);
@@ -1466,6 +1475,11 @@ genX(EndCommandBuffer)(
 
    if (anv_batch_has_error(&cmd_buffer->batch))
       return cmd_buffer->batch.status;
+
+   if (is_video_queue_cmd_buffer(cmd_buffer)) {
+      anv_cmd_buffer_end_batch_buffer(cmd_buffer);
+      return VK_SUCCESS;
+   }
 
    anv_measure_endcommandbuffer(cmd_buffer);
 
@@ -1929,6 +1943,8 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
    VkAccessFlags2 src_flags = 0;
    VkAccessFlags2 dst_flags = 0;
 
+   if (is_video_queue_cmd_buffer(cmd_buffer))
+      return;   
    for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
       src_flags |= dep_info->pMemoryBarriers[i].srcAccessMask;
       dst_flags |= dep_info->pMemoryBarriers[i].dstAccessMask;
