@@ -2162,6 +2162,7 @@ anv_queue_exec_locked(struct anv_queue *queue,
    }
 
    if (INTEL_DEBUG(DEBUG_BATCH)) {
+      int dec_ctx_idx = (int) (queue - device->queues);
       fprintf(stderr, "Batch on queue %d\n", (int)(queue - device->queues));
       if (cmd_buffer_count) {
          if (has_perf_query) {
@@ -2169,7 +2170,7 @@ anv_queue_exec_locked(struct anv_queue *queue,
             uint64_t pass_batch_offset =
                khr_perf_query_preamble_offset(perf_query_pool, perf_query_pass);
 
-            intel_print_batch(&device->decoder_ctx,
+            intel_print_batch(&device->decoder_ctx[dec_ctx_idx],
                               pass_batch_bo->map + pass_batch_offset, 64,
                               pass_batch_bo->offset + pass_batch_offset, false);
          }
@@ -2178,12 +2179,12 @@ anv_queue_exec_locked(struct anv_queue *queue,
             struct anv_batch_bo **bo =
                u_vector_tail(&cmd_buffers[i]->seen_bbos);
             device->cmd_buffer_being_decoded = cmd_buffers[i];
-            intel_print_batch(&device->decoder_ctx, (*bo)->bo->map,
+            intel_print_batch(&device->decoder_ctx[dec_ctx_idx], (*bo)->bo->map,
                               (*bo)->bo->size, (*bo)->bo->offset, false);
             device->cmd_buffer_being_decoded = NULL;
          }
       } else {
-         intel_print_batch(&device->decoder_ctx,
+         intel_print_batch(&device->decoder_ctx[dec_ctx_idx],
                            device->trivial_batch_bo->map,
                            device->trivial_batch_bo->size,
                            device->trivial_batch_bo->offset, false);
@@ -2432,7 +2433,7 @@ anv_queue_submit_simple_batch(struct anv_queue *queue,
       goto fail;
 
    if (INTEL_DEBUG(DEBUG_BATCH)) {
-      intel_print_batch(&device->decoder_ctx,
+      intel_print_batch(&device->decoder_ctx[0],
                         batch_bo->map,
                         batch_bo->size,
                         batch_bo->offset, false);
