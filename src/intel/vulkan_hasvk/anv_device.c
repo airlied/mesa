@@ -252,6 +252,9 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_timeline_semaphore                = true,
       .KHR_uniform_buffer_standard_layout    = true,
       .KHR_variable_pointers                 = true,
+      .KHR_video_queue                       = device->video_decode_enabled,
+      .KHR_video_decode_queue                = device->video_decode_enabled,
+      .KHR_video_decode_h264                 = device->video_decode_enabled,
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -601,6 +604,9 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
       int gc_count =
          intel_engines_count(pdevice->engine_info,
                              INTEL_ENGINE_CLASS_RENDER);
+      int vid_count =
+         intel_engines_count(pdevice->engine_info,
+			     I915_ENGINE_CLASS_VIDEO);
       int g_count = 0;
       int c_count = 0;
 
@@ -629,6 +635,13 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
                           VK_QUEUE_TRANSFER_BIT,
             .queueCount = c_count,
             .engine_class = INTEL_ENGINE_CLASS_RENDER,
+         };
+      }
+      if (vid_count > 0 && pdevice->video_decode_enabled) {
+         pdevice->queue.families[family_count++] = (struct anv_queue_family) {
+            .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
+            .queueCount = vid_count,
+            .engine_class = I915_ENGINE_CLASS_VIDEO,
          };
       }
       /* Increase count below when other families are added as a reminder to
@@ -847,6 +860,7 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       device->use_softpin &&
       !debug_get_bool_option("ANV_DISABLE_SECONDARY_CMD_BUFFER_CALLS", false);
 
+   device->video_decode_enabled = debug_get_bool_option("ANV_VIDEO_DECODE", false);
    /* We first got the A64 messages on broadwell and we can only use them if
     * we can pass addresses directly into the shader which requires softpin.
     */
@@ -2311,7 +2325,12 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
                properties->priorityCount = count;
                break;
             }
-
+            case VK_STRUCTURE_TYPE_QUEUE_FAMILY_VIDEO_PROPERTIES_KHR: {
+               VkQueueFamilyVideoPropertiesKHR *prop =
+                  (VkQueueFamilyVideoPropertiesKHR *)ext;
+               prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
+               break;
+            }
             default:
                anv_debug_ignored_stype(ext->sType);
             }

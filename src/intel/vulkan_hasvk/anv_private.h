@@ -87,6 +87,7 @@
 #include "vk_util.h"
 #include "vk_queue.h"
 #include "vk_log.h"
+#include "vk_video.h"
 
 /* Pre-declarations needed for WSI entrypoints */
 struct wl_surface;
@@ -866,6 +867,7 @@ struct anv_physical_device {
      * the total system ram to try and avoid running out of RAM.
      */
     bool                                        supports_48bit_addresses;
+    bool                                        video_decode_enabled;
     struct brw_compiler *                       compiler;
     struct isl_device                           isl_dev;
     struct intel_perf_config *                    perf;
@@ -2629,6 +2631,11 @@ struct anv_cmd_buffer {
     *
     */
    struct u_trace                               trace;
+
+   struct {
+      struct anv_video_session *vid;
+      struct anv_video_session_params *params;
+   } video;
 };
 
 extern const struct vk_command_buffer_ops anv_cmd_buffer_ops;
@@ -3284,6 +3291,9 @@ struct anv_image {
        */
       bool can_non_zero_fast_clear;
    } planes[3];
+
+   struct anv_image_memory_range vid_dmv_top_surface;
+   struct anv_image_memory_range vid_dmv_bottom_surface;
 };
 
 static inline bool
@@ -3754,6 +3764,46 @@ static inline uint32_t khr_perf_query_preamble_offset(const struct anv_query_poo
    return pool->pass_size * pass + 8;
 }
 
+struct anv_vid_mem {
+   struct anv_device_memory *mem;
+   VkDeviceSize       offset;
+   VkDeviceSize       size;
+};
+
+#define ANV_VIDEO_MEM_REQS_H264 4
+#define ANV_VIDEO_MEM_REQS_H265 9
+#define ANV_MB_WIDTH 16
+#define ANV_MB_HEIGHT 16
+
+struct anv_video_session {
+   struct vk_video_session vk;
+
+   /* the decoder needs some private memory allocations */
+   union {
+      struct {
+         struct anv_vid_mem intra_row_scratch;
+         struct anv_vid_mem deblocking_filter_row_scratch;
+         struct anv_vid_mem bsd_mpc_row_scratch;
+         struct anv_vid_mem mpr_row_store_scratch;
+      } h264;
+      struct {
+         struct anv_vid_mem deblocking_filter_line_buffer;
+         struct anv_vid_mem deblocking_filter_tile_line_buffer;
+         struct anv_vid_mem deblocking_filter_tile_column_buffer;
+         struct anv_vid_mem metadata_line_buffer;
+         struct anv_vid_mem metadata_tile_line_buffer;
+         struct anv_vid_mem metadata_tile_column_buffer;
+         struct anv_vid_mem sao_line_buffer;
+         struct anv_vid_mem sao_tile_line_buffer;
+         struct anv_vid_mem sao_tile_column_buffer;
+      } h265;
+   };
+};
+
+struct anv_video_session_params {
+   struct vk_video_session_parameters vk;
+};
+
 void
 anv_dump_pipe_bits(enum anv_pipe_bits bits);
 
@@ -3888,6 +3938,8 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(anv_ycbcr_conversion, base,
 VK_DEFINE_NONDISP_HANDLE_CASTS(anv_performance_configuration_intel, base,
                                VkPerformanceConfigurationINTEL,
                                VK_OBJECT_TYPE_PERFORMANCE_CONFIGURATION_INTEL)
+VK_DEFINE_NONDISP_HANDLE_CASTS(anv_video_session, vk.base, VkVideoSessionKHR, VK_OBJECT_TYPE_VIDEO_SESSION_KHR)
+VK_DEFINE_NONDISP_HANDLE_CASTS(anv_video_session_params, vk.base, VkVideoSessionParametersKHR, VK_OBJECT_TYPE_VIDEO_SESSION_PARAMETERS_KHR)
 
 #define anv_genX(devinfo, thing) ({             \
    __typeof(&gfx7_##thing) genX_thing;          \
