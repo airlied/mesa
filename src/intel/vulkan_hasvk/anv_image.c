@@ -722,6 +722,21 @@ add_shadow_surface(struct anv_device *device,
                       ANV_OFFSET_IMPLICIT);
 }
 
+static VkResult
+add_video_buffers(struct anv_device *device,
+                  struct anv_image *image)
+{
+   unsigned w_mb = align(image->vk.extent.width, ANV_MB_WIDTH) / ANV_MB_WIDTH;
+   unsigned h_mb = align(image->vk.extent.height, ANV_MB_HEIGHT) / ANV_MB_HEIGHT;
+
+   unsigned size = w_mb * h_mb * 128;
+   ASSERTED bool ok;
+
+   ok = image_binding_grow(device, image, ANV_IMAGE_MEMORY_BINDING_PLANE_0,
+                           ANV_OFFSET_IMPLICIT, size, 65536, &image->vid_dmv_top_surface);
+   return ok;
+}
+
 /**
  * Initialize the anv_image::*_surface selected by \a aspect. Then update the
  * image's memory requirements (that is, the image's size and alignment).
@@ -1309,6 +1324,13 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
 
    if (r != VK_SUCCESS)
       goto fail;
+
+   if (image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR)) {
+      r = add_video_buffers(device, image);
+      if (r != VK_SUCCESS)
+         goto fail;
+   }
 
    r = alloc_private_binding(device, image, pCreateInfo);
    if (r != VK_SUCCESS)
