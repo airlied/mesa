@@ -67,9 +67,6 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_H264_PICTURE_INFO_KHR);
    const StdVideoH264SequenceParameterSet *sps = vk_video_find_h264_dec_std_sps(&params->vk, h264_pic_info->pStdPictureInfo->seq_parameter_set_id);
    const StdVideoH264PictureParameterSet *pps = vk_video_find_h264_dec_std_pps(&params->vk, h264_pic_info->pStdPictureInfo->pic_parameter_set_id);
-   struct vk_video_h264_reference ref_slots[32];
-
-   vk_fill_video_reference_info(frame_info, ref_slots);
 
    anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), flush) {
       flush.DWordLength = 2;
@@ -164,10 +161,10 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
 
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_slots[i].pPictureResource->imageViewBinding);
-         int idx = ref_slots[i].slot_index;
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
          buf.ReferencePictureAddress[idx] = anv_image_address(ref_iv->image,
-                                                            &ref_iv->image->planes[0].primary_surface.memory_range);
+                                                              &ref_iv->image->planes[0].primary_surface.memory_range);
       }
    }
 
@@ -216,14 +213,17 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    anv_batch_emit(&cmd_buffer->batch, GENX(MFD_AVC_DPB_STATE), avc_dpb) {
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         int idx = ref_slots[i].slot_index;
-         avc_dpb.NonExistingFrame[idx] = ref_slots[i].flags.is_non_existing;
-         avc_dpb.LongTermFrame[idx] = ref_slots[i].flags.used_for_long_term_reference;
-         if (!ref_slots[i].flags.top_field_flag && !ref_slots[i].flags.bottom_field_flag)
+         const struct VkVideoDecodeH264DpbSlotInfoKHR *dpb_slot =
+            vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_KHR);
+         const StdVideoDecodeH264ReferenceInfo *ref_info = dpb_slot->pStdReferenceInfo;
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
+         avc_dpb.NonExistingFrame[idx] = ref_info->flags.is_non_existing;
+         avc_dpb.LongTermFrame[idx] = ref_info->flags.used_for_long_term_reference;
+         if (!ref_info->flags.top_field_flag && !ref_info->flags.bottom_field_flag)
             avc_dpb.UsedforReference[idx] = 3;
          else
-            avc_dpb.UsedforReference[idx] = ref_slots[i].flags.top_field_flag | (ref_slots[i].flags.bottom_field_flag << 1);
-         avc_dpb.LTSTFrameNumberList[idx] = ref_slots[i].frame_num;
+            avc_dpb.UsedforReference[idx] = ref_info->flags.top_field_flag | (ref_info->flags.bottom_field_flag << 1);
+         avc_dpb.LTSTFrameNumberList[idx] = ref_info->FrameNum;
       }
    }
 
@@ -231,7 +231,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFD_AVC_PICID_STATE), picid) {
       picid.PictureIDRemappingDisable = false;
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         int idx = ref_slots[i].slot_index;
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
          picid.PictureID[i] = idx;
       }
    }
@@ -331,12 +331,15 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(MFX_AVC_DIRECTMODE_STATE), avc_directmode) {
       /* bind reference frame DMV */
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         int idx = ref_slots[i].slot_index;
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(ref_slots[i].pPictureResource->imageViewBinding);
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
+         const struct VkVideoDecodeH264DpbSlotInfoKHR *dpb_slot =
+            vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_H264_DPB_SLOT_INFO_KHR);
+         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+         const StdVideoDecodeH264ReferenceInfo *ref_info = dpb_slot->pStdReferenceInfo;
          avc_directmode.DirectMVBufferAddress[idx] = anv_image_address(ref_iv->image,
                                                                      &ref_iv->image->vid_dmv_top_surface);
-         avc_directmode.POCList[2 * idx] = ref_slots[i].pic_order_cnt[0];
-         avc_directmode.POCList[2 * idx + 1] = ref_slots[i].pic_order_cnt[1];
+         avc_directmode.POCList[2 * idx] = ref_info->PicOrderCnt[0];
+         avc_directmode.POCList[2 * idx + 1] = ref_info->PicOrderCnt[1];
       }
 #if GFX_VERx10 == 70
       avc_directmode.DirectMVBufferWriteAddress[0] = anv_image_address(img,
