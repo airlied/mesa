@@ -1289,9 +1289,9 @@ void genX(CmdEndQueryIndexedEXT)(
       emit_perf_intel_query(cmd_buffer, pool, &b, query_addr, true);
       emit_query_mi_availability(&b, query_addr, true);
       break;
-      case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
-         break;
    }
+   case VK_QUERY_TYPE_RESULT_STATUS_ONLY_KHR:
+      break;
 
    default:
       unreachable("");
