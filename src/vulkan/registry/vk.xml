@@ -21806,10 +21806,10 @@ typedef void* <name>MTLSharedEvent_id</name>;
                 <enum value="&quot;VK_EXT_extension_509&quot;"              name="VK_EXT_EXTENSION_509_EXTENSION_NAME"/>
             </require>
         </extension>
-        <extension name="VK_MESA_extension_510" number="510" author="MESA" contact="Dave Airlie @airlied" type="device" supported="disabled">
+        <extension name="VK_MESA_video_decode_av1" number="510" author="MESA" contact="Dave Airlie @airlied, Lynne" type="device" supported="vulkan">
             <require>
-                <enum value="0"                                             name="VK_MESA_EXTENSION_510_SPEC_VERSION"/>
-                <enum value="&quot;VK_MESA_extension_510&quot;"             name="VK_MESA_EXTENSION_510_EXTENSION_NAME"/>
+                <enum value="1"                                             name="VK_MESA_VIDEO_DECODE_AV1_SPEC_VERSION"/>
+                <enum value="&quot;VK_MESA_video_decode_av1&quot;"          name="VK_MESA_VIDEO_DECODE_AV1_EXTENSION_NAME"/>
             </require>
         </extension>
         <extension name="VK_QCOM_multiview_per_view_render_areas" number="511" type="device" author="QCOM" contact="Jeff Leger @jackohound" supported="vulkan">
@@ -21819,7 +21819,7 @@ typedef void* <name>MTLSharedEvent_id</name>;
                 <enum offset="0" extends="VkStructureType"                        name="VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PER_VIEW_RENDER_AREAS_FEATURES_QCOM"/>
                 <enum offset="1" extends="VkStructureType"                        name="VK_STRUCTURE_TYPE_MULTIVIEW_PER_VIEW_RENDER_AREAS_RENDER_PASS_BEGIN_INFO_QCOM"/>
                 <type name="VkPhysicalDeviceMultiviewPerViewRenderAreasFeaturesQCOM"/>
-               <type name="VkMultiviewPerViewRenderAreasRenderPassBeginInfoQCOM"/>
+                <type name="VkMultiviewPerViewRenderAreasRenderPassBeginInfoQCOM"/>
             </require>
         </extension>
     </extensions>
