@@ -360,17 +360,6 @@ get_av1_video_session_mem_reqs(struct anv_video_session *vid,
       case ANV_VID_MEM_AV1_CDF_DEFAULTS_3:
          buffer_size = av1_cdf_max_num_bytes;
          break;
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_0:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_1:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_2:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_3:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_4:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_5:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_6:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_7:
-      case ANV_VID_MEM_AV1_MV_TEMPORAL_8:
-         buffer_size = 16 * width_in_sb * height_in_sb;
-         break;
       case ANV_VID_MEM_AV1_DBD_BUFFER:
          buffer_size = 1;
          break;
@@ -534,4 +523,33 @@ void anv_init_av1_cdf_tables(struct anv_device *device,
                           vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + i].size);
 
    }
+}
+
+uint32_t anv_video_get_image_mv_size(struct anv_device *device,
+                                   struct anv_image *image,
+                                   const struct VkVideoProfileListInfoKHR *profile_list)
+{
+   uint32_t size = 0;
+
+   for (unsigned i = 0; i < profile_list->profileCount; i++) {
+      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR) {
+         unsigned w_mb = DIV_ROUND_UP(image->vk.extent.width, ANV_MB_WIDTH);
+         unsigned h_mb = DIV_ROUND_UP(image->vk.extent.height, ANV_MB_HEIGHT);
+         size = w_mb * h_mb * 128;
+      }
+
+      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA) {
+         const uint32_t av1_mi_size_log2         = 2;
+         uint32_t width = image->vk.extent.width;
+         uint32_t height = image->vk.extent.height;
+         uint32_t mi_cols = width  >> av1_mi_size_log2;
+         uint32_t mi_rows = height >> av1_mi_size_log2;
+         uint32_t width_in_sb = align(mi_cols, (1 << av1_mi_size_log2)) >> av1_mi_size_log2;
+         uint32_t height_in_sb = align(mi_rows, (1 << av1_mi_size_log2)) >> av1_mi_size_log2;
+         uint32_t sb_total = width_in_sb * height_in_sb;
+
+         size = sb_total * 16;
+      }
+   }
+   return size;
 }

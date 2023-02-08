@@ -4182,15 +4182,6 @@ enum anv_vid_mem_av1_types {
    ANV_VID_MEM_AV1_CDF_DEFAULTS_1,
    ANV_VID_MEM_AV1_CDF_DEFAULTS_2,
    ANV_VID_MEM_AV1_CDF_DEFAULTS_3,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_0,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_1,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_2,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_3,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_4,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_5,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_6,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_7,
-   ANV_VID_MEM_AV1_MV_TEMPORAL_8,
    ANV_VID_MEM_AV1_DBD_BUFFER,
    ANV_VID_MEM_AV1_CDF_BWD_BUFFER,
    ANV_VID_MEM_AV1_MAX,
@@ -4209,6 +4200,9 @@ struct anv_video_session_params {
 };
 void anv_init_av1_cdf_tables(struct anv_device *device,
                              struct anv_video_session *vid);
+uint32_t anv_video_get_image_mv_size(struct anv_device *device,
+                                     struct anv_image *image,
+                                     const struct VkVideoProfileListInfoKHR *profile_list);
 void
 anv_dump_pipe_bits(enum anv_pipe_bits bits);
 
