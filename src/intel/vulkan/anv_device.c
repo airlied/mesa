@@ -365,6 +365,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .INTEL_performance_query               = device->perf &&
                                                device->perf->i915_perf_version >= 3,
       .INTEL_shader_integer_functions2       = true,
+      .MESA_video_decode_av1                 = device->info.ver >= 11,
       .EXT_multi_draw                        = true,
       .NV_compute_shader_derivatives         = true,
       .NV_mesh_shader                        = device->info.has_mesh_shading &&
@@ -2838,8 +2839,11 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
             case VK_STRUCTURE_TYPE_QUEUE_FAMILY_VIDEO_PROPERTIES_KHR: {
                VkQueueFamilyVideoPropertiesKHR *prop =
                   (VkQueueFamilyVideoPropertiesKHR *)ext;
-               if (queue_family->queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR)
-                  prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
+               if (queue_family->queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR) {
+                   prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR;
+                   if (pdevice->info.ver >= 11)
+                      prop->videoCodecOperations |= VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA;
+               }
                break;
             }
             default:
