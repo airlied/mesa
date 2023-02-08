@@ -1776,7 +1776,7 @@ isl_calc_row_pitch(const struct isl_device *dev,
          return false;
    }
 
-   const uint32_t row_pitch_B =
+   uint32_t row_pitch_B =
       surf_info->row_pitch_B != 0 ? surf_info->row_pitch_B : min_row_pitch_B;
 
    const uint32_t row_pitch_tl = row_pitch_B / tile_info->phys_extent_B.width;
@@ -1787,6 +1787,15 @@ isl_calc_row_pitch(const struct isl_device *dev,
    if (dim_layout == ISL_DIM_LAYOUT_GFX9_1D) {
       /* SurfacePitch is ignored for this layout. */
       goto done;
+   }
+
+   if (surf_info->usage & ISL_SURF_USAGE_YCBCR_PLANE_BIT &&
+       intel_device_info_is_dg2(dev->info)) {
+      /* Wa_15010089951 */
+      /* Allocation needs to extend an extra tile in width when pitch is not an odd multiplication
+         of tile width which is 128 for Tile4 (YUV allocation is forced as Tile4). */
+      if ((row_pitch_B / tile_info->phys_extent_B.width) % 2 == 0)
+         row_pitch_B += tile_info->phys_extent_B.width;
    }
 
    if ((surf_info->usage & (ISL_SURF_USAGE_RENDER_TARGET_BIT |

@@ -1116,6 +1116,7 @@ typedef uint64_t isl_surf_usage_flags_t;
 #define ISL_SURF_USAGE_STAGING_BIT             (1u << 14)
 #define ISL_SURF_USAGE_CPB_BIT                 (1u << 15)
 #define ISL_SURF_USAGE_PROTECTED_BIT           (1u << 16)
+#define ISL_SURF_USAGE_YCBCR_PLANE_BIT         (1u << 17)
 /** @} */
 
 /**

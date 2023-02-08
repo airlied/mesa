@@ -859,6 +859,7 @@ add_primary_surface(struct anv_device *device,
       assert(plane < ycbcr_info->n_planes);
       width /= ycbcr_info->planes[plane].denominator_scales[0];
       height /= ycbcr_info->planes[plane].denominator_scales[1];
+      isl_usage |= ISL_SURF_USAGE_YCBCR_PLANE_BIT;
    }
 
    ok = isl_surf_init(&device->isl_dev, &anv_surf->isl,
