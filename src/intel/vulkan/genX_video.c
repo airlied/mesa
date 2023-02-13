@@ -484,6 +484,7 @@ enum av1_frame_type
 static const uint32_t av1_max_qindex          = 255;
 static const uint32_t av1_num_qm_levels       = 16;
 static const uint32_t av1_scaling_factor      = (1 << 14);
+static const uint32_t av1_mf_mv_stack_size    = 3;
 
 static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
                            uint32_t segment_id,
@@ -496,6 +497,20 @@ static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
       return CLAMP(base_qindex + data, 0, av1_max_qindex);
    } else
       return base_qindex;
+}
+
+static int32_t get_relative_dist(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
+                                 const struct anv_video_session_params *params,
+                                 int32_t a, int32_t b)
+{
+   if (!params->vk.av1_dec.seq_hdr.flags.enable_order_hint)
+      return 0;
+
+   int32_t bits = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1;
+   int32_t diff = a - b;
+   int32_t m = 1 << (bits - 1);
+   diff = (diff & (m - 1)) - (diff & m);
+   return diff;
 }
 
 static void
@@ -796,6 +811,74 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       };
    };
 
+   struct frame_info {
+      uint8_t frame_idx;
+      uint8_t frame_type;
+      uint8_t ref_order_hints[7];
+   } dpb_infos[8] = {};
+   uint32_t ref_order_hint[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+   uint32_t ref_buf_idx[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+      const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
+         vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
+      int idx = frame_info->pReferenceSlots[i].slotIndex;
+
+      dpb_infos[idx].frame_idx = dpb_slot->frameIdx;
+      dpb_infos[idx].frame_type = dpb_slot->frame_type;
+      memcpy(dpb_infos[idx].ref_order_hints, dpb_slot->ref_order_hints, 7);
+      fprintf(stderr, "references %d: %d %d type: %d \n", i, idx, dpb_infos[idx].frame_idx, dpb_infos[idx].frame_type);
+   }
+   uint32_t ref_mask = 0;
+   for (unsigned i = 0; i < 7; i++) {
+      int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[i];
+      fprintf(stderr, "ref frame idx %d: %d\n", i, ref_pic_idx);
+      ref_order_hint[i] = av1_pic_info->frame_header->ref_order_hint[ref_pic_idx];
+      fprintf(stderr, "ref order hint %d: %d\n", i, ref_order_hint[i]);
+   }
+
+   uint8_t num_mfmv = 0;
+   uint8_t mfmv_ref[7] = {};
+   if (av1_pic_info->frame_header->flags.use_ref_frame_mvs &&
+       params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1) {
+      int total = 2;
+      int  last_index = av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME];
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME] > 0) {
+         if (dpb_infos[last_index].ref_order_hints[AV1_ALTREF_FRAME - AV1_LAST_FRAME] != av1_pic_info->frame_header->ref_order_hint[AV1_GOLDEN_FRAME - AV1_LAST_FRAME]) {
+            total = 3;
+            mfmv_ref[num_mfmv++] = AV1_LAST_FRAME - AV1_LAST_FRAME;
+         }
+      }
+
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_BWDREF_FRAME - AV1_LAST_FRAME] > 0 &&
+          get_relative_dist(av1_pic_info, params,
+                            ref_order_hint[AV1_BWDREF_FRAME - AV1_LAST_FRAME],
+                            av1_pic_info->frame_header->order_hint) > 0)
+         mfmv_ref[num_mfmv++] = AV1_BWDREF_FRAME - AV1_LAST_FRAME;
+
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF2_FRAME - AV1_LAST_FRAME] > 0 &&
+          get_relative_dist(av1_pic_info, params,
+                            ref_order_hint[AV1_ALTREF2_FRAME - AV1_LAST_FRAME],
+                            av1_pic_info->frame_header->order_hint) > 0)
+         mfmv_ref[num_mfmv++] = AV1_ALTREF2_FRAME - AV1_LAST_FRAME;
+
+      if (num_mfmv < total && av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF_FRAME - AV1_LAST_FRAME] > 0 &&
+          get_relative_dist(av1_pic_info, params,
+                           ref_order_hint[AV1_ALTREF_FRAME - AV1_LAST_FRAME],
+                            av1_pic_info->frame_header->order_hint) > 0)
+         mfmv_ref[num_mfmv++] = AV1_ALTREF_FRAME - AV1_LAST_FRAME;
+
+      if (num_mfmv < total &&
+          av1_pic_info->frame_header->ref_frame_idx[AV1_LAST2_FRAME - AV1_LAST_FRAME] > 0)
+         mfmv_ref[num_mfmv++] = AV1_LAST2_FRAME - AV1_LAST_FRAME;
+
+   }
+
+   fprintf(stderr, "mfmv total %d\n", num_mfmv);
+   for (unsigned int i = 0; i < num_mfmv; i++) {
+      ref_mask |= (1 << mfmv_ref[i]);
+      fprintf(stderr, "mfmv stack %d %d\n", i, mfmv_ref[i]);
+   }
+
    uint32_t feature_mask[8] = { 0 };
    for (unsigned i = 0; i < 8; ++i)
       for (unsigned j = 0; j < 8; ++j)
@@ -975,17 +1058,18 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.HorizontalScaleFactorForIntra = av1_scaling_factor;
 
       pic.FrameLevelGlobalMotionInvalidFlags= 0;
-      pic.ReferenceFrameOrderHint[0] = av1_pic_info->frame_header->ref_order_hint[0];
-      pic.ReferenceFrameOrderHint[1] = av1_pic_info->frame_header->ref_order_hint[1];
-      pic.ReferenceFrameOrderHint[2] = av1_pic_info->frame_header->ref_order_hint[2];
-      pic.ReferenceFrameOrderHint[3] = av1_pic_info->frame_header->ref_order_hint[3];
-      pic.ReferenceFrameOrderHint[4] = av1_pic_info->frame_header->ref_order_hint[4];
-      pic.ReferenceFrameOrderHint[5] = av1_pic_info->frame_header->ref_order_hint[5];
-      pic.ReferenceFrameOrderHint[6] = av1_pic_info->frame_header->ref_order_hint[6];
-      pic.ReferenceFrameOrderHint[7] = av1_pic_info->frame_header->ref_order_hint[7];
+      pic.ReferenceFrameOrderHint[0] = av1_pic_info->frame_header->order_hint;
+      pic.ReferenceFrameOrderHint[1] = ref_order_hint[0];
+      pic.ReferenceFrameOrderHint[2] = ref_order_hint[1];
+      pic.ReferenceFrameOrderHint[3] = ref_order_hint[2];
+      pic.ReferenceFrameOrderHint[4] = ref_order_hint[3];
+      pic.ReferenceFrameOrderHint[5] = ref_order_hint[4];
+      pic.ReferenceFrameOrderHint[6] = ref_order_hint[5];
+      pic.ReferenceFrameOrderHint[7] = ref_order_hint[6];
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INTER_PRED_STATE), inter) {
+      inter.ActiveReferenceBitmask = ref_mask;
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
          const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
             vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
@@ -993,35 +1077,35 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
          switch (idx) {
          case 0:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints0[j] = dpb_slot->ref_order_hints[j];
             break;
          case 1:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints1[j] = dpb_slot->ref_order_hints[j];
             break;
          case 2:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints2[j] = dpb_slot->ref_order_hints[j];
             break;
          case 3:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints3[j] = dpb_slot->ref_order_hints[j];
             break;
          case 4:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints4[j] = dpb_slot->ref_order_hints[j];
             break;
          case 5:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints5[j] = dpb_slot->ref_order_hints[j];
             break;
          case 6:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints6[j] = dpb_slot->ref_order_hints[j];
             break;
          case 7:
-            for (unsigned j = 0; j < 8; j++)
+            for (unsigned j = 0; j < 7; j++)
                inter.SavedOrderHints7[j] = dpb_slot->ref_order_hints[j];
             break;
          default:
