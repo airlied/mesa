@@ -561,8 +561,35 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       mfx.MFXSyncControlFlag = 1;
    }
 
+   struct refs_info {
+      const struct anv_image *img;
+      uint8_t frame_type;
+      uint8_t ref_order_hints[7];
+   } ref_info[AV1_TOTAL_REFS_PER_FRAME] = {};
+
    const struct anv_image_view *dpb_iv = anv_image_view_from_handle(frame_info->pSetupReferenceSlot->pPictureResource->imageViewBinding);
    const struct anv_image *dpb_img = dpb_iv->image;
+
+   if (dpb_img) {
+      ref_info[AV1_INTRA_FRAME].img = dpb_img;
+   }
+
+   for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+      int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[r - AV1_LAST_FRAME];
+      for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
+         int idx = frame_info->pReferenceSlots[i].slotIndex;
+         if (ref_pic_idx == idx) {
+            const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+            const struct anv_image *ref_img = ref_iv->image;
+            const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
+               vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
+
+            ref_info[r].img = ref_img;
+            memcpy(ref_info[r].ref_order_hints, dpb_slot->ref_order_hints, 7);
+         }
+      }
+   }
+
    const struct anv_image_view *iv = anv_image_view_from_handle(frame_info->dstPictureResource.imageViewBinding);
    const struct anv_image *img = iv->image;
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_SURFACE_STATE), ss) {
@@ -571,6 +598,18 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       ss.YOffsetforUCb = align(frame_info->dstPictureResource.codedExtent.height, 32);
 //      ss.YOffsetforVCr = align(frame_info->dstPictureResource.codedExtent.height, 32);
    };
+
+
+   for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+      if (ref_info[r].img) {
+         anv_batch_emit(&cmd_buffer->batch, GENX(AVP_SURFACE_STATE), ss) {
+            ss.SurfaceID = 0x6 + r;
+            ss.SurfaceFormat = AVP_PLANAR_420_8;
+            ss.SurfacePitchMinus1 = ref_info[r].img->planes[0].primary_surface.isl.row_pitch_B - 1;
+            ss.YOffsetforUCb = align(ref_info[r].img->planes[0].primary_surface.isl.array_pitch_el_rows, 32);
+         }
+      }
+   }
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_IND_OBJ_BASE_ADDR_STATE), ind) {
       ind.AVPIndirectBitstreamObjectBaseAddress = anv_address_add(src_buffer->address,
@@ -597,8 +636,8 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          .TiledResourceMode = TRMODE_TILEF,
 #endif
       };
-      buf.CurrentFrameMVWriteBufferAddress = anv_image_address(img,
-                                                               &img->vid_dmv_top_surface);
+      buf.CurrentFrameMVWriteBufferAddress = anv_image_address(dpb_img,
+                                                               &dpb_img->vid_dmv_top_surface);
       buf.CurrentFrameMVWriteBufferAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, buf.CurrentFrameMVWriteBufferAddress.bo, 0),
       };
@@ -763,24 +802,26 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       };
 
       struct anv_bo *ref_bo = NULL;
-      for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
-         int idx = frame_info->pReferenceSlots[i].slotIndex;
-         buf.ReferencePictureAddress[idx] = anv_image_address(ref_iv->image,
-                                                              &ref_iv->image->planes[0].primary_surface.memory_range);
-
-         if (!ref_bo) {
-            ref_bo = ref_iv->image->bindings[0].address.bo;
+      for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+         const struct anv_image *ref_img = ref_info[r].img;
+         if (ref_img) {
+            buf.ReferencePictureAddress[r] =  anv_image_address(ref_img,
+                                                                &ref_img->planes[0].primary_surface.memory_range);
+            buf.CollocatedMVTemporalBufferAddress[r] = anv_image_address(ref_img,
+                                                                      &ref_img->vid_dmv_top_surface);
+            if (!ref_bo)
+               ref_bo = ref_img->bindings[0].address.bo;
          }
-
-         buf.CollocatedMVTemporalBufferAddress[idx] = anv_image_address(ref_iv->image,
-                                                                        &ref_iv->image->vid_dmv_top_surface);
       }
+
       buf.ReferencePictureAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, ref_bo, 0),
 #if GFX_VERx10 >= 125
          .TiledResourceMode = TRMODE_TILEF,
 #endif
+      };
+      buf.CollocatedMVTemporalBufferAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
+         .MOCS = anv_mocs(cmd_buffer->device, ref_bo, 0),
       };
       buf.CDFTablesInitializationBufferAddress = (struct anv_address) { vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].mem->bo,
                                                                         vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].offset };
@@ -798,9 +839,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       buf.AV1SegmentIDWriteBufferAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, NULL, 0),
       };
-      buf.CollocatedMVTemporalBufferAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
-         .MOCS = anv_mocs(cmd_buffer->device, NULL, 0),
-      };
+
       buf.DecodedFrameStatusErrorBufferAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, NULL, 0),
       };
@@ -811,29 +850,21 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       };
    };
 
-   struct frame_info {
-      uint8_t frame_idx;
-      uint8_t frame_type;
-      uint8_t ref_order_hints[7];
-   } dpb_infos[8] = {};
    uint32_t ref_order_hint[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
    uint32_t ref_buf_idx[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-   for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-      const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
-         vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
-      int idx = frame_info->pReferenceSlots[i].slotIndex;
-
-      dpb_infos[idx].frame_idx = dpb_slot->frameIdx;
-      dpb_infos[idx].frame_type = dpb_slot->frame_type;
-      memcpy(dpb_infos[idx].ref_order_hints, dpb_slot->ref_order_hints, 7);
-      fprintf(stderr, "references %d: %d %d type: %d \n", i, idx, dpb_infos[idx].frame_idx, dpb_infos[idx].frame_type);
-   }
    uint32_t ref_mask = 0;
+   uint32_t ref_frame_sign_bias = 0;
    for (unsigned i = 0; i < 7; i++) {
       int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[i];
       fprintf(stderr, "ref frame idx %d: %d\n", i, ref_pic_idx);
       ref_order_hint[i] = av1_pic_info->frame_header->ref_order_hint[ref_pic_idx];
       fprintf(stderr, "ref order hint %d: %d\n", i, ref_order_hint[i]);
+
+      if (params->vk.av1_dec.seq_hdr.flags.enable_order_hint) {
+         if (get_relative_dist(av1_pic_info, params,
+                               ref_order_hint[i], av1_pic_info->frame_header->order_hint) > 0)
+            ref_frame_sign_bias |= (1 << (i + AV1_LAST_FRAME));
+      }
    }
 
    uint8_t num_mfmv = 0;
@@ -841,9 +872,8 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    if (av1_pic_info->frame_header->flags.use_ref_frame_mvs &&
        params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1) {
       int total = 2;
-      int  last_index = av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME];
       if (av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME] > 0) {
-         if (dpb_infos[last_index].ref_order_hints[AV1_ALTREF_FRAME - AV1_LAST_FRAME] != av1_pic_info->frame_header->ref_order_hint[AV1_GOLDEN_FRAME - AV1_LAST_FRAME]) {
+         if (ref_info[AV1_LAST_FRAME].ref_order_hints[AV1_ALTREF_FRAME - AV1_LAST_FRAME] != av1_pic_info->frame_header->ref_order_hint[AV1_GOLDEN_FRAME - AV1_LAST_FRAME]) {
             total = 3;
             mfmv_ref[num_mfmv++] = AV1_LAST_FRAME - AV1_LAST_FRAME;
          }
@@ -963,14 +993,14 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.McompFilterType = av1_pic_info->frame_header->interpolation_filter;
       pic.MotionModeSwitchableFlag = av1_pic_info->frame_header->flags.is_motion_mode_switchable;
       pic.UseReferenceFrameMVSetFlag = av1_pic_info->frame_header->flags.use_ref_frame_mvs;
-      pic.ReferenceFrameSignBias = 0;//TODO
+      pic.ReferenceFrameSignBias = ref_frame_sign_bias;
       pic.CurrentFrameOrderHint = av1_pic_info->frame_header->order_hint;
       pic.ReducedTxSetUsed = av1_pic_info->frame_header->flags.reduced_tx_set;
       pic.FrameTransformMode = av1_pic_info->frame_header->tx_mode;
       pic.SkipModePresentFlag = av1_pic_info->frame_header->flags.skip_mode_present;
-      pic.SkipModeFrame0 = av1_pic_info->skip_mode_frame_idx[0];
-      pic.SkipModeFrame1 = av1_pic_info->skip_mode_frame_idx[1];
-      pic.ReferenceFrameSide = 0;
+      pic.SkipModeFrame0 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[0] : 0;
+      pic.SkipModeFrame1 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[1] : 0;
+      pic.ReferenceFrameSide = ref_frame_sign_bias;
       pic.GlobalMotionType1 = get_gm_type(&av1_pic_info->frame_header->warped_motion[1]);
       pic.GlobalMotionType2 = get_gm_type(&av1_pic_info->frame_header->warped_motion[2]);
       pic.GlobalMotionType3 = get_gm_type(&av1_pic_info->frame_header->warped_motion[3]);
@@ -994,52 +1024,62 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
       uint32_t cur_frame_width = av1_pic_info->frame_header->frame_width_minus_1;
       uint32_t cur_frame_height = av1_pic_info->frame_header->frame_height_minus_1;
-      for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct anv_image_view *ref_iv = anv_image_view_from_handle(frame_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
-         int idx = frame_info->pReferenceSlots[i].slotIndex;
-         int ref_width = ref_iv->image->vk.extent.width - 1;
-         int ref_height = ref_iv->image->vk.extent.height - 1;
+
+      for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+         const struct anv_image *ref_img = ref_info[r].img;
+
+         if (!ref_img)
+             continue;
+
+         int ref_width = ref_img->vk.extent.width - 1;
+         int ref_height = ref_img->vk.extent.height - 1;
 
          uint32_t h_scale_factor = (ref_width * av1_scaling_factor + (cur_frame_width >> 1)) / cur_frame_width;
          uint32_t v_scale_factor = (ref_height * av1_scaling_factor + (cur_frame_height >> 1)) / cur_frame_height;
-         switch (idx) {
-         case 0:
+         switch (r) {
+         case AV1_INTRA_FRAME:
+            pic.IntraFrameWidthinPixelMinus1 = av1_pic_info->frame_header->frame_width_minus_1;
+            pic.IntraFrameHeightinPixelMinus1 = av1_pic_info->frame_header->frame_height_minus_1;
+            pic.VerticalScaleFactorForIntra = av1_scaling_factor;
+            pic.HorizontalScaleFactorForIntra = av1_scaling_factor;
+            break;
+         case AV1_LAST_FRAME:
             pic.LastFrameWidthinPixelMinus1 = ref_width;
             pic.LastFrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForLast = v_scale_factor;
             pic.HorizontalScaleFactorForLast = h_scale_factor;
             break;
-         case 1:
+         case AV1_LAST2_FRAME:
             pic.Last2FrameWidthinPixelMinus1 = ref_width;
             pic.Last2FrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForLast2 = v_scale_factor;
             pic.HorizontalScaleFactorForLast2 = h_scale_factor;
             break;
-         case 2:
+         case AV1_LAST3_FRAME:
             pic.Last3FrameWidthinPixelMinus1 = ref_width;
             pic.Last3FrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForLast3 = v_scale_factor;
             pic.HorizontalScaleFactorForLast3 = h_scale_factor;
             break;
-         case 3:
+         case AV1_GOLDEN_FRAME:
             pic.GoldenFrameWidthinPixelMinus1 = ref_width;
             pic.GoldenFrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForGolden = v_scale_factor;
             pic.HorizontalScaleFactorForGolden = h_scale_factor;
             break;
-         case 4:
+         case AV1_BWDREF_FRAME:
             pic.BWDREFFrameWidthinPixelMinus1 = ref_width;
             pic.BWDREFFrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForBWDREF = v_scale_factor;
             pic.HorizontalScaleFactorForBWDREF = h_scale_factor;
             break;
-         case 5:
+         case AV1_ALTREF2_FRAME:
             pic.ALTREF2FrameWidthinPixelMinus1 = ref_width;
             pic.ALTREF2FrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForALTREF2 = v_scale_factor;
             pic.HorizontalScaleFactorForALTREF2 = h_scale_factor;
             break;
-         case 6:
+         case AV1_ALTREF_FRAME:
             pic.ALTREFFrameWidthinPixelMinus1 = ref_width;
             pic.ALTREFFrameHeightinPixelMinus1 = ref_height;
             pic.VerticalScaleFactorForALTREF = v_scale_factor;
@@ -1051,11 +1091,6 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       }
 
 
-      pic.IntraFrameWidthinPixelMinus1 = av1_pic_info->frame_header->frame_width_minus_1;
-      pic.IntraFrameHeightinPixelMinus1 = av1_pic_info->frame_header->frame_height_minus_1;
-
-      pic.VerticalScaleFactorForIntra = av1_scaling_factor;
-      pic.HorizontalScaleFactorForIntra = av1_scaling_factor;
 
       pic.FrameLevelGlobalMotionInvalidFlags= 0;
       pic.ReferenceFrameOrderHint[0] = av1_pic_info->frame_header->order_hint;
@@ -1070,43 +1105,36 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INTER_PRED_STATE), inter) {
       inter.ActiveReferenceBitmask = ref_mask;
-      for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
-         const struct VkVideoDecodeAV1DpbSlotInfoMESA *dpb_slot =
-            vk_find_struct_const(frame_info->pReferenceSlots[i].pNext, VIDEO_DECODE_AV1_DPB_SLOT_INFO_MESA);
-         int idx = frame_info->pReferenceSlots[i].slotIndex;
 
-         switch (idx) {
-         case 0:
+      for (unsigned r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+         switch (r) {
+         case AV1_LAST_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints0[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints0[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 1:
+         case AV1_LAST2_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints1[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints1[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 2:
+         case AV1_LAST3_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints2[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints2[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 3:
+         case AV1_GOLDEN_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints3[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints3[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 4:
+         case AV1_BWDREF_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints4[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints4[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 5:
+         case AV1_ALTREF2_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints5[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints5[j] = ref_info[r].ref_order_hints[j];
             break;
-         case 6:
+         case AV1_ALTREF_FRAME:
             for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints6[j] = dpb_slot->ref_order_hints[j];
-            break;
-         case 7:
-            for (unsigned j = 0; j < 7; j++)
-               inter.SavedOrderHints7[j] = dpb_slot->ref_order_hints[j];
+               inter.SavedOrderHints6[j] = ref_info[r].ref_order_hints[j];
             break;
          default:
             break;
