@@ -7790,9 +7790,6 @@
     <group count="7" start="416" size="8">
       <field name="Saved Order Hints 6" start="0" end="7" type="uint" />
     </group>
-    <group count="7" start="480" size="8">
-      <field name="Saved Order Hints 7" start="0" end="7" type="uint" />
-    </group>
   </instruction>
   <register name="BCS_INSTDONE" length="1" num="0x2206c">
     <field name="Ring Enable" start="0" end="0" type="bool" />
