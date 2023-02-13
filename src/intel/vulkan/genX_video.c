@@ -851,14 +851,11 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    };
 
    uint32_t ref_order_hint[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-   uint32_t ref_buf_idx[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
    uint32_t ref_mask = 0;
    uint32_t ref_frame_sign_bias = 0;
    for (unsigned i = 0; i < 7; i++) {
       int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[i];
-      fprintf(stderr, "ref frame idx %d: %d\n", i, ref_pic_idx);
       ref_order_hint[i] = av1_pic_info->frame_header->ref_order_hint[ref_pic_idx];
-      fprintf(stderr, "ref order hint %d: %d\n", i, ref_order_hint[i]);
 
       if (params->vk.av1_dec.seq_hdr.flags.enable_order_hint) {
          if (get_relative_dist(av1_pic_info, params,
@@ -900,13 +897,10 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       if (num_mfmv < total &&
           av1_pic_info->frame_header->ref_frame_idx[AV1_LAST2_FRAME - AV1_LAST_FRAME] > 0)
          mfmv_ref[num_mfmv++] = AV1_LAST2_FRAME - AV1_LAST_FRAME;
-
    }
 
-   fprintf(stderr, "mfmv total %d\n", num_mfmv);
    for (unsigned int i = 0; i < num_mfmv; i++) {
       ref_mask |= (1 << mfmv_ref[i]);
-      fprintf(stderr, "mfmv stack %d %d\n", i, mfmv_ref[i]);
    }
 
    uint32_t feature_mask[8] = { 0 };
