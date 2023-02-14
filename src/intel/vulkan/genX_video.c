@@ -564,7 +564,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    struct refs_info {
       const struct anv_image *img;
-      uint8_t frame_type;
+      uint8_t order_hint;
       uint8_t ref_order_hints[7];
    } ref_info[AV1_TOTAL_REFS_PER_FRAME] = {};
 
@@ -573,10 +573,13 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    if (dpb_img) {
       ref_info[AV1_INTRA_FRAME].img = dpb_img;
+      ref_info[AV1_INTRA_FRAME].order_hint = av1_pic_info->frame_header->order_hint;
    }
 
    for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
       int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[r - AV1_LAST_FRAME];
+      ref_info[r].order_hint = av1_pic_info->frame_header->ref_order_hint[ref_pic_idx];
+
       for (unsigned i = 0; i < frame_info->referenceSlotCount; i++) {
          int idx = frame_info->pReferenceSlots[i].slotIndex;
          if (ref_pic_idx == idx) {
@@ -803,6 +806,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       };
 
       struct anv_bo *ref_bo = NULL;
+      struct anv_bo *collocated_bo = NULL;
       for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++) {
          const struct anv_image *ref_img = ref_info[r].img;
          if (ref_img) {
@@ -812,6 +816,8 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
                                                                       &ref_img->vid_dmv_top_surface);
             if (!ref_bo)
                ref_bo = ref_img->bindings[0].address.bo;
+            if (!collocated_bo)
+               collocated_bo = ref_img->bindings[ref_img->vid_dmv_top_surface.binding].address.bo;
          }
       }
 
@@ -822,7 +828,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
       };
       buf.CollocatedMVTemporalBufferAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
-         .MOCS = anv_mocs(cmd_buffer->device, ref_bo, 0),
+         .MOCS = anv_mocs(cmd_buffer->device, collocated_bo, 0),
       };
       buf.CDFTablesInitializationBufferAddress = (struct anv_address) { vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].mem->bo,
                                                                         vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].offset };
@@ -851,17 +857,13 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       };
    };
 
-   uint32_t ref_order_hint[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
    uint32_t ref_mask = 0;
    uint32_t ref_frame_sign_bias = 0;
-   for (unsigned i = 0; i < 7; i++) {
-      int ref_pic_idx = av1_pic_info->frame_header->ref_frame_idx[i];
-      ref_order_hint[i] = av1_pic_info->frame_header->ref_order_hint[ref_pic_idx];
-
+   for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
       if (params->vk.av1_dec.seq_hdr.flags.enable_order_hint) {
          if (get_relative_dist(av1_pic_info, params,
-                               ref_order_hint[i], av1_pic_info->frame_header->order_hint) > 0)
-            ref_frame_sign_bias |= (1 << (i + AV1_LAST_FRAME));
+                               ref_info[r].order_hint, ref_info[AV1_INTRA_FRAME].order_hint) > 0)
+            ref_frame_sign_bias |= (1 << r);
       }
    }
 
@@ -879,20 +881,20 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
       if (av1_pic_info->frame_header->ref_frame_idx[AV1_BWDREF_FRAME - AV1_LAST_FRAME] > 0 &&
           get_relative_dist(av1_pic_info, params,
-                            ref_order_hint[AV1_BWDREF_FRAME - AV1_LAST_FRAME],
-                            av1_pic_info->frame_header->order_hint) > 0)
+                            ref_info[AV1_BWDREF_FRAME].order_hint,
+                            ref_info[AV1_INTRA_FRAME].order_hint) > 0)
          mfmv_ref[num_mfmv++] = AV1_BWDREF_FRAME - AV1_LAST_FRAME;
 
       if (av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF2_FRAME - AV1_LAST_FRAME] > 0 &&
           get_relative_dist(av1_pic_info, params,
-                            ref_order_hint[AV1_ALTREF2_FRAME - AV1_LAST_FRAME],
-                            av1_pic_info->frame_header->order_hint) > 0)
+                            ref_info[AV1_ALTREF2_FRAME].order_hint,
+                            ref_info[AV1_INTRA_FRAME].order_hint) > 0)
          mfmv_ref[num_mfmv++] = AV1_ALTREF2_FRAME - AV1_LAST_FRAME;
 
       if (num_mfmv < total && av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF_FRAME - AV1_LAST_FRAME] > 0 &&
           get_relative_dist(av1_pic_info, params,
-                           ref_order_hint[AV1_ALTREF_FRAME - AV1_LAST_FRAME],
-                            av1_pic_info->frame_header->order_hint) > 0)
+                            ref_info[AV1_ALTREF_FRAME].order_hint,
+                            ref_info[AV1_INTRA_FRAME].order_hint) > 0)
          mfmv_ref[num_mfmv++] = AV1_ALTREF_FRAME - AV1_LAST_FRAME;
 
       if (num_mfmv < total &&
@@ -1004,10 +1006,13 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.GlobalMotionType6 = get_gm_type(&av1_pic_info->frame_header->warped_motion[6]);
       pic.GlobalMotionType7 = get_gm_type(&av1_pic_info->frame_header->warped_motion[7]);
 
+      pic.FrameLevelGlobalMotionInvalidFlags = 0;
       uint8_t idx = 0;
-      for (uint32_t frame = (uint32_t)AV1_LAST_FRAME; frame <= (uint32_t)AV1_ALTREF_FRAME; frame++) {
+      for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+         pic.FrameLevelGlobalMotionInvalidFlags |= av1_pic_info->frame_header->warped_motion[r].flags.invalid << r;
+
          for (uint32_t i = 0; i < 6; i++)
-            pic.WarpParameters[idx++] = av1_pic_info->frame_header->warped_motion[frame - AV1_LAST_FRAME].gm_params[i];
+            pic.WarpParameters[idx++] = av1_pic_info->frame_header->warped_motion[r].gm_params[i];
       }
       pic.ReferenceFrameIdx1 = AV1_LAST_FRAME;
       pic.ReferenceFrameIdx2 = AV1_LAST2_FRAME;
@@ -1085,23 +1090,15 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          }
       }
 
-
-
-      pic.FrameLevelGlobalMotionInvalidFlags= 0;
-      pic.ReferenceFrameOrderHint[0] = av1_pic_info->frame_header->order_hint;
-      pic.ReferenceFrameOrderHint[1] = ref_order_hint[0];
-      pic.ReferenceFrameOrderHint[2] = ref_order_hint[1];
-      pic.ReferenceFrameOrderHint[3] = ref_order_hint[2];
-      pic.ReferenceFrameOrderHint[4] = ref_order_hint[3];
-      pic.ReferenceFrameOrderHint[5] = ref_order_hint[4];
-      pic.ReferenceFrameOrderHint[6] = ref_order_hint[5];
-      pic.ReferenceFrameOrderHint[7] = ref_order_hint[6];
+      pic.FrameLevelGlobalMotionInvalidFlags = 0;
+      for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++)
+         pic.ReferenceFrameOrderHint[r] = ref_info[r].order_hint;
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INTER_PRED_STATE), inter) {
       inter.ActiveReferenceBitmask = ref_mask;
 
-      for (unsigned r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
+      for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
          switch (r) {
          case AV1_LAST_FRAME:
             for (unsigned j = 0; j < 7; j++)
@@ -1160,6 +1157,9 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          seg.SegmentDeltaLoopFilterLevelChromaV = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_LFV];
          seg.SegmentReferenceFrame = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_REF_FRAME];
       };
+
+      if (!av1_pic_info->frame_header->segmentation.flags.segmentation_enabled)
+          break;
    }
 
    StdVideoAV1MESALoopFilter *lf = &av1_pic_info->frame_header->loop_filter;
@@ -1172,10 +1172,10 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          cdef->cdef_uv_sec_strength[i];
    }
    enum {
-    AV1_RESTORE_NONE       = 0,
-    AV1_RESTORE_WIENER     = 1,
-    AV1_RESTORE_SGRPROJ    = 2,
-    AV1_RESTORE_SWITCHABLE = 3,
+      AV1_RESTORE_NONE       = 0,
+      AV1_RESTORE_WIENER     = 1,
+      AV1_RESTORE_SGRPROJ    = 2,
+      AV1_RESTORE_SWITCHABLE = 3,
    };
    uint8_t remap_lr_type[4] = {AV1_RESTORE_NONE, AV1_RESTORE_SWITCHABLE, AV1_RESTORE_WIENER, AV1_RESTORE_SGRPROJ};
    uint32_t frame_restoration_type[3];
@@ -1227,7 +1227,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       fil.FrameLoopRestorationFilterChromaU = frame_restoration_type[1];
       fil.FrameLoopRestorationFilterChromaV = frame_restoration_type[2];
       fil.LoopRestorationUnitSizeLumaY = av1_pic_info->frame_header->lr.lr_unit_shift + 1;
-      fil.UseSameLoopRestorationUnitSizeChromasUVFlag = 1;
+      fil.UseSameLoopRestorationUnitSizeChromasUVFlag = ((frame_restoration_type[1] || frame_restoration_type[2]) && av1_pic_info->frame_header->lr.lr_uv_shift == 0) ? 1 : 0;
       fil.LumaPlanex_step_qn = 0;
       fil.LumaPlanex0_qn = 0;
       fil.ChromaPlanex_step_qn = 0;
