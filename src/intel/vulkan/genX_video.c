@@ -1164,8 +1164,8 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    StdVideoAV1MESALoopFilter *lf = &av1_pic_info->frame_header->loop_filter;
    StdVideoAV1MESACDEF *cdef = &av1_pic_info->frame_header->cdef;
-   uint32_t cdef_strengths[8], cdef_uv_strengths[8];
-   for (unsigned i = 0; i < 8; ++i) {
+   uint32_t cdef_strengths[8] = { 0 }, cdef_uv_strengths[8] = { 0 };
+   for (unsigned i = 0; i < (1 << cdef->cdef_bits); ++i) {
       cdef_strengths[i] = (cdef->cdef_y_pri_strength[i] << 2) +
          cdef->cdef_y_sec_strength[i];
       cdef_uv_strengths[i] = (cdef->cdef_uv_pri_strength[i] << 2) +
