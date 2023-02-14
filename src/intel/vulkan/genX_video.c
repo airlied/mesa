@@ -437,11 +437,12 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 static uint32_t
 get_gm_type(StdVideoAV1MESAWarpedMotion *wm)
 {
-   if (wm->flags.is_rot_zoom)
-      return 2;
-   else if (wm->flags.is_translation)
-      return 1;
-   else
+   if (wm->flags.is_global) {
+      if (wm->flags.is_rot_zoom)
+         return 2;
+      else
+         return (wm->flags.is_translation) ? 1 : 3;
+   } else
       return 0;
 }
 
