@@ -1226,7 +1226,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       fil.FrameLoopRestorationFilterLumaY = frame_restoration_type[0];
       fil.FrameLoopRestorationFilterChromaU = frame_restoration_type[1];
       fil.FrameLoopRestorationFilterChromaV = frame_restoration_type[2];
-      fil.LoopRestorationUnitSizeLumaY = av1_pic_info->frame_header->lr.lr_unit_shift + 1;
+      fil.LoopRestorationUnitSizeLumaY = (!frame_restoration_type[0] && !frame_restoration_type[1] && !frame_restoration_type[2]) ? 0 : av1_pic_info->frame_header->lr.lr_unit_shift + 1;
       fil.UseSameLoopRestorationUnitSizeChromasUVFlag = ((frame_restoration_type[1] || frame_restoration_type[2]) && av1_pic_info->frame_header->lr.lr_uv_shift == 0) ? 1 : 0;
       fil.LumaPlanex_step_qn = 0;
       fil.LumaPlanex0_qn = 0;
