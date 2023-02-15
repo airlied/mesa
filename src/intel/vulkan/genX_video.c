@@ -434,18 +434,6 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
 #if GFX_VERx10 >= 120
 
-static uint32_t
-get_gm_type(StdVideoAV1MESAWarpedMotion *wm)
-{
-   if (wm->flags.is_global) {
-      if (wm->flags.is_rot_zoom)
-         return 2;
-      else
-         return (wm->flags.is_translation) ? 1 : 3;
-   } else
-      return 0;
-}
-
 enum av1_seg_index
 {
    SEG_LVL_ALT_Q          = 0,            //!< Use alternate Quantizer
@@ -485,7 +473,6 @@ enum av1_frame_type
 static const uint32_t av1_max_qindex          = 255;
 static const uint32_t av1_num_qm_levels       = 16;
 static const uint32_t av1_scaling_factor      = (1 << 14);
-static const uint32_t av1_mf_mv_stack_size    = 3;
 
 static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
                            uint32_t segment_id,
@@ -494,7 +481,7 @@ static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
    uint8_t base_qindex = av1_pic_info->frame_header->quantization.base_q_idx;
    if (av1_pic_info->frame_header->segmentation.flags.segmentation_enabled &&
        feature_mask & (1 << SEG_LVL_ALT_Q)) {
-      int data = av1_pic_info->frame_header->segmentation.feature_value[segment_id][SEG_LVL_ALT_Q];
+      int data = av1_pic_info->frame_header->segmentation.feature_data[segment_id][SEG_LVL_ALT_Q];
       return CLAMP(base_qindex + data, 0, av1_max_qindex);
    } else
       return base_qindex;
@@ -906,11 +893,6 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       ref_mask |= (1 << mfmv_ref[i]);
    }
 
-   uint32_t feature_mask[8] = { 0 };
-   for (unsigned i = 0; i < 8; ++i)
-      for (unsigned j = 0; j < 8; ++j)
-         feature_mask[i] |= (av1_pic_info->frame_header->segmentation.feature_enabled[i][j] << j);
-
    uint8_t preskip_segid = 0;
    uint8_t last_active_segid = 0;
    bool frame_lossless = true;
@@ -918,13 +900,13 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    for (unsigned i = 0; i < 8; i++) {
       for (unsigned j = 0; j < 8; j++) {
-         if (feature_mask[i] & (1 << j)) {
+         if (av1_pic_info->frame_header->segmentation.feature_enabled_bits[i] & (1 << j)) {
             last_active_segid = i;
             if (j >= 5)
                preskip_segid = 1;
          }
       }
-      uint32_t qindex = get_qindex(av1_pic_info, i, feature_mask[i]);
+      uint32_t qindex = get_qindex(av1_pic_info, i, av1_pic_info->frame_header->segmentation.feature_enabled_bits[i]);
       lossless[i] = (qindex == 0) &&
          (av1_pic_info->frame_header->quantization.delta_q_y_dc == 0) &&
          (av1_pic_info->frame_header->quantization.delta_q_u_ac == 0) &&
@@ -937,9 +919,9 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_PIC_STATE), pic) {
       pic.FrameWidth = av1_pic_info->frame_header->frame_width_minus_1;
       pic.FrameHeight = av1_pic_info->frame_header->frame_height_minus_1;
-      if (params->vk.av1_dec.seq_hdr.color_config.flags.twelve_bit)
+      if (params->vk.av1_dec.seq_hdr.color_config.bit_depth == 12)
          pic.SequencePixelBitDepthIdc = SeqPix_12bit;
-      else if (params->vk.av1_dec.seq_hdr.color_config.flags.high_bitdepth)
+      else if (params->vk.av1_dec.seq_hdr.color_config.bit_depth == 10)
          pic.SequencePixelBitDepthIdc = SeqPix_10bit;
       else
          pic.SequencePixelBitDepthIdc = SeqPix_8bit;
@@ -998,21 +980,21 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.SkipModeFrame0 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[0] : 0;
       pic.SkipModeFrame1 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[1] : 0;
       pic.ReferenceFrameSide = ref_frame_sign_bias;
-      pic.GlobalMotionType1 = get_gm_type(&av1_pic_info->frame_header->warped_motion[1]);
-      pic.GlobalMotionType2 = get_gm_type(&av1_pic_info->frame_header->warped_motion[2]);
-      pic.GlobalMotionType3 = get_gm_type(&av1_pic_info->frame_header->warped_motion[3]);
-      pic.GlobalMotionType4 = get_gm_type(&av1_pic_info->frame_header->warped_motion[4]);
-      pic.GlobalMotionType5 = get_gm_type(&av1_pic_info->frame_header->warped_motion[5]);
-      pic.GlobalMotionType6 = get_gm_type(&av1_pic_info->frame_header->warped_motion[6]);
-      pic.GlobalMotionType7 = get_gm_type(&av1_pic_info->frame_header->warped_motion[7]);
+      pic.GlobalMotionType1 = av1_pic_info->frame_header->global_motion[1].gm_type;
+      pic.GlobalMotionType2 = av1_pic_info->frame_header->global_motion[2].gm_type;
+      pic.GlobalMotionType3 = av1_pic_info->frame_header->global_motion[3].gm_type;
+      pic.GlobalMotionType4 = av1_pic_info->frame_header->global_motion[4].gm_type;
+      pic.GlobalMotionType5 = av1_pic_info->frame_header->global_motion[5].gm_type;
+      pic.GlobalMotionType6 = av1_pic_info->frame_header->global_motion[6].gm_type;
+      pic.GlobalMotionType7 = av1_pic_info->frame_header->global_motion[7].gm_type;
 
       pic.FrameLevelGlobalMotionInvalidFlags = 0;
       uint8_t idx = 0;
       for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
-         pic.FrameLevelGlobalMotionInvalidFlags |= av1_pic_info->frame_header->warped_motion[r].flags.invalid << r;
+         pic.FrameLevelGlobalMotionInvalidFlags |= av1_pic_info->frame_header->global_motion[r].flags.gm_invalid << r;
 
          for (uint32_t i = 0; i < 6; i++)
-            pic.WarpParameters[idx++] = av1_pic_info->frame_header->warped_motion[r].gm_params[i];
+            pic.WarpParameters[idx++] = av1_pic_info->frame_header->global_motion[r].gm_params[i];
       }
       pic.ReferenceFrameIdx1 = AV1_LAST_FRAME;
       pic.ReferenceFrameIdx2 = AV1_LAST2_FRAME;
@@ -1137,12 +1119,12 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    for (unsigned i = 0; i < 8; ++i) {
       anv_batch_emit(&cmd_buffer->batch, GENX(AVP_SEGMENT_STATE), seg) {
          seg.SegmentID = i;
-         seg.SegmentFeatureMask = feature_mask[i];
-         seg.SegmentDeltaQindex = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_Q];
-         seg.SegmentBlockSkipFlag = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_SKIP];
-         seg.SegmentBlockGlobalMVFlag = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_GLOBAL_MV];
+         seg.SegmentFeatureMask = av1_pic_info->frame_header->segmentation.feature_enabled_bits[i];
+         seg.SegmentDeltaQindex = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_ALT_Q];
+         seg.SegmentBlockSkipFlag = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_SKIP];
+         seg.SegmentBlockGlobalMVFlag = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_GLOBAL_MV];
          seg.SegmentLosslessFlag = lossless[i];
-         if (lossless[i] || !av1_pic_info->frame_header->flags.using_qmatrix) {
+         if (lossless[i] || !av1_pic_info->frame_header->quantization.flags.using_qmatrix) {
             seg.SegmentLumaYQMLevel = av1_num_qm_levels - 1;
             seg.SegmentChromaUQMLevel = av1_num_qm_levels - 1;
             seg.SegmentChromaVQMLevel = av1_num_qm_levels - 1;
@@ -1151,11 +1133,11 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
             seg.SegmentChromaUQMLevel = av1_pic_info->frame_header->quantization.qm_u;
             seg.SegmentChromaVQMLevel = av1_pic_info->frame_header->quantization.qm_v;
          }
-         seg.SegmentDeltaLoopFilterLevelLumaVertical = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_LFYV];
-         seg.SegmentDeltaLoopFilterLevelLumaHorizontal = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_LFYH];
-         seg.SegmentDeltaLoopFilterLevelChromaU = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_LFU];
-         seg.SegmentDeltaLoopFilterLevelChromaV = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_ALT_LFV];
-         seg.SegmentReferenceFrame = av1_pic_info->frame_header->segmentation.feature_value[i][SEG_LVL_REF_FRAME];
+         seg.SegmentDeltaLoopFilterLevelLumaVertical = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_ALT_LFYV];
+         seg.SegmentDeltaLoopFilterLevelLumaHorizontal = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_ALT_LFYH];
+         seg.SegmentDeltaLoopFilterLevelChromaU = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_ALT_LFU];
+         seg.SegmentDeltaLoopFilterLevelChromaV = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_ALT_LFV];
+         seg.SegmentReferenceFrame = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_REF_FRAME];
       };
 
       if (!av1_pic_info->frame_header->segmentation.flags.segmentation_enabled)
@@ -1184,25 +1166,25 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    frame_restoration_type[2] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[2]];
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INLOOP_FILTER_STATE), fil) {
-      fil.LumaYDeblockerFilterLevelVertical = lf->loop_filter_level[0];
-      fil.LumaYDeblockerFilterLevelHorizontal = lf->loop_filter_level[1];
-      fil.ChromaUDeblockerFilterLevel = lf->loop_filter_level[2];
-      fil.ChromaVDeblockerFilterLevel = lf->loop_filter_level[3];
-      fil.DeblockerFilterSharpnessLevel = lf->loop_filter_sharpness;
+      fil.LumaYDeblockerFilterLevelVertical = lf->level[0];
+      fil.LumaYDeblockerFilterLevelHorizontal = lf->level[1];
+      fil.ChromaUDeblockerFilterLevel = lf->level[2];
+      fil.ChromaVDeblockerFilterLevel = lf->level[3];
+      fil.DeblockerFilterSharpnessLevel = lf->sharpness;
       fil.DeblockerFilterModeRefDeltaEnableFlag = lf->flags.loop_filter_delta_enabled;
       fil.DeblockerDeltaLFResolution = av1_pic_info->frame_header->delta_q.delta_lf_res;
       fil.DeblockerFilterDeltaLFMultiFlag = av1_pic_info->frame_header->delta_q.flags.delta_lf_multi;
       fil.DeblockerFilterDeltaLFPresentFlag = av1_pic_info->frame_header->delta_q.flags.delta_lf_present;
-      fil.DeblockerFilterRefDeltas0 = lf->loop_filter_ref_deltas[0] & 0x7f;
-      fil.DeblockerFilterRefDeltas1 = lf->loop_filter_ref_deltas[1] & 0x7f;
-      fil.DeblockerFilterRefDeltas2 = lf->loop_filter_ref_deltas[2] & 0x7f;
-      fil.DeblockerFilterRefDeltas3 = lf->loop_filter_ref_deltas[3] & 0x7f;
-      fil.DeblockerFilterRefDeltas4 = lf->loop_filter_ref_deltas[4] & 0x7f;
-      fil.DeblockerFilterRefDeltas5 = lf->loop_filter_ref_deltas[5] & 0x7f;
-      fil.DeblockerFilterRefDeltas6 = lf->loop_filter_ref_deltas[6] & 0x7f;
-      fil.DeblockerFilterRefDeltas7 = lf->loop_filter_ref_deltas[7] & 0x7f;
-      fil.DeblockerFilterModeDeltas0 = lf->loop_filter_mode_deltas[0];
-      fil.DeblockerFilterModeDeltas1 = lf->loop_filter_mode_deltas[1];
+      fil.DeblockerFilterRefDeltas0 = lf->ref_deltas[0];
+      fil.DeblockerFilterRefDeltas1 = lf->ref_deltas[1];
+      fil.DeblockerFilterRefDeltas2 = lf->ref_deltas[2];
+      fil.DeblockerFilterRefDeltas3 = lf->ref_deltas[3];
+      fil.DeblockerFilterRefDeltas4 = lf->ref_deltas[4];
+      fil.DeblockerFilterRefDeltas5 = lf->ref_deltas[5];
+      fil.DeblockerFilterRefDeltas6 = lf->ref_deltas[6];
+      fil.DeblockerFilterRefDeltas7 = lf->ref_deltas[7];
+      fil.DeblockerFilterModeDeltas0 = lf->mode_deltas[0];
+      fil.DeblockerFilterModeDeltas1 = lf->mode_deltas[1];
       fil.CDEFYStrength0 = cdef_strengths[0];
       fil.CDEFYStrength1 = cdef_strengths[1];
       fil.CDEFYStrength2 = cdef_strengths[2];
