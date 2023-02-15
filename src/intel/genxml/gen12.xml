@@ -6952,11 +6952,11 @@
     <field name="Segment ID Buffer Stream In Enable Flag" start="140" end="140" type="bool"/>
     <field name="Segment ID Buffer Stream Out Enable Flag" start="141" end="141" type="bool"/>
     <field name="Base Qindex" start="144" end="151" type="uint"/>
-    <field name="Y dc delta Q" start="152" end="158" type="uint"/>
-    <field name="U dc delta Q" start="160" end="166" type="uint"/>
-    <field name="U ac delta Q" start="168" end="174" type="uint"/>
-    <field name="V dc delta Q" start="176" end="182" type="uint"/>
-    <field name="V ac delta Q" start="184" end="190" type="uint"/>
+    <field name="Y dc delta Q" start="152" end="158" type="int"/>
+    <field name="U dc delta Q" start="160" end="166" type="int"/>
+    <field name="U ac delta Q" start="168" end="174" type="int"/>
+    <field name="V dc delta Q" start="176" end="182" type="int"/>
+    <field name="V ac delta Q" start="184" end="190" type="int"/>
     <field name="Allow High Precision MV" start="192" end="192" type="bool"/>
     <field name="Frame Level Reference Mode Select" start="193" end="193" type="bool"/>
     <field name="Mcomp Filter Type" start="194" end="196" type="uint">
@@ -7105,7 +7105,7 @@
     <field name="Command Type" start="29" end="31" type="uint" default="3" />
     <field name="Segment ID" start="32" end="34" type="uint" />
     <field name="Segment Feature Mask" start="64" end="71" type="uint" />
-    <field name="Segment Delta Qindex" start="72" end="80" type="uint" />
+    <field name="Segment Delta Qindex" start="72" end="80" type="int" />
     <field name="Segment Block Skip Flag" start="81" end="81" type="bool" />
     <field name="Segment Block Global MV Flag" start="82" end="82" type="bool" />
     <field name="Segment Lossless Flag" start="83" end="83" type="bool" />
@@ -7228,16 +7228,16 @@
     <field name="Deblocker Delta LF Resolution" start="60" end="61" type="uint" />
     <field name="Deblocker Filter Delta LF Multi Flag" start="62" end="62" type="bool" />
     <field name="Deblocker Filter Delta LF Present Flag" start="63" end="63" type="bool" />
-    <field name="Deblocker Filter Ref Deltas 0" start="64" end="70" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 1" start="72" end="78" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 2" start="80" end="86" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 3" start="88" end="94" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 4" start="96" end="102" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 5" start="104" end="110" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 6" start="112" end="118" type="uint" />
-    <field name="Deblocker Filter Ref Deltas 7" start="120" end="126" type="uint" />
-    <field name="Deblocker Filter Mode Deltas 0" start="128" end="134" type="uint" />
-    <field name="Deblocker Filter Mode Deltas 1" start="136" end="142" type="uint" />
+    <field name="Deblocker Filter Ref Deltas 0" start="64" end="70" type="int" />
+    <field name="Deblocker Filter Ref Deltas 1" start="72" end="78" type="int" />
+    <field name="Deblocker Filter Ref Deltas 2" start="80" end="86" type="int" />
+    <field name="Deblocker Filter Ref Deltas 3" start="88" end="94" type="int" />
+    <field name="Deblocker Filter Ref Deltas 4" start="96" end="102" type="int" />
+    <field name="Deblocker Filter Ref Deltas 5" start="104" end="110" type="int" />
+    <field name="Deblocker Filter Ref Deltas 6" start="112" end="118" type="int" />
+    <field name="Deblocker Filter Ref Deltas 7" start="120" end="126" type="int" />
+    <field name="Deblocker Filter Mode Deltas 0" start="128" end="134" type="int" />
+    <field name="Deblocker Filter Mode Deltas 1" start="136" end="142" type="int" />
     <field name="CDEF Y Strength 0" start="160" end="165" type="uint" />
     <field name="CDEF Y Strength 1" start="166" end="171" type="uint" />
     <field name="CDEF Y Strength 2" start="172" end="177" type="uint" />
