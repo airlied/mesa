@@ -475,10 +475,10 @@ static const uint32_t av1_num_qm_levels       = 16;
 static const uint32_t av1_scaling_factor      = (1 << 14);
 
 static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
-                           uint32_t segment_id,
-                           uint32_t feature_mask)
+                           uint32_t segment_id)
 {
    uint8_t base_qindex = av1_pic_info->frame_header->quantization.base_q_idx;
+   uint32_t feature_mask = av1_pic_info->frame_header->segmentation.feature_enabled_bits[segment_id];
    if (av1_pic_info->frame_header->segmentation.flags.segmentation_enabled &&
        feature_mask & (1 << SEG_LVL_ALT_Q)) {
       int data = av1_pic_info->frame_header->segmentation.feature_data[segment_id][SEG_LVL_ALT_Q];
@@ -906,7 +906,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
                preskip_segid = 1;
          }
       }
-      uint32_t qindex = get_qindex(av1_pic_info, i, av1_pic_info->frame_header->segmentation.feature_enabled_bits[i]);
+      uint32_t qindex = get_qindex(av1_pic_info, i);
       lossless[i] = (qindex == 0) &&
          (av1_pic_info->frame_header->quantization.delta_q_y_dc == 0) &&
          (av1_pic_info->frame_header->quantization.delta_q_u_ac == 0) &&
@@ -925,13 +925,22 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          pic.SequencePixelBitDepthIdc = SeqPix_10bit;
       else
          pic.SequencePixelBitDepthIdc = SeqPix_8bit;
-      if (params->vk.av1_dec.seq_hdr.color_config.flags.mono_chrome)
-         pic.SequenceChromaSubSamplingFormat = SS_Monochrome;
-      else
-         pic.SequenceChromaSubSamplingFormat = SS_420;
+      if (params->vk.av1_dec.seq_hdr.color_config.subsampling_x == 1 &&
+          params->vk.av1_dec.seq_hdr.color_config.subsampling_y == 1) {
+         if (params->vk.av1_dec.seq_hdr.color_config.flags.mono_chrome)
+            pic.SequenceChromaSubSamplingFormat = SS_Monochrome;
+         else
+            pic.SequenceChromaSubSamplingFormat = SS_420;
+      } else if (params->vk.av1_dec.seq_hdr.color_config.subsampling_x == 1 &&
+                 params->vk.av1_dec.seq_hdr.color_config.subsampling_y == 0) {
+         pic.SequenceChromaSubSamplingFormat = SS_422;
+      } else if (params->vk.av1_dec.seq_hdr.color_config.subsampling_x == 0 &&
+                 params->vk.av1_dec.seq_hdr.color_config.subsampling_y == 0) {
+         pic.SequenceChromaSubSamplingFormat = SS_444;
+      }
       pic.SequenceSuperblockSizeUsed = params->vk.av1_dec.seq_hdr.flags.use_128x128_superblock;
       pic.SequenceEnableOrderHintFlag = params->vk.av1_dec.seq_hdr.flags.enable_order_hint;
-      pic.SequenceOrderHintBitsMinus1 = params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1;
+      pic.SequenceOrderHintBitsMinus1 = params->vk.av1_dec.seq_hdr.flags.enable_order_hint ? params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 : 0;
       pic.SequenceEnableFilterIntraFlag = params->vk.av1_dec.seq_hdr.flags.enable_filter_intra;
       pic.SequenceEnableIntraEdgeFilterFlag = params->vk.av1_dec.seq_hdr.flags.enable_intra_edge_filter;
       pic.SequenceEnableDualFilterFlag = params->vk.av1_dec.seq_hdr.flags.enable_dual_filter;
@@ -952,7 +961,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.PrimaryReferenceFrameIdx = av1_pic_info->frame_header->primary_ref_frame;
       pic.SegmentationEnableFlag = av1_pic_info->frame_header->segmentation.flags.segmentation_enabled;
       pic.SegmentationUpdateMapFlag = av1_pic_info->frame_header->segmentation.flags.segmentation_update_map;
-      pic.SegmentationTemporalUpdateFlag = av1_pic_info->frame_header->segmentation.flags.segmentation_temporal_update;
+      pic.SegmentationTemporalUpdateFlag = pic.IntraOnlyFlag ? 0 : av1_pic_info->frame_header->segmentation.flags.segmentation_temporal_update;
       pic.PreSkipSegmentIDFlag = preskip_segid;
       pic.LastActiveSegmentSegmentID = last_active_segid;
       pic.DeltaQPresentFlag = av1_pic_info->frame_header->flags.delta_q_present;
@@ -968,7 +977,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.VdcdeltaQ = av1_pic_info->frame_header->quantization.delta_q_v_dc;
       pic.VacdeltaQ = av1_pic_info->frame_header->quantization.delta_q_v_ac;
       pic.AllowHighPrecisionMV = av1_pic_info->frame_header->flags.allow_high_precision_mv;
-      pic.FrameLevelReferenceModeSelect = av1_pic_info->frame_header->flags.reference_select;
+      pic.FrameLevelReferenceModeSelect = !(av1_pic_info->frame_header->flags.reference_select == 0);
       pic.McompFilterType = av1_pic_info->frame_header->interpolation_filter;
       pic.MotionModeSwitchableFlag = av1_pic_info->frame_header->flags.is_motion_mode_switchable;
       pic.UseReferenceFrameMVSetFlag = av1_pic_info->frame_header->flags.use_ref_frame_mvs;
