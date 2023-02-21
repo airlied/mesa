@@ -609,19 +609,6 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       }
    }
 
-   anv_batch_emit(&cmd_buffer->batch, GENX(AVP_IND_OBJ_BASE_ADDR_STATE), ind) {
-      ind.AVPIndirectBitstreamObjectBaseAddress = anv_address_add(src_buffer->address,
-                                                                  frame_info->srcBufferOffset);
-      ind.AVPIndirectBitstreamObjectAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
-         .MOCS = anv_mocs(cmd_buffer->device, src_buffer->address.bo, 0),
-      };
-#if GFX_VERx10 >= 125
-      ind.AVPIndirectCUObjectAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
-         .MOCS = anv_mocs(cmd_buffer->device, NULL, 0),
-      };
-#endif
-   }
-
    bool use_internal_cache_mem = true;
 
 #if GFX_VERx10 == 125
@@ -915,6 +902,19 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          .MOCS = anv_mocs(cmd_buffer->device, vid->vid_mem[ANV_VID_MEM_AV1_DBD_BUFFER].mem->bo, 0),
       };
    };
+
+   anv_batch_emit(&cmd_buffer->batch, GENX(AVP_IND_OBJ_BASE_ADDR_STATE), ind) {
+      ind.AVPIndirectBitstreamObjectBaseAddress = anv_address_add(src_buffer->address,
+                                                                  frame_info->srcBufferOffset);
+      ind.AVPIndirectBitstreamObjectAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
+         .MOCS = anv_mocs(cmd_buffer->device, src_buffer->address.bo, 0),
+      };
+#if GFX_VERx10 >= 125
+      ind.AVPIndirectCUObjectAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
+         .MOCS = anv_mocs(cmd_buffer->device, NULL, 0),
+      };
+#endif
+   }
 
    uint32_t ref_mask = 0;
    uint32_t ref_frame_sign_bias = 0;
