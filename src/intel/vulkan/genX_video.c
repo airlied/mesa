@@ -594,8 +594,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_SURFACE_STATE), ss) {
       ss.SurfaceFormat = AVP_PLANAR_420_8; // assert on this?
       ss.SurfacePitchMinus1 = img->planes[0].primary_surface.isl.row_pitch_B - 1;
-      ss.YOffsetforUCb = align(frame_info->dstPictureResource.codedExtent.height, 32);
-//      ss.YOffsetforVCr = align(frame_info->dstPictureResource.codedExtent.height, 32);
+      ss.YOffsetforUCb = img->planes[1].primary_surface.memory_range.offset / img->planes[0].primary_surface.isl.row_pitch_B;
    };
 
 
@@ -605,7 +604,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
             ss.SurfaceID = 0x6 + r;
             ss.SurfaceFormat = AVP_PLANAR_420_8;
             ss.SurfacePitchMinus1 = ref_info[r].img->planes[0].primary_surface.isl.row_pitch_B - 1;
-            ss.YOffsetforUCb = align(ref_info[r].img->planes[0].primary_surface.isl.array_pitch_el_rows, 32);
+            ss.YOffsetforUCb = ref_info[r].img->planes[1].primary_surface.memory_range.offset / ref_info[r].img->planes[0].primary_surface.isl.row_pitch_B;
          }
       }
    }
