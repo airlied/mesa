@@ -1297,32 +1297,32 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       fil.ChromaPlanex0_qn = 0;
    };
 
-   int til_idx = 0;
-   struct StdVideoDecodeAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[til_idx];
+   struct StdVideoDecodeAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[0];
+   int tile_idx = 0;
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_TILE_CODING), til) {
-      til.FrameTileID = 0;
-      til.TGTileNum = 0;
+      til.FrameTileID = tile_idx;
+      til.TGTileNum = tile_idx;
       til.TileGroupID = 0;
       til.TileColumnPositioninSBUnit = cur_tile->column;
       til.TileRowPositioninSBUnit = cur_tile->row;
-      til.TileWidthinSBMinus1 = av1_pic_info->frame_header->tiling.width_in_sbs_minus_1[til_idx];
-      til.TileHeightinSBMinus1 = av1_pic_info->frame_header->tiling.height_in_sbs_minus_1[til_idx];
-      til.IsLastTileofColumnFlag = cur_tile->column == av1_pic_info->frame_header->tiling.tile_cols - 1;
-      til.IsLastTileofRowFlag = cur_tile->row == av1_pic_info->frame_header->tiling.tile_rows - 1;
-      til.IsStartTileofTileGroupFlag = 1;
-      til.IsEndTileofTileGroupFlag = 1;
+      til.TileWidthinSBMinus1 = av1_pic_info->frame_header->tiling.width_in_sbs_minus_1[cur_tile->column];
+      til.TileHeightinSBMinus1 = av1_pic_info->frame_header->tiling.height_in_sbs_minus_1[cur_tile->row];
+      til.IsLastTileofRowFlag = cur_tile->column == av1_pic_info->frame_header->tiling.tile_cols - 1;
+      til.IsLastTileofColumnFlag = cur_tile->row == av1_pic_info->frame_header->tiling.tile_rows - 1;
+      til.IsStartTileofTileGroupFlag = (tile_idx == cur_tile->tg_start);
+      til.IsEndTileofTileGroupFlag = (tile_idx == cur_tile->tg_end);
       til.IsLastTileofFrameFlag = (cur_tile->column == av1_pic_info->frame_header->tiling.tile_cols - 1) &&
          (cur_tile->row == av1_pic_info->frame_header->tiling.tile_rows - 1);
       til.DisableCDFUpdateFlag = av1_pic_info->frame_header->flags.disable_cdf_update;
-      til.DisableFrameContextUpdateFlag = 0;
+      til.DisableFrameContextUpdateFlag = av1_pic_info->frame_header->flags.disable_frame_end_update_cdf || (tile_idx != av1_pic_info->frame_header->tiling.context_update_tile_id);
       til.NumberofActiveBEPipes = 1;
       til.NumofTileColumnsinFrameMinus1 = av1_pic_info->frame_header->tiling.tile_cols - 1;
       til.NumofTileRowsinFrameMinus1 = av1_pic_info->frame_header->tiling.tile_rows - 1;
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_BSD_OBJECT), bsd) {
-      bsd.TileIndirectBSDDataLength = frame_info->srcBufferRange;
-      bsd.TileIndirectDataStartAddress = 0;
+      bsd.TileIndirectBSDDataLength = cur_tile->size;
+      bsd.TileIndirectDataStartAddress = cur_tile->offset;
    };
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_VD_CONTROL_STATE), vd) {
