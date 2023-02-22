@@ -146,7 +146,7 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_MESA);
       pCapabilities->maxDpbSlots = 8;
       pCapabilities->maxActiveReferencePictures = 7;
-      dec_caps->flags = VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR;
+      dec_caps->flags = VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_DISTINCT_BIT_KHR | VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_COINCIDE_BIT_KHR;
       break;
    }
    default:
