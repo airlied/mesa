@@ -495,6 +495,12 @@ static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
       return base_qindex;
 }
 
+static bool frame_is_key_or_intra(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info)
+{
+   return (av1_pic_info->frame_header->frame_type == AV1_INTRA_ONLY_FRAME ||
+           av1_pic_info->frame_header->frame_type == AV1_KEY_FRAME);
+}
+
 static int32_t get_relative_dist(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
                                  const struct anv_video_session_params *params,
                                  int32_t a, int32_t b)
@@ -931,11 +937,18 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
    uint32_t ref_mask = 0;
    uint32_t ref_frame_sign_bias = 0;
+   uint32_t ref_frame_side = 0;
    for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
-      if (params->vk.av1_dec.seq_hdr.flags.enable_order_hint) {
+      if (params->vk.av1_dec.seq_hdr.flags.enable_order_hint &&
+          !frame_is_key_or_intra(av1_pic_info)) {
          if (get_relative_dist(av1_pic_info, params,
                                ref_info[r].order_hint, ref_info[AV1_INTRA_FRAME].order_hint) > 0)
             ref_frame_sign_bias |= (1 << r);
+
+         if ((get_relative_dist(av1_pic_info, params,
+                                ref_info[r].order_hint, ref_info[AV1_INTRA_FRAME].order_hint) > 0) ||
+             ref_info[r].order_hint == ref_info[AV1_INTRA_FRAME].order_hint)
+            ref_frame_side |= (1 << r);
       }
    }
 
@@ -1039,8 +1052,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.UseSuperResFlag = av1_pic_info->frame_header->flags.use_superres;
       pic.FrameLevelLoopRestorationFilterEnable = params->vk.av1_dec.seq_hdr.flags.enable_restoration;
       pic.FrameType = av1_pic_info->frame_header->frame_type;
-      pic.IntraOnlyFlag = (av1_pic_info->frame_header->frame_type == AV1_INTRA_ONLY_FRAME ||
-                           av1_pic_info->frame_header->frame_type == AV1_KEY_FRAME);
+      pic.IntraOnlyFlag = frame_is_key_or_intra(av1_pic_info);
       pic.ErrorResilientModeFlag = av1_pic_info->frame_header->flags.error_resilient_mode;
       pic.AllowIntraBCFlag = av1_pic_info->frame_header->flags.allow_intrabc;
       pic.PrimaryReferenceFrameIdx = av1_pic_info->frame_header->primary_ref_frame;
@@ -1073,7 +1085,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.SkipModePresentFlag = av1_pic_info->frame_header->flags.skip_mode_present;
       pic.SkipModeFrame0 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[0] : 0;
       pic.SkipModeFrame1 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[1] : 0;
-      pic.ReferenceFrameSide = ref_frame_sign_bias;
+      pic.ReferenceFrameSide = ref_frame_side;
       pic.GlobalMotionType1 = av1_pic_info->frame_header->global_motion[1].gm_type;
       pic.GlobalMotionType2 = av1_pic_info->frame_header->global_motion[2].gm_type;
       pic.GlobalMotionType3 = av1_pic_info->frame_header->global_motion[3].gm_type;
