@@ -114,7 +114,7 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
                                            VkVideoCapabilitiesKHR *pCapabilities)
 {
    pCapabilities->minBitstreamBufferOffsetAlignment = 32;
-   pCapabilities->minBitstreamBufferSizeAlignment = 32;
+   pCapabilities->minBitstreamBufferSizeAlignment = 1;
    pCapabilities->pictureAccessGranularity.width = ANV_MB_WIDTH;
    pCapabilities->pictureAccessGranularity.height = ANV_MB_HEIGHT;
    pCapabilities->minCodedExtent.width = ANV_MB_WIDTH;
