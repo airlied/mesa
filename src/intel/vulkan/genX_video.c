@@ -516,8 +516,9 @@ static int32_t get_relative_dist(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_
 }
 
 static void
-anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
-                     const VkVideoDecodeInfoKHR *frame_info)
+anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
+                          const VkVideoDecodeInfoKHR *frame_info,
+                          int tile_idx)
 {
    ANV_FROM_HANDLE(anv_buffer, src_buffer, frame_info->srcBuffer);
    struct anv_video_session *vid = cmd_buffer->video.vid;
@@ -1334,8 +1335,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       fil.ChromaPlanex0_qn = 0;
    };
 
-   struct StdVideoDecodeAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[0];
-   int tile_idx = 0;
+   struct StdVideoDecodeAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[tile_idx];
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_TILE_CODING), til) {
       til.FrameTileID = tile_idx;
       til.TGTileNum = tile_idx;
@@ -1370,6 +1370,16 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       vd.VDCommandMessageParserDone = 1;
       vd.AVPPipelineCommandFlush = 1;
    }
+}
+
+static void
+anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
+                     const VkVideoDecodeInfoKHR *frame_info)
+{
+   const struct VkVideoDecodeAV1PictureInfoMESA *av1_pic_info =
+      vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_MESA);
+   for (unsigned t = 0; t < av1_pic_info->tile_list->nb_tiles; t++)
+      anv_av1_decode_video_tile(cmd_buffer, frame_info, t);
 }
 #endif
 
