@@ -547,7 +547,7 @@ uint32_t anv_video_get_image_mv_size(struct anv_device *device,
       }
 
       if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA) {
-         const uint32_t av1_mi_size_log2         = 2;
+         const uint32_t av1_mi_size_log2 = 2;
          uint32_t width = image->vk.extent.width;
          uint32_t height = image->vk.extent.height;
          uint32_t mi_cols = width  >> av1_mi_size_log2;
