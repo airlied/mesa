@@ -935,6 +935,18 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
    }
 
+   enum {
+      AV1_RESTORE_NONE       = 0,
+      AV1_RESTORE_WIENER     = 1,
+      AV1_RESTORE_SGRPROJ    = 2,
+      AV1_RESTORE_SWITCHABLE = 3,
+   };
+   uint8_t remap_lr_type[4] = {AV1_RESTORE_NONE, AV1_RESTORE_SWITCHABLE, AV1_RESTORE_WIENER, AV1_RESTORE_SGRPROJ};
+   uint32_t frame_restoration_type[3];
+   frame_restoration_type[0] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[0]];
+   frame_restoration_type[1] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[1]];
+   frame_restoration_type[2] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[2]];
+
    uint32_t ref_mask = 0;
    uint32_t ref_frame_sign_bias = 0;
    uint32_t ref_frame_side = 0;
@@ -1050,7 +1062,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       pic.AllowWarpedMotionFlag = av1_pic_info->frame_header->flags.allow_warped_motion;
       pic.UseCDEFFilterFlag = params->vk.av1_dec.seq_hdr.flags.enable_cdef;
       pic.UseSuperResFlag = av1_pic_info->frame_header->flags.use_superres;
-      pic.FrameLevelLoopRestorationFilterEnable = params->vk.av1_dec.seq_hdr.flags.enable_restoration;
+      pic.FrameLevelLoopRestorationFilterEnable = frame_restoration_type[0] || frame_restoration_type[1] || frame_restoration_type[2];
       pic.FrameType = av1_pic_info->frame_header->frame_type;
       pic.IntraOnlyFlag = frame_is_key_or_intra(av1_pic_info);
       pic.ErrorResilientModeFlag = av1_pic_info->frame_header->flags.error_resilient_mode;
@@ -1259,17 +1271,6 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       cdef_uv_strengths[i] = (cdef->cdef_uv_pri_strength[i] << 2) +
          cdef->cdef_uv_sec_strength[i];
    }
-   enum {
-      AV1_RESTORE_NONE       = 0,
-      AV1_RESTORE_WIENER     = 1,
-      AV1_RESTORE_SGRPROJ    = 2,
-      AV1_RESTORE_SWITCHABLE = 3,
-   };
-   uint8_t remap_lr_type[4] = {AV1_RESTORE_NONE, AV1_RESTORE_SWITCHABLE, AV1_RESTORE_WIENER, AV1_RESTORE_SGRPROJ};
-   uint32_t frame_restoration_type[3];
-   frame_restoration_type[0] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[0]];
-   frame_restoration_type[1] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[1]];
-   frame_restoration_type[2] = remap_lr_type[av1_pic_info->frame_header->lr.lr_type[2]];
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INLOOP_FILTER_STATE), fil) {
       fil.LumaYDeblockerFilterLevelVertical = lf->level[0];
