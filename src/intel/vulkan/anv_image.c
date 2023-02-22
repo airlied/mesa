@@ -35,6 +35,7 @@
 #include "util/u_math.h"
 
 #include "vk_format.h"
+#include "av1_tables.h"
 
 #define ANV_OFFSET_IMPLICIT UINT64_MAX
 
@@ -821,6 +822,14 @@ add_video_buffers(struct anv_device *device,
 
    ok = image_binding_grow(device, image, ANV_IMAGE_MEMORY_BINDING_PRIVATE,
                            ANV_OFFSET_IMPLICIT, size, 65536, &image->vid_dmv_top_surface);
+   if (ok != VK_SUCCESS)
+      return ok;
+   for (unsigned i = 0; i < profile_list->profileCount; i++) {
+      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_MESA) {
+         ok = image_binding_grow(device, image, ANV_IMAGE_MEMORY_BINDING_PRIVATE,
+                                 ANV_OFFSET_IMPLICIT, av1_cdf_max_num_bytes, 4096, &image->av1_cdf_table);
+      }
+   }
    return ok;
 }
 

@@ -566,8 +566,8 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    const struct anv_image_view *dpb_iv = anv_image_view_from_handle(frame_info->pSetupReferenceSlot->pPictureResource->imageViewBinding);
    const struct anv_image *dpb_img = dpb_iv->image;
 
-   if (dpb_img) {
-      ref_info[AV1_INTRA_FRAME].img = dpb_img;
+   ref_info[AV1_INTRA_FRAME].img = dpb_img;
+   if (dpb_img && frame_info->referenceSlotCount) {
       ref_info[AV1_INTRA_FRAME].order_hint = av1_pic_info->frame_header->order_hint;
    }
 
@@ -599,7 +599,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
 
    for (enum av1_ref_frame r = AV1_INTRA_FRAME; r <= AV1_ALTREF_FRAME; r++) {
-      if (ref_info[r].img) {
+      if (ref_info[r].img && frame_info->referenceSlotCount) {
          anv_batch_emit(&cmd_buffer->batch, GENX(AVP_SURFACE_STATE), ss) {
             ss.SurfaceID = 0x6 + r;
             ss.SurfaceFormat = AVP_PLANAR_420_8;
@@ -876,13 +876,26 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       buf.CollocatedMVTemporalBufferAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, collocated_bo, 0),
       };
-      buf.CDFTablesInitializationBufferAddress = (struct anv_address) { vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].mem->bo,
-                                                                        vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].offset };
+
+      if (av1_pic_info->frame_header->primary_ref_frame == 7) {
+         buf.CDFTablesInitializationBufferAddress = (struct anv_address) {
+            vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].mem->bo,
+            vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].offset };
+      } else {
+         const struct anv_image *ref_img = ref_info[av1_pic_info->frame_header->primary_ref_frame + 1].img;
+         buf.CDFTablesInitializationBufferAddress = anv_image_address(ref_img,
+                                                                      &ref_img->av1_cdf_table);
+      }
       buf.CDFTablesInitializationBufferAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, buf.CDFTablesInitializationBufferAddress.bo, 0),
       };
-      buf.CDFTablesBackwardAdaptationBufferAddress = (struct anv_address) { vid->vid_mem[ANV_VID_MEM_AV1_CDF_BWD_BUFFER].mem->bo,
-                                                                           vid->vid_mem[ANV_VID_MEM_AV1_CDF_BWD_BUFFER].offset };
+
+      if (!av1_pic_info->frame_header->flags.disable_frame_end_update_cdf) {
+         const struct anv_image *ref_img = ref_info[0].img;
+         buf.CDFTablesBackwardAdaptationBufferAddress = anv_image_address(ref_img,
+                                                                          &ref_img->av1_cdf_table);
+      }
+
       buf.CDFTablesBackwardAdaptationBufferAddressAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, buf.CDFTablesBackwardAdaptationBufferAddress.bo, 0),
       };
