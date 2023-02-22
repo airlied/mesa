@@ -363,14 +363,22 @@ get_av1_video_session_mem_reqs(struct anv_video_session *vid,
       case ANV_VID_MEM_AV1_DBD_BUFFER:
          buffer_size = 1;
          break;
-      case ANV_VID_MEM_AV1_CDF_BWD_BUFFER:
-         buffer_size = 15110;
-         break;
       default:
          assert(0);
          break;
       }
-      mem_reqs[idx].memoryRequirements.size = buffer_size * 64;
+
+      switch (mem) {
+      case ANV_VID_MEM_AV1_CDF_DEFAULTS_0:
+      case ANV_VID_MEM_AV1_CDF_DEFAULTS_1:
+      case ANV_VID_MEM_AV1_CDF_DEFAULTS_2:
+      case ANV_VID_MEM_AV1_CDF_DEFAULTS_3:
+         mem_reqs[idx].memoryRequirements.size = buffer_size;
+         break;
+      default:
+         mem_reqs[idx].memoryRequirements.size = buffer_size * 64;
+         break;
+      }
       idx++;
    }
 }
