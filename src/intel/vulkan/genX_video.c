@@ -536,11 +536,12 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
    else
       cdf_index = 3;
 
-
    anv_batch_emit(&cmd_buffer->batch, GENX(MI_FORCE_WAKEUP), wake) {
+      wake.HEVCPowerWellControl = true;
       wake.MaskBits = 768;
    }
    anv_batch_emit(&cmd_buffer->batch, GENX(MI_FORCE_WAKEUP), wake) {
+      wake.HEVCPowerWellControl = true;
       wake.MaskBits = 768;
    }
 
