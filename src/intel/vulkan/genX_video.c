@@ -1006,7 +1006,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          mfmv_ref[num_mfmv++] = AV1_ALTREF_FRAME - AV1_LAST_FRAME;
 
       if (num_mfmv < total &&
-          av1_pic_info->frame_header->ref_frame_idx[AV1_LAST2_FRAME - AV1_LAST_FRAME] > 0)
+          av1_pic_info->frame_header->ref_frame_idx[AV1_LAST2_FRAME - AV1_LAST_FRAME] >= 0)
          mfmv_ref[num_mfmv++] = AV1_LAST2_FRAME - AV1_LAST_FRAME;
    }
 
