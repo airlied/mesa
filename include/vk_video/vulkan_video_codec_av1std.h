@@ -351,6 +351,7 @@ typedef struct VkVideoDecodeAV1DpbSlotInfoMESA {
     const void *pNext;
     uint8_t frameIdx;
     uint8_t ref_order_hints[7];
+    uint8_t cdf_update_disabled;
 } VkVideoDecodeAV1DpbSlotInfoMESA;
 
 typedef struct VkVideoDecodeAV1SessionParametersAddInfoMESA {

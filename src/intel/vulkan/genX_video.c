@@ -567,6 +567,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
       const struct anv_image *img;
       uint8_t order_hint;
       uint8_t ref_order_hints[7];
+      uint8_t cdf_update_disabled;
    } ref_info[AV1_TOTAL_REFS_PER_FRAME] = {};
 
    const struct anv_image_view *dpb_iv = anv_image_view_from_handle(frame_info->pSetupReferenceSlot->pPictureResource->imageViewBinding);
@@ -575,6 +576,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    ref_info[AV1_INTRA_FRAME].img = dpb_img;
    if (dpb_img && frame_info->referenceSlotCount) {
       ref_info[AV1_INTRA_FRAME].order_hint = av1_pic_info->frame_header->order_hint;
+      ref_info[AV1_INTRA_FRAME].cdf_update_disabled = av1_pic_info->frame_header->flags.disable_frame_end_update_cdf;
    }
 
    for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
@@ -591,6 +593,7 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 
             ref_info[r].img = ref_img;
             memcpy(ref_info[r].ref_order_hints, dpb_slot->ref_order_hints, 7);
+            ref_info[r].cdf_update_disabled = dpb_slot->cdf_update_disabled;
          }
       }
    }
@@ -883,7 +886,15 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
          .MOCS = anv_mocs(cmd_buffer->device, collocated_bo, 0),
       };
 
+      bool use_default_cdf = false;
       if (av1_pic_info->frame_header->primary_ref_frame == 7) {
+         use_default_cdf = true;
+      } else {
+         if (ref_info[av1_pic_info->frame_header->primary_ref_frame + 1].cdf_update_disabled)
+            use_default_cdf = true;
+      }
+
+      if (use_default_cdf) {
          buf.CDFTablesInitializationBufferAddress = (struct anv_address) {
             vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].mem->bo,
             vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + cdf_index].offset };
