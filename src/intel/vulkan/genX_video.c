@@ -969,26 +969,26 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
    if (av1_pic_info->frame_header->flags.use_ref_frame_mvs &&
        params->vk.av1_dec.seq_hdr.order_hint_bits_minus_1 + 1) {
       int total = 2;
-      if (av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME] > 0) {
-         if (ref_info[AV1_LAST_FRAME].ref_order_hints[AV1_ALTREF_FRAME - AV1_LAST_FRAME] != av1_pic_info->frame_header->ref_order_hint[AV1_GOLDEN_FRAME - AV1_LAST_FRAME]) {
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_LAST_FRAME - AV1_LAST_FRAME] >= 0) {
+         if (ref_info[AV1_LAST_FRAME].ref_order_hints[AV1_ALTREF_FRAME - AV1_LAST_FRAME] != ref_info[AV1_GOLDEN_FRAME].order_hint) {
             total = 3;
             mfmv_ref[num_mfmv++] = AV1_LAST_FRAME - AV1_LAST_FRAME;
          }
       }
 
-      if (av1_pic_info->frame_header->ref_frame_idx[AV1_BWDREF_FRAME - AV1_LAST_FRAME] > 0 &&
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_BWDREF_FRAME - AV1_LAST_FRAME] >= 0 &&
           get_relative_dist(av1_pic_info, params,
                             ref_info[AV1_BWDREF_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0)
          mfmv_ref[num_mfmv++] = AV1_BWDREF_FRAME - AV1_LAST_FRAME;
 
-      if (av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF2_FRAME - AV1_LAST_FRAME] > 0 &&
+      if (av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF2_FRAME - AV1_LAST_FRAME] >= 0 &&
           get_relative_dist(av1_pic_info, params,
                             ref_info[AV1_ALTREF2_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0)
          mfmv_ref[num_mfmv++] = AV1_ALTREF2_FRAME - AV1_LAST_FRAME;
 
-      if (num_mfmv < total && av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF_FRAME - AV1_LAST_FRAME] > 0 &&
+      if (num_mfmv < total && av1_pic_info->frame_header->ref_frame_idx[AV1_ALTREF_FRAME - AV1_LAST_FRAME] >= 0 &&
           get_relative_dist(av1_pic_info, params,
                             ref_info[AV1_ALTREF_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0)
