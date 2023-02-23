@@ -1341,8 +1341,8 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       til.FrameTileID = tile_idx;
       til.TGTileNum = tile_idx;
       til.TileGroupID = 0;
-      til.TileColumnPositioninSBUnit = cur_tile->column;
-      til.TileRowPositioninSBUnit = cur_tile->row;
+      til.TileColumnPositioninSBUnit = av1_pic_info->frame_header->tiling.tile_start_col_sb[cur_tile->column];
+      til.TileRowPositioninSBUnit = av1_pic_info->frame_header->tiling.tile_start_row_sb[cur_tile->row];
       til.TileWidthinSBMinus1 = av1_pic_info->frame_header->tiling.width_in_sbs_minus_1[cur_tile->column];
       til.TileHeightinSBMinus1 = av1_pic_info->frame_header->tiling.height_in_sbs_minus_1[cur_tile->row];
       til.IsLastTileofRowFlag = cur_tile->column == av1_pic_info->frame_header->tiling.tile_cols - 1;

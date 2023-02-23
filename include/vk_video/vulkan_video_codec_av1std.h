@@ -120,8 +120,8 @@ typedef struct StdVideoAV1MESATileInfo {
     StdVideoAV1MESATileInfoFlags flags;
     uint8_t tile_cols;
     uint8_t tile_rows;
-    uint16_t MiColStarts[64];
-    uint16_t MiRowStarts[64];
+    uint8_t tile_start_col_sb[64];
+    uint8_t tile_start_row_sb[64];
     uint8_t width_in_sbs_minus_1[64];
     uint8_t height_in_sbs_minus_1[64];
     uint16_t context_update_tile_id;
@@ -343,7 +343,7 @@ typedef struct VkVideoDecodeAV1PictureInfoMESA {
     const void *pNext;
     StdVideoAV1MESAFrameHeader *frame_header;
     StdVideoDecodeAV1MESATileList *tile_list;
-    uint8_t skip_mode_frame_idx[2]; // derived values
+    uint8_t skip_mode_frame_idx[2];
 } VkVideoDecodeAV1PictureInfoMESA;
 
 typedef struct VkVideoDecodeAV1DpbSlotInfoMESA {
@@ -378,9 +378,14 @@ typedef struct VkVideoDecodeAV1ProfileInfoMESA {
     StdVideoAV1MESAProfile stdProfileIdc;
 } VkVideoDecodeAV1ProfileInfoMESA;
 
+typedef enum VkVideoDecodeAV1CapabilitiesMESAFlagBits {
+    VK_VIDEO_DECODE_AV1_CAPABILITIES_EXTERNAL_FILM_GRAIN_MESA = 0x00000001,
+} VkVideoDecodeAV1CapabilitiesMESAFlagBits;
+
 typedef struct VkVideoDecodeAV1CapabilitiesMESA {
     VkStructureType sType;
     const void *pNext;
+    VkVideoDecodeAV1CapabilitiesMESAFlagBits flags;
     StdVideoAV1MESALevel maxLevelIdc;
 } VkVideoDecodeAV1CapabilitiesMESA;
 
