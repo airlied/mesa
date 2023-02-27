@@ -1108,8 +1108,8 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       pic.ReducedTxSetUsed = av1_pic_info->frame_header->flags.reduced_tx_set;
       pic.FrameTransformMode = av1_pic_info->frame_header->tx_mode;
       pic.SkipModePresentFlag = av1_pic_info->frame_header->flags.skip_mode_present;
-      pic.SkipModeFrame0 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[0] : 0;
-      pic.SkipModeFrame1 = av1_pic_info->frame_header->flags.skip_mode_present ? av1_pic_info->skip_mode_frame_idx[1] : 0;
+      pic.SkipModeFrame0 = av1_pic_info->skip_mode_frame_idx[0];
+      pic.SkipModeFrame1 = av1_pic_info->skip_mode_frame_idx[1];
       pic.ReferenceFrameSide = ref_frame_side;
       pic.GlobalMotionType1 = av1_pic_info->frame_header->global_motion[1].gm_type;
       pic.GlobalMotionType2 = av1_pic_info->frame_header->global_motion[2].gm_type;
