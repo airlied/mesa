@@ -20,8 +20,8 @@ extern "C" {
 
 #define VK_MAKE_VIDEO_STD_VERSION(major, minor, patch) \
    ((((uint32_t)(major)) << 22) | (((uint32_t)(minor)) << 12) | ((uint32_t)(patch)))
-#define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_API_VERSION_0_0_1 VK_MAKE_VIDEO_STD_VERSION(0, 0, 1)
-#define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_SPEC_VERSION VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_API_VERSION_0_0_1
+#define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_API_VERSION_0_1_0 VK_MAKE_VIDEO_STD_VERSION(0, 1, 0)
+#define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_SPEC_VERSION VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_API_VERSION_0_1_0
 #define VK_STD_VULKAN_VIDEO_CODEC_AV1_DECODE_EXTENSION_NAME "VK_STD_vulkan_video_codec_av1_decode"
 
 typedef enum StdVideoAV1MESAProfile {
@@ -59,10 +59,10 @@ typedef enum StdVideoAV1MESALevel {
 } StdVideoAV1MESALevel;
 
 typedef struct StdVideoAV1MESAFilmGrainFlags {
-   uint32_t apply_grain;
-   uint32_t chroma_scaling_from_luma;
-   uint32_t overlap_flag;
-   uint32_t clip_to_restricted_range;
+   uint8_t apply_grain;
+   uint8_t chroma_scaling_from_luma;
+   uint8_t overlap_flag;
+   uint8_t clip_to_restricted_range;
 } StdVideoAV1MESAFilmGrainFlags;
 
 typedef struct StdVideoAV1MESAFilmGrainParameters {
@@ -147,12 +147,12 @@ typedef struct StdVideoAV1MESAQuantization {
 } StdVideoAV1MESAQuantization;
 
 typedef struct StdVideoAV1MESACDEF {
-    uint8_t cdef_damping_minus_3;
-    uint8_t cdef_bits;
-    uint8_t cdef_y_pri_strength[8];
-    uint8_t cdef_y_sec_strength[8];
-    uint8_t cdef_uv_pri_strength[8];
-    uint8_t cdef_uv_sec_strength[8];
+    uint8_t damping_minus_3;
+    uint8_t bits;
+    uint8_t y_pri_strength[8];
+    uint8_t y_sec_strength[8];
+    uint8_t uv_pri_strength[8];
+    uint8_t uv_sec_strength[8];
 } StdVideoAV1MESACDEF;
 
 typedef struct StdVideoAV1MESADeltaQFlags {
@@ -167,10 +167,10 @@ typedef struct StdVideoAV1MESADeltaQ {
 } StdVideoAV1MESADeltaQ;
 
 typedef struct StdVideoAV1MESASegmentationFlags {
-    uint32_t segmentation_enabled;
-    uint32_t segmentation_update_map;
-    uint32_t segmentation_temporal_update;
-    uint32_t segmentation_update_data;
+    uint8_t enabled;
+    uint8_t update_map;
+    uint8_t temporal_update;
+    uint8_t update_data;
 } StdVideoAV1MESASegmentationFlags;
 
 typedef struct StdVideoAV1MESASegmentation {
@@ -180,8 +180,8 @@ typedef struct StdVideoAV1MESASegmentation {
 } StdVideoAV1MESASegmentation;
 
 typedef struct StdVideoAV1MESALoopFilterFlags {
-    uint8_t loop_filter_delta_enabled;
-    uint8_t loop_filter_delta_update;
+    uint8_t delta_enabled;
+    uint8_t delta_update;
 } StdVideoAV1MESALoopFilterFlags;
 
 typedef struct StdVideoAV1MESALoopFilter {
@@ -219,21 +219,18 @@ typedef struct StdVideoAV1MESAFrameHeaderFlags {
 typedef struct StdVideoAV1MESAFrameHeader {
     StdVideoAV1MESAFrameHeaderFlags flags;
 
-    uint8_t  frame_to_show_map_idx;
     uint32_t frame_presentation_time;
     uint32_t display_frame_id;
-
-    uint8_t frame_type;
-
     uint32_t current_frame_id;
+    uint8_t  frame_to_show_map_idx;
+    uint8_t  frame_type;
     uint8_t  order_hint;
-
     uint8_t  primary_ref_frame;
     uint16_t frame_width_minus_1;
     uint16_t frame_height_minus_1;
-    uint8_t  coded_denom;
     uint16_t render_width_minus_1;
     uint16_t render_height_minus_1;
+    uint8_t  coded_denom;
 
     uint8_t refresh_frame_flags;
     uint8_t ref_order_hint[8];
@@ -324,25 +321,25 @@ typedef struct StdVideoAV1MESASequenceHeader {
     StdVideoAV1MESAColorConfig      color_config;
 } StdVideoAV1MESASequenceHeader;
 
-typedef struct StdVideoDecodeAV1MESATile {
+typedef struct StdVideoAV1MESATile {
     uint16_t tg_start;
     uint16_t tg_end;
     uint16_t row;
     uint16_t column;
-    int size;
+    uint32_t size;
     uint32_t offset;
-} StdVideoDecodeAV1MESATile;
+} StdVideoAV1MESATile;
 
-typedef struct StdVideoDecodeAV1MESATileList {
-    StdVideoDecodeAV1MESATile *tile_list;
+typedef struct StdVideoAV1MESATileList {
+    StdVideoAV1MESATile *tile_list;
     uint32_t nb_tiles;
-} StdVideoDecodeAV1MESATileList;
+} StdVideoAV1MESATileList;
 
 typedef struct VkVideoDecodeAV1PictureInfoMESA {
     VkStructureType sType;
     const void *pNext;
     StdVideoAV1MESAFrameHeader *frame_header;
-    StdVideoDecodeAV1MESATileList *tile_list;
+    StdVideoAV1MESATileList *tile_list;
     uint8_t skip_mode_frame_idx[2];
 } VkVideoDecodeAV1PictureInfoMESA;
 

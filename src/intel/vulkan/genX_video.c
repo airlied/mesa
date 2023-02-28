@@ -487,7 +487,7 @@ static uint32_t get_qindex(const VkVideoDecodeAV1PictureInfoMESA *av1_pic_info,
 {
    uint8_t base_qindex = av1_pic_info->frame_header->quantization.base_q_idx;
    uint32_t feature_mask = av1_pic_info->frame_header->segmentation.feature_enabled_bits[segment_id];
-   if (av1_pic_info->frame_header->segmentation.flags.segmentation_enabled &&
+   if (av1_pic_info->frame_header->segmentation.flags.enabled &&
        feature_mask & (1 << SEG_LVL_ALT_Q)) {
       int data = av1_pic_info->frame_header->segmentation.feature_data[segment_id][SEG_LVL_ALT_Q];
       return CLAMP(base_qindex + data, 0, av1_max_qindex);
@@ -1081,9 +1081,9 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       pic.ErrorResilientModeFlag = av1_pic_info->frame_header->flags.error_resilient_mode;
       pic.AllowIntraBCFlag = av1_pic_info->frame_header->flags.allow_intrabc;
       pic.PrimaryReferenceFrameIdx = av1_pic_info->frame_header->primary_ref_frame;
-      pic.SegmentationEnableFlag = av1_pic_info->frame_header->segmentation.flags.segmentation_enabled;
-      pic.SegmentationUpdateMapFlag = av1_pic_info->frame_header->segmentation.flags.segmentation_update_map;
-      pic.SegmentationTemporalUpdateFlag = pic.IntraOnlyFlag ? 0 : av1_pic_info->frame_header->segmentation.flags.segmentation_temporal_update;
+      pic.SegmentationEnableFlag = av1_pic_info->frame_header->segmentation.flags.enabled;
+      pic.SegmentationUpdateMapFlag = av1_pic_info->frame_header->segmentation.flags.update_map;
+      pic.SegmentationTemporalUpdateFlag = pic.IntraOnlyFlag ? 0 : av1_pic_info->frame_header->segmentation.flags.temporal_update;
       pic.PreSkipSegmentIDFlag = preskip_segid;
       pic.LastActiveSegmentSegmentID = last_active_segid;
       pic.DeltaQPresentFlag = av1_pic_info->frame_header->flags.delta_q_present;
@@ -1271,18 +1271,18 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
          seg.SegmentReferenceFrame = av1_pic_info->frame_header->segmentation.feature_data[i][SEG_LVL_REF_FRAME];
       };
 
-      if (!av1_pic_info->frame_header->segmentation.flags.segmentation_enabled)
+      if (!av1_pic_info->frame_header->segmentation.flags.enabled)
           break;
    }
 
    StdVideoAV1MESALoopFilter *lf = &av1_pic_info->frame_header->loop_filter;
    StdVideoAV1MESACDEF *cdef = &av1_pic_info->frame_header->cdef;
    uint32_t cdef_strengths[8] = { 0 }, cdef_uv_strengths[8] = { 0 };
-   for (unsigned i = 0; i < (1 << cdef->cdef_bits); ++i) {
-      cdef_strengths[i] = (cdef->cdef_y_pri_strength[i] << 2) +
-         cdef->cdef_y_sec_strength[i];
-      cdef_uv_strengths[i] = (cdef->cdef_uv_pri_strength[i] << 2) +
-         cdef->cdef_uv_sec_strength[i];
+   for (unsigned i = 0; i < (1 << cdef->bits); ++i) {
+      cdef_strengths[i] = (cdef->y_pri_strength[i] << 2) +
+         cdef->y_sec_strength[i];
+      cdef_uv_strengths[i] = (cdef->uv_pri_strength[i] << 2) +
+         cdef->uv_sec_strength[i];
    }
 
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_INLOOP_FILTER_STATE), fil) {
@@ -1291,7 +1291,7 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       fil.ChromaUDeblockerFilterLevel = lf->level[2];
       fil.ChromaVDeblockerFilterLevel = lf->level[3];
       fil.DeblockerFilterSharpnessLevel = lf->sharpness;
-      fil.DeblockerFilterModeRefDeltaEnableFlag = lf->flags.loop_filter_delta_enabled;
+      fil.DeblockerFilterModeRefDeltaEnableFlag = lf->flags.delta_enabled;
       fil.DeblockerDeltaLFResolution = av1_pic_info->frame_header->delta_q.delta_lf_res;
       fil.DeblockerFilterDeltaLFMultiFlag = av1_pic_info->frame_header->delta_q.flags.delta_lf_multi;
       fil.DeblockerFilterDeltaLFPresentFlag = av1_pic_info->frame_header->delta_q.flags.delta_lf_present;
@@ -1309,8 +1309,8 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       fil.CDEFYStrength1 = cdef_strengths[1];
       fil.CDEFYStrength2 = cdef_strengths[2];
       fil.CDEFYStrength3 = cdef_strengths[3];
-      fil.CDEFBits = cdef->cdef_bits;
-      fil.CDEFFilterDmpaingFactorMinus3 = cdef->cdef_damping_minus_3;
+      fil.CDEFBits = cdef->bits;
+      fil.CDEFFilterDmpaingFactorMinus3 = cdef->damping_minus_3;
       fil.CDEFYStrength4 = cdef_strengths[4];
       fil.CDEFYStrength5 = cdef_strengths[5];
       fil.CDEFYStrength6 = cdef_strengths[6];
@@ -1336,7 +1336,7 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       fil.ChromaPlanex0_qn = 0;
    };
 
-   struct StdVideoDecodeAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[tile_idx];
+   struct StdVideoAV1MESATile *cur_tile = &av1_pic_info->tile_list->tile_list[tile_idx];
    anv_batch_emit(&cmd_buffer->batch, GENX(AVP_TILE_CODING), til) {
       til.FrameTileID = tile_idx;
       til.TGTileNum = tile_idx;
