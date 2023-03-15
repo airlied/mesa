@@ -234,8 +234,6 @@ typedef struct StdVideoAV1MESAFrameHeader {
 
     uint8_t refresh_frame_flags;
     uint8_t ref_order_hint[8];
-    uint8_t last_frame_idx;
-    uint8_t golden_frame_idx;
     int8_t  ref_frame_idx[7];
     uint32_t delta_frame_id_minus1[7];
 
