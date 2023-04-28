@@ -1004,6 +1004,9 @@ struct pipe_context {
     */
    void (*launch_grid)(struct pipe_context *context,
                        const struct pipe_grid_info *info);
+
+   void (*draw_mesh_tasks)(struct pipe_context *context,
+                           const struct pipe_grid_info *info);
    /*@}*/
 
    /**
