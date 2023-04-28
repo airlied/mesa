@@ -385,7 +385,7 @@ static VkResult
 compile_spirv(struct lvp_device *pdevice, const VkPipelineShaderStageCreateInfo *sinfo, nir_shader **nir)
 {
    gl_shader_stage stage = vk_to_mesa_shader_stage(sinfo->stage);
-   assert(stage <= MESA_SHADER_COMPUTE && stage != MESA_SHADER_NONE);
+   assert(stage <= MESA_SHADER_MESH && stage != MESA_SHADER_NONE);
    VkResult result;
 
    const struct spirv_to_nir_options spirv_options = {
@@ -556,7 +556,7 @@ lvp_shader_compile_to_ir(struct lvp_pipeline *pipeline,
 {
    struct lvp_device *pdevice = pipeline->device;
    gl_shader_stage stage = vk_to_mesa_shader_stage(sinfo->stage);
-   assert(stage <= MESA_SHADER_COMPUTE && stage != MESA_SHADER_NONE);
+   assert(stage <= MESA_SHADER_MESH && stage != MESA_SHADER_NONE);
    struct lvp_shader *shader = &pipeline->shaders[stage];
    nir_shader *nir;
    VkResult result = compile_spirv(pdevice, sinfo, &nir);
