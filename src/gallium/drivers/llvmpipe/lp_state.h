@@ -61,6 +61,8 @@
 #define LP_NEW_TCS          0x200000
 #define LP_NEW_TES          0x400000
 #define LP_NEW_SAMPLE_MASK  0x800000
+#define LP_NEW_MESH        0x1000000
+#define LP_NEW_TASK        0x2000000
 
 #define LP_CSNEW_CS 0x1
 #define LP_CSNEW_CONSTANTS 0x2

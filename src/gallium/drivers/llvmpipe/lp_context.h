@@ -41,6 +41,7 @@
 #include "lp_setup.h"
 #include "lp_state_fs.h"
 #include "lp_state_cs.h"
+#include "lp_state_mesh.h"
 #include "lp_state_setup.h"
 
 
@@ -73,6 +74,9 @@ struct llvmpipe_context {
    struct lp_compute_shader *cs;
    const struct lp_velems_state *velems;
    const struct lp_so_state *so;
+
+   struct lp_task_shader *tss;
+   struct lp_mesh_shader *mhs;
 
    /** Other rendering state */
    unsigned sample_mask;

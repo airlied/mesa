@@ -56,6 +56,13 @@ llvmpipe_create_task_state(struct pipe_context *pipe,
 static void
 llvmpipe_bind_task_state(struct pipe_context *pipe, void *_task)
 {
+   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
+
+   if (llvmpipe->tss == _task)
+      return;
+
+   llvmpipe->tss = (struct lp_task_shader *)_task;
+   llvmpipe->dirty |= LP_NEW_TASK;
 }
 
 
@@ -87,6 +94,13 @@ llvmpipe_create_mesh_state(struct pipe_context *pipe,
 static void
 llvmpipe_bind_mesh_state(struct pipe_context *pipe, void *_mesh)
 {
+   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
+
+   if (llvmpipe->mhs == _mesh)
+      return;
+
+   llvmpipe->mhs = (struct lp_mesh_shader *)_mesh;
+   llvmpipe->dirty |= LP_NEW_MESH;
 }
 
 
