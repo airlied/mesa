@@ -408,6 +408,15 @@ struct pipe_context {
    void   (*bind_vertex_elements_state)(struct pipe_context *, void *);
    void   (*delete_vertex_elements_state)(struct pipe_context *, void *);
 
+   void * (*create_task_state)(struct pipe_context *,
+                             const struct pipe_shader_state *);
+   void   (*bind_task_state)(struct pipe_context *, void *);
+   void   (*delete_task_state)(struct pipe_context *, void *);
+
+   void * (*create_mesh_state)(struct pipe_context *,
+                             const struct pipe_shader_state *);
+   void   (*bind_mesh_state)(struct pipe_context *, void *);
+   void   (*delete_mesh_state)(struct pipe_context *, void *);
    /*@}*/
 
    /**
