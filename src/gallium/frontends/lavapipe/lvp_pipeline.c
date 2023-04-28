@@ -55,6 +55,8 @@ shader_destroy(struct lvp_device *device, struct lvp_shader *shader)
       device->queue.ctx->delete_gs_state,
       device->queue.ctx->delete_fs_state,
       device->queue.ctx->delete_compute_state,
+      device->queue.ctx->delete_task_state,
+      device->queue.ctx->delete_mesh_state,
    };
    set_foreach(&shader->inlines.variants, entry) {
       struct lvp_inline_variant *variant = (void*)entry->key;
@@ -431,6 +433,7 @@ compile_spirv(struct lvp_device *pdevice, const VkPipelineShaderStageCreateInfo 
          .int8 = true,
          .float16 = true,
          .demote_to_helper_invocation = true,
+         .mesh_shading = true,
       },
       .ubo_addr_format = nir_address_format_32bit_index_offset,
       .ssbo_addr_format = nir_address_format_32bit_index_offset,
@@ -645,6 +648,8 @@ lvp_pipeline_xfb_init(struct lvp_pipeline *pipeline)
       stage = MESA_SHADER_GEOMETRY;
    else if (pipeline->shaders[MESA_SHADER_TESS_EVAL].pipeline_nir)
       stage = MESA_SHADER_TESS_EVAL;
+   else if (pipeline->shaders[MESA_SHADER_MESH].pipeline_nir)
+      stage = MESA_SHADER_MESH;
    pipeline->last_vertex = stage;
    lvp_shader_xfb_init(&pipeline->shaders[stage]);
 }
@@ -675,6 +680,10 @@ lvp_shader_compile_stage(struct lvp_device *device, struct lvp_shader *shader, n
          return device->queue.ctx->create_tcs_state(device->queue.ctx, &shstate);
       case MESA_SHADER_TESS_EVAL:
          return device->queue.ctx->create_tes_state(device->queue.ctx, &shstate);
+      case MESA_SHADER_TASK:
+         return device->queue.ctx->create_task_state(device->queue.ctx, &shstate);
+      case MESA_SHADER_MESH:
+         return device->queue.ctx->create_mesh_state(device->queue.ctx, &shstate);
       default:
          unreachable("illegal shader");
          break;

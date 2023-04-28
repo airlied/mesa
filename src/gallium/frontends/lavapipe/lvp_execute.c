@@ -382,6 +382,12 @@ update_inline_shader_state(struct rendering_state *state, enum pipe_shader_type 
    case MESA_SHADER_GEOMETRY:
       state->pctx->bind_gs_state(state->pctx, shader_state);
       break;
+   case MESA_SHADER_TASK:
+      state->pctx->bind_task_state(state->pctx, shader_state);
+      break;
+   case MESA_SHADER_MESH:
+      state->pctx->bind_mesh_state(state->pctx, shader_state);
+      break;
    case MESA_SHADER_FRAGMENT:
       state->pctx->bind_fs_state(state->pctx, shader_state);
       state->noop_fs_bound = false;
@@ -750,6 +756,16 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
          if (!dynamic_tess_origin)
             state->tess_ccw = false;
          break;
+      case VK_SHADER_STAGE_TASK_BIT_EXT:
+         state->inlines_dirty[MESA_SHADER_TASK] = state->shaders[MESA_SHADER_TASK]->inlines.can_inline;
+         if (!state->shaders[MESA_SHADER_TASK]->inlines.can_inline)
+            state->pctx->bind_task_state(state->pctx, state->shaders[MESA_SHADER_TASK]->shader_cso);
+         break;
+      case VK_SHADER_STAGE_MESH_BIT_EXT:
+         state->inlines_dirty[MESA_SHADER_MESH] = state->shaders[MESA_SHADER_MESH]->inlines.can_inline;
+         if (!state->shaders[MESA_SHADER_MESH]->inlines.can_inline)
+            state->pctx->bind_task_state(state->pctx, state->shaders[MESA_SHADER_MESH]->shader_cso);
+         break;
       default:
          assert(0);
          break;
@@ -783,6 +799,14 @@ unbind_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
          case MESA_SHADER_TESS_EVAL:
             if (state->shaders[MESA_SHADER_TESS_EVAL])
                state->pctx->bind_tes_state(state->pctx, NULL);
+            break;
+      case MESA_SHADER_TASK:
+            if (state->shaders[MESA_SHADER_TASK])
+               state->pctx->bind_task_state(state->pctx, NULL);
+            break;
+      case MESA_SHADER_MESH:
+            if (state->shaders[MESA_SHADER_MESH])
+               state->pctx->bind_mesh_state(state->pctx, NULL);
             break;
          case MESA_SHADER_VERTEX:
             if (state->shaders[MESA_SHADER_VERTEX])
@@ -1038,12 +1062,14 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
    }
 
    if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI_BINDING_STRIDES)) {
-      u_foreach_bit(b, ps->vi->bindings_valid)
-         state->vb[b].stride = ps->vi->bindings[b].stride;
-      state->vb_dirty = true;
+      if (ps->vi) {
+         u_foreach_bit(b, ps->vi->bindings_valid)
+            state->vb[b].stride = ps->vi->bindings[b].stride;
+         state->vb_dirty = true;
+      }
    }
 
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI)) {
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI) && ps->vi) {
       u_foreach_bit(a, ps->vi->attributes_valid) {
          uint32_t b = ps->vi->attributes[a].binding;
          state->velem.velems[a].src_offset = ps->vi->attributes[a].offset;
@@ -1070,11 +1096,11 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
       state->ve_dirty = true;
    }
 
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY)) {
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY) && ps->ia) {
       state->info.mode = vk_conv_topology(ps->ia->primitive_topology);
       state->rs_dirty = true;
    }
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE))
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE) && ps->ia)
       state->info.primitive_restart = ps->ia->primitive_restart_enable;
 
    if (ps->ts && !BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS))
@@ -4227,7 +4253,7 @@ void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
    ENQUEUE_CMD(CmdSetViewportSwizzleNV)
    ENQUEUE_CMD(CmdSetViewportWScalingEnableNV)
    ENQUEUE_CMD(CmdSetAttachmentFeedbackLoopEnableEXT)
-
+   ENQUEUE_CMD(CmdDrawMeshTasksEXT)
 #undef ENQUEUE_CMD
 }
 
@@ -4546,6 +4572,9 @@ static void lvp_execute_cmd_buffer(struct lvp_cmd_buffer *cmd_buffer,
          handle_shaders(cmd, state);
          break;
       case VK_CMD_SET_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT:
+         break;
+      case VK_CMD_DRAW_MESH_TASKS_EXT:
+//         handle_draw_mesh_tasks(cmd, state);
          break;
       default:
          fprintf(stderr, "Unsupported command %s\n", vk_cmd_queue_type_names[cmd->type]);

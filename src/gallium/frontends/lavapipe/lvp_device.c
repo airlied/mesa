@@ -166,6 +166,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_image_robustness                  = true,
    .EXT_index_type_uint8                  = true,
    .EXT_inline_uniform_block              = true,
+   .EXT_mesh_shader                       = true,
    .EXT_multisampled_render_to_single_sampled = true,
    .EXT_multi_draw                        = true,
    .EXT_non_seamless_cube_map             = true,
@@ -532,6 +533,10 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .shaderSharedFloat64AtomicMinMax = false,
       .shaderImageFloat32AtomicMinMax  = LLVM_VERSION_MAJOR >= 15,
       .sparseImageFloat32AtomicMinMax  = false,
+
+      /* VK_EXT_mesh_shader */
+      .taskShader = true;
+      .meshShader = true;
    };
 }
 
@@ -1176,6 +1181,19 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceProperties2(
             (VkPhysicalDeviceRobustness2PropertiesEXT *)ext;
          props->robustStorageBufferAccessSizeAlignment = 1;
          props->robustUniformBufferAccessSizeAlignment = 1;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+         VkPhysicalDeviceMeshShaderPropertiesEXT *props =
+            (VkPhysicalDeviceMeshShaderPropertiesEXT *)ext;
+         props->maxTaskWorkGroupTotalCount = 1024;
+         props->maxTaskWorkGroupCount[0] = 1024;
+         props->maxTaskWorkGroupCount[1] = 1024;
+         props->maxTaskWorkGroupCount[2] = 1024;
+         props->maxMeshWorkGroupTotalCount = 1024;
+         props->maxMeshWorkGroupCount[0] = 1024;
+         props->maxMeshWorkGroupCount[1] = 1024;
+         props->maxMeshWorkGroupCount[2] = 1024;
          break;
       }
       default:
