@@ -300,3 +300,16 @@ lp_jit_init_cs_types(struct lp_compute_shader_variant *lp)
    if (!lp->jit_cs_context_ptr_type)
       lp_jit_create_cs_types(lp);
 }
+
+
+void
+lp_jit_init_mesh_types(struct lp_mesh_shader_variant *mesh)
+{
+
+}
+
+void
+lp_jit_init_task_types(struct lp_task_shader_variant *mesh)
+{
+
+}

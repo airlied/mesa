@@ -51,6 +51,9 @@ compute_vertex_info(struct llvmpipe_context *llvmpipe)
    const struct tgsi_shader_info *fsInfo = &llvmpipe->fs->info.base;
    struct vertex_info *vinfo = &llvmpipe->vertex_info;
 
+   if (!llvmpipe->vs)
+      return;
+
    draw_prepare_shader_outputs(llvmpipe->draw);
 
    /*

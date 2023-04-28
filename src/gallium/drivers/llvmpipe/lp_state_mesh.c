@@ -113,11 +113,15 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
 }
 
 static void
-llvmpipe_draw_mesh_tasks(struct pipe_context *context,
+llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
                          const struct pipe_grid_info *info)
 {
+   struct llvmpipe_context *lp = llvmpipe_context(pipe);
 
+   if (lp->dirty)
+      llvmpipe_update_derived(lp);
 }
+
 void
 llvmpipe_init_mesh_funcs(struct llvmpipe_context *llvmpipe)
 {
