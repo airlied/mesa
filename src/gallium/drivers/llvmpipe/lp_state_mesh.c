@@ -112,6 +112,12 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
    FREE(shader);
 }
 
+static void
+llvmpipe_draw_mesh_tasks(struct pipe_context *context,
+                         const struct pipe_grid_info *info)
+{
+
+}
 void
 llvmpipe_init_mesh_funcs(struct llvmpipe_context *llvmpipe)
 {
@@ -121,4 +127,6 @@ llvmpipe_init_mesh_funcs(struct llvmpipe_context *llvmpipe)
    llvmpipe->pipe.create_mesh_state = llvmpipe_create_mesh_state;
    llvmpipe->pipe.bind_mesh_state   = llvmpipe_bind_mesh_state;
    llvmpipe->pipe.delete_mesh_state = llvmpipe_delete_mesh_state;
+
+   llvmpipe->pipe.draw_mesh_tasks   = llvmpipe_draw_mesh_tasks;
 }
