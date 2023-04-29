@@ -271,6 +271,12 @@ llvmpipe_update_derived(struct llvmpipe_context *llvmpipe)
       llvmpipe->dirty |= LP_NEW_SAMPLER_VIEW;
    }
 
+   if (llvmpipe->dirty & (LP_NEW_TASK))
+       llvmpipe_update_task_shader(llvmpipe);
+
+   if (llvmpipe->dirty & (LP_NEW_MESH))
+      llvmpipe_update_mesh_shader(llvmpipe);
+
    /* This needs LP_NEW_RASTERIZER because of draw_prepare_shader_outputs(). */
    if (llvmpipe->dirty & (LP_NEW_RASTERIZER |
                           LP_NEW_FS |

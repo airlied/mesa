@@ -101,6 +101,10 @@ struct lp_task_shader
    struct pipe_shader_state base;
 
    struct pipe_reference reference;
+
+   struct lp_task_variant_list_item variants;
+   struct lp_tgsi_info info;
+   unsigned variant_key_size;
 };
 
 struct lp_mesh_shader_variant;
@@ -177,6 +181,14 @@ struct lp_mesh_shader
    struct pipe_shader_state base;
 
    struct pipe_reference reference;
+
+   struct lp_mesh_variant_list_item variants;
+   struct lp_tgsi_info info;
+   unsigned variant_key_size;
 };
 
+void
+llvmpipe_update_task_shader(struct llvmpipe_context *lp);
+void
+llvmpipe_update_mesh_shader(struct llvmpipe_context *lp);
 #endif
