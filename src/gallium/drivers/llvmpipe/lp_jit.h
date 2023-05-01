@@ -386,42 +386,7 @@ void
 lp_jit_init_cs_types(struct lp_compute_shader_variant *lp);
 
 void
-lp_jit_init_task_types(struct lp_task_shader_variant *lp);
-
-void
 lp_jit_init_mesh_types(struct lp_mesh_shader_variant *lp);
-
-struct lp_jit_task_context
-{
-   struct lp_jit_buffer constants[LP_MAX_TGSI_CONST_BUFFERS];
-
-   struct lp_jit_texture textures[PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   struct lp_jit_sampler samplers[PIPE_MAX_SAMPLERS];
-   struct lp_jit_image images[PIPE_MAX_SHADER_IMAGES];
-
-   struct lp_jit_buffer ssbos[LP_MAX_TGSI_SHADER_BUFFERS];
-   const float *aniso_filter_table;
-};
-
-enum {
-   LP_JIT_TASK_CTX_CONSTANTS = 0,
-   LP_JIT_TASK_CTX_TEXTURES, /* must match the LP_JIT_CTX_TEXTURES */
-   LP_JIT_TASK_CTX_SAMPLERS,
-   LP_JIT_TASK_CTX_IMAGES,
-   LP_JIT_TASK_CTX_SSBOS,
-   LP_JIT_TASK_CTX_ANISO_FILTER_TABLE,
-   LP_JIT_TASK_CTX_COUNT
-};
-
-struct lp_jit_task_thread_data
-{
-   struct lp_build_format_cache *cache;
-};
-
-enum {
-   LP_JIT_TASK_THREAD_DATA_CACHE = 0,
-   LP_JIT_TASK_THREAD_DATA_COUNT
-};
 
 struct lp_jit_mesh_context
 {
@@ -458,21 +423,6 @@ enum {
 
 #define lp_jit_mesh_thread_data_cache(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_MESH_THREAD_DATA_CACHE, "cache")
-
-typedef void
-(*lp_jit_task_func)(const struct lp_jit_mesh_context *context,
-                  uint32_t x,
-                  uint32_t y,
-                  uint32_t z,
-                  uint32_t grid_x,
-                  uint32_t grid_y,
-                  uint32_t grid_z,
-                  uint32_t grid_size_x,
-                  uint32_t grid_size_y,
-                  uint32_t grid_size_z,
-                  uint32_t work_dim,
-                  struct lp_jit_mesh_thread_data *thread_data);
-
 
 typedef void
 (*lp_jit_mesh_func)(const struct lp_jit_mesh_context *context,
