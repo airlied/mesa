@@ -64,6 +64,12 @@ llvmpipe_destroy(struct pipe_context *pipe)
    if (llvmpipe->csctx) {
       lp_csctx_destroy(llvmpipe->csctx);
    }
+   if (llvmpipe->task_ctx) {
+      lp_csctx_destroy(llvmpipe->task_ctx);
+   }
+   if (llvmpipe->mesh_ctx) {
+      lp_csctx_destroy(llvmpipe->mesh_ctx);
+   }
    if (llvmpipe->blitter) {
       util_blitter_destroy(llvmpipe->blitter);
    }
@@ -283,6 +289,14 @@ llvmpipe_create_context(struct pipe_screen *screen, void *priv,
 
    llvmpipe->csctx = lp_csctx_create(&llvmpipe->pipe);
    if (!llvmpipe->csctx)
+      goto fail;
+
+   llvmpipe->task_ctx = lp_csctx_create(&llvmpipe->pipe);
+   if (!llvmpipe->task_ctx)
+      goto fail;
+
+   llvmpipe->mesh_ctx = lp_csctx_create(&llvmpipe->pipe);
+   if (!llvmpipe->mesh_ctx)
       goto fail;
 
    llvmpipe->pipe.stream_uploader = u_upload_create_default(&llvmpipe->pipe);

@@ -175,12 +175,8 @@ struct llvmpipe_context {
    unsigned nr_cs_instrs;
    struct lp_cs_context *csctx;
 
-   struct lp_cs_exec task_current;
-   struct lp_cs_exec mesh_current;
-   /** List of all mesh shader variants */
-   struct lp_mesh_variant_list_item mesh_variants_list;
-   unsigned nr_mesh_variants;
-   unsigned nr_mesh_instrs;
+   struct lp_cs_context *task_ctx;
+   struct lp_cs_context *mesh_ctx;
 
    /** Conditional query object and mode */
    struct pipe_query *render_cond_query;

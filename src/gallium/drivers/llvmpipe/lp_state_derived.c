@@ -272,7 +272,7 @@ llvmpipe_update_derived(struct llvmpipe_context *llvmpipe)
    }
 
    if (llvmpipe->dirty & (LP_NEW_TASK))
-       llvmpipe_update_task_shader(llvmpipe);
+      llvmpipe_update_task_shader(llvmpipe);
 
    if (llvmpipe->dirty & (LP_NEW_MESH))
       llvmpipe_update_mesh_shader(llvmpipe);

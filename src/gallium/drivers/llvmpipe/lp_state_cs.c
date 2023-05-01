@@ -1631,7 +1631,7 @@ void
 llvmpipe_update_task_shader(struct llvmpipe_context *lp)
 {
    struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_TASK, lp->tss);
-   lp->task_current.variant = variant;
+   lp_cs_ctx_set_cs_variant(lp->task_ctx, variant);
 }
 
 static void *
@@ -1697,7 +1697,7 @@ void
 llvmpipe_update_mesh_shader(struct llvmpipe_context *lp)
 {
    struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_MESH, lp->mhs);
-   lp->mesh_current.variant = variant;
+   lp_cs_ctx_set_cs_variant(lp->mesh_ctx, variant);
 }
 static void *
 llvmpipe_create_mesh_state(struct pipe_context *pipe,
@@ -1772,7 +1772,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    job_info.block_size[2] = info->block[2];
    job_info.work_dim = info->work_dim;
    job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
-   job_info.current = &lp->task_current;
+   job_info.current = &lp->task_ctx->cs.current;
 
    int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
    if (num_tasks) {
@@ -1784,7 +1784,8 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
 
-   job_info.current = &lp->mesh_current;
+   job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
+   job_info.current = &lp->mesh_ctx->cs.current;
    if (num_tasks) {
       struct lp_cs_tpool_task *task;
       mtx_lock(&screen->cs_mutex);
