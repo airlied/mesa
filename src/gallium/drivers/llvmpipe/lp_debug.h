@@ -52,6 +52,7 @@
 #define DEBUG_LINEAR2       0x200000
 #define DEBUG_SHOW_DEPTH    0x400000
 #define DEBUG_ACCURATE_A0   0x800000 /* verbose */
+#define DEBUG_MESH         0x1000000
 
 /* Performance flags.  These are active even on release builds.
  */

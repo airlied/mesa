@@ -81,6 +81,7 @@ static const struct debug_named_value lp_debug_flags[] = {
    { "cs", DEBUG_CS, NULL },
    { "tgsi_ir", DEBUG_TGSI_IR, NULL },
    { "accurate_a0", DEBUG_ACCURATE_A0 },
+   { "mesh", DEBUG_MESH },
    DEBUG_NAMED_VALUE_END
 };
 
