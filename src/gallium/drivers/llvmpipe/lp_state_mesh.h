@@ -105,6 +105,9 @@ struct lp_task_shader
    struct lp_task_variant_list_item variants;
    struct lp_tgsi_info info;
    unsigned variant_key_size;
+   unsigned no;
+   unsigned variants_created;
+   unsigned variants_cached;
 };
 
 struct lp_mesh_shader_variant;
@@ -185,6 +188,9 @@ struct lp_mesh_shader
    struct lp_mesh_variant_list_item variants;
    struct lp_tgsi_info info;
    unsigned variant_key_size;
+   unsigned no;
+   unsigned variants_created;
+   unsigned variants_cached;
 };
 
 void
