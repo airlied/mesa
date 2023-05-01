@@ -54,6 +54,8 @@
 
 /** Fragment shader number (for debugging) */
 static unsigned cs_no = 0;
+static unsigned task_no = 0;
+static unsigned mesh_no = 0;
 
 struct lp_cs_job_info {
    unsigned grid_size[3];
@@ -114,6 +116,8 @@ generate_compute(struct llvmpipe_context *lp,
    struct lp_type cs_type;
    unsigned i;
 
+   LLVMValueRef outputs[PIPE_MAX_SHADER_OUTPUTS][TGSI_NUM_CHANNELS];
+   memset(outputs, 0, sizeof outputs);
    /*
     * This function has two parts
     * a) setup the coroutine execution environment loop.
@@ -493,7 +497,7 @@ generate_compute(struct llvmpipe_context *lp,
          lp_build_tgsi_soa(gallivm, shader->base.tokens, &params, NULL);
       else
          lp_build_nir_soa(gallivm, shader->base.ir.nir, &params,
-                          NULL);
+                          outputs);
 
       mask_val = lp_build_mask_end(&mask);
 
@@ -834,7 +838,8 @@ generate_variant(struct llvmpipe_context *lp,
    memset(variant, 0, sizeof(*variant));
 
    char module_name[64];
-   const char *shname = "cs";
+   const char *shname = sh_type == PIPE_SHADER_MESH ? "ms" :
+      (sh_type == PIPE_SHADER_TASK ? "ts" : "cs");
    snprintf(module_name, sizeof(module_name), "%s%u_variant%u",
             shname, shader->no, shader->variants_created);
 
@@ -1626,17 +1631,18 @@ void
 llvmpipe_update_task_shader(struct llvmpipe_context *lp)
 {
    struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_TASK, lp->tss);
+   lp->task_current.variant = variant;
 }
 
 static void *
 llvmpipe_create_task_state(struct pipe_context *pipe,
                            const struct pipe_shader_state *templ)
 {
-   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
    struct lp_compute_shader *shader = CALLOC_STRUCT(lp_compute_shader);
    if (!shader)
       return NULL;
 
+   shader->no = task_no++;
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
@@ -1685,4 +1691,118 @@ llvmpipe_init_task_funcs(struct llvmpipe_context *llvmpipe)
    llvmpipe->pipe.create_task_state = llvmpipe_create_task_state;
    llvmpipe->pipe.bind_task_state   = llvmpipe_bind_task_state;
    llvmpipe->pipe.delete_task_state = llvmpipe_delete_task_state;
+}
+
+void
+llvmpipe_update_mesh_shader(struct llvmpipe_context *lp)
+{
+   struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_MESH, lp->mhs);
+   lp->mesh_current.variant = variant;
+}
+static void *
+llvmpipe_create_mesh_state(struct pipe_context *pipe,
+                           const struct pipe_shader_state *templ)
+{
+   struct lp_compute_shader *shader = CALLOC_STRUCT(lp_compute_shader);
+   if (!shader)
+      return NULL;
+
+   shader->no = mesh_no++;
+   shader->base.type = templ->type;
+
+   shader->base.ir.nir = templ->ir.nir;
+   list_inithead(&shader->variants.list);
+
+   int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
+   int nr_sampler_views = shader->info.base.file_max[TGSI_FILE_SAMPLER_VIEW] + 1;
+   int nr_images = shader->info.base.file_max[TGSI_FILE_IMAGE] + 1;
+   shader->variant_key_size = lp_cs_variant_key_size(MAX2(nr_samplers, nr_sampler_views), nr_images);
+   return shader;
+}
+
+
+static void
+llvmpipe_bind_mesh_state(struct pipe_context *pipe, void *_mesh)
+{
+   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
+
+   if (llvmpipe->mhs == _mesh)
+      return;
+
+   llvmpipe->mhs = (struct lp_compute_shader *)_mesh;
+   llvmpipe->dirty |= LP_NEW_MESH;
+}
+
+
+static void
+llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
+{
+   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
+   struct lp_compute_shader *shader = _mesh;
+   struct lp_cs_variant_list_item *li, *next;
+
+   /* Delete all the variants */
+   LIST_FOR_EACH_ENTRY_SAFE(li, next, &shader->variants.list, list) {
+      llvmpipe_remove_cs_shader_variant(llvmpipe, li->base);
+   }
+   if (shader->base.ir.nir)
+      ralloc_free(shader->base.ir.nir);
+
+   FREE(shader);
+}
+
+static void
+llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
+                         const struct pipe_grid_info *info)
+{
+   struct llvmpipe_context *lp = llvmpipe_context(pipe);
+   struct llvmpipe_screen *screen = llvmpipe_screen(pipe->screen);
+   struct lp_cs_job_info job_info;
+
+   if (lp->dirty)
+      llvmpipe_update_derived(lp);
+
+   fill_grid_size(pipe, info, job_info.grid_size);
+
+   job_info.grid_base[0] = info->grid_base[0];
+   job_info.grid_base[1] = info->grid_base[1];
+   job_info.grid_base[2] = info->grid_base[2];
+   job_info.block_size[0] = info->block[0];
+   job_info.block_size[1] = info->block[1];
+   job_info.block_size[2] = info->block[2];
+   job_info.work_dim = info->work_dim;
+   job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
+   job_info.current = &lp->task_current;
+
+   int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
+   if (num_tasks) {
+      struct lp_cs_tpool_task *task;
+      mtx_lock(&screen->cs_mutex);
+      task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+      mtx_unlock(&screen->cs_mutex);
+
+      lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+   }
+
+   job_info.current = &lp->mesh_current;
+   if (num_tasks) {
+      struct lp_cs_tpool_task *task;
+      mtx_lock(&screen->cs_mutex);
+      task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+      mtx_unlock(&screen->cs_mutex);
+
+      lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+   }
+
+   /* call setup from here? */
+}
+
+void
+llvmpipe_init_mesh_funcs(struct llvmpipe_context *llvmpipe)
+{
+   llvmpipe->pipe.create_mesh_state = llvmpipe_create_mesh_state;
+   llvmpipe->pipe.bind_mesh_state   = llvmpipe_bind_mesh_state;
+   llvmpipe->pipe.delete_mesh_state = llvmpipe_delete_mesh_state;
+
+   llvmpipe->pipe.draw_mesh_tasks   = llvmpipe_draw_mesh_tasks;
 }

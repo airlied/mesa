@@ -92,7 +92,6 @@ files_llvmpipe = files(
   'lp_state_fs_linear_llvm.c',
   'lp_state_gs.c',
   'lp_state.h',
-  'lp_state_mesh.c',
   'lp_state_rasterizer.c',
   'lp_state_sampler.c',
   'lp_state_setup.c',

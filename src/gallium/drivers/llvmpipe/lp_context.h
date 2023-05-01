@@ -76,7 +76,7 @@ struct llvmpipe_context {
    const struct lp_so_state *so;
 
    struct lp_compute_shader *tss;
-   struct lp_mesh_shader *mhs;
+   struct lp_compute_shader *mhs;
 
    /** Other rendering state */
    unsigned sample_mask;
@@ -175,6 +175,8 @@ struct llvmpipe_context {
    unsigned nr_cs_instrs;
    struct lp_cs_context *csctx;
 
+   struct lp_cs_exec task_current;
+   struct lp_cs_exec mesh_current;
    /** List of all mesh shader variants */
    struct lp_mesh_variant_list_item mesh_variants_list;
    unsigned nr_mesh_variants;
