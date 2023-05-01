@@ -180,6 +180,14 @@ llvmpipe_delete_task_state(struct pipe_context *pipe, void *_task)
 {
    struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
    struct lp_task_shader *shader = _task;
+   struct lp_task_variant_list_item *li, *next;
+
+   /* Delete all the variants */
+   LIST_FOR_EACH_ENTRY_SAFE(li, next, &shader->variants.list, list) {
+      llvmpipe_remove_task_shader_variant(llvmpipe, li->base);
+   }
+   if (shader->base.ir.nir)
+      ralloc_free(shader->base.ir.nir);
    FREE(shader);
 }
 
@@ -581,6 +589,15 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
 {
    struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
    struct lp_mesh_shader *shader = _mesh;
+   struct lp_mesh_variant_list_item *li, *next;
+
+   /* Delete all the variants */
+   LIST_FOR_EACH_ENTRY_SAFE(li, next, &shader->variants.list, list) {
+      llvmpipe_remove_mesh_shader_variant(llvmpipe, li->base);
+   }
+   if (shader->base.ir.nir)
+      ralloc_free(shader->base.ir.nir);
+
    FREE(shader);
 }
 
