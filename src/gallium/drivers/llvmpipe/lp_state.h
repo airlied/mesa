@@ -132,6 +132,12 @@ void
 llvmpipe_update_derived_clear(struct llvmpipe_context *llvmpipe);
 
 void
+llvmpipe_task_update_derived(struct llvmpipe_context *llvmpipe);
+
+void
+llvmpipe_mesh_update_derived(struct llvmpipe_context *llvmpipe);
+
+void
 llvmpipe_update_derived(struct llvmpipe_context *llvmpipe);
 
 void

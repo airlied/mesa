@@ -1807,3 +1807,77 @@ llvmpipe_init_mesh_funcs(struct llvmpipe_context *llvmpipe)
 
    llvmpipe->pipe.draw_mesh_tasks   = llvmpipe_draw_mesh_tasks;
 }
+
+void
+llvmpipe_task_update_derived(struct llvmpipe_context *llvmpipe)
+{
+   if (llvmpipe->dirty & LP_NEW_TASK_CONSTANTS) {
+      lp_csctx_set_cs_constants(llvmpipe->task_ctx,
+                                ARRAY_SIZE(llvmpipe->constants[PIPE_SHADER_TASK]),
+                                llvmpipe->constants[PIPE_SHADER_TASK]);
+      update_csctx_consts(llvmpipe, llvmpipe->task_ctx);
+   }
+
+   if (llvmpipe->dirty & LP_NEW_TASK_SSBOS) {
+      lp_csctx_set_cs_ssbos(llvmpipe->task_ctx,
+                            ARRAY_SIZE(llvmpipe->ssbos[PIPE_SHADER_TASK]),
+                            llvmpipe->ssbos[PIPE_SHADER_TASK]);
+      update_csctx_ssbo(llvmpipe, llvmpipe->task_ctx);
+   }
+
+   if (llvmpipe->dirty & LP_NEW_TASK_SAMPLER_VIEW)
+      lp_csctx_set_sampler_views(llvmpipe->task_ctx,
+                                 llvmpipe->num_sampler_views[PIPE_SHADER_TASK],
+                                 llvmpipe->sampler_views[PIPE_SHADER_TASK]);
+
+   if (llvmpipe->dirty & LP_NEW_TASK_SAMPLER)
+      lp_csctx_set_sampler_state(llvmpipe->task_ctx,
+                                 llvmpipe->num_samplers[PIPE_SHADER_TASK],
+                                 llvmpipe->samplers[PIPE_SHADER_TASK]);
+
+   if (llvmpipe->dirty & LP_NEW_TASK_IMAGES)
+      lp_csctx_set_cs_images(llvmpipe->task_ctx,
+                              ARRAY_SIZE(llvmpipe->images[PIPE_SHADER_TASK]),
+                              llvmpipe->images[PIPE_SHADER_TASK]);
+
+   struct lp_cs_context *csctx = llvmpipe->task_ctx;
+   csctx->cs.current.jit_context.aniso_filter_table = lp_build_sample_aniso_filter_table();
+}
+
+void
+llvmpipe_mesh_update_derived(struct llvmpipe_context *llvmpipe)
+{
+   if (llvmpipe->dirty & LP_NEW_MESH_CONSTANTS) {
+      lp_csctx_set_cs_constants(llvmpipe->mesh_ctx,
+                                ARRAY_SIZE(llvmpipe->constants[PIPE_SHADER_MESH]),
+                                llvmpipe->constants[PIPE_SHADER_MESH]);
+      update_csctx_consts(llvmpipe, llvmpipe->mesh_ctx);
+   }
+
+   if (llvmpipe->dirty & LP_NEW_MESH_SSBOS) {
+      lp_csctx_set_cs_ssbos(llvmpipe->mesh_ctx,
+                            ARRAY_SIZE(llvmpipe->ssbos[PIPE_SHADER_MESH]),
+                            llvmpipe->ssbos[PIPE_SHADER_MESH]);
+      update_csctx_ssbo(llvmpipe, llvmpipe->mesh_ctx);
+   }
+
+   if (llvmpipe->dirty & LP_NEW_MESH_SAMPLER_VIEW)
+      lp_csctx_set_sampler_views(llvmpipe->mesh_ctx,
+                                 llvmpipe->num_sampler_views[PIPE_SHADER_MESH],
+                                 llvmpipe->sampler_views[PIPE_SHADER_MESH]);
+
+   if (llvmpipe->dirty & LP_NEW_MESH_SAMPLER)
+      lp_csctx_set_sampler_state(llvmpipe->mesh_ctx,
+                                 llvmpipe->num_samplers[PIPE_SHADER_MESH],
+                                 llvmpipe->samplers[PIPE_SHADER_MESH]);
+
+   if (llvmpipe->dirty & LP_NEW_MESH_IMAGES)
+      lp_csctx_set_cs_images(llvmpipe->mesh_ctx,
+                              ARRAY_SIZE(llvmpipe->images[PIPE_SHADER_MESH]),
+                              llvmpipe->images[PIPE_SHADER_MESH]);
+
+   struct lp_cs_context *csctx = llvmpipe->mesh_ctx;
+   csctx->cs.current.jit_context.aniso_filter_table = lp_build_sample_aniso_filter_table();
+}
+
+

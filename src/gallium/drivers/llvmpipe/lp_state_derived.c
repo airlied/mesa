@@ -366,6 +366,9 @@ llvmpipe_update_derived(struct llvmpipe_context *llvmpipe)
                              llvmpipe->viewports);
    }
 
+   llvmpipe_task_update_derived(llvmpipe);
+   llvmpipe_mesh_update_derived(llvmpipe);
+
    llvmpipe_update_derived_clear(llvmpipe);
 
    llvmpipe->dirty = 0;
