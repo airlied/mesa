@@ -128,6 +128,13 @@ llvmpipe_create_task_state(struct pipe_context *pipe,
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
+
+   list_inithead(&shader->variants.list);
+
+   int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
+   int nr_sampler_views = shader->info.base.file_max[TGSI_FILE_SAMPLER_VIEW] + 1;
+   int nr_images = shader->info.base.file_max[TGSI_FILE_IMAGE] + 1;
+   shader->variant_key_size = lp_task_variant_key_size(MAX2(nr_samplers, nr_sampler_views), nr_images);
    return shader;
 }
 
@@ -537,6 +544,12 @@ llvmpipe_create_mesh_state(struct pipe_context *pipe,
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
+   list_inithead(&shader->variants.list);
+
+   int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
+   int nr_sampler_views = shader->info.base.file_max[TGSI_FILE_SAMPLER_VIEW] + 1;
+   int nr_images = shader->info.base.file_max[TGSI_FILE_IMAGE] + 1;
+   shader->variant_key_size = lp_mesh_variant_key_size(MAX2(nr_samplers, nr_sampler_views), nr_images);
    return shader;
 }
 
