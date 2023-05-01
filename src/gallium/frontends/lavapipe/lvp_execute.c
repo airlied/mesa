@@ -764,7 +764,7 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
       case VK_SHADER_STAGE_MESH_BIT_EXT:
          state->inlines_dirty[MESA_SHADER_MESH] = state->shaders[MESA_SHADER_MESH]->inlines.can_inline;
          if (!state->shaders[MESA_SHADER_MESH]->inlines.can_inline)
-            state->pctx->bind_task_state(state->pctx, state->shaders[MESA_SHADER_MESH]->shader_cso);
+            state->pctx->bind_mesh_state(state->pctx, state->shaders[MESA_SHADER_MESH]->shader_cso);
          break;
       default:
          assert(0);
