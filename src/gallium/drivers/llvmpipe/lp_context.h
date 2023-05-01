@@ -115,7 +115,7 @@ struct llvmpipe_context {
 
    bool queries_disabled;
 
-   unsigned dirty; /**< Mask of LP_NEW_x flags */
+   uint64_t dirty; /**< Mask of LP_NEW_x flags */
    unsigned cs_dirty; /**< Mask of LP_CSNEW_x flags */
    /** Mapped vertex buffers */
    ubyte *mapped_vbuffer[PIPE_MAX_ATTRIBS];
