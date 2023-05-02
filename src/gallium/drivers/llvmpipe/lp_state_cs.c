@@ -80,6 +80,7 @@ enum {
    CS_ARG_GRID_SIZE_Y,
    CS_ARG_GRID_SIZE_Z,
    CS_ARG_WORK_DIM,
+   CS_ARG_VERTEX_DATA,
    CS_ARG_PER_THREAD_DATA,
    CS_ARG_OUTER_COUNT,
    CS_ARG_CORO_X_LOOPS = CS_ARG_OUTER_COUNT,
@@ -107,7 +108,7 @@ generate_compute(struct llvmpipe_context *lp,
    LLVMValueRef block_x_size_arg, block_y_size_arg, block_z_size_arg;
    LLVMValueRef grid_x_arg, grid_y_arg, grid_z_arg;
    LLVMValueRef grid_size_x_arg, grid_size_y_arg, grid_size_z_arg;
-   LLVMValueRef work_dim_arg, thread_data_ptr;
+   LLVMValueRef work_dim_arg, thread_data_ptr, io_ptr;
    LLVMBasicBlockRef block;
    LLVMBuilderRef builder;
    struct lp_build_sampler_soa *sampler;
@@ -147,6 +148,10 @@ generate_compute(struct llvmpipe_context *lp,
    arg_types[CS_ARG_GRID_SIZE_Y] = int32_type;                         /* grid_size_y */
    arg_types[CS_ARG_GRID_SIZE_Z] = int32_type;                         /* grid_size_z */
    arg_types[CS_ARG_WORK_DIM] = int32_type;                            /* work dim */
+   if (variant->jit_vertex_header_ptr_type)
+      arg_types[CS_ARG_VERTEX_DATA] = variant->jit_vertex_header_ptr_type; /* mesh shaders only */
+   else
+      arg_types[CS_ARG_VERTEX_DATA] = LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0); /* mesh shaders only */
    arg_types[CS_ARG_PER_THREAD_DATA] = variant->jit_cs_thread_data_ptr_type;  /* per thread data */
    arg_types[CS_ARG_CORO_X_LOOPS] = int32_type;                        /* coro only - num X loops */
    arg_types[CS_ARG_CORO_PARTIALS] = int32_type;                       /* coro only - partials */
@@ -155,6 +160,7 @@ generate_compute(struct llvmpipe_context *lp,
    arg_types[CS_ARG_CORO_BLOCK_Z_SIZE] = int32_type;                   /* coro block_z_size */
    arg_types[CS_ARG_CORO_IDX] = int32_type;                            /* coro idx */
    arg_types[CS_ARG_CORO_MEM] = LLVMPointerType(LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0), 0);
+
    func_type = LLVMFunctionType(LLVMVoidTypeInContext(gallivm->context),
                                 arg_types, CS_ARG_OUTER_COUNT, 0);
 
@@ -193,6 +199,7 @@ generate_compute(struct llvmpipe_context *lp,
    grid_size_y_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Y);
    grid_size_z_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Z);
    work_dim_arg = LLVMGetParam(function, CS_ARG_WORK_DIM);
+   io_ptr = LLVMGetParam(function, CS_ARG_VERTEX_DATA);
    thread_data_ptr = LLVMGetParam(function, CS_ARG_PER_THREAD_DATA);
 
    lp_build_name(context_ptr, "context");
@@ -208,6 +215,7 @@ generate_compute(struct llvmpipe_context *lp,
    lp_build_name(grid_size_z_arg, "grid_size_z");
    lp_build_name(work_dim_arg, "work_dim");
    lp_build_name(thread_data_ptr, "thread_data");
+   lp_build_name(io_ptr, "vertex_io");
 
    block = LLVMAppendBasicBlockInContext(gallivm->context, function, "entry");
    builder = gallivm->builder;
@@ -266,6 +274,7 @@ generate_compute(struct llvmpipe_context *lp,
       args[CS_ARG_GRID_SIZE_Y] = grid_size_y_arg;
       args[CS_ARG_GRID_SIZE_Z] = grid_size_z_arg;
       args[CS_ARG_WORK_DIM] = work_dim_arg;
+      args[CS_ARG_VERTEX_DATA] = io_ptr;
       args[CS_ARG_PER_THREAD_DATA] = thread_data_ptr;
       args[CS_ARG_CORO_X_LOOPS] = num_x_loop;
       args[CS_ARG_CORO_PARTIALS] = partials;
@@ -345,6 +354,7 @@ generate_compute(struct llvmpipe_context *lp,
    grid_size_y_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Y);
    grid_size_z_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Z);
    work_dim_arg = LLVMGetParam(coro, CS_ARG_WORK_DIM);
+   io_ptr = LLVMGetParam(coro, CS_ARG_VERTEX_DATA);
    thread_data_ptr  = LLVMGetParam(coro, CS_ARG_PER_THREAD_DATA);
    num_x_loop = LLVMGetParam(coro, CS_ARG_CORO_X_LOOPS);
    partials = LLVMGetParam(coro, CS_ARG_CORO_PARTIALS);
@@ -872,6 +882,12 @@ generate_variant(struct llvmpipe_context *lp,
    }
 
    lp_jit_init_cs_types(variant);
+
+   if (sh_type == PIPE_SHADER_MESH) {
+      const struct tgsi_shader_info *info = &shader->info.base;
+      variant->jit_vertex_header_type = lp_build_create_jit_vertex_header_type(variant->gallivm, info->num_outputs);
+      variant->jit_vertex_header_ptr_type = LLVMPointerType(variant->jit_vertex_header_type, 0);
+   }
 
    generate_compute(lp, shader, variant);
 
@@ -1458,6 +1474,7 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
                          grid_x, grid_y, grid_z,
                          job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2], job_info->work_dim,
+                         NULL,
                          &thread_data);
 }
 
