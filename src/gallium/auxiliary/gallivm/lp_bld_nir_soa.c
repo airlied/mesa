@@ -593,7 +593,10 @@ static void emit_store_chan(struct lp_build_nir_context *bld_base,
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
    LLVMBuilderRef builder = bld->bld_base.base.gallivm->builder;
    struct lp_build_context *float_bld = &bld_base->base;
+   char str[50];
 
+   sprintf(str, "stor %d,%d,%d ", location, comp, chan);
+   lp_build_print_value(bld->bld_base.base.gallivm, str, dst);
    if (bit_size == 64) {
       chan *= 2;
       chan += comp;
@@ -710,7 +713,7 @@ static void emit_store_var(struct lp_build_nir_context *bld_base,
       for (unsigned chan = 0; chan < num_components; chan++) {
          if (writemask & (1u << chan)) {
             LLVMValueRef chan_val = (num_components == 1) ? dst : LLVMBuildExtractValue(builder, dst, chan, "");
-            if (bld->tcs_iface) {
+            if (bld->tcs_iface || bld_base->shader->info.stage == MESA_SHADER_MESH) {
                emit_store_tcs_chan(bld_base, var->data.compact, bit_size, location, const_index, indir_vertex_index, indir_index, comp, chan, chan_val);
             } else
                emit_store_chan(bld_base, deref_mode, bit_size, location + const_index, comp, chan, chan_val);

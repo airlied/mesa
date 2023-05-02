@@ -1494,8 +1494,10 @@ visit_store_var(struct lp_build_nir_context *bld_base,
    if (var) {
       bool tcs_out = bld_base->shader->info.stage == MESA_SHADER_TESS_CTRL &&
          var->data.mode == nir_var_shader_out && !var->data.patch;
+      bool mesh_out = bld_base->shader->info.stage == MESA_SHADER_MESH &&
+         var->data.mode == nir_var_shader_out && !var->data.patch;
       get_deref_offset(bld_base, deref, false, NULL,
-                       tcs_out ? &indir_vertex_index : NULL,
+                       (tcs_out || mesh_out) ? &indir_vertex_index : NULL,
                        &const_index, &indir_index);
 
       /* Skip stores definitely outside of the array bounds
@@ -2163,6 +2165,10 @@ visit_intrinsic(struct lp_build_nir_context *bld_base,
    case nir_intrinsic_shader_clock:
       bld_base->clock(bld_base, result);
       break;
+   case nir_intrinsic_launch_mesh_workgroups:
+      break;
+   case nir_intrinsic_set_vertex_and_primitive_count:
+      break;
    default:
       fprintf(stderr, "Unsupported intrinsic: ");
       nir_print_instr(&instr->instr, stderr);
@@ -2733,6 +2739,11 @@ lp_build_opt_nir(struct nir_shader *nir)
    };
    NIR_PASS_V(nir, nir_lower_tex, &lower_tex_options);
    NIR_PASS_V(nir, nir_lower_frexp);
+
+   if (nir->info.stage == MESA_SHADER_TASK) {
+      nir_lower_task_shader_options ts_opts = {};
+      NIR_PASS_V(nir, nir_lower_task_shader, ts_opts);
+   }
 
    NIR_PASS_V(nir, nir_lower_flrp, 16|32|64, true);
    NIR_PASS_V(nir, nir_lower_fp16_casts, nir_lower_fp16_all);

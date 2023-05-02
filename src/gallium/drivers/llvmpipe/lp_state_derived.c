@@ -36,7 +36,59 @@
 #include "lp_setup.h"
 #include "lp_state.h"
 
+static int
+mesh_find_shader_output(const struct llvmpipe_context *llvmpipe,
+                        uint32_t semantic_name, uint32_t semantic_index)
+{
+   const struct tgsi_shader_info *info = &llvmpipe->mhs->info.base;
 
+   for (unsigned i = 0; i < info->num_outputs; i++) {
+      if (info->output_semantic_name[i] == semantic_name &&
+          info->output_semantic_index[i] == semantic_index)
+         return i;
+   }
+   return -1;
+}
+
+static void
+compute_mesh_vertex_info(struct llvmpipe_context *llvmpipe)
+{
+   const struct tgsi_shader_info *fsInfo = &llvmpipe->fs->info.base;
+   struct vertex_info *vinfo = &llvmpipe->vertex_info;
+
+   /*
+    * Those can't actually be 0 (because pos is always at 0).
+    * But use ints anyway to avoid confusion (in vs outputs, they
+    * can very well be at pos 0).
+    */
+   llvmpipe->color_slot[0] = -1;
+   llvmpipe->color_slot[1] = -1;
+   llvmpipe->bcolor_slot[0] = -1;
+   llvmpipe->bcolor_slot[1] = -1;
+   llvmpipe->viewport_index_slot = -1;
+   llvmpipe->layer_slot = -1;
+   llvmpipe->face_slot = -1;
+   llvmpipe->psize_slot = -1;
+
+   
+   vinfo->num_attribs = 0;
+   int vs_index = mesh_find_shader_output(llvmpipe,
+                                          TGSI_SEMANTIC_POSITION, 0);
+
+   draw_emit_vertex_attr(vinfo, EMIT_4F, vs_index);
+
+   for (unsigned i = 0; i < fsInfo->num_inputs; i++) {
+      /*
+       * Search for each input in current vs output:
+       */
+      vs_index = mesh_find_shader_output(llvmpipe,
+                                         fsInfo->input_semantic_name[i],
+                                         fsInfo->input_semantic_index[i]);
+      draw_emit_vertex_attr(vinfo, EMIT_4F, vs_index);
+   }
+   draw_compute_vertex_size(vinfo);
+   lp_setup_set_vertex_info(llvmpipe->setup, vinfo);
+}
 
 /**
  * The vertex info describes how to convert the post-transformed vertices
@@ -51,8 +103,10 @@ compute_vertex_info(struct llvmpipe_context *llvmpipe)
    const struct tgsi_shader_info *fsInfo = &llvmpipe->fs->info.base;
    struct vertex_info *vinfo = &llvmpipe->vertex_info;
 
-   if (!llvmpipe->vs)
+   if (!llvmpipe->vs) {
+      compute_mesh_vertex_info(llvmpipe);
       return;
+   }
 
    draw_prepare_shader_outputs(llvmpipe->draw);
 
@@ -283,6 +337,7 @@ llvmpipe_update_derived(struct llvmpipe_context *llvmpipe)
                           LP_NEW_GS |
                           LP_NEW_TCS |
                           LP_NEW_TES |
+                          LP_NEW_MESH |
                           LP_NEW_VS))
       compute_vertex_info(llvmpipe);
 

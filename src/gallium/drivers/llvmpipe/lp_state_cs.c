@@ -31,6 +31,7 @@
 #include "tgsi/tgsi_parse.h"
 #include "gallivm/lp_bld_const.h"
 #include "gallivm/lp_bld_debug.h"
+#include "gallivm/lp_bld_printf.h"
 #include "gallivm/lp_bld_intr.h"
 #include "gallivm/lp_bld_flow.h"
 #include "gallivm/lp_bld_gather.h"
@@ -39,6 +40,7 @@
 #include "gallivm/lp_bld_jit_sample.h"
 #include "lp_state_cs.h"
 #include "lp_context.h"
+#include "lp_setup_context.h"
 #include "lp_debug.h"
 #include "lp_state.h"
 #include "lp_perf.h"
@@ -51,6 +53,7 @@
 #include "util/mesa-sha1.h"
 #include "nir_serialize.h"
 
+#include "draw/draw_llvm.h"
 
 /** Fragment shader number (for debugging) */
 static unsigned cs_no = 0;
@@ -65,6 +68,8 @@ struct lp_cs_job_info {
    unsigned work_dim;
    bool zero_initialize_shared_memory;
    struct lp_cs_exec *current;
+   struct vertex_header *io;
+   struct vertex_info *vertex_info;
 };
 
 enum {
@@ -236,6 +241,7 @@ generate_compute(struct llvmpipe_context *lp,
 
    LLVMValueRef coro_num_hdls = LLVMBuildMul(gallivm->builder, num_x_loop, block_y_size_arg, "");
    coro_num_hdls = LLVMBuildMul(gallivm->builder, coro_num_hdls, block_z_size_arg, "");
+   lp_build_print_value(gallivm, "coro bs", block_x_size_arg);
 
    /* build a ptr in memory to store all the frames in later. */
    LLVMTypeRef hdl_ptr_type = LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0);
@@ -508,6 +514,19 @@ generate_compute(struct llvmpipe_context *lp,
       else
          lp_build_nir_soa(gallivm, shader->base.ir.nir, &params,
                           outputs);
+
+      if (shader->base.type == PIPE_SHADER_IR_NIR) {
+         struct nir_shader *nir = shader->base.ir.nir;
+         if (nir->info.stage == MESA_SHADER_MESH) {
+            LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
+                                                           lp_int_type(cs_type), 0);
+            lp_build_print_value(gallivm, "x", mask_val);
+            lp_build_print_value(gallivm, "subgroup", subgroup_id);
+            LLVMValueRef io = LLVMBuildGEP2(builder, variant->jit_vertex_header_type, io_ptr, &subgroup_id, 1, "");
+            draw_convert_to_aos(gallivm, variant->jit_vertex_header_type, io, NULL, outputs, clipmask,
+                                shader->info.base.num_outputs, cs_type, -1, FALSE);
+         }
+      }
 
       mask_val = lp_build_mask_end(&mask);
 
@@ -1469,12 +1488,17 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
    grid_y += job_info->grid_base[1];
    grid_x += job_info->grid_base[0];
    struct lp_compute_shader_variant *variant = job_info->current->variant;
+
+   void *io_ptr = NULL;
+   if (job_info->io) {
+      io_ptr = (char *)job_info->io + (iter_idx * job_info->vertex_info->size);
+   }
    variant->jit_function(&job_info->current->jit_context,
                          &job_info->current->jit_resources,
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
                          grid_x, grid_y, grid_z,
                          job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2], job_info->work_dim,
-                         NULL,
+                         io_ptr,
                          &thread_data);
 }
 
@@ -1664,6 +1688,7 @@ llvmpipe_create_task_state(struct pipe_context *pipe,
 
    shader->base.ir.nir = templ->ir.nir;
 
+   nir_tgsi_scan_shader(shader->base.ir.nir, &shader->info.base, false);
    list_inithead(&shader->variants.list);
 
    int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
@@ -1728,6 +1753,8 @@ llvmpipe_create_mesh_state(struct pipe_context *pipe,
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
+
+   nir_tgsi_scan_shader(shader->base.ir.nir, &shader->info.base, false);
    list_inithead(&shader->variants.list);
 
    int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
@@ -1776,6 +1803,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    struct llvmpipe_screen *screen = llvmpipe_screen(pipe->screen);
    struct lp_cs_job_info job_info;
 
+   memset(&job_info, 0, sizeof(job_info));
    if (lp->dirty)
       llvmpipe_update_derived(lp);
 
@@ -1803,6 +1831,15 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
    job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
    job_info.current = &lp->mesh_ctx->cs.current;
+
+   job_info.grid_size[0] = 3;
+   num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
+   lp->setup->base.allocate_vertices(&lp->setup->base,
+                                     lp->setup->vertex_info->size  * 4, 30);
+
+   void *vbuf = lp->setup->base.map_vertices(&lp->setup->base);
+   job_info.io = vbuf;
+   job_info.vertex_info = lp->setup->vertex_info;
    if (num_tasks) {
       struct lp_cs_tpool_task *task;
       mtx_lock(&screen->cs_mutex);
@@ -1812,6 +1849,11 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
 
+//   lp_setup_unmap_vertices(/
+   struct nir_shader *shader =  lp->mhs->base.ir.nir;
+   lp->setup->base.set_primitive(&lp->setup->base, shader->info.mesh.primitive_type);
+
+   lp->setup->base.draw_arrays(&lp->setup->base, 0, 3);
    /* call setup from here? */
 }
 

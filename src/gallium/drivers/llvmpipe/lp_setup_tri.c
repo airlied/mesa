@@ -996,7 +996,7 @@ retry_triangle_ccw(struct lp_setup_context *setup,
                    const float (*v2)[4],
                    boolean front)
 {
-   if (0)
+   if (1)
       lp_setup_print_triangle(setup, v0, v1, v2);
 
    if (lp_setup_zero_sample_mask(setup)) {

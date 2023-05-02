@@ -4153,6 +4153,9 @@ static void handle_draw_mesh_tasks(struct vk_cmd_queue_entry *cmd,
    state->dispatch_info.grid_base[1] = 0;
    state->dispatch_info.grid_base[2] = 0;
    state->dispatch_info.indirect = NULL;
+   state->dispatch_info.block[0] = 1;
+   state->dispatch_info.block[1] = 1;
+   state->dispatch_info.block[2] = 1;
    state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
