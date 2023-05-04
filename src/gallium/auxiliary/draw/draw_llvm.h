@@ -37,6 +37,7 @@
 #include "gallivm/lp_bld_sample.h"
 #include "gallivm/lp_bld_limits.h"
 #include "gallivm/lp_bld_jit_types.h"
+#include "gallivm/lp_bld_jit_sample.h"
 
 #include "pipe/p_context.h"
 #include "util/list.h"
@@ -47,22 +48,6 @@ struct llvm_vertex_shader;
 struct llvm_geometry_shader;
 struct llvm_tess_ctrl_shader;
 struct llvm_tess_eval_shader;
-
-struct draw_sampler_static_state
-{
-   /*
-    * These attributes are effectively interleaved for more sane key handling.
-    * However, there might be lots of null space if the amount of samplers and
-    * textures isn't the same.
-    */
-   struct lp_static_sampler_state sampler_state;
-   struct lp_static_texture_state texture_state;
-};
-
-struct draw_image_static_state
-{
-   struct lp_static_texture_state image_state;
-};
 
 enum {
    DRAW_JIT_VERTEX_VERTEX_ID = 0,
@@ -256,7 +241,7 @@ struct draw_gs_llvm_variant_key
    unsigned num_outputs:8;
    /* note padding here - must use memset */
    unsigned clamp_vertex_color:1;
-   struct draw_sampler_static_state samplers[1];
+   struct lp_sampler_static_state samplers[1];
    /* Followed by variable number of images.*/
 };
 
@@ -265,7 +250,7 @@ struct draw_tcs_llvm_variant_key
    unsigned nr_samplers:8;
    unsigned nr_sampler_views:8;
    unsigned nr_images:8;
-   struct draw_sampler_static_state samplers[1];
+   struct lp_sampler_static_state samplers[1];
    /* Followed by variable number of images.*/
 };
 
@@ -277,30 +262,30 @@ struct draw_tes_llvm_variant_key
    unsigned primid_output:7;
    unsigned primid_needed:1;
    unsigned clamp_vertex_color:1;
-   struct draw_sampler_static_state samplers[1];
+   struct lp_sampler_static_state samplers[1];
    /* Followed by variable number of images.*/
 };
 
 #define DRAW_LLVM_MAX_VARIANT_KEY_SIZE \
    (sizeof(struct draw_llvm_variant_key) +	\
-    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct draw_sampler_static_state) +	\
-    PIPE_MAX_SHADER_IMAGES * sizeof(struct draw_image_static_state) + \
+    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct lp_sampler_static_state) +	\
+    PIPE_MAX_SHADER_IMAGES * sizeof(struct lp_image_static_state) + \
     (PIPE_MAX_ATTRIBS-1) * sizeof(struct pipe_vertex_element))
 
 #define DRAW_GS_LLVM_MAX_VARIANT_KEY_SIZE \
    (sizeof(struct draw_gs_llvm_variant_key) +	\
-    PIPE_MAX_SHADER_IMAGES * sizeof(struct draw_image_static_state) + \
-    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct draw_sampler_static_state))
+    PIPE_MAX_SHADER_IMAGES * sizeof(struct lp_image_static_state) + \
+    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct lp_sampler_static_state))
 
 #define DRAW_TCS_LLVM_MAX_VARIANT_KEY_SIZE \
    (sizeof(struct draw_tcs_llvm_variant_key) +	\
-    PIPE_MAX_SHADER_IMAGES * sizeof(struct draw_image_static_state) + \
-    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct draw_sampler_static_state))
+    PIPE_MAX_SHADER_IMAGES * sizeof(struct lp_image_static_state) + \
+    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct lp_sampler_static_state))
 
 #define DRAW_TES_LLVM_MAX_VARIANT_KEY_SIZE \
    (sizeof(struct draw_tes_llvm_variant_key) +	\
-    PIPE_MAX_SHADER_IMAGES * sizeof(struct draw_image_static_state) + \
-    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct draw_sampler_static_state))
+    PIPE_MAX_SHADER_IMAGES * sizeof(struct lp_image_static_state) + \
+    PIPE_MAX_SHADER_SAMPLER_VIEWS * sizeof(struct lp_sampler_static_state))
 
 
 static inline size_t
@@ -312,8 +297,8 @@ draw_llvm_variant_key_size(unsigned nr_vertex_elements,
    return (sizeof(struct draw_llvm_variant_key) +
            (nr_vertex_elements - 1) * sizeof(struct pipe_vertex_element) +
            MAX2(nr_samplers, nr_sampler_views) *
-               sizeof(struct draw_sampler_static_state) +
-           nr_images * sizeof(struct draw_image_static_state));
+               sizeof(struct lp_sampler_static_state) +
+           nr_images * sizeof(struct lp_image_static_state));
 }
 
 
@@ -324,8 +309,8 @@ draw_gs_llvm_variant_key_size(unsigned nr_samplers,
 {
    return (sizeof(struct draw_gs_llvm_variant_key) +
            (MAX2(nr_samplers, nr_sampler_views) - 1) *
-               sizeof(struct draw_sampler_static_state) +
-           nr_images * sizeof(struct draw_sampler_static_state));
+               sizeof(struct lp_sampler_static_state) +
+           nr_images * sizeof(struct lp_sampler_static_state));
 }
 
 static inline size_t
@@ -335,8 +320,8 @@ draw_tcs_llvm_variant_key_size(unsigned nr_samplers,
 {
    return (sizeof(struct draw_tcs_llvm_variant_key) +
            (MAX2(nr_samplers, nr_sampler_views) - 1) *
-               sizeof(struct draw_sampler_static_state) +
-           nr_images * sizeof(struct draw_sampler_static_state));
+               sizeof(struct lp_sampler_static_state) +
+           nr_images * sizeof(struct lp_sampler_static_state));
 }
 
 static inline size_t
@@ -346,44 +331,44 @@ draw_tes_llvm_variant_key_size(unsigned nr_samplers,
 {
    return (sizeof(struct draw_tes_llvm_variant_key) +
            (MAX2(nr_samplers, nr_sampler_views) - 1) *
-               sizeof(struct draw_sampler_static_state) +
-           nr_images * sizeof(struct draw_sampler_static_state));
+               sizeof(struct lp_sampler_static_state) +
+           nr_images * sizeof(struct lp_sampler_static_state));
 }
 
-static inline struct draw_sampler_static_state *
+static inline struct lp_sampler_static_state *
 draw_llvm_variant_key_samplers(struct draw_llvm_variant_key *key)
 {
-   return (struct draw_sampler_static_state *)
+   return (struct lp_sampler_static_state *)
       &key->vertex_element[key->nr_vertex_elements];
 }
 
-static inline struct draw_image_static_state *
+static inline struct lp_image_static_state *
 draw_llvm_variant_key_images(struct draw_llvm_variant_key *key)
 {
-   struct draw_sampler_static_state *samplers = (struct draw_sampler_static_state *)
+   struct lp_sampler_static_state *samplers = (struct lp_sampler_static_state *)
       (&key->vertex_element[key->nr_vertex_elements]);
-   return (struct draw_image_static_state *)
+   return (struct lp_image_static_state *)
       &samplers[MAX2(key->nr_samplers, key->nr_sampler_views)];
 }
 
-static inline struct draw_image_static_state *
+static inline struct lp_image_static_state *
 draw_gs_llvm_variant_key_images(struct draw_gs_llvm_variant_key *key)
 {
-   return (struct draw_image_static_state *)
+   return (struct lp_image_static_state *)
       &key->samplers[MAX2(key->nr_samplers, key->nr_sampler_views)];
 }
 
-static inline struct draw_image_static_state *
+static inline struct lp_image_static_state *
 draw_tcs_llvm_variant_key_images(struct draw_tcs_llvm_variant_key *key)
 {
-   return (struct draw_image_static_state *)
+   return (struct lp_image_static_state *)
       &key->samplers[MAX2(key->nr_samplers, key->nr_sampler_views)];
 }
 
-static inline struct draw_image_static_state *
+static inline struct lp_image_static_state *
 draw_tes_llvm_variant_key_images(struct draw_tes_llvm_variant_key *key)
 {
-   return (struct draw_image_static_state *)
+   return (struct lp_image_static_state *)
       &key->samplers[MAX2(key->nr_samplers, key->nr_sampler_views)];
 }
 
@@ -683,25 +668,6 @@ draw_tes_llvm_make_variant_key(struct draw_llvm *llvm, char *store);
 
 void
 draw_tes_llvm_dump_variant_key(struct draw_tes_llvm_variant_key *key);
-
-struct lp_build_sampler_soa *
-draw_llvm_sampler_soa_create(const struct draw_sampler_static_state *static_state,
-                             unsigned nr_samplers);
-static inline void
-draw_llvm_sampler_soa_destroy(struct lp_build_sampler_soa *sampler)
-{
-   FREE(sampler);
-}
-
-struct lp_build_image_soa *
-draw_llvm_image_soa_create(const struct draw_image_static_state *static_state,
-                           unsigned nr_images);
-
-static inline void
-draw_llvm_image_soa_destroy(struct lp_build_image_soa *image)
-{
-   FREE(image);
-}
 
 void
 draw_llvm_set_sampler_state(struct draw_context *draw,

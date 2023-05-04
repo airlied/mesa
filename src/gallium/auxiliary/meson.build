@@ -381,7 +381,6 @@ if draw_with_llvm
     'gallivm/lp_bld_type.h',
     'draw/draw_llvm.c',
     'draw/draw_llvm.h',
-    'draw/draw_llvm_sample.c',
     'draw/draw_pt_fetch_shade_pipeline_llvm.c',
     'draw/draw_vs_llvm.c',
     'tessellator/tessellator.cpp',

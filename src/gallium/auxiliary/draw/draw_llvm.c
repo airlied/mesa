@@ -52,6 +52,7 @@
 #include "gallivm/lp_bld_pack.h"
 #include "gallivm/lp_bld_format.h"
 #include "gallivm/lp_bld_misc.h"
+#include "gallivm/lp_bld_jit_sample.h"
 #include "tgsi/tgsi_exec.h"
 #include "tgsi/tgsi_dump.h"
 
@@ -1735,10 +1736,10 @@ draw_llvm_generate(struct draw_llvm *llvm, struct draw_llvm_variant *variant)
    fake_buf_ptr = LLVMBuildGEP2(builder, LLVMInt8TypeInContext(context), fake_buf, &bld.zero, 1, "");
 
    /* code generated texture sampling */
-   sampler = draw_llvm_sampler_soa_create(draw_llvm_variant_key_samplers(key),
+   sampler = lp_bld_llvm_sampler_soa_create(draw_llvm_variant_key_samplers(key),
                                           MAX2(key->nr_samplers,
                                                key->nr_sampler_views));
-   image = draw_llvm_image_soa_create(draw_llvm_variant_key_images(key),
+   image = lp_bld_llvm_image_soa_create(draw_llvm_variant_key_images(key),
                                       key->nr_images);
 
    step = lp_build_const_int32(gallivm, vector_length);
@@ -2037,8 +2038,8 @@ draw_llvm_generate(struct draw_llvm *llvm, struct draw_llvm_variant *variant)
    }
    lp_build_loop_end_cond(&lp_loop, count, step, LLVMIntUGE);
 
-   draw_llvm_sampler_soa_destroy(sampler);
-   draw_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
 
    /* return clipping boolean value for function */
    ret = clipmask_booli8(gallivm, vs_type, blduivec.vec_type, clipmask_bool_ptr,
@@ -2054,8 +2055,8 @@ struct draw_llvm_variant_key *
 draw_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 {
    struct draw_llvm_variant_key *key;
-   struct draw_sampler_static_state *draw_sampler;
-   struct draw_image_static_state *draw_image;
+   struct lp_sampler_static_state *draw_sampler;
+   struct lp_image_static_state *draw_image;
 
    key = (struct draw_llvm_variant_key *)store;
 
@@ -2143,8 +2144,8 @@ draw_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 void
 draw_llvm_dump_variant_key(struct draw_llvm_variant_key *key)
 {
-   struct draw_sampler_static_state *sampler = draw_llvm_variant_key_samplers(key);
-   struct draw_image_static_state *image = draw_llvm_variant_key_images(key);
+   struct lp_sampler_static_state *sampler = draw_llvm_variant_key_samplers(key);
+   struct lp_image_static_state *image = draw_llvm_variant_key_images(key);
    debug_printf("clamp_vertex_color = %u\n", key->clamp_vertex_color);
    debug_printf("clip_xy = %u\n", key->clip_xy);
    debug_printf("clip_z = %u\n", key->clip_z);
@@ -2531,10 +2532,10 @@ draw_gs_llvm_generate(struct draw_llvm *llvm,
    ssbos_ptr = lp_jit_resources_ssbos(gallivm, variant->resources_type, resources_ptr);
 
    /* code generated texture sampling */
-   sampler = draw_llvm_sampler_soa_create(variant->key.samplers,
+   sampler = lp_bld_llvm_sampler_soa_create(variant->key.samplers,
                                           MAX2(variant->key.nr_samplers,
                                                variant->key.nr_sampler_views));
-   image = draw_llvm_image_soa_create(draw_gs_llvm_variant_key_images(&variant->key),
+   image = lp_bld_llvm_image_soa_create(draw_gs_llvm_variant_key_images(&variant->key),
                                       variant->key.nr_images);
    mask_val = generate_mask_value(variant, gs_type);
    lp_build_mask_begin(&mask, gallivm, gs_type, mask_val);
@@ -2583,8 +2584,8 @@ draw_gs_llvm_generate(struct draw_llvm *llvm,
                        &params,
                        outputs);
 
-   draw_llvm_sampler_soa_destroy(sampler);
-   draw_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
 
    lp_build_mask_end(&mask);
 
@@ -2687,8 +2688,8 @@ struct draw_gs_llvm_variant_key *
 draw_gs_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 {
    struct draw_gs_llvm_variant_key *key;
-   struct draw_sampler_static_state *draw_sampler;
-   struct draw_image_static_state *draw_image;
+   struct lp_sampler_static_state *draw_sampler;
+   struct lp_image_static_state *draw_image;
 
    key = (struct draw_gs_llvm_variant_key *)store;
 
@@ -2739,8 +2740,8 @@ draw_gs_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 void
 draw_gs_llvm_dump_variant_key(struct draw_gs_llvm_variant_key *key)
 {
-   struct draw_sampler_static_state *sampler = key->samplers;
-   struct draw_image_static_state *image = draw_gs_llvm_variant_key_images(key);
+   struct lp_sampler_static_state *sampler = key->samplers;
+   struct lp_image_static_state *image = draw_gs_llvm_variant_key_images(key);
 
    debug_printf("clamp_vertex_color = %u\n", key->clamp_vertex_color);
    for (unsigned i = 0 ; i < key->nr_sampler_views; i++) {
@@ -3165,10 +3166,10 @@ draw_tcs_llvm_generate(struct draw_llvm *llvm,
    consts_ptr = lp_jit_resources_constants(gallivm, variant->resources_type, resources_ptr);
 
    ssbos_ptr = lp_jit_resources_ssbos(gallivm, variant->resources_type, resources_ptr);
-   sampler = draw_llvm_sampler_soa_create(variant->key.samplers,
+   sampler = lp_bld_llvm_sampler_soa_create(variant->key.samplers,
                                           MAX2(variant->key.nr_samplers,
                                                variant->key.nr_sampler_views));
-   image = draw_llvm_image_soa_create(draw_tcs_llvm_variant_key_images(&variant->key),
+   image = lp_bld_llvm_image_soa_create(draw_tcs_llvm_variant_key_images(&variant->key),
                                       variant->key.nr_images);
 
    LLVMValueRef counter = LLVMGetParam(variant_coro, 6);
@@ -3242,8 +3243,8 @@ draw_tcs_llvm_generate(struct draw_llvm *llvm,
       LLVMBuildRet(builder, coro_hdl);
    }
 
-   draw_llvm_sampler_soa_destroy(sampler);
-   draw_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
    gallivm_verify_function(gallivm, variant_func);
    gallivm_verify_function(gallivm, variant_coro);
 }
@@ -3344,8 +3345,8 @@ draw_tcs_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 {
    unsigned i;
    struct draw_tcs_llvm_variant_key *key;
-   struct draw_sampler_static_state *draw_sampler;
-   struct draw_image_static_state *draw_image;
+   struct lp_sampler_static_state *draw_sampler;
+   struct lp_image_static_state *draw_image;
 
    key = (struct draw_tcs_llvm_variant_key *)store;
 
@@ -3392,8 +3393,8 @@ draw_tcs_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 void
 draw_tcs_llvm_dump_variant_key(struct draw_tcs_llvm_variant_key *key)
 {
-   struct draw_sampler_static_state *sampler = key->samplers;
-   struct draw_image_static_state *image = draw_tcs_llvm_variant_key_images(key);
+   struct lp_sampler_static_state *sampler = key->samplers;
+   struct lp_image_static_state *image = draw_tcs_llvm_variant_key_images(key);
    for (unsigned i = 0 ; i < key->nr_sampler_views; i++) {
       debug_printf("sampler[%i].src_format = %s\n", i,
                    util_format_name(sampler[i].texture_state.format));
@@ -3672,10 +3673,10 @@ draw_tes_llvm_generate(struct draw_llvm *llvm,
 
    ssbos_ptr = lp_jit_resources_ssbos(gallivm, variant->resources_type, resources_ptr);
 
-   sampler = draw_llvm_sampler_soa_create(variant->key.samplers,
+   sampler = lp_bld_llvm_sampler_soa_create(variant->key.samplers,
                                           MAX2(variant->key.nr_samplers,
                                                variant->key.nr_sampler_views));
-   image = draw_llvm_image_soa_create(draw_tes_llvm_variant_key_images(&variant->key),
+   image = lp_bld_llvm_image_soa_create(draw_tes_llvm_variant_key_images(&variant->key),
                                       variant->key.nr_images);
    step = lp_build_const_int32(gallivm, vector_length);
 
@@ -3762,8 +3763,8 @@ draw_tes_llvm_generate(struct draw_llvm *llvm,
                      draw_total_tes_outputs(llvm->draw), tes_type, primid_slot, FALSE);
    }
    lp_build_loop_end_cond(&lp_loop, num_tess_coord, step, LLVMIntUGE);
-   draw_llvm_sampler_soa_destroy(sampler);
-   draw_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
 
    LLVMBuildRet(builder, lp_build_zero(gallivm, lp_type_uint(32)));
    gallivm_verify_function(gallivm, variant_func);
@@ -3865,8 +3866,8 @@ struct draw_tes_llvm_variant_key *
 draw_tes_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 {
    struct draw_tes_llvm_variant_key *key;
-   struct draw_sampler_static_state *draw_sampler;
-   struct draw_image_static_state *draw_image;
+   struct lp_sampler_static_state *draw_sampler;
+   struct lp_image_static_state *draw_image;
 
    key = (struct draw_tes_llvm_variant_key *)store;
 
@@ -3922,8 +3923,8 @@ draw_tes_llvm_make_variant_key(struct draw_llvm *llvm, char *store)
 void
 draw_tes_llvm_dump_variant_key(struct draw_tes_llvm_variant_key *key)
 {
-   struct draw_sampler_static_state *sampler = key->samplers;
-   struct draw_image_static_state *image = draw_tes_llvm_variant_key_images(key);
+   struct lp_sampler_static_state *sampler = key->samplers;
+   struct lp_image_static_state *image = draw_tes_llvm_variant_key_images(key);
 
    if (key->primid_needed)
       debug_printf("prim id output %d\n", key->primid_output);
