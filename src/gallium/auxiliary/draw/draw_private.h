@@ -101,6 +101,8 @@ struct tgsi_sampler;
 struct tgsi_image;
 struct tgsi_buffer;
 struct lp_cached_code;
+struct draw_vertex_info;
+struct draw_prim_info;
 
 /**
  * Represents the mapped vertex buffer.
@@ -177,6 +179,7 @@ struct draw_context
          struct draw_pt_middle_end *fetch_shade_emit;
          struct draw_pt_middle_end *general;
          struct draw_pt_middle_end *llvm;
+         struct draw_pt_middle_end *mesh;
       } middle;
 
       struct {
@@ -430,30 +433,11 @@ struct draw_fetch_info {
    unsigned count;
 };
 
-struct draw_vertex_info {
-   struct vertex_header *verts;
-   unsigned vertex_size;
-   unsigned stride;
-   unsigned count;
-};
-
 /* these flags are set if the primitive is a segment of a larger one */
 #define DRAW_SPLIT_BEFORE        0x1
 #define DRAW_SPLIT_AFTER         0x2
 #define DRAW_LINE_LOOP_AS_STRIP  0x4
 
-struct draw_prim_info {
-   boolean linear;
-   unsigned start;
-
-   const ushort *elts;
-   unsigned count;
-
-   enum pipe_prim_type prim;
-   unsigned flags;
-   unsigned *primitive_lengths;
-   unsigned primitive_count;
-};
 
 
 /*******************************************************************************

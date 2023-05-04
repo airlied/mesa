@@ -38,8 +38,6 @@
 struct draw_pt_middle_end;
 struct draw_context;
 struct draw_prim_info;
-struct draw_vertex_info;
-
 
 #define PT_SHADE      0x1
 #define PT_CLIPTEST   0x2
@@ -151,7 +149,7 @@ struct draw_pt_front_end *draw_pt_vsplit(struct draw_context *draw);
 struct draw_pt_middle_end *draw_pt_middle_fse(struct draw_context *draw);
 struct draw_pt_middle_end *draw_pt_fetch_pipeline_or_emit(struct draw_context *draw);
 struct draw_pt_middle_end *draw_pt_fetch_pipeline_or_emit_llvm(struct draw_context *draw);
-
+struct draw_pt_middle_end *draw_pt_mesh_pipeline_or_emit(struct draw_context *draw);
 
 
 /*******************************************************************************
@@ -268,5 +266,8 @@ draw_pt_split_prim(enum pipe_prim_type prim, unsigned *first, unsigned *incr);
 unsigned
 draw_pt_trim_count(unsigned count, unsigned first, unsigned incr);
 
-
+void
+draw_mesh_middle_end_run(struct draw_pt_middle_end *middle,
+                         struct draw_vertex_info *vert_info,
+                         struct draw_prim_info *prim_info);
 #endif

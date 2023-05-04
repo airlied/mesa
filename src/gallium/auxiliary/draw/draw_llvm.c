@@ -853,8 +853,8 @@ adjust_mask(struct gallivm_state *gallivm,
 }
 
 
-static void
-store_aos_array(struct gallivm_state *gallivm,
+void
+draw_store_aos_array(struct gallivm_state *gallivm,
                 struct lp_type soa_type,
                 LLVMTypeRef io_type,
                 LLVMValueRef io_ptr,
@@ -981,7 +981,7 @@ draw_convert_to_aos(struct gallivm_state *gallivm,
          }
       }
 
-      store_aos_array(gallivm,
+      draw_store_aos_array(gallivm,
                       soa_type,
                       io_type,
                       io,

@@ -70,6 +70,26 @@ struct draw_so_target {
 };
 
 
+struct draw_vertex_info {
+   struct vertex_header *verts;
+   unsigned vertex_size;
+   unsigned stride;
+   unsigned count;
+};
+
+struct draw_prim_info {
+   boolean linear;
+   unsigned start;
+
+   const ushort *elts;
+   unsigned count;
+
+   enum pipe_prim_type prim;
+   unsigned flags;
+   unsigned *primitive_lengths;
+   unsigned primitive_count;
+};
+
 struct draw_context *draw_create(struct pipe_context *pipe);
 
 #ifdef DRAW_LLVM_AVAILABLE
@@ -345,6 +365,11 @@ void draw_vbo(struct draw_context *draw,
               const struct pipe_draw_start_count_bias *draws,
               unsigned num_draws,
               uint8_t patch_vertices);
+
+void
+draw_meshy(struct draw_context *draw,
+           struct draw_vertex_info *vert_info,
+           struct draw_prim_info *prim_info);
 
 
 /*******************************************************************************
