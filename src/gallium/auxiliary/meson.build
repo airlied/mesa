@@ -343,6 +343,7 @@ if draw_with_llvm
     'gallivm/lp_bld_intr.h',
     'gallivm/lp_bld_ir_common.c',
     'gallivm/lp_bld_ir_common.h',
+    'gallivm/lp_bld_jit_sample.c',
     'gallivm/lp_bld_jit_types.h',
     'gallivm/lp_bld_jit_types.c',
     'gallivm/lp_bld_limits.h',
