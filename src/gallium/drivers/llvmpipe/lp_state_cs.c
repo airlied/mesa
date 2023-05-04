@@ -36,6 +36,7 @@
 #include "gallivm/lp_bld_gather.h"
 #include "gallivm/lp_bld_coro.h"
 #include "gallivm/lp_bld_nir.h"
+#include "gallivm/lp_bld_jit_sample.h"
 #include "lp_state_cs.h"
 #include "lp_context.h"
 #include "lp_debug.h"
@@ -187,7 +188,7 @@ generate_compute(struct llvmpipe_context *lp,
    sampler = lp_llvm_sampler_soa_create(lp_cs_variant_key_samplers(key),
                                         MAX2(key->nr_samplers,
                                              key->nr_sampler_views));
-   image = lp_llvm_image_soa_create(lp_cs_variant_key_images(key), key->nr_images);
+   image = lp_bld_llvm_image_soa_create(lp_cs_variant_key_images(key), key->nr_images);
 
    struct lp_build_loop_state loop_state[4];
    LLVMValueRef num_x_loop;
@@ -482,8 +483,8 @@ generate_compute(struct llvmpipe_context *lp,
       LLVMBuildRet(builder, coro_hdl);
    }
 
-   lp_llvm_sampler_soa_destroy(sampler);
-   lp_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
 
    gallivm_verify_function(gallivm, coro);
    gallivm_verify_function(gallivm, function);

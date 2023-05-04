@@ -90,6 +90,7 @@
 #include "gallivm/lp_bld_format.h"
 #include "gallivm/lp_bld_quad.h"
 #include "gallivm/lp_bld_gather.h"
+#include "gallivm/lp_bld_jit_sample.h"
 
 #include "lp_bld_alpha.h"
 #include "lp_bld_blend.h"
@@ -3291,7 +3292,7 @@ generate_fragment(struct llvmpipe_context *lp,
                                  MAX2(key->nr_samplers,
                                       key->nr_sampler_views));
    struct lp_build_image_soa *image =
-      lp_llvm_image_soa_create(lp_fs_variant_key_images(key), key->nr_images);
+      lp_bld_llvm_image_soa_create(lp_fs_variant_key_images(key), key->nr_images);
 
    unsigned num_fs = 16 / fs_type.length; /* number of loops per 4x4 stamp */
    /* for 1d resources only run "upper half" of stamp */
@@ -3471,8 +3472,8 @@ generate_fragment(struct llvmpipe_context *lp,
       }
    }
 
-   lp_llvm_sampler_soa_destroy(sampler);
-   lp_llvm_image_soa_destroy(image);
+   lp_bld_llvm_sampler_soa_destroy(sampler);
+   lp_bld_llvm_image_soa_destroy(image);
 
    /* Loop over color outputs / color buffers to do blending */
    for (unsigned cbuf = 0; cbuf < key->nr_cbufs; cbuf++) {
