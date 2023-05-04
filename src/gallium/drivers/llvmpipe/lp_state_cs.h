@@ -41,6 +41,7 @@ struct lp_compute_shader_variant_key
    unsigned nr_samplers:8;
    unsigned nr_sampler_views:8;
    unsigned nr_images:8;
+   unsigned nr_outputs:8;
 };
 
 #define LP_CS_MAX_VARIANT_KEY_SIZE                                      \
@@ -113,6 +114,7 @@ struct lp_compute_shader {
 
    struct lp_tgsi_info info;
 
+   struct draw_mesh_shader *draw_mesh_data;
    uint32_t req_local_mem;
 
    /* For debugging/profiling purposes */

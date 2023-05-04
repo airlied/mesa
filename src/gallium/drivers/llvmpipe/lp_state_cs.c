@@ -34,6 +34,7 @@
 #include "gallivm/lp_bld_printf.h"
 #include "gallivm/lp_bld_intr.h"
 #include "gallivm/lp_bld_flow.h"
+#include "gallivm/lp_bld_pack.h"
 #include "gallivm/lp_bld_gather.h"
 #include "gallivm/lp_bld_coro.h"
 #include "gallivm/lp_bld_nir.h"
@@ -69,7 +70,7 @@ struct lp_cs_job_info {
    bool zero_initialize_shared_memory;
    struct lp_cs_exec *current;
    struct vertex_header *io;
-   struct vertex_info *vertex_info;
+   uint32_t vsize;
 };
 
 enum {
@@ -98,6 +99,186 @@ enum {
    CS_ARG_MAX,
 };
 
+struct lp_mesh_llvm_iface {
+   struct lp_build_mesh_iface base;
+
+   LLVMValueRef outputs;
+};
+
+static inline const struct lp_mesh_llvm_iface *
+lp_mesh_llvm_iface(const struct lp_build_mesh_iface *iface)
+{
+   return (const struct lp_mesh_llvm_iface *)iface;
+}
+
+
+static LLVMTypeRef
+create_mesh_jit_output_type_deref(struct gallivm_state *gallivm, int len)
+{
+   LLVMTypeRef float_type = LLVMFloatTypeInContext(gallivm->context);
+   LLVMTypeRef output_array;
+
+   output_array = LLVMArrayType(LLVMVectorType(float_type, len), TGSI_NUM_CHANNELS); /* num channels */
+   output_array = LLVMArrayType(output_array, PIPE_MAX_SHADER_OUTPUTS); /* num attrs per vertex */
+   return output_array;
+}
+
+static void
+lp_mesh_llvm_emit_store_output(const struct lp_build_mesh_iface *mesh_iface,
+                                struct lp_build_context *bld,
+                                unsigned name,
+                                boolean is_vindex_indirect,
+                                LLVMValueRef vertex_index,
+                                boolean is_aindex_indirect,
+                                LLVMValueRef attrib_index,
+                                boolean is_sindex_indirect,
+                                LLVMValueRef swizzle_index,
+                                LLVMValueRef value,
+                                LLVMValueRef mask_vec)
+{
+   const struct lp_mesh_llvm_iface *mesh = lp_mesh_llvm_iface(mesh_iface);
+   struct gallivm_state *gallivm = bld->gallivm;
+   LLVMBuilderRef builder = gallivm->builder;
+   LLVMValueRef indices[3];
+   LLVMValueRef res;
+   struct lp_type type = bld->type;
+   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, type.length);
+
+   if (is_vindex_indirect || is_aindex_indirect || is_sindex_indirect) {
+      for (int i = 0; i < type.length; ++i) {
+         LLVMValueRef idx = lp_build_const_int32(gallivm, i);
+         LLVMValueRef vert_chan_index = vertex_index ? vertex_index : lp_build_const_int32(gallivm, 0);
+         LLVMValueRef attr_chan_index = attrib_index;
+         LLVMValueRef swiz_chan_index = swizzle_index;
+         LLVMValueRef channel_vec;
+
+         if (is_vindex_indirect) {
+            vert_chan_index = LLVMBuildExtractElement(builder,
+                                                      vertex_index, idx, "");
+         }
+         if (is_aindex_indirect) {
+            attr_chan_index = LLVMBuildExtractElement(builder,
+                                                      attrib_index, idx, "");
+         }
+
+         if (is_sindex_indirect) {
+            swiz_chan_index = LLVMBuildExtractElement(builder,
+                                                      swizzle_index, idx, "");
+         }
+
+         indices[0] = vert_chan_index;
+         indices[1] = attr_chan_index;
+         indices[2] = swiz_chan_index;
+
+         channel_vec = LLVMBuildGEP2(builder, output_type, mesh->outputs, indices, 3, "");
+
+         res = LLVMBuildExtractElement(builder, value, idx, "");
+
+         struct lp_build_if_state ifthen;
+         LLVMValueRef cond = LLVMBuildICmp(gallivm->builder, LLVMIntNE, mask_vec, lp_build_const_int_vec(gallivm, bld->type, 0), "");
+         cond = LLVMBuildExtractElement(gallivm->builder, cond, idx, "");
+         lp_build_if(&ifthen, gallivm, cond);
+         LLVMBuildStore(builder, res, channel_vec);
+         lp_build_endif(&ifthen);
+      }
+   } else {
+      indices[0] = vertex_index ? vertex_index : lp_build_const_int32(gallivm, 0);
+      indices[1] = attrib_index;
+      indices[2] = swizzle_index;
+
+      res = LLVMBuildGEP2(builder, output_type, mesh->outputs, indices, 3, "");
+      for (unsigned i = 0; i < type.length; ++i) {
+         LLVMValueRef idx = lp_build_const_int32(gallivm, i);
+         LLVMValueRef val = LLVMBuildExtractElement(builder, value, idx, "");
+
+         struct lp_build_if_state ifthen;
+         LLVMValueRef cond = LLVMBuildICmp(gallivm->builder, LLVMIntNE, mask_vec, lp_build_const_int_vec(gallivm, bld->type, 0), "");
+         cond = LLVMBuildExtractElement(gallivm->builder, cond, idx, "");
+         lp_build_if(&ifthen, gallivm, cond);
+         LLVMBuildStore(builder, val, res);
+         lp_build_endif(&ifthen);
+      }
+   }
+}
+
+
+static void
+mesh_convert_to_aos(struct gallivm_state *gallivm,
+               LLVMTypeRef io_type,
+               LLVMValueRef io,
+               LLVMValueRef *indices,
+               LLVMValueRef outputs,
+               LLVMValueRef clipmask,
+                    int num_outputs,
+                    LLVMValueRef vertex_index,
+               struct lp_type soa_type,
+               int primid_slot,
+               boolean need_edgeflag)
+{
+   LLVMBuilderRef builder = gallivm->builder;
+   LLVMValueRef inds[3];
+   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, soa_type.length);
+#if DEBUG_STORE
+   lp_build_printf(gallivm, "   # storing begin\n");
+#endif
+   for (unsigned attrib = 0; attrib < num_outputs; ++attrib) {
+      LLVMValueRef soa[TGSI_NUM_CHANNELS];
+      LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
+      for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
+         inds[0] = vertex_index;
+         inds[1] = lp_build_const_int32(gallivm, attrib);
+         inds[2] = lp_build_const_int32(gallivm, chan);
+
+         LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
+         LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
+         LLVMValueRef out = LLVMBuildLoad2(builder, single_type, res, "");
+         lp_build_name(out, "output%u.%c", attrib, "xyzw"[chan]);
+#if DEBUG_STORE
+         lp_build_printf(gallivm, "output %d : %d ",
+                         LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
+                                      attrib, 0),
+                         LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
+                                      chan, 0));
+         lp_build_print_value(gallivm, "val = ", out);
+         {
+            LLVMValueRef iv =
+               LLVMBuildBitCast(builder, out, lp_build_int_vec_type(gallivm, soa_type), "");
+
+            lp_build_print_value(gallivm, "  ival = ", iv);
+         }
+#endif
+         soa[chan] = out;
+      }
+
+      if (soa_type.length == TGSI_NUM_CHANNELS) {
+         lp_build_transpose_aos(gallivm, soa_type, soa, aos);
+      } else {
+         lp_build_transpose_aos(gallivm, soa_type, soa, soa);
+
+         for (unsigned i = 0; i < soa_type.length; ++i) {
+            aos[i] = lp_build_extract_range(gallivm,
+                                            soa[i % TGSI_NUM_CHANNELS],
+                                            (i / TGSI_NUM_CHANNELS) * TGSI_NUM_CHANNELS,
+                                            TGSI_NUM_CHANNELS);
+         }
+      }
+
+      draw_store_aos_array(gallivm,
+                      soa_type,
+                      io_type,
+                      io,
+                      indices,
+                      aos,
+                      attrib,
+                      num_outputs,
+                      clipmask,
+                      need_edgeflag);
+   }
+#if DEBUG_STORE
+lp_build_printf(gallivm, "   # storing end\n");
+#endif
+}
+
 static void
 generate_compute(struct llvmpipe_context *lp,
                  struct lp_compute_shader *shader,
@@ -120,10 +301,10 @@ generate_compute(struct llvmpipe_context *lp,
    struct lp_build_image_soa *image;
    LLVMValueRef function, coro;
    struct lp_type cs_type;
+   struct lp_mesh_llvm_iface mesh_iface;
    unsigned i;
 
-   LLVMValueRef outputs[PIPE_MAX_SHADER_OUTPUTS][TGSI_NUM_CHANNELS];
-   memset(outputs, 0, sizeof outputs);
+   LLVMValueRef output_array = NULL;
    /*
     * This function has two parts
     * a) setup the coroutine execution environment loop.
@@ -241,7 +422,6 @@ generate_compute(struct llvmpipe_context *lp,
 
    LLVMValueRef coro_num_hdls = LLVMBuildMul(gallivm->builder, num_x_loop, block_y_size_arg, "");
    coro_num_hdls = LLVMBuildMul(gallivm->builder, coro_num_hdls, block_z_size_arg, "");
-   lp_build_print_value(gallivm, "coro bs", block_x_size_arg);
 
    /* build a ptr in memory to store all the frames in later. */
    LLVMTypeRef hdl_ptr_type = LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0);
@@ -487,6 +667,16 @@ generate_compute(struct llvmpipe_context *lp,
       coro_info.suspend = sus_block;
       coro_info.cleanup = clean_block;
 
+      if (shader->base.type == PIPE_SHADER_IR_NIR) {
+         struct nir_shader *nir = shader->base.ir.nir;
+         if (nir->info.stage == MESA_SHADER_MESH) {
+            LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, cs_type.length);
+            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, 32), "outputs");
+         }
+         mesh_iface.base.emit_store_output = lp_mesh_llvm_emit_store_output;
+         mesh_iface.outputs = output_array;
+      }
+
       struct lp_build_tgsi_params params;
       memset(&params, 0, sizeof(params));
 
@@ -508,23 +698,35 @@ generate_compute(struct llvmpipe_context *lp,
       params.aniso_filter_table = lp_jit_resources_aniso_filter_table(gallivm,
                                                                       variant->jit_resources_type,
                                                                       resources_ptr);
+      params.mesh_iface = &mesh_iface.base;
 
       if (shader->base.type == PIPE_SHADER_IR_TGSI)
          lp_build_tgsi_soa(gallivm, shader->base.tokens, &params, NULL);
       else
          lp_build_nir_soa(gallivm, shader->base.ir.nir, &params,
-                          outputs);
+                          NULL);
 
       if (shader->base.type == PIPE_SHADER_IR_NIR) {
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
             LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
                                                            lp_int_type(cs_type), 0);
-            lp_build_print_value(gallivm, "x", mask_val);
-            lp_build_print_value(gallivm, "subgroup", subgroup_id);
-            LLVMValueRef io = LLVMBuildGEP2(builder, variant->jit_vertex_header_type, io_ptr, &subgroup_id, 1, "");
-            draw_convert_to_aos(gallivm, variant->jit_vertex_header_type, io, NULL, outputs, clipmask,
-                                shader->info.base.num_outputs, cs_type, -1, FALSE);
+
+            struct lp_build_loop_state vertex_loop_state;
+
+            lp_build_loop_begin(&vertex_loop_state, gallivm,
+                                lp_build_const_int32(gallivm, 0)); /* coroutine reentry loop */
+
+            int vsize = sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float) *  8;
+            LLVMValueRef io;
+            io = LLVMBuildPtrToInt(gallivm->builder, io_ptr, LLVMInt64TypeInContext(gallivm->context),  "");
+            io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, LLVMBuildMul(builder, vertex_loop_state.counter, lp_build_const_int32(gallivm, vsize), ""), LLVMInt64TypeInContext(gallivm->context), ""), "");
+            io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
+            mesh_convert_to_aos(gallivm, variant->jit_vertex_header_type, io, NULL, output_array, clipmask,
+                                shader->info.base.num_outputs, vertex_loop_state.counter, cs_type, -1, FALSE);
+            lp_build_loop_end_cond(&vertex_loop_state,
+                                   lp_build_const_int32(gallivm, nir->info.mesh.max_vertices_out),
+                                   NULL,  LLVMIntUGE);
          }
       }
 
@@ -1491,7 +1693,7 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 
    void *io_ptr = NULL;
    if (job_info->io) {
-      io_ptr = (char *)job_info->io + (iter_idx * job_info->vertex_info->size);
+      io_ptr = (char *)job_info->io + (iter_idx * (job_info->vsize));
    }
    variant->jit_function(&job_info->current->jit_context,
                          &job_info->current->jit_resources,
@@ -1745,6 +1947,7 @@ static void *
 llvmpipe_create_mesh_state(struct pipe_context *pipe,
                            const struct pipe_shader_state *templ)
 {
+   struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
    struct lp_compute_shader *shader = CALLOC_STRUCT(lp_compute_shader);
    if (!shader)
       return NULL;
@@ -1756,6 +1959,12 @@ llvmpipe_create_mesh_state(struct pipe_context *pipe,
 
    nir_tgsi_scan_shader(shader->base.ir.nir, &shader->info.base, false);
    list_inithead(&shader->variants.list);
+
+   shader->draw_mesh_data = draw_create_mesh_shader(llvmpipe->draw, templ);
+   if (shader->draw_mesh_data == NULL) {
+      FREE(shader);
+      return NULL;
+   }
 
    int nr_samplers = shader->info.base.file_max[TGSI_FILE_SAMPLER] + 1;
    int nr_sampler_views = shader->info.base.file_max[TGSI_FILE_SAMPLER_VIEW] + 1;
@@ -1774,6 +1983,8 @@ llvmpipe_bind_mesh_state(struct pipe_context *pipe, void *_mesh)
       return;
 
    llvmpipe->mhs = (struct lp_compute_shader *)_mesh;
+
+   draw_bind_mesh_shader(llvmpipe->draw, llvmpipe->mhs->draw_mesh_data);
    llvmpipe->dirty |= LP_NEW_MESH;
 }
 
@@ -1789,6 +2000,8 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
    LIST_FOR_EACH_ENTRY_SAFE(li, next, &shader->variants.list, list) {
       llvmpipe_remove_cs_shader_variant(llvmpipe, li->base);
    }
+
+   draw_delete_mesh_shader(llvmpipe->draw, shader->draw_mesh_data);
    if (shader->base.ir.nir)
       ralloc_free(shader->base.ir.nir);
 
@@ -1828,18 +2041,19 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
+   struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
+   int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs  * 4 * sizeof(float) *  8;
    job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
    job_info.current = &lp->mesh_ctx->cs.current;
 
    job_info.grid_size[0] = 3;
    num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
-   lp->setup->base.allocate_vertices(&lp->setup->base,
-                                     lp->setup->vertex_info->size  * 4, 30);
 
-   void *vbuf = lp->setup->base.map_vertices(&lp->setup->base);
+   void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
+
    job_info.io = vbuf;
-   job_info.vertex_info = lp->setup->vertex_info;
+   job_info.vsize = vsize * shader->info.mesh.max_vertices_out;
    if (num_tasks) {
       struct lp_cs_tpool_task *task;
       mtx_lock(&screen->cs_mutex);
@@ -1849,12 +2063,19 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
 
-//   lp_setup_unmap_vertices(/
-   struct nir_shader *shader =  lp->mhs->base.ir.nir;
-   lp->setup->base.set_primitive(&lp->setup->base, shader->info.mesh.primitive_type);
-
-   lp->setup->base.draw_arrays(&lp->setup->base, 0, 3);
-   /* call setup from here? */
+   struct draw_vertex_info vinfo;
+   vinfo.verts = vbuf;
+   vinfo.vertex_size = vsize;
+   vinfo.stride = vsize;
+   vinfo.count = 9;
+   uint32_t prim_len[3] = { 3, 3, 3 } ;
+   struct draw_prim_info prim_info;
+   prim_info.prim = PIPE_PRIM_TRIANGLES;
+   prim_info.linear = true;
+   prim_info.count = 3;
+   prim_info.primitive_count = 3;
+   prim_info.primitive_lengths = prim_len;
+   draw_meshy(lp->draw, &vinfo, &prim_info);
 }
 
 void
