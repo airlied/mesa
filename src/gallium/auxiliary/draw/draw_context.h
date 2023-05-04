@@ -48,6 +48,7 @@ struct draw_vertex_shader;
 struct draw_geometry_shader;
 struct draw_tess_ctrl_shader;
 struct draw_tess_eval_shader;
+struct draw_mesh_shader;
 struct draw_fragment_shader;
 struct tgsi_sampler;
 struct tgsi_image;
@@ -280,6 +281,17 @@ void draw_delete_tess_eval_shader(struct draw_context *draw,
 void draw_set_tess_state(struct draw_context *draw,
                          const float default_outer_level[4],
                          const float default_inner_level[2]);
+
+/*
+ * Mesh shader functions
+ */
+struct draw_mesh_shader *
+draw_create_mesh_shader(struct draw_context *draw,
+                            const struct pipe_shader_state *shader);
+void draw_bind_mesh_shader(struct draw_context *draw,
+                           struct draw_mesh_shader *dvs);
+void draw_delete_mesh_shader(struct draw_context *draw,
+                             struct draw_mesh_shader *dvs);
 
 /*
  * Vertex data functions
