@@ -593,10 +593,7 @@ static void emit_store_chan(struct lp_build_nir_context *bld_base,
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
    LLVMBuilderRef builder = bld->bld_base.base.gallivm->builder;
    struct lp_build_context *float_bld = &bld_base->base;
-   char str[50];
 
-   sprintf(str, "stor %d,%d,%d ", location, comp, chan);
-   lp_build_print_value(bld->bld_base.base.gallivm, str, dst);
    if (bit_size == 64) {
       chan *= 2;
       chan += comp;
@@ -653,30 +650,58 @@ static void emit_store_tcs_chan(struct lp_build_nir_context *bld_base,
       LLVMValueRef split_vals[2];
       LLVMValueRef swizzle_index_val2 = lp_build_const_int32(gallivm, swizzle + 1);
       emit_store_64bit_split(bld_base, chan_val, split_vals);
-      bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
-                                        indir_vertex_index ? true : false,
-                                        indir_vertex_index,
-                                        indir_index ? true : false,
-                                        attrib_index_val,
-                                        false, swizzle_index_val,
-                                        split_vals[0], exec_mask);
-      bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
-                                        indir_vertex_index ? true : false,
-                                        indir_vertex_index,
-                                        indir_index ? true : false,
-                                        attrib_index_val,
-                                        false, swizzle_index_val2,
-                                        split_vals[1], exec_mask);
+      if (bld->mesh_iface) {
+         bld->mesh_iface->emit_store_output(bld->mesh_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index ? true : false,
+                                           attrib_index_val,
+                                           false, swizzle_index_val,
+                                           split_vals[0], exec_mask);
+         bld->mesh_iface->emit_store_output(bld->mesh_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index ? true : false,
+                                           attrib_index_val,
+                                           false, swizzle_index_val2,
+                                           split_vals[1], exec_mask);
+      } else {
+         bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index ? true : false,
+                                           attrib_index_val,
+                                           false, swizzle_index_val,
+                                           split_vals[0], exec_mask);
+         bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index ? true : false,
+                                           attrib_index_val,
+                                           false, swizzle_index_val2,
+                                           split_vals[1], exec_mask);
+      }
    } else {
       chan_val = LLVMBuildBitCast(builder, chan_val, bld_base->base.vec_type, "");
-      bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
-                                        indir_vertex_index ? true : false,
-                                        indir_vertex_index,
-                                        indir_index && !is_compact ? true : false,
-                                        attrib_index_val,
-                                        indir_index && is_compact ? true : false,
-                                        swizzle_index_val,
-                                        chan_val, exec_mask);
+      if (bld->mesh_iface) {
+         bld->mesh_iface->emit_store_output(bld->mesh_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index && !is_compact ? true : false,
+                                           attrib_index_val,
+                                           indir_index && is_compact ? true : false,
+                                           swizzle_index_val,
+                                           chan_val, exec_mask);
+      } else {
+         bld->tcs_iface->emit_store_output(bld->tcs_iface, &bld_base->base, 0,
+                                           indir_vertex_index ? true : false,
+                                           indir_vertex_index,
+                                           indir_index && !is_compact ? true : false,
+                                           attrib_index_val,
+                                           indir_index && is_compact ? true : false,
+                                           swizzle_index_val,
+                                           chan_val, exec_mask);
+      }
    }
 }
 
@@ -713,7 +738,7 @@ static void emit_store_var(struct lp_build_nir_context *bld_base,
       for (unsigned chan = 0; chan < num_components; chan++) {
          if (writemask & (1u << chan)) {
             LLVMValueRef chan_val = (num_components == 1) ? dst : LLVMBuildExtractValue(builder, dst, chan, "");
-            if (bld->tcs_iface || bld_base->shader->info.stage == MESA_SHADER_MESH) {
+            if (bld->tcs_iface || bld->mesh_iface) {
                emit_store_tcs_chan(bld_base, var->data.compact, bit_size, location, const_index, indir_vertex_index, indir_index, comp, chan, chan_val);
             } else
                emit_store_chan(bld_base, deref_mode, bit_size, location + const_index, comp, chan, chan_val);
@@ -2750,6 +2775,7 @@ void lp_build_nir_soa(struct gallivm_state *gallivm,
    bld.tcs_iface = params->tcs_iface;
    bld.tes_iface = params->tes_iface;
    bld.fs_iface = params->fs_iface;
+   bld.mesh_iface = params->mesh_iface;
    if (bld.gs_iface) {
       struct lp_build_context *uint_bld = &bld.bld_base.uint_bld;
 

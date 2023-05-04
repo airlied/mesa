@@ -278,6 +278,7 @@ struct lp_build_tgsi_params {
    const struct lp_build_gs_iface *gs_iface;
    const struct lp_build_tcs_iface *tcs_iface;
    const struct lp_build_tes_iface *tes_iface;
+   const struct lp_build_mesh_iface *mesh_iface;
    LLVMValueRef ssbo_ptr;
    LLVMValueRef ssbo_sizes_ptr;
    const struct lp_build_image_soa *image;
@@ -502,6 +503,21 @@ struct lp_build_tes_iface
                                      boolean is_aindex_indirect,
                                      LLVMValueRef attrib_index,
                                      LLVMValueRef swizzle_index);
+};
+
+struct lp_build_mesh_iface
+{
+   void (*emit_store_output)(const struct lp_build_mesh_iface *tcs_iface,
+                             struct lp_build_context * bld,
+                             unsigned name,
+                             boolean is_vindex_indirect,
+                             LLVMValueRef vertex_index,
+                             boolean is_aindex_indirect,
+                             LLVMValueRef attrib_index,
+                             boolean is_sindex_indirect,
+                             LLVMValueRef swizzle_index,
+                             LLVMValueRef value,
+                             LLVMValueRef mask_vec);
 };
 
 struct lp_build_tgsi_soa_context
