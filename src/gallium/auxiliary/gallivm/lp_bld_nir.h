@@ -230,6 +230,9 @@ struct lp_build_nir_context
                      unsigned const_index,
                      LLVMValueRef indir_index,
                      LLVMValueRef offsets[2], LLVMValueRef dst[4]);
+   void (*set_vertex_and_primitive_count)(struct lp_build_nir_context *bld_base,
+                                               LLVMValueRef vert_count,
+                                               LLVMValueRef prim_count);
 //   LLVMValueRef main_function
 };
 

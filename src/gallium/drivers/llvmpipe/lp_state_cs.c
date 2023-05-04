@@ -102,6 +102,8 @@ enum {
 struct lp_mesh_llvm_iface {
    struct lp_build_mesh_iface base;
 
+   LLVMValueRef vertex_count;
+   LLVMValueRef prim_count;
    LLVMValueRef outputs;
 };
 
@@ -201,6 +203,18 @@ lp_mesh_llvm_emit_store_output(const struct lp_build_mesh_iface *mesh_iface,
    }
 }
 
+static void
+lp_mesh_emit_vertex_and_primitive_count(const struct lp_build_mesh_iface *mesh_iface,
+                                        struct lp_build_context *bld,
+                                        LLVMValueRef vertices_count,
+                                        LLVMValueRef primitives_count)
+{
+   const struct lp_mesh_llvm_iface *mesh = lp_mesh_llvm_iface(mesh_iface);
+   struct gallivm_state *gallivm = bld->gallivm;
+
+   LLVMBuildStore(gallivm->builder, vertices_count, mesh->vertex_count);
+   LLVMBuildStore(gallivm->builder, primitives_count, mesh->prim_count);
+}
 
 static void
 mesh_convert_to_aos(struct gallivm_state *gallivm,
@@ -673,7 +687,13 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, cs_type.length);
             output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, 32), "outputs");
          }
+
+         LLVMValueRef vertex_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "vertex_count");
+         LLVMValueRef primitive_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "prim_count");
          mesh_iface.base.emit_store_output = lp_mesh_llvm_emit_store_output;
+         mesh_iface.base.emit_vertex_and_primitive_count = lp_mesh_emit_vertex_and_primitive_count;
+         mesh_iface.vertex_count = vertex_count;
+         mesh_iface.prim_count = primitive_count;
          mesh_iface.outputs = output_array;
       }
 
@@ -712,6 +732,8 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
                                                            lp_int_type(cs_type), 0);
 
+            LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, LLVMInt32TypeInContext(gallivm->context), mesh_iface.vertex_count, "");
+            LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, LLVMInt32TypeInContext(gallivm->context), mesh_iface.prim_count, "");
             struct lp_build_loop_state vertex_loop_state;
 
             lp_build_loop_begin(&vertex_loop_state, gallivm,
@@ -725,8 +747,10 @@ generate_compute(struct llvmpipe_context *lp,
             mesh_convert_to_aos(gallivm, variant->jit_vertex_header_type, io, NULL, output_array, clipmask,
                                 shader->info.base.num_outputs, vertex_loop_state.counter, cs_type, -1, FALSE);
             lp_build_loop_end_cond(&vertex_loop_state,
-                                   lp_build_const_int32(gallivm, nir->info.mesh.max_vertices_out),
+                                   vertex_count,
                                    NULL,  LLVMIntUGE);
+
+
          }
       }
 

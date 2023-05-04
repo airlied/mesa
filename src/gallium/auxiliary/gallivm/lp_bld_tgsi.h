@@ -507,7 +507,7 @@ struct lp_build_tes_iface
 
 struct lp_build_mesh_iface
 {
-   void (*emit_store_output)(const struct lp_build_mesh_iface *tcs_iface,
+   void (*emit_store_output)(const struct lp_build_mesh_iface *mesh_iface,
                              struct lp_build_context * bld,
                              unsigned name,
                              boolean is_vindex_indirect,
@@ -518,6 +518,10 @@ struct lp_build_mesh_iface
                              LLVMValueRef swizzle_index,
                              LLVMValueRef value,
                              LLVMValueRef mask_vec);
+   void (*emit_vertex_and_primitive_count)(const struct lp_build_mesh_iface *mesh_iface,
+                                           struct lp_build_context *bld,
+                                           LLVMValueRef vertices_count,
+                                           LLVMValueRef primitives_count);
 };
 
 struct lp_build_tgsi_soa_context
