@@ -368,6 +368,8 @@ static void scan_instruction(const struct nir_shader *nir,
             case INTERP_MODE_NONE:
                if (glsl_base_type_is_integer(base_type))
                   break;
+               if (var->data.per_primitive)
+                  break;
 
                FALLTHROUGH;
             case INTERP_MODE_SMOOTH:
@@ -557,7 +559,7 @@ void nir_tgsi_scan_shader(const struct nir_shader *nir,
 
          switch (variable->data.interpolation) {
          case INTERP_MODE_NONE:
-            if (glsl_base_type_is_integer(base_type)) {
+            if (glsl_base_type_is_integer(base_type) || variable->data.per_primitive) {
                info->input_interpolate[i] = TGSI_INTERPOLATE_CONSTANT;
                break;
             }
