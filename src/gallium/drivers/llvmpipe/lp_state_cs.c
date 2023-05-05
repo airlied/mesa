@@ -2110,14 +2110,18 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    vinfo.vertex_size = vsize;
    vinfo.stride = vsize;
    vinfo.count = total_vertices;
-   uint32_t prim_len[3] = { 3, 3, 3 } ;
+
+   uint32_t *prim_len = calloc(total_prims, sizeof(uint32_t));
+   for (unsigned i = 0; i < total_prims; i++)
+      prim_len[i] = 3;
    struct draw_prim_info prim_info;
-   prim_info.prim = PIPE_PRIM_TRIANGLES;
+   prim_info.prim = shader->info.mesh.primitive_type;
    prim_info.linear = true;
    prim_info.count = total_prims;
    prim_info.primitive_count = total_prims;
    prim_info.primitive_lengths = prim_len;
    draw_meshy(lp->draw, &vinfo, &prim_info);
+   free(prim_len);
 }
 
 void
