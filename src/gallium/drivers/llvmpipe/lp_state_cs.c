@@ -729,15 +729,25 @@ generate_compute(struct llvmpipe_context *lp,
       if (shader->base.type == PIPE_SHADER_IR_NIR) {
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
+            LLVMTypeRef i32t = LLVMInt32TypeInContext(gallivm->context);
             LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
                                                            lp_int_type(cs_type), 0);
 
-            LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, LLVMInt32TypeInContext(gallivm->context), mesh_iface.vertex_count, "");
-            LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, LLVMInt32TypeInContext(gallivm->context), mesh_iface.prim_count, "");
+            LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.vertex_count, "");
+            LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.prim_count, "");
             struct lp_build_loop_state vertex_loop_state;
 
+
+            LLVMValueRef count_ptr = LLVMBuildPtrToInt(gallivm->builder, io_ptr, i32t,  "");
+            LLVMValueRef indices = lp_build_const_int32(gallivm, 1);
+            count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
+            LLVMBuildStore(gallivm->builder, vertex_count, count_ptr);
+            indices = lp_build_const_int32(gallivm, 2);
+            count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
+            LLVMBuildStore(gallivm->builder, prim_count, count_ptr);
+
             lp_build_loop_begin(&vertex_loop_state, gallivm,
-                                lp_build_const_int32(gallivm, 0)); /* coroutine reentry loop */
+                                lp_build_const_int32(gallivm, 0));
 
             int vsize = sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float) *  8;
             LLVMValueRef io;
@@ -2067,7 +2077,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    }
    struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
-   int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs  * 4 * sizeof(float) *  8;
+   int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs  * 4 * sizeof(float) * 8;
    job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
    job_info.current = &lp->mesh_ctx->cs.current;
 
@@ -2087,17 +2097,25 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
 
+   uint32_t total_vertices = 0;
+   uint32_t total_prims = 0;
+   for (unsigned i = 0; i < num_tasks; i++)
+   {
+      uint32_t *ptr = (uint32_t *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out) * i);
+      total_vertices += ptr[1];
+      total_prims += ptr[2];
+   }
    struct draw_vertex_info vinfo;
    vinfo.verts = vbuf;
    vinfo.vertex_size = vsize;
    vinfo.stride = vsize;
-   vinfo.count = 9;
+   vinfo.count = total_vertices;
    uint32_t prim_len[3] = { 3, 3, 3 } ;
    struct draw_prim_info prim_info;
    prim_info.prim = PIPE_PRIM_TRIANGLES;
    prim_info.linear = true;
-   prim_info.count = 3;
-   prim_info.primitive_count = 3;
+   prim_info.count = total_prims;
+   prim_info.primitive_count = total_prims;
    prim_info.primitive_lengths = prim_len;
    draw_meshy(lp->draw, &vinfo, &prim_info);
 }
