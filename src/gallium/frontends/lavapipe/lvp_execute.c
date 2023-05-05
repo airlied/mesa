@@ -3524,6 +3524,16 @@ static void handle_push_descriptor_set_generic(struct vk_cmd_push_descriptor_set
                               MESA_SHADER_TESS_EVAL, MESA_SHADER_TESS_EVAL,
                               j, desc->descriptor_type,
                               info);
+         if (layout->shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT)
+            handle_descriptor(state, &dyn_info, binding,
+                              MESA_SHADER_TASK, MESA_SHADER_TASK,
+                              j, desc->descriptor_type,
+                              info);
+         if (layout->shader_stages & VK_SHADER_STAGE_MESH_BIT_EXT)
+            handle_descriptor(state, &dyn_info, binding,
+                              MESA_SHADER_MESH, MESA_SHADER_MESH,
+                              j, desc->descriptor_type,
+                              info);
       }
       info_idx += desc->descriptor_count;
    }
