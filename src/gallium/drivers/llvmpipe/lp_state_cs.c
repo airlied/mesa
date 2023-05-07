@@ -71,6 +71,8 @@ struct lp_cs_job_info {
    struct lp_cs_exec *current;
    struct vertex_header *io;
    uint32_t vsize;
+   void *payload;
+   uint32_t payload_stride;
 };
 
 enum {
@@ -569,6 +571,7 @@ generate_compute(struct llvmpipe_context *lp,
       LLVMValueRef consts_ptr;
       LLVMValueRef ssbo_ptr;
       LLVMValueRef shared_ptr;
+      LLVMValueRef payload_ptr;
       LLVMValueRef kernel_args_ptr;
       struct lp_build_mask_context mask;
       struct lp_bld_tgsi_system_values system_values;
@@ -583,6 +586,9 @@ generate_compute(struct llvmpipe_context *lp,
       shared_ptr = lp_jit_cs_thread_data_shared(gallivm,
                                                 variant->jit_cs_thread_data_type,
                                                 thread_data_ptr);
+      payload_ptr = lp_jit_cs_thread_data_payload(gallivm,
+                                                  variant->jit_cs_thread_data_type,
+                                                  thread_data_ptr);
 
       LLVMValueRef coro_num_hdls = LLVMBuildMul(gallivm->builder, num_x_loop, block_y_size_arg, "");
       coro_num_hdls = LLVMBuildMul(gallivm->builder, coro_num_hdls, block_z_size_arg, "");
@@ -713,6 +719,7 @@ generate_compute(struct llvmpipe_context *lp,
       params.ssbo_ptr = ssbo_ptr;
       params.image = image;
       params.shared_ptr = shared_ptr;
+      params.payload_ptr = payload_ptr;
       params.coro = &coro_info;
       params.kernel_args = kernel_args_ptr;
       params.aniso_filter_table = lp_jit_resources_aniso_filter_table(gallivm,
@@ -1716,6 +1723,8 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
       memset(lmem->local_mem_ptr, 0, job_info->req_local_mem);
    thread_data.shared = lmem->local_mem_ptr;
 
+   thread_data.payload = job_info->payload;
+
    unsigned grid_z = iter_idx / (job_info->grid_size[0] * job_info->grid_size[1]);
    unsigned grid_y = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1]))) / job_info->grid_size[0];
    unsigned grid_x = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1])) - (grid_y * job_info->grid_size[0]));
@@ -1729,6 +1738,8 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
    if (job_info->io) {
       io_ptr = (char *)job_info->io + (iter_idx * (job_info->vsize));
    }
+   if (thread_data.payload)
+      thread_data.payload = (char *)thread_data.payload + iter_idx * job_info->payload_stride;
    variant->jit_function(&job_info->current->jit_context,
                          &job_info->current->jit_resources,
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
@@ -2056,32 +2067,45 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
    fill_grid_size(pipe, info, job_info.grid_size);
 
-   job_info.grid_base[0] = info->grid_base[0];
-   job_info.grid_base[1] = info->grid_base[1];
-   job_info.grid_base[2] = info->grid_base[2];
-   job_info.block_size[0] = info->block[0];
-   job_info.block_size[1] = info->block[1];
-   job_info.block_size[2] = info->block[2];
-   job_info.work_dim = info->work_dim;
-   job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
-   job_info.current = &lp->task_ctx->cs.current;
-
+   void *payload = NULL;
+   uint32_t payload_stride = 0, payload_size = 0;
    int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
-   if (num_tasks) {
-      struct lp_cs_tpool_task *task;
-      mtx_lock(&screen->cs_mutex);
-      task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
-      mtx_unlock(&screen->cs_mutex);
+   if (lp->tss) {
+      struct nir_shader *shader =  lp->tss->base.ir.nir;
+      payload_stride = shader->info.task_payload_size + 3 * sizeof(uint32_t);
+      payload_size = payload_stride * num_tasks;
 
-      lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+      if (payload_size)
+         payload = calloc(1, payload_size);
+
+      job_info.payload = payload;
+      job_info.payload_stride = payload_stride;
+      job_info.grid_base[0] = info->grid_base[0];
+      job_info.grid_base[1] = info->grid_base[1];
+      job_info.grid_base[2] = info->grid_base[2];
+      job_info.block_size[0] = info->block[0];
+      job_info.block_size[1] = info->block[1];
+      job_info.block_size[2] = info->block[2];
+      job_info.work_dim = info->work_dim;
+      job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
+      job_info.current = &lp->task_ctx->cs.current;
+
+      if (num_tasks) {
+         struct lp_cs_tpool_task *task;
+         mtx_lock(&screen->cs_mutex);
+         task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+         mtx_unlock(&screen->cs_mutex);
+
+         lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+      }
+      job_info.grid_size[0] = 3;
    }
    struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
    int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs  * 4 * sizeof(float) * 8;
    job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
    job_info.current = &lp->mesh_ctx->cs.current;
-
-   job_info.grid_size[0] = 3;
+   job_info.payload_stride = 0;
    num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
    void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
@@ -2097,6 +2121,8 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
    }
 
+   free(payload);
+
    uint32_t total_vertices = 0;
    uint32_t total_prims = 0;
    for (unsigned i = 0; i < num_tasks; i++)
@@ -2105,6 +2131,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       total_vertices += ptr[1];
       total_prims += ptr[2];
    }
+
+   if (!total_vertices || !total_prims)
+      return;
    struct draw_vertex_info vinfo;
    vinfo.verts = vbuf;
    vinfo.vertex_size = vsize;
@@ -2113,8 +2142,8 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
    uint32_t *prim_len = calloc(total_prims, sizeof(uint32_t));
    for (unsigned i = 0; i < total_prims; i++)
-      prim_len[i] = 3;
-   struct draw_prim_info prim_info;
+      prim_len[i] = shader->info.mesh.primitive_type == PIPE_PRIM_TRIANGLES ? 3 : (shader->info.mesh.primitive_type == PIPE_PRIM_LINES ? 2 : 1);
+   struct draw_prim_info prim_info = {};
    prim_info.prim = shader->info.mesh.primitive_type;
    prim_info.linear = true;
    prim_info.count = total_prims;

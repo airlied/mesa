@@ -254,6 +254,8 @@ lp_jit_create_cs_types(struct lp_compute_shader_variant *lp)
             LLVMPointerType(lp_build_format_cache_type(gallivm), 0);
 
       elem_types[LP_JIT_CS_THREAD_DATA_SHARED] = LLVMPointerType(LLVMInt32TypeInContext(lc), 0);
+
+      elem_types[LP_JIT_CS_THREAD_DATA_PAYLOAD] = LLVMPointerType(LLVMInt8TypeInContext(lc), 0);
       thread_data_type = LLVMStructTypeInContext(lc, elem_types,
                                                  ARRAY_SIZE(elem_types), 0);
 

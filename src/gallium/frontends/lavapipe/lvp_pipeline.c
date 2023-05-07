@@ -517,6 +517,12 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_shader 
       NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_shared, nir_address_format_32bit_offset);
    }
 
+   if (nir->info.stage == MESA_SHADER_TASK ||
+       nir->info.stage == MESA_SHADER_MESH) {
+      NIR_PASS_V(nir, nir_lower_vars_to_explicit_types, nir_var_mem_task_payload, shared_var_info);
+      NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_task_payload, nir_address_format_32bit_offset);
+   }
+
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_shader_temp, NULL);
 
    if (nir->info.stage == MESA_SHADER_VERTEX ||

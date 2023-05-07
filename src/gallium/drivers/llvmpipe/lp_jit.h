@@ -300,12 +300,14 @@ struct lp_jit_cs_thread_data
 {
    struct lp_build_format_cache *cache;
    void *shared;
+   void *payload;
 };
 
 
 enum {
    LP_JIT_CS_THREAD_DATA_CACHE = 0,
    LP_JIT_CS_THREAD_DATA_SHARED = 1,
+   LP_JIT_CS_THREAD_DATA_PAYLOAD = 2,
    LP_JIT_CS_THREAD_DATA_COUNT
 };
 
@@ -315,6 +317,9 @@ enum {
 
 #define lp_jit_cs_thread_data_shared(_gallivm, _type, _ptr) \
    lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CS_THREAD_DATA_SHARED, "shared")
+
+#define lp_jit_cs_thread_data_payload(_gallivm, _type, _ptr) \
+   lp_build_struct_get2(_gallivm, _type, _ptr, LP_JIT_CS_THREAD_DATA_PAYLOAD, "payload")
 
 
 struct lp_jit_cs_context
