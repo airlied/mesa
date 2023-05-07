@@ -1828,7 +1828,10 @@ static void emit_sysval_intrin(struct lp_build_nir_context *bld_base,
       result[0] = lp_build_broadcast_scalar(&bld_base->uint_bld, bld->system_values.front_facing);
       break;
    case nir_intrinsic_load_draw_id:
-      result[0] = lp_build_broadcast_scalar(&bld_base->uint_bld, bld->system_values.draw_id);
+      if (!bld->system_values.draw_id)
+         result[0] = lp_build_broadcast_scalar(&bld_base->uint_bld, lp_build_const_int32(gallivm, 0));
+      else
+         result[0] = lp_build_broadcast_scalar(&bld_base->uint_bld, bld->system_values.draw_id);
       break;
    default:
       break;

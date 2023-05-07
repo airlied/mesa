@@ -4169,6 +4169,17 @@ static void handle_draw_mesh_tasks(struct vk_cmd_queue_entry *cmd,
    state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
+static void handle_draw_mesh_tasks_indirect(struct vk_cmd_queue_entry *cmd,
+                                            struct rendering_state *state)
+{
+   state->dispatch_info.indirect = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_ext.buffer)->bo;
+   state->dispatch_info.indirect_offset = cmd->u.draw_mesh_tasks_indirect_ext.offset;
+   state->dispatch_info.block[0] = 1;
+   state->dispatch_info.block[1] = 1;
+   state->dispatch_info.block[2] = 1;
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
+}
+
 void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
 {
    struct vk_device_dispatch_table cmd_enqueue_dispatch;
@@ -4290,6 +4301,8 @@ void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
    ENQUEUE_CMD(CmdSetViewportWScalingEnableNV)
    ENQUEUE_CMD(CmdSetAttachmentFeedbackLoopEnableEXT)
    ENQUEUE_CMD(CmdDrawMeshTasksEXT)
+   ENQUEUE_CMD(CmdDrawMeshTasksIndirectEXT)
+   ENQUEUE_CMD(CmdDrawMeshTasksIndirectCountEXT)
 #undef ENQUEUE_CMD
 }
 
@@ -4612,6 +4625,11 @@ static void lvp_execute_cmd_buffer(struct lvp_cmd_buffer *cmd_buffer,
       case VK_CMD_DRAW_MESH_TASKS_EXT:
          emit_state(state);
          handle_draw_mesh_tasks(cmd, state);
+         break;
+      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_EXT:
+      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT:
+         emit_state(state);
+         handle_draw_mesh_tasks_indirect(cmd, state);
          break;
       default:
          fprintf(stderr, "Unsupported command %s\n", vk_cmd_queue_type_names[cmd->type]);

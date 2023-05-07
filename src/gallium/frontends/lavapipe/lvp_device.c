@@ -1194,6 +1194,11 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceProperties2(
          props->maxMeshWorkGroupCount[0] = 1024;
          props->maxMeshWorkGroupCount[1] = 1024;
          props->maxMeshWorkGroupCount[2] = 1024;
+         props->maxMeshOutputMemorySize = 32 * 1024; /* 32K min required */
+         props->maxMeshSharedMemorySize = 28672;     /* 28K min required */
+         props->maxMeshOutputComponents = 128; /* 32x vec4 min required */
+         props->maxMeshOutputVertices = 256;
+         props->maxMeshOutputPrimitives = 256;
          break;
       }
       default:
