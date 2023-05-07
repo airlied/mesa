@@ -111,11 +111,11 @@ struct lp_build_nir_context
    /* for SSBO and shared memory */
    void (*load_mem)(struct lp_build_nir_context *bld_base,
                     unsigned nc, unsigned bit_size,
-                    bool index_and_offset_are_uniform,
+                    bool index_and_offset_are_uniform, bool payload,
                     LLVMValueRef index, LLVMValueRef offset, LLVMValueRef result[NIR_MAX_VEC_COMPONENTS]);
    void (*store_mem)(struct lp_build_nir_context *bld_base,
                      unsigned writemask, unsigned nc, unsigned bit_size,
-                     bool index_and_offset_are_uniform,
+                     bool index_and_offset_are_uniform, bool payload,
                      LLVMValueRef index, LLVMValueRef offset, LLVMValueRef dst);
 
    void (*atomic_mem)(struct lp_build_nir_context *bld_base,
@@ -257,6 +257,7 @@ struct lp_build_nir_soa_context
    LLVMValueRef ssbo_ptr;
 
    LLVMValueRef shared_ptr;
+   LLVMValueRef payload_ptr;
    LLVMValueRef scratch_ptr;
    unsigned scratch_size;
 

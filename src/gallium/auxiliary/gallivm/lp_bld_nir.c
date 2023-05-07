@@ -1559,7 +1559,7 @@ visit_load_ssbo(struct lp_build_nir_context *bld_base,
       nir_src_is_always_uniform(instr->src[1]);
    bld_base->load_mem(bld_base, nir_dest_num_components(instr->dest),
                       nir_dest_bit_size(instr->dest),
-                      index_and_offset_are_uniform, idx, offset, result);
+                      index_and_offset_are_uniform, false, idx, offset, result);
 }
 
 
@@ -1578,7 +1578,7 @@ visit_store_ssbo(struct lp_build_nir_context *bld_base,
    int nc = nir_src_num_components(instr->src[0]);
    int bitsize = nir_src_bit_size(instr->src[0]);
    bld_base->store_mem(bld_base, writemask, nc, bitsize,
-                       index_and_offset_are_uniform, idx, offset, val);
+                       index_and_offset_are_uniform, false, idx, offset, val);
 }
 
 
@@ -1804,7 +1804,7 @@ visit_shared_load(struct lp_build_nir_context *bld_base,
    bool offset_is_uniform = nir_src_is_always_uniform(instr->src[0]);
    bld_base->load_mem(bld_base, nir_dest_num_components(instr->dest),
                       nir_dest_bit_size(instr->dest),
-                      offset_is_uniform, NULL, offset, result);
+                      offset_is_uniform, false, NULL, offset, result);
 }
 
 
@@ -1819,7 +1819,7 @@ visit_shared_store(struct lp_build_nir_context *bld_base,
    int nc = nir_src_num_components(instr->src[0]);
    int bitsize = nir_src_bit_size(instr->src[0]);
    bld_base->store_mem(bld_base, writemask, nc, bitsize,
-                       offset_is_uniform, NULL, offset, val);
+                       offset_is_uniform, false, NULL, offset, val);
 }
 
 
@@ -1995,6 +1995,38 @@ visit_store_scratch(struct lp_build_nir_context *bld_base,
    bld_base->store_scratch(bld_base, writemask, nc, bitsize, offset, val);
 }
 
+static void
+visit_launch_mesh_workgroups(struct lp_build_nir_context *bld_base,
+                             LLVMValueRef launch_grid)
+{
+
+}
+
+static void
+visit_payload_load(struct lp_build_nir_context *bld_base,
+                  nir_intrinsic_instr *instr,
+                  LLVMValueRef result[NIR_MAX_VEC_COMPONENTS])
+{
+   LLVMValueRef offset = get_src(bld_base, instr->src[0]);
+   bool offset_is_uniform = nir_src_is_always_uniform(instr->src[0]);
+   bld_base->load_mem(bld_base, nir_dest_num_components(instr->dest),
+                      nir_dest_bit_size(instr->dest),
+                      offset_is_uniform, true, NULL, offset, result);
+}
+
+static void
+visit_payload_store(struct lp_build_nir_context *bld_base,
+                    nir_intrinsic_instr *instr)
+{
+   LLVMValueRef val = get_src(bld_base, instr->src[0]);
+   LLVMValueRef offset = get_src(bld_base, instr->src[1]);
+   bool offset_is_uniform = nir_src_is_always_uniform(instr->src[1]);
+   int writemask = instr->const_index[1];
+   int nc = nir_src_num_components(instr->src[0]);
+   int bitsize = nir_src_bit_size(instr->src[0]);
+   bld_base->store_mem(bld_base, writemask, nc, bitsize,
+                       offset_is_uniform, true, NULL, offset, val);
+}
 
 static void
 visit_intrinsic(struct lp_build_nir_context *bld_base,
@@ -2166,6 +2198,14 @@ visit_intrinsic(struct lp_build_nir_context *bld_base,
       bld_base->clock(bld_base, result);
       break;
    case nir_intrinsic_launch_mesh_workgroups:
+      visit_launch_mesh_workgroups(bld_base,
+                                   get_src(bld_base, instr->src[0]));
+      break;
+   case nir_intrinsic_load_task_payload:
+      visit_payload_load(bld_base, instr, result);
+      break;
+   case nir_intrinsic_store_task_payload:
+      visit_payload_store(bld_base, instr);
       break;
    case nir_intrinsic_set_vertex_and_primitive_count:
       bld_base->set_vertex_and_primitive_count(bld_base,

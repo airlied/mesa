@@ -283,6 +283,7 @@ struct lp_build_tgsi_params {
    LLVMValueRef ssbo_sizes_ptr;
    const struct lp_build_image_soa *image;
    LLVMValueRef shared_ptr;
+   LLVMValueRef payload_ptr;
    const struct lp_build_coro_suspend_info *coro;
    LLVMValueRef kernel_args;
    const struct lp_build_fs_iface *fs_iface;
