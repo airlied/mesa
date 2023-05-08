@@ -2154,6 +2154,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
          void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
 
+         job_info.draw_id = dr;
          job_info.io = vbuf;
          job_info.vsize = vsize * shader->info.mesh.max_vertices_out;
          if (num_tasks) {
