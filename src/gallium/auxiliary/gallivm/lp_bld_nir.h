@@ -233,6 +233,8 @@ struct lp_build_nir_context
    void (*set_vertex_and_primitive_count)(struct lp_build_nir_context *bld_base,
                                                LLVMValueRef vert_count,
                                                LLVMValueRef prim_count);
+   void (*launch_mesh_workgroups)(struct lp_build_nir_context *bld_base,
+                                  LLVMValueRef launch_grid);
 //   LLVMValueRef main_function
 };
 

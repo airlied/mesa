@@ -1996,13 +1996,6 @@ visit_store_scratch(struct lp_build_nir_context *bld_base,
 }
 
 static void
-visit_launch_mesh_workgroups(struct lp_build_nir_context *bld_base,
-                             LLVMValueRef launch_grid)
-{
-
-}
-
-static void
 visit_payload_load(struct lp_build_nir_context *bld_base,
                   nir_intrinsic_instr *instr,
                   LLVMValueRef result[NIR_MAX_VEC_COMPONENTS])
@@ -2198,8 +2191,8 @@ visit_intrinsic(struct lp_build_nir_context *bld_base,
       bld_base->clock(bld_base, result);
       break;
    case nir_intrinsic_launch_mesh_workgroups:
-      visit_launch_mesh_workgroups(bld_base,
-                                   get_src(bld_base, instr->src[0]));
+      bld_base->launch_mesh_workgroups(bld_base,
+                                       get_src(bld_base, instr->src[0]));
       break;
    case nir_intrinsic_load_task_payload:
       visit_payload_load(bld_base, instr, result);
