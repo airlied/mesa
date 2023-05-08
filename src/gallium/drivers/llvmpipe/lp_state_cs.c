@@ -2107,11 +2107,13 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float) * 8;
 
       if (payload) {
-         uint32_t *payload_grid = (uint32_t *)((char *)payload + (payload_stride * i));
+         void *this_payload = (char *)payload + (payload_stride * i);
+         uint32_t *payload_grid = (uint32_t *)this_payload;
          assert(lp->tss);
          job_info.grid_size[0] = payload_grid[0];
          job_info.grid_size[1] = payload_grid[1];
          job_info.grid_size[2] = payload_grid[2];
+         job_info.payload = this_payload;
       }
 
       job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
