@@ -67,6 +67,7 @@ struct lp_cs_job_info {
    unsigned block_size[3];
    unsigned req_local_mem;
    unsigned work_dim;
+   unsigned draw_id;
    bool zero_initialize_shared_memory;
    struct lp_cs_exec *current;
    struct vertex_header *io;
@@ -88,6 +89,7 @@ enum {
    CS_ARG_GRID_SIZE_Y,
    CS_ARG_GRID_SIZE_Z,
    CS_ARG_WORK_DIM,
+   CS_ARG_DRAW_ID,
    CS_ARG_VERTEX_DATA,
    CS_ARG_PER_THREAD_DATA,
    CS_ARG_OUTER_COUNT,
@@ -310,7 +312,7 @@ generate_compute(struct llvmpipe_context *lp,
    LLVMValueRef block_x_size_arg, block_y_size_arg, block_z_size_arg;
    LLVMValueRef grid_x_arg, grid_y_arg, grid_z_arg;
    LLVMValueRef grid_size_x_arg, grid_size_y_arg, grid_size_z_arg;
-   LLVMValueRef work_dim_arg, thread_data_ptr, io_ptr;
+   LLVMValueRef work_dim_arg, draw_id_arg, thread_data_ptr, io_ptr;
    LLVMBasicBlockRef block;
    LLVMBuilderRef builder;
    struct lp_build_sampler_soa *sampler;
@@ -350,6 +352,7 @@ generate_compute(struct llvmpipe_context *lp,
    arg_types[CS_ARG_GRID_SIZE_Y] = int32_type;                         /* grid_size_y */
    arg_types[CS_ARG_GRID_SIZE_Z] = int32_type;                         /* grid_size_z */
    arg_types[CS_ARG_WORK_DIM] = int32_type;                            /* work dim */
+   arg_types[CS_ARG_DRAW_ID] = int32_type;                             /* draw id */
    if (variant->jit_vertex_header_ptr_type)
       arg_types[CS_ARG_VERTEX_DATA] = variant->jit_vertex_header_ptr_type; /* mesh shaders only */
    else
@@ -401,6 +404,7 @@ generate_compute(struct llvmpipe_context *lp,
    grid_size_y_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Y);
    grid_size_z_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Z);
    work_dim_arg = LLVMGetParam(function, CS_ARG_WORK_DIM);
+   draw_id_arg = LLVMGetParam(function, CS_ARG_DRAW_ID);
    io_ptr = LLVMGetParam(function, CS_ARG_VERTEX_DATA);
    thread_data_ptr = LLVMGetParam(function, CS_ARG_PER_THREAD_DATA);
 
@@ -416,6 +420,7 @@ generate_compute(struct llvmpipe_context *lp,
    lp_build_name(grid_size_y_arg, "grid_size_y");
    lp_build_name(grid_size_z_arg, "grid_size_z");
    lp_build_name(work_dim_arg, "work_dim");
+   lp_build_name(draw_id_arg, "draw_id");
    lp_build_name(thread_data_ptr, "thread_data");
    lp_build_name(io_ptr, "vertex_io");
 
@@ -476,6 +481,7 @@ generate_compute(struct llvmpipe_context *lp,
       args[CS_ARG_GRID_SIZE_Y] = grid_size_y_arg;
       args[CS_ARG_GRID_SIZE_Z] = grid_size_z_arg;
       args[CS_ARG_WORK_DIM] = work_dim_arg;
+      args[CS_ARG_DRAW_ID] = draw_id_arg;
       args[CS_ARG_VERTEX_DATA] = io_ptr;
       args[CS_ARG_PER_THREAD_DATA] = thread_data_ptr;
       args[CS_ARG_CORO_X_LOOPS] = num_x_loop;
@@ -496,6 +502,7 @@ generate_compute(struct llvmpipe_context *lp,
       args[CS_ARG_CORO_IDX] = coro_hdl_idx;
 
       args[CS_ARG_CORO_MEM] = coro_mem;
+
       LLVMValueRef coro_entry = LLVMBuildGEP2(gallivm->builder, hdl_ptr_type, coro_hdls, &coro_hdl_idx, 1, "");
 
       LLVMValueRef coro_hdl = LLVMBuildLoad2(gallivm->builder, hdl_ptr_type, coro_entry, "coro_hdl");
@@ -556,6 +563,7 @@ generate_compute(struct llvmpipe_context *lp,
    grid_size_y_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Y);
    grid_size_z_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Z);
    work_dim_arg = LLVMGetParam(coro, CS_ARG_WORK_DIM);
+   draw_id_arg = LLVMGetParam(coro, CS_ARG_DRAW_ID);
    io_ptr = LLVMGetParam(coro, CS_ARG_VERTEX_DATA);
    thread_data_ptr  = LLVMGetParam(coro, CS_ARG_PER_THREAD_DATA);
    num_x_loop = LLVMGetParam(coro, CS_ARG_CORO_X_LOOPS);
@@ -627,6 +635,7 @@ generate_compute(struct llvmpipe_context *lp,
          system_values.grid_size = LLVMBuildInsertElement(builder, system_values.grid_size, gstids[i], lp_build_const_int32(gallivm, i), "");
 
       system_values.work_dim = work_dim_arg;
+      system_values.draw_id = draw_id_arg;
 
       /* subgroup_id = ((z * block_size_x * block_size_y) + (y * block_size_x) + x) / subgroup_size
        *
@@ -1744,7 +1753,7 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
                          &job_info->current->jit_resources,
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
                          grid_x, grid_y, grid_z,
-                         job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2], job_info->work_dim,
+                         job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2], job_info->work_dim, job_info->draw_id,
                          io_ptr,
                          &thread_data);
 }
@@ -2061,110 +2070,134 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    struct llvmpipe_screen *screen = llvmpipe_screen(pipe->screen);
    struct lp_cs_job_info job_info;
 
+   if (!llvmpipe_check_render_cond(lp))
+      return;
+
    memset(&job_info, 0, sizeof(job_info));
    if (lp->dirty)
       llvmpipe_update_derived(lp);
 
-   fill_grid_size(pipe, info, job_info.grid_size);
-   job_info.grid_base[0] = info->grid_base[0];
-   job_info.grid_base[1] = info->grid_base[1];
-   job_info.grid_base[2] = info->grid_base[2];
-   job_info.block_size[0] = info->block[0];
-   job_info.block_size[1] = info->block[1];
-   job_info.block_size[2] = info->block[2];
-
-   void *payload = NULL;
-   uint32_t payload_stride = 0, payload_size = 0;
-   int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
-   int num_mesh_invocs = 1;
-   if (lp->tss) {
-      struct nir_shader *shader =  lp->tss->base.ir.nir;
-      payload_stride = shader->info.task_payload_size + 3 * sizeof(uint32_t);
-      payload_size = payload_stride * num_tasks;
-
-      if (payload_size)
-         payload = calloc(1, payload_size);
-
-      job_info.payload = payload;
-      job_info.payload_stride = payload_stride;
-      job_info.work_dim = info->work_dim;
-      job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
-      job_info.current = &lp->task_ctx->cs.current;
-
-      if (num_tasks) {
-         struct lp_cs_tpool_task *task;
-         mtx_lock(&screen->cs_mutex);
-         task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
-         mtx_unlock(&screen->cs_mutex);
-
-         lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+   unsigned draw_count = info->draw_count;
+   if (info->indirect && info->indirect_draw_count) {
+      struct pipe_transfer *dc_transfer;
+      uint32_t *dc_param = pipe_buffer_map_range(pipe,
+                                                 info->indirect_draw_count,
+                                                 info->indirect_draw_count_offset,
+                                                 4, PIPE_MAP_READ, &dc_transfer);
+      if (!dc_transfer) {
+         debug_printf("%s: failed to map indirect draw count buffer\n", __func__);
+         return;
       }
-      num_mesh_invocs = num_tasks;
+      if (dc_param[0] < draw_count)
+         draw_count = dc_param[0];
+      pipe_buffer_unmap(pipe, dc_transfer);
    }
-   struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
-   for (unsigned i = 0; i < num_mesh_invocs; i++) {
-      int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float) * 8;
+   for (unsigned dr = 0; dr < draw_count; dr++) {
+      fill_grid_size(pipe, info, job_info.grid_size);
 
-      if (payload) {
-         void *this_payload = (char *)payload + (payload_stride * i);
-         uint32_t *payload_grid = (uint32_t *)this_payload;
-         assert(lp->tss);
-         job_info.grid_size[0] = payload_grid[0];
-         job_info.grid_size[1] = payload_grid[1];
-         job_info.grid_size[2] = payload_grid[2];
-         job_info.payload = this_payload;
+      job_info.grid_base[0] = info->grid_base[0];
+      job_info.grid_base[1] = info->grid_base[1];
+      job_info.grid_base[2] = info->grid_base[2];
+      job_info.block_size[0] = info->block[0];
+      job_info.block_size[1] = info->block[1];
+      job_info.block_size[2] = info->block[2];
+   
+      void *payload = NULL;
+      uint32_t payload_stride = 0, payload_size = 0;
+      int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
+      int num_mesh_invocs = 1;
+      if (lp->tss) {
+         struct nir_shader *shader =  lp->tss->base.ir.nir;
+         payload_stride = shader->info.task_payload_size + 3 * sizeof(uint32_t);
+         payload_size = payload_stride * num_tasks;
+         
+         if (payload_size)
+            payload = calloc(1, payload_size);
+
+         job_info.payload = payload;
+         job_info.payload_stride = payload_stride;
+         job_info.work_dim = info->work_dim;
+         job_info.draw_id = dr;
+         job_info.req_local_mem = lp->tss->req_local_mem + info->variable_shared_mem;
+         job_info.current = &lp->task_ctx->cs.current;
+
+         if (num_tasks) {
+            struct lp_cs_tpool_task *task;
+            mtx_lock(&screen->cs_mutex);
+            task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+            mtx_unlock(&screen->cs_mutex);
+
+            lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+         }
+         num_mesh_invocs = num_tasks;
       }
+      struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
-      job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
-      job_info.current = &lp->mesh_ctx->cs.current;
-      job_info.payload_stride = 0;
-      num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
+      for (unsigned i = 0; i < num_mesh_invocs; i++) {
+         int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float) * 8;
 
-      void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
+         if (payload) {
+            void *this_payload = (char *)payload + (payload_stride * i);
+            uint32_t *payload_grid = (uint32_t *)this_payload;
+            assert(lp->tss);
+            job_info.grid_size[0] = payload_grid[0];
+            job_info.grid_size[1] = payload_grid[1];
+            job_info.grid_size[2] = payload_grid[2];
+            job_info.payload = this_payload;
+         }
 
-      job_info.io = vbuf;
-      job_info.vsize = vsize * shader->info.mesh.max_vertices_out;
-      if (num_tasks) {
-         struct lp_cs_tpool_task *task;
-         mtx_lock(&screen->cs_mutex);
-         task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
-         mtx_unlock(&screen->cs_mutex);
+         job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
+         job_info.current = &lp->mesh_ctx->cs.current;
+         job_info.payload_stride = 0;
+         num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+         void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
+
+         job_info.io = vbuf;
+         job_info.vsize = vsize * shader->info.mesh.max_vertices_out;
+         if (num_tasks) {
+            struct lp_cs_tpool_task *task;
+            mtx_lock(&screen->cs_mutex);
+            task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+            mtx_unlock(&screen->cs_mutex);
+
+            lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+         }
+
+         uint32_t total_vertices = 0;
+         uint32_t total_prims = 0;
+         for (unsigned i = 0; i < num_tasks; i++)
+         {
+            uint32_t *ptr = (uint32_t *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out) * i);
+            total_vertices += ptr[1];
+            total_prims += ptr[2];
+         }
+
+         if (!total_vertices || !total_prims)
+            continue;
+
+         struct draw_vertex_info vinfo;
+         vinfo.verts = vbuf;
+         vinfo.vertex_size = vsize;
+         vinfo.stride = vsize;
+         vinfo.count = total_vertices;
+
+         uint32_t *prim_len = calloc(total_prims, sizeof(uint32_t));
+         for (unsigned i = 0; i < total_prims; i++)
+            prim_len[i] = shader->info.mesh.primitive_type == PIPE_PRIM_TRIANGLES ? 3 : (shader->info.mesh.primitive_type == PIPE_PRIM_LINES ? 2 : 1);
+         struct draw_prim_info prim_info = {};
+         prim_info.prim = shader->info.mesh.primitive_type;
+         prim_info.linear = true;
+         prim_info.count = total_prims;
+         prim_info.primitive_count = total_prims;
+         prim_info.primitive_lengths = prim_len;
+         draw_meshy(lp->draw, &vinfo, &prim_info);
+         free(prim_len);
       }
-
-      uint32_t total_vertices = 0;
-      uint32_t total_prims = 0;
-      for (unsigned i = 0; i < num_tasks; i++)
-      {
-         uint32_t *ptr = (uint32_t *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out) * i);
-         total_vertices += ptr[1];
-         total_prims += ptr[2];
-      }
-
-      if (!total_vertices || !total_prims)
-         continue;
-
-      struct draw_vertex_info vinfo;
-      vinfo.verts = vbuf;
-      vinfo.vertex_size = vsize;
-      vinfo.stride = vsize;
-      vinfo.count = total_vertices;
-
-      uint32_t *prim_len = calloc(total_prims, sizeof(uint32_t));
-      for (unsigned i = 0; i < total_prims; i++)
-         prim_len[i] = shader->info.mesh.primitive_type == PIPE_PRIM_TRIANGLES ? 3 : (shader->info.mesh.primitive_type == PIPE_PRIM_LINES ? 2 : 1);
-      struct draw_prim_info prim_info = {};
-      prim_info.prim = shader->info.mesh.primitive_type;
-      prim_info.linear = true;
-      prim_info.count = total_prims;
-      prim_info.primitive_count = total_prims;
-      prim_info.primitive_lengths = prim_len;
-      draw_meshy(lp->draw, &vinfo, &prim_info);
-      free(prim_len);
+      free(payload);
    }
-   free(payload);
+
 }
 
 void

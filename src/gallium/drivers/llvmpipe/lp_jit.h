@@ -376,6 +376,7 @@ typedef void
                   uint32_t grid_size_y,
                   uint32_t grid_size_z,
                   uint32_t work_dim,
+                  uint32_t draw_id,
                   struct vertex_header *io, /* mesh shader only */
                   struct lp_jit_cs_thread_data *thread_data);
 
