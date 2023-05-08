@@ -758,11 +758,19 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
          break;
       case VK_SHADER_STAGE_TASK_BIT_EXT:
          state->inlines_dirty[MESA_SHADER_TASK] = state->shaders[MESA_SHADER_TASK]->inlines.can_inline;
+         state->dispatch_info.block[0] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[0];
+         state->dispatch_info.block[1] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[1];
+         state->dispatch_info.block[2] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[2];
          if (!state->shaders[MESA_SHADER_TASK]->inlines.can_inline)
             state->pctx->bind_task_state(state->pctx, state->shaders[MESA_SHADER_TASK]->shader_cso);
          break;
       case VK_SHADER_STAGE_MESH_BIT_EXT:
          state->inlines_dirty[MESA_SHADER_MESH] = state->shaders[MESA_SHADER_MESH]->inlines.can_inline;
+         if (!(shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT)) {
+            state->dispatch_info.block[0] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[0];
+            state->dispatch_info.block[1] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[1];
+            state->dispatch_info.block[2] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[2];
+         }
          if (!state->shaders[MESA_SHADER_MESH]->inlines.can_inline)
             state->pctx->bind_mesh_state(state->pctx, state->shaders[MESA_SHADER_MESH]->shader_cso);
          break;
@@ -4163,9 +4171,6 @@ static void handle_draw_mesh_tasks(struct vk_cmd_queue_entry *cmd,
    state->dispatch_info.grid_base[1] = 0;
    state->dispatch_info.grid_base[2] = 0;
    state->dispatch_info.indirect = NULL;
-   state->dispatch_info.block[0] = 1;
-   state->dispatch_info.block[1] = 1;
-   state->dispatch_info.block[2] = 1;
    state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
@@ -4174,9 +4179,6 @@ static void handle_draw_mesh_tasks_indirect(struct vk_cmd_queue_entry *cmd,
 {
    state->dispatch_info.indirect = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_ext.buffer)->bo;
    state->dispatch_info.indirect_offset = cmd->u.draw_mesh_tasks_indirect_ext.offset;
-   state->dispatch_info.block[0] = 1;
-   state->dispatch_info.block[1] = 1;
-   state->dispatch_info.block[2] = 1;
    state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
