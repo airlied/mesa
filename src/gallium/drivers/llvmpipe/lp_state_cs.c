@@ -1943,7 +1943,7 @@ llvmpipe_create_task_state(struct pipe_context *pipe,
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
-
+   shader->req_local_mem += ((struct nir_shader *)shader->base.ir.nir)->info.shared_size;
    nir_tgsi_scan_shader(shader->base.ir.nir, &shader->info.base, false);
    list_inithead(&shader->variants.list);
 
@@ -2010,7 +2010,7 @@ llvmpipe_create_mesh_state(struct pipe_context *pipe,
    shader->base.type = templ->type;
 
    shader->base.ir.nir = templ->ir.nir;
-
+   shader->req_local_mem += ((struct nir_shader *)shader->base.ir.nir)->info.shared_size;
    nir_tgsi_scan_shader(shader->base.ir.nir, &shader->info.base, false);
    list_inithead(&shader->variants.list);
 
