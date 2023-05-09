@@ -2158,11 +2158,12 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          job_info.payload_stride = 0;
          num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         void *vbuf = CALLOC(1, vsize * shader->info.mesh.max_vertices_out * num_tasks * 128);
+         int task_vert_size = vsize * (shader->info.mesh.max_vertices_out + 8);
+         void *vbuf = CALLOC(1, task_vert_size * num_tasks);
 
          job_info.draw_id = dr;
          job_info.io = vbuf;
-         job_info.vsize = vsize * shader->info.mesh.max_vertices_out;
+         job_info.vsize = task_vert_size;
          if (num_tasks) {
             struct lp_cs_tpool_task *task;
             mtx_lock(&screen->cs_mutex);
@@ -2182,7 +2183,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
          for (unsigned i = 0; i < num_tasks; i++)
          {
-            uint32_t *ptr = (uint32_t *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out) * i);
+            uint32_t *ptr = (uint32_t *)((char *)vbuf + task_vert_size * i);
             uint32_t vertex_count = ptr[1];
             uint32_t prim_count = ptr[2];
 
@@ -2190,7 +2191,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
                continue;
 
             struct draw_vertex_info vinfo;
-            vinfo.verts = (struct vertex_header *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out * i));
+            vinfo.verts = (struct vertex_header *)ptr;
             vinfo.vertex_size = vsize;
             vinfo.stride = vsize;
             vinfo.count = vertex_count;
@@ -2202,9 +2203,10 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             for (unsigned p = 0; p < prim_count; p++) {
                struct vertex_header *vert = (struct vertex_header *)((char *)vinfo.verts + (p * vsize));
                uint32_t *prim_idxs = (uint32_t *)&vert->data[prim_out_idx];
-               for (unsigned elt = 0; elt < prim_len; elt++)
+               for (unsigned elt = 0; elt < prim_len; elt++){
                   elts[elts_idx++] = prim_idxs[elt];
-               prim_lengths[i] = prim_len;
+               }
+               prim_lengths[p] = prim_len;
             }
 
             struct draw_prim_info prim_info = {};
