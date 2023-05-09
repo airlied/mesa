@@ -1495,7 +1495,7 @@ visit_store_var(struct lp_build_nir_context *bld_base,
       bool tcs_out = bld_base->shader->info.stage == MESA_SHADER_TESS_CTRL &&
          var->data.mode == nir_var_shader_out && !var->data.patch;
       bool mesh_out = bld_base->shader->info.stage == MESA_SHADER_MESH &&
-         var->data.mode == nir_var_shader_out && !var->data.patch;
+         var->data.mode == nir_var_shader_out;
       get_deref_offset(bld_base, deref, false, NULL,
                        (tcs_out || mesh_out) ? &indir_vertex_index : NULL,
                        &const_index, &indir_index);

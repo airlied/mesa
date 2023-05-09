@@ -223,16 +223,17 @@ lp_mesh_emit_vertex_and_primitive_count(const struct lp_build_mesh_iface *mesh_i
 
 static void
 mesh_convert_to_aos(struct gallivm_state *gallivm,
-               LLVMTypeRef io_type,
-               LLVMValueRef io,
-               LLVMValueRef *indices,
-               LLVMValueRef outputs,
-               LLVMValueRef clipmask,
+                    nir_shader *nir,
+                    LLVMTypeRef io_type,
+                    LLVMValueRef io,
+                    LLVMValueRef *indices,
+                    LLVMValueRef outputs,
+                    LLVMValueRef clipmask,
                     int num_outputs,
                     LLVMValueRef vertex_index,
-               struct lp_type soa_type,
-               int primid_slot,
-               boolean need_edgeflag)
+                    struct lp_type soa_type,
+                    int primid_slot,
+                    boolean need_edgeflag)
 {
    LLVMBuilderRef builder = gallivm->builder;
    LLVMValueRef inds[3];
@@ -240,13 +241,18 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
 #if DEBUG_STORE
    lp_build_printf(gallivm, "   # storing begin\n");
 #endif
-   for (unsigned attrib = 0; attrib < num_outputs; ++attrib) {
+   nir_foreach_shader_out_variable(var, nir) {
+      int attrib = var->data.driver_location;
       LLVMValueRef soa[TGSI_NUM_CHANNELS];
       LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
       for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
          inds[0] = vertex_index;
          inds[1] = lp_build_const_int32(gallivm, attrib);
          inds[2] = lp_build_const_int32(gallivm, chan);
+
+         if (var->data.per_primitive && var->data.location != VARYING_SLOT_PRIMITIVE_INDICES) {
+            inds[0] = LLVMBuildUDiv(builder, inds[0], lp_build_const_int32(gallivm, u_vertices_per_prim(nir->info.mesh.primitive_type)), "");
+         }
 
          LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
          LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
@@ -701,7 +707,7 @@ generate_compute(struct llvmpipe_context *lp,
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
             LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, cs_type.length);
-            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, 128), "outputs");
+            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, nir->info.mesh.max_vertices_out), "outputs");
          }
 
          LLVMValueRef vertex_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "vertex_count");
@@ -766,17 +772,16 @@ generate_compute(struct llvmpipe_context *lp,
             indices = lp_build_const_int32(gallivm, 2);
             count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
             LLVMBuildStore(gallivm->builder, prim_count, count_ptr);
-
             lp_build_endif(&iter0state);
+
             lp_build_loop_begin(&vertex_loop_state, gallivm,
                                 lp_build_const_int32(gallivm, 0));
-
             int vsize = (sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float)) *  8;
             LLVMValueRef io;
             io = LLVMBuildPtrToInt(gallivm->builder, io_ptr, LLVMInt64TypeInContext(gallivm->context),  "");
             io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, LLVMBuildMul(builder, vertex_loop_state.counter, lp_build_const_int32(gallivm, vsize), ""), LLVMInt64TypeInContext(gallivm->context), ""), "");
             io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
-            mesh_convert_to_aos(gallivm, variant->jit_vertex_header_type, io, NULL, output_array, clipmask,
+            mesh_convert_to_aos(gallivm, shader->base.ir.nir, variant->jit_vertex_header_type, io, NULL, output_array, clipmask,
                                 shader->info.base.num_outputs, vertex_loop_state.counter, cs_type, -1, FALSE);
             lp_build_loop_end_cond(&vertex_loop_state,
                                    vertex_count,
