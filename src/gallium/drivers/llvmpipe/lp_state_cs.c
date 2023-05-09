@@ -26,6 +26,7 @@
 #include "util/u_memory.h"
 #include "util/os_time.h"
 #include "util/u_dump.h"
+#include "util/u_prim.h"
 #include "util/u_string.h"
 #include "tgsi/tgsi_dump.h"
 #include "tgsi/tgsi_parse.h"
@@ -749,23 +750,28 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
                                                            lp_int_type(cs_type), 0);
 
+            struct lp_build_if_state iter0state;
+            LLVMValueRef is_iter0 = LLVMBuildICmp(gallivm->builder, LLVMIntEQ, coro_idx,
+                                                  lp_build_const_int32(gallivm, 0), "");
             LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.vertex_count, "");
+            lp_build_if(&iter0state, gallivm, is_iter0);
             LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.prim_count, "");
             struct lp_build_loop_state vertex_loop_state;
 
-
-            LLVMValueRef count_ptr = LLVMBuildPtrToInt(gallivm->builder, io_ptr, i32t,  "");
+            LLVMValueRef count_ptr;
             LLVMValueRef indices = lp_build_const_int32(gallivm, 1);
+
             count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
             LLVMBuildStore(gallivm->builder, vertex_count, count_ptr);
             indices = lp_build_const_int32(gallivm, 2);
             count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
             LLVMBuildStore(gallivm->builder, prim_count, count_ptr);
 
+            lp_build_endif(&iter0state);
             lp_build_loop_begin(&vertex_loop_state, gallivm,
                                 lp_build_const_int32(gallivm, 0));
 
-            int vsize = sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float) *  8;
+            int vsize = (sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float)) *  8;
             LLVMValueRef io;
             io = LLVMBuildPtrToInt(gallivm->builder, io_ptr, LLVMInt64TypeInContext(gallivm->context),  "");
             io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, LLVMBuildMul(builder, vertex_loop_state.counter, lp_build_const_int32(gallivm, vsize), ""), LLVMInt64TypeInContext(gallivm->context), ""), "");
@@ -2135,7 +2141,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       struct nir_shader *shader =  lp->mhs->base.ir.nir;
 
       for (unsigned i = 0; i < num_mesh_invocs; i++) {
-         int vsize = sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float) * 8;
+         int vsize = (sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float)) * 8;
 
          if (payload) {
             void *this_payload = (char *)payload + (payload_stride * i);
@@ -2152,7 +2158,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          job_info.payload_stride = 0;
          num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         void *vbuf = MALLOC(vsize * shader->info.mesh.max_vertices_out * num_tasks * 8);
+         void *vbuf = CALLOC(1, vsize * shader->info.mesh.max_vertices_out * num_tasks * 128);
 
          job_info.draw_id = dr;
          job_info.io = vbuf;
@@ -2166,39 +2172,56 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
          }
 
-         uint32_t total_vertices = 0;
-         uint32_t total_prims = 0;
+         unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
+         int prim_out_idx = 0;
+         nir_foreach_shader_out_variable(var, shader) {
+            if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES)
+               break;
+            prim_out_idx++;
+         }
+
          for (unsigned i = 0; i < num_tasks; i++)
          {
             uint32_t *ptr = (uint32_t *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out) * i);
-            total_vertices += ptr[1];
-            total_prims += ptr[2];
+            uint32_t vertex_count = ptr[1];
+            uint32_t prim_count = ptr[2];
+
+            if (!vertex_count || !prim_count)
+               continue;
+
+            struct draw_vertex_info vinfo;
+            vinfo.verts = (struct vertex_header *)((char *)vbuf + (vsize * shader->info.mesh.max_vertices_out * i));
+            vinfo.vertex_size = vsize;
+            vinfo.stride = vsize;
+            vinfo.count = vertex_count;
+
+            unsigned elts_size = prim_len * prim_count;
+            unsigned short *elts = calloc(sizeof(uint16_t), elts_size);
+            uint32_t *prim_lengths = calloc(prim_count, sizeof(uint32_t));
+            int elts_idx = 0;
+            for (unsigned p = 0; p < prim_count; p++) {
+               struct vertex_header *vert = (struct vertex_header *)((char *)vinfo.verts + (p * vsize));
+               uint32_t *prim_idxs = (uint32_t *)&vert->data[prim_out_idx];
+               for (unsigned elt = 0; elt < prim_len; elt++)
+                  elts[elts_idx++] = prim_idxs[elt];
+               prim_lengths[i] = prim_len;
+            }
+
+            struct draw_prim_info prim_info = {};
+            prim_info.prim = shader->info.mesh.primitive_type;
+            prim_info.linear = false;
+            prim_info.elts = elts;
+            prim_info.count = prim_count;
+            prim_info.primitive_count = prim_count;
+            prim_info.primitive_lengths = prim_lengths;
+            draw_meshy(lp->draw, &vinfo, &prim_info);
+            free(elts);
+            free(prim_lengths);
          }
-
-         if (!total_vertices || !total_prims)
-            continue;
-
-         struct draw_vertex_info vinfo;
-         vinfo.verts = vbuf;
-         vinfo.vertex_size = vsize;
-         vinfo.stride = vsize;
-         vinfo.count = total_vertices;
-
-         uint32_t *prim_len = calloc(total_prims, sizeof(uint32_t));
-         for (unsigned i = 0; i < total_prims; i++)
-            prim_len[i] = shader->info.mesh.primitive_type == PIPE_PRIM_TRIANGLES ? 3 : (shader->info.mesh.primitive_type == PIPE_PRIM_LINES ? 2 : 1);
-         struct draw_prim_info prim_info = {};
-         prim_info.prim = shader->info.mesh.primitive_type;
-         prim_info.linear = true;
-         prim_info.count = total_prims;
-         prim_info.primitive_count = total_prims;
-         prim_info.primitive_lengths = prim_len;
-         draw_meshy(lp->draw, &vinfo, &prim_info);
-         free(prim_len);
+         free(vbuf);
       }
       free(payload);
    }
-
 }
 
 void
