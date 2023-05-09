@@ -1248,7 +1248,7 @@ mem_access_base_pointer(struct lp_build_nir_context *bld_base,
          ptr = bld->payload_ptr;
          ptr = LLVMBuildPtrToInt(gallivm->builder, ptr, bld_base->int64_bld.elem_type, "");
          ptr = LLVMBuildAdd(gallivm->builder, ptr, lp_build_const_int64(gallivm, 12), "");
-         ptr = LLVMBuildIntToPtr(gallivm->builder, ptr, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
+         ptr = LLVMBuildIntToPtr(gallivm->builder, ptr, LLVMPointerType(LLVMInt32TypeInContext(gallivm->context), 0), "");
       }
       else
          ptr = bld->shared_ptr;
@@ -1338,7 +1338,7 @@ static void emit_load_mem(struct lp_build_nir_context *bld_base,
    lp_build_if(&exec_ifthen, gallivm, loop_cond);
 
    LLVMValueRef ssbo_limit;
-   LLVMValueRef mem_ptr = mem_access_base_pointer(bld_base, load_bld, bit_size, false, index,
+   LLVMValueRef mem_ptr = mem_access_base_pointer(bld_base, load_bld, bit_size, payload, index,
                                                   loop_state.counter, &ssbo_limit);
 
    for (unsigned c = 0; c < nc; c++) {
@@ -1401,7 +1401,7 @@ static void emit_store_mem(struct lp_build_nir_context *bld_base,
     * don't use first_active_uniform(), since we aren't guaranteed that there is
     * actually an active invocation.
     */
-   if (payload || (index_and_offset_are_uniform && invocation_0_must_be_active(bld_base))) {
+   if (index_and_offset_are_uniform && invocation_0_must_be_active(bld_base)) {
       LLVMValueRef ssbo_limit;
       LLVMValueRef mem_ptr = mem_access_base_pointer(bld_base, store_bld, bit_size, payload, index,
                                                      lp_build_const_int32(gallivm, 0), &ssbo_limit);
