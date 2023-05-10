@@ -2049,7 +2049,7 @@ llvmpipe_bind_mesh_state(struct pipe_context *pipe, void *_mesh)
 
    llvmpipe->mhs = (struct lp_compute_shader *)_mesh;
 
-   draw_bind_mesh_shader(llvmpipe->draw, llvmpipe->mhs->draw_mesh_data);
+   draw_bind_mesh_shader(llvmpipe->draw, _mesh ? llvmpipe->mhs->draw_mesh_data : NULL);
    llvmpipe->dirty |= LP_NEW_MESH;
 }
 
