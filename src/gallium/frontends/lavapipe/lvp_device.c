@@ -537,6 +537,9 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       /* VK_EXT_mesh_shader */
       .taskShader = true;
       .meshShader = true;
+      .multiviewMeshShader = false;
+      .primitiveFragmentShadingRateMeshShader = false;
+      .meshShaderQueries = false;
    };
 }
 
@@ -1186,19 +1189,46 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceProperties2(
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
          VkPhysicalDeviceMeshShaderPropertiesEXT *props =
             (VkPhysicalDeviceMeshShaderPropertiesEXT *)ext;
-         props->maxTaskWorkGroupTotalCount = 1024;
-         props->maxTaskWorkGroupCount[0] = 1024;
-         props->maxTaskWorkGroupCount[1] = 1024;
-         props->maxTaskWorkGroupCount[2] = 1024;
-         props->maxMeshWorkGroupTotalCount = 1024;
-         props->maxMeshWorkGroupCount[0] = 1024;
-         props->maxMeshWorkGroupCount[1] = 1024;
-         props->maxMeshWorkGroupCount[2] = 1024;
-         props->maxMeshOutputMemorySize = 32 * 1024; /* 32K min required */
+         props->maxTaskWorkGroupTotalCount = 4194304;
+         props->maxTaskWorkGroupCount[0] = 65536;
+         props->maxTaskWorkGroupCount[1] = 65536;
+         props->maxTaskWorkGroupCount[2] = 65536;
+         props->maxTaskWorkGroupInvocations = 1024;
+         props->maxTaskWorkGroupSize[0] = 1024;
+         props->maxTaskWorkGroupSize[1] = 1024;
+         props->maxTaskWorkGroupSize[2] = 1024;
+         props->maxTaskPayloadSize = 16384;
+         props->maxTaskSharedMemorySize = 32768;
+         props->maxTaskPayloadAndSharedMemorySize = 32768;
+
+         props->maxMeshWorkGroupTotalCount = 4194304;
+         props->maxMeshWorkGroupCount[0] = 65536;
+         props->maxMeshWorkGroupCount[1] = 65536;
+         props->maxMeshWorkGroupCount[2] = 65536;
+         props->maxMeshWorkGroupInvocations = 1024;
+         props->maxMeshWorkGroupSize[0] = 1024;
+         props->maxMeshWorkGroupSize[1] = 1024;
+         props->maxMeshWorkGroupSize[2] = 1024;
+         props->maxMeshOutputMemorySize = 32768; /* 32K min required */
          props->maxMeshSharedMemorySize = 28672;     /* 28K min required */
+         props->maxMeshPayloadAndSharedMemorySize =
+            props->maxTaskPayloadSize +
+            props->maxMeshSharedMemorySize; /* 28K min required */
+         props->maxMeshPayloadAndOutputMemorySize =
+            props->maxTaskPayloadSize +
+            props->maxMeshOutputMemorySize;    /* 47K min required */
          props->maxMeshOutputComponents = 128; /* 32x vec4 min required */
          props->maxMeshOutputVertices = 256;
          props->maxMeshOutputPrimitives = 256;
+         props->maxMeshOutputLayers = 8;
+         props->meshOutputPerVertexGranularity = 1;
+         props->meshOutputPerPrimitiveGranularity = 1;
+         props->maxPreferredTaskWorkGroupInvocations = 64;
+         props->maxPreferredMeshWorkGroupInvocations = 128;
+         props->prefersLocalInvocationVertexOutput = true;
+         props->prefersLocalInvocationPrimitiveOutput = true;
+         props->prefersCompactVertexOutput = true;
+         props->prefersCompactPrimitiveOutput = false;
          break;
       }
       default:
