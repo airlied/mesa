@@ -1772,6 +1772,7 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 
 static void
 fill_grid_size(struct pipe_context *pipe,
+               int idx,
                const struct pipe_grid_info *info,
                uint32_t grid_size[3])
 {
@@ -1784,7 +1785,7 @@ fill_grid_size(struct pipe_context *pipe,
       return;
    }
    params = pipe_buffer_map_range(pipe, info->indirect,
-                                  info->indirect_offset,
+                                  (info->indirect_stride * idx) + info->indirect_offset,
                                   3 * sizeof(uint32_t),
                                   PIPE_MAP_READ,
                                   &transfer);
@@ -1814,7 +1815,7 @@ llvmpipe_launch_grid(struct pipe_context *pipe,
 
    llvmpipe_cs_update_derived(llvmpipe, info->input);
 
-   fill_grid_size(pipe, info, job_info.grid_size);
+   fill_grid_size(pipe, 0, info, job_info.grid_size);
 
    job_info.grid_base[0] = info->grid_base[0];
    job_info.grid_base[1] = info->grid_base[1];
@@ -1938,6 +1939,8 @@ lp_csctx_create(struct pipe_context *pipe)
 void
 llvmpipe_update_task_shader(struct llvmpipe_context *lp)
 {
+   if (!lp->tss)
+      return;
    struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_TASK, lp->tss);
    lp_cs_ctx_set_cs_variant(lp->task_ctx, variant);
 }
@@ -2005,9 +2008,12 @@ llvmpipe_init_task_funcs(struct llvmpipe_context *llvmpipe)
 void
 llvmpipe_update_mesh_shader(struct llvmpipe_context *lp)
 {
+   if (!lp->mhs)
+      return;
    struct lp_compute_shader_variant *variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_MESH, lp->mhs);
    lp_cs_ctx_set_cs_variant(lp->mesh_ctx, variant);
 }
+
 static void *
 llvmpipe_create_mesh_state(struct pipe_context *pipe,
                            const struct pipe_shader_state *templ)
@@ -2105,7 +2111,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
    }
 
    for (unsigned dr = 0; dr < draw_count; dr++) {
-      fill_grid_size(pipe, info, job_info.grid_size);
+      fill_grid_size(pipe, dr, info, job_info.grid_size);
 
       job_info.grid_base[0] = info->grid_base[0];
       job_info.grid_base[1] = info->grid_base[1];
@@ -2156,6 +2162,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             job_info.grid_size[1] = payload_grid[1];
             job_info.grid_size[2] = payload_grid[2];
             job_info.payload = this_payload;
+            job_info.block_size[0] = shader->info.workgroup_size[0];
+            job_info.block_size[1] = shader->info.workgroup_size[1];
+            job_info.block_size[2] = shader->info.workgroup_size[2];
          }
 
          job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
