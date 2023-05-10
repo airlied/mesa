@@ -639,14 +639,6 @@ draw_meshy(struct draw_context *draw,
            struct draw_vertex_info *vert_info,
            struct draw_prim_info *prim_info)
 {
-   unsigned opt = PT_SHADE | PT_PIPELINE;
-
-   if ((draw->clip_xy ||
-        draw->clip_z ||
-        draw->clip_user) && !draw->pt.test_fse) {
-      opt |= PT_CLIPTEST;
-   }
-
    struct draw_pt_middle_end *middle = draw->pt.middle.mesh;
 
    middle->prepare(middle, 0, 0, NULL);

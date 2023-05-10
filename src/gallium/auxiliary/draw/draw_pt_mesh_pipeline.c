@@ -57,7 +57,7 @@ draw_mesh_middle_end_run(struct draw_pt_middle_end *middle,
 
    boolean clipped = draw_pt_post_vs_run(mpme->post_vs, vert_info, prim_info);
 
-   draw_pipeline_run(mpme->draw, vert_info, prim_info);
+   draw_pipeline_run_linear(mpme->draw, vert_info, prim_info);
 }
 
 struct draw_pt_middle_end *
