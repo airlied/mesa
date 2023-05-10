@@ -2223,8 +2223,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          }
 
          unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
-         int prim_out_idx = 0;
+         int prim_out_idx = -1;
          int first_per_prim_idx = -1;
+         int cull_prim_idx = -1;
          nir_foreach_shader_out_variable(var, shader) {
             if (var->data.per_primitive) {
                first_per_prim_idx = var->data.driver_location;
@@ -2234,6 +2235,12 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          nir_foreach_shader_out_variable(var, shader) {
             if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES) {
                prim_out_idx = var->data.driver_location;
+               break;
+            }
+         }
+         nir_foreach_shader_out_variable(var, shader) {
+            if (var->data.location == VARYING_SLOT_CULL_PRIMITIVE) {
+               cull_prim_idx = var->data.driver_location;
                break;
             }
          }
@@ -2279,6 +2286,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             draw_mesh_prim_run(lp->draw,
                                per_prim_count,
                                prim_ptr,
+                               cull_prim_idx - first_per_prim_idx,
                                &prim_info,
                                &vinfo,
                                &prim_out,

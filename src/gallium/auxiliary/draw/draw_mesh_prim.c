@@ -49,6 +49,7 @@ struct draw_mesh_prim
    const char *per_prim;
    uint32_t num_per_prim;
    uint32_t added_prim_size;
+   int cull_prim_idx;
 };
 
 static void
@@ -91,6 +92,19 @@ copy_verts(struct draw_mesh_prim *asmblr,
    ++asmblr->num_prims;
 }
 
+static bool
+cull_prim(struct draw_mesh_prim *asmblr)
+{
+   if (asmblr->cull_prim_idx == -1)
+      return false;
+
+   const uint32_t *cull_prim_ptr = (uint32_t *)(asmblr->per_prim + (asmblr->num_prims * asmblr->added_prim_size * 8));
+   cull_prim_ptr += (asmblr->cull_prim_idx * 4);
+
+   return (*cull_prim_ptr) ? true : false;
+}
+
+
 static void
 prim_point(struct draw_mesh_prim *asmblr,
            unsigned idx)
@@ -99,6 +113,10 @@ prim_point(struct draw_mesh_prim *asmblr,
 
    indices[0] = idx;
 
+   if (cull_prim(asmblr)) {
+      ++asmblr->num_prims;
+      return;
+   }
    add_prim(asmblr, 1);
    copy_verts(asmblr, indices, 1);
 }
@@ -113,6 +131,10 @@ prim_line(struct draw_mesh_prim *asmblr,
    indices[0] = i0;
    indices[1] = i1;
 
+   if (cull_prim(asmblr)) {
+      ++asmblr->num_prims;
+      return;
+   }
    add_prim(asmblr, 2);
    copy_verts(asmblr, indices, 2);
 }
@@ -128,6 +150,10 @@ prim_tri(struct draw_mesh_prim *asmblr,
    indices[1] = i1;
    indices[2] = i2;
 
+   if (cull_prim(asmblr)) {
+      ++asmblr->num_prims;
+      return;
+   }
    add_prim(asmblr, 3);
    copy_verts(asmblr, indices, 3);
 }
@@ -154,6 +180,7 @@ void
 draw_mesh_prim_run(struct draw_context *draw,
                    unsigned num_per_prim_inputs,
                    void *per_prim_inputs,
+                   int cull_prim_idx,
                    const struct draw_prim_info *input_prims,
                    const struct draw_vertex_info *input_verts,
                    struct draw_prim_info *output_prims,
@@ -172,6 +199,7 @@ draw_mesh_prim_run(struct draw_context *draw,
    asmblr->num_prims = 0;
    asmblr->num_per_prim = num_per_prim_inputs;
    asmblr->per_prim = per_prim_inputs;
+   asmblr->cull_prim_idx = cull_prim_idx;
 
    output_prims->linear = TRUE;
    output_prims->elts = NULL;
@@ -184,7 +212,7 @@ draw_mesh_prim_run(struct draw_context *draw,
 
    asmblr->added_prim_size = asmblr->num_per_prim * (4 * sizeof(float));
    output_verts->vertex_size = input_verts->vertex_size + asmblr->added_prim_size;
-   output_verts->stride = input_verts->stride + asmblr->added_prim_size;
+   output_verts->stride = output_verts->vertex_size;
    output_verts->verts = (struct vertex_header*)MALLOC(
       output_verts->vertex_size * max_verts);
    output_verts->count = 0;
