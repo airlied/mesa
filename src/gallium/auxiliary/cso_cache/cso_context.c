@@ -74,6 +74,7 @@ struct cso_context {
    boolean has_geometry_shader;
    boolean has_tessellation;
    boolean has_compute_shader;
+   boolean has_task_mesh_shader;
    boolean has_streamout;
 
    uint32_t max_fs_samplerviews : 16;
@@ -328,6 +329,10 @@ cso_create_context(struct pipe_context *pipe, unsigned flags)
          ctx->has_compute_shader = TRUE;
       }
    }
+   if (pipe->screen->get_shader_param(pipe->screen, PIPE_SHADER_MESH,
+                                PIPE_SHADER_CAP_MAX_INSTRUCTIONS) > 0) {
+      ctx->has_task_mesh_shader = TRUE;
+   }
    if (pipe->screen->get_param(pipe->screen,
                                PIPE_CAP_MAX_STREAM_OUTPUT_BUFFERS) != 0) {
       ctx->has_streamout = TRUE;
@@ -380,6 +385,10 @@ cso_unbind_context(struct cso_context *ctx)
                if (!ctx->has_compute_shader)
                   continue;
                break;
+            case PIPE_SHADER_MESH:
+            case PIPE_SHADER_TASK:
+               if (!ctx->has_task_mesh_shader)
+                  continue;
             default:
                break;
             }
@@ -433,6 +442,10 @@ cso_unbind_context(struct cso_context *ctx)
       }
       if (ctx->has_compute_shader) {
          ctx->base.pipe->bind_compute_state(ctx->base.pipe, NULL);
+      }
+      if (ctx->has_task_mesh_shader) {
+         ctx->base.pipe->bind_task_state(ctx->base.pipe, NULL);
+         ctx->base.pipe->bind_mesh_state(ctx->base.pipe, NULL);
       }
       ctx->base.pipe->bind_vertex_elements_state(ctx->base.pipe, NULL);
 
