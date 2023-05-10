@@ -56,6 +56,7 @@
 #include "nir_serialize.h"
 
 #include "draw/draw_llvm.h"
+#include "draw/draw_mesh_prim.h"
 
 /** Fragment shader number (for debugging) */
 static unsigned cs_no = 0;
@@ -72,7 +73,7 @@ struct lp_cs_job_info {
    bool zero_initialize_shared_memory;
    struct lp_cs_exec *current;
    struct vertex_header *io;
-   uint32_t vsize;
+   uint32_t io_stride;
    void *payload;
    uint32_t payload_stride;
 };
@@ -224,12 +225,11 @@ lp_mesh_emit_vertex_and_primitive_count(const struct lp_build_mesh_iface *mesh_i
 static void
 mesh_convert_to_aos(struct gallivm_state *gallivm,
                     nir_shader *nir,
+                    bool vert_only,
                     LLVMTypeRef io_type,
                     LLVMValueRef io,
-                    LLVMValueRef *indices,
                     LLVMValueRef outputs,
                     LLVMValueRef clipmask,
-                    int num_outputs,
                     LLVMValueRef vertex_index,
                     struct lp_type soa_type,
                     int primid_slot,
@@ -241,18 +241,27 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
 #if DEBUG_STORE
    lp_build_printf(gallivm, "   # storing begin\n");
 #endif
+   int first_per_prim_attrib = -1;
    nir_foreach_shader_out_variable(var, nir) {
+      if (var->data.per_primitive) {
+         first_per_prim_attrib = var->data.driver_location;
+         break;
+      }
+   }
+   nir_foreach_shader_out_variable(var, nir) {
+
+      if (vert_only && var->data.per_primitive)
+         continue;
+      if (!vert_only && !var->data.per_primitive)
+         continue;
       int attrib = var->data.driver_location;
+
       LLVMValueRef soa[TGSI_NUM_CHANNELS];
       LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
       for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
          inds[0] = vertex_index;
          inds[1] = lp_build_const_int32(gallivm, attrib);
          inds[2] = lp_build_const_int32(gallivm, chan);
-
-         if (var->data.per_primitive && var->data.location != VARYING_SLOT_PRIMITIVE_INDICES) {
-            inds[0] = LLVMBuildUDiv(builder, inds[0], lp_build_const_int32(gallivm, u_vertices_per_prim(nir->info.mesh.primitive_type)), "");
-         }
 
          LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
          LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
@@ -288,16 +297,17 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
          }
       }
 
+      if (var->data.per_primitive)
+         attrib -= first_per_prim_attrib;
       draw_store_aos_array(gallivm,
-                      soa_type,
-                      io_type,
-                      io,
-                      indices,
-                      aos,
-                      attrib,
-                      num_outputs,
-                      clipmask,
-                      need_edgeflag);
+                           soa_type,
+                           io_type,
+                           io,
+                           NULL,
+                           aos,
+                           attrib,
+                           clipmask,
+                           need_edgeflag, var->data.per_primitive);
    }
 #if DEBUG_STORE
 lp_build_printf(gallivm, "   # storing end\n");
@@ -760,9 +770,9 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMValueRef is_iter0 = LLVMBuildICmp(gallivm->builder, LLVMIntEQ, coro_idx,
                                                   lp_build_const_int32(gallivm, 0), "");
             LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.vertex_count, "");
-            lp_build_if(&iter0state, gallivm, is_iter0);
             LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.prim_count, "");
-            struct lp_build_loop_state vertex_loop_state;
+
+            lp_build_if(&iter0state, gallivm, is_iter0);
 
             LLVMValueRef count_ptr;
             LLVMValueRef indices = lp_build_const_int32(gallivm, 1);
@@ -774,20 +784,41 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMBuildStore(gallivm->builder, prim_count, count_ptr);
             lp_build_endif(&iter0state);
 
+            nir_shader *nir = shader->base.ir.nir;
+            int per_prim_count = util_bitcount64(nir->info.per_primitive_outputs);
+            int out_count = util_bitcount64(nir->info.outputs_written);
+            int per_vert_count = out_count - per_prim_count;
+            int vsize = (sizeof(struct vertex_header) + per_vert_count * 4 * sizeof(float)) * 8;
+            int psize = (per_prim_count * 4 * sizeof(float)) * 8;
+            struct lp_build_loop_state vertex_loop_state;
+
             lp_build_loop_begin(&vertex_loop_state, gallivm,
                                 lp_build_const_int32(gallivm, 0));
-            int vsize = (sizeof(struct vertex_header) + shader->info.base.num_outputs  * 4 * sizeof(float)) *  8;
             LLVMValueRef io;
             io = LLVMBuildPtrToInt(gallivm->builder, io_ptr, LLVMInt64TypeInContext(gallivm->context),  "");
             io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, LLVMBuildMul(builder, vertex_loop_state.counter, lp_build_const_int32(gallivm, vsize), ""), LLVMInt64TypeInContext(gallivm->context), ""), "");
             io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
-            mesh_convert_to_aos(gallivm, shader->base.ir.nir, variant->jit_vertex_header_type, io, NULL, output_array, clipmask,
-                                shader->info.base.num_outputs, vertex_loop_state.counter, cs_type, -1, FALSE);
+            mesh_convert_to_aos(gallivm, shader->base.ir.nir, true, variant->jit_vertex_header_type,
+                                io, output_array, clipmask,
+                                vertex_loop_state.counter, cs_type, -1, FALSE);
             lp_build_loop_end_cond(&vertex_loop_state,
                                    vertex_count,
                                    NULL,  LLVMIntUGE);
 
-
+            struct lp_build_loop_state prim_loop_state;
+            lp_build_loop_begin(&prim_loop_state, gallivm,
+                                lp_build_const_int32(gallivm, 0));
+            io = LLVMBuildPtrToInt(gallivm->builder, io_ptr, LLVMInt64TypeInContext(gallivm->context),  "");
+            LLVMValueRef prim_offset = LLVMBuildMul(builder, prim_loop_state.counter, lp_build_const_int32(gallivm, psize), "");
+            prim_offset = LLVMBuildAdd(builder, prim_offset, lp_build_const_int32(gallivm, vsize * (nir->info.mesh.max_vertices_out + 8)), "");
+            io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, prim_offset, LLVMInt64TypeInContext(gallivm->context), ""), "");
+            io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
+            mesh_convert_to_aos(gallivm, shader->base.ir.nir, false, variant->jit_vertex_header_type,
+                                io, output_array, clipmask,
+                                prim_loop_state.counter, cs_type, -1, FALSE);
+            lp_build_loop_end_cond(&prim_loop_state,
+                                   prim_count,
+                                   NULL,  LLVMIntUGE);
          }
       }
 
@@ -1756,7 +1787,7 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 
    void *io_ptr = NULL;
    if (job_info->io) {
-      io_ptr = (char *)job_info->io + (iter_idx * (job_info->vsize));
+      io_ptr = (char *)job_info->io + (iter_idx * (job_info->io_stride));
    }
    if (thread_data.payload)
       thread_data.payload = (char *)thread_data.payload + iter_idx * job_info->payload_stride;
@@ -2150,10 +2181,15 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          num_mesh_invocs = num_tasks;
       }
       struct nir_shader *shader =  lp->mhs->base.ir.nir;
+      int per_prim_count = util_bitcount64(shader->info.per_primitive_outputs);
+      int out_count = util_bitcount64(shader->info.outputs_written);
+      int per_vert_count = out_count - per_prim_count;
+      int vsize = (sizeof(struct vertex_header) + per_vert_count * 4 * sizeof(float)) * 8;
+      int psize = (per_prim_count * 4 * sizeof(float)) * 8;
+      int prim_offset = vsize * (shader->info.mesh.max_vertices_out + 8);
+      size_t task_out_size = prim_offset + psize * (shader->info.mesh.max_primitives_out + 8);
 
       for (unsigned i = 0; i < num_mesh_invocs; i++) {
-         int vsize = (sizeof(struct vertex_header) + lp->mhs->info.base.num_outputs * 4 * sizeof(float)) * 8;
-
          if (payload) {
             void *this_payload = (char *)payload + (payload_stride * i);
             uint32_t *payload_grid = (uint32_t *)this_payload;
@@ -2172,12 +2208,11 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          job_info.payload_stride = 0;
          num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         size_t task_vert_size = vsize * (shader->info.mesh.max_vertices_out + 8);
-         void *vbuf = CALLOC(1, task_vert_size * num_tasks);
+         void *vbuf = CALLOC(1, task_out_size * num_tasks);
 
          job_info.draw_id = dr;
          job_info.io = vbuf;
-         job_info.vsize = task_vert_size;
+         job_info.io_stride = task_out_size;
          if (num_tasks) {
             struct lp_cs_tpool_task *task;
             mtx_lock(&screen->cs_mutex);
@@ -2189,15 +2224,23 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
          unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
          int prim_out_idx = 0;
+         int first_per_prim_idx = -1;
          nir_foreach_shader_out_variable(var, shader) {
-            if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES)
+            if (var->data.per_primitive) {
+               first_per_prim_idx = var->data.driver_location;
                break;
-            prim_out_idx++;
+            }
+         }
+         nir_foreach_shader_out_variable(var, shader) {
+            if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES) {
+               prim_out_idx = var->data.driver_location;
+               break;
+            }
          }
 
          for (unsigned i = 0; i < num_tasks; i++)
          {
-            uint32_t *ptr = (uint32_t *)((char *)vbuf + task_vert_size * i);
+            uint32_t *ptr = (uint32_t *)((char *)vbuf + task_out_size * i);
             uint32_t vertex_count = ptr[1];
             uint32_t prim_count = ptr[2];
 
@@ -2214,9 +2257,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             unsigned short *elts = calloc(sizeof(uint16_t), elts_size);
             uint32_t *prim_lengths = calloc(prim_count, sizeof(uint32_t));
             int elts_idx = 0;
+            char *prim_ptr = (char *)ptr + prim_offset;
             for (unsigned p = 0; p < prim_count; p++) {
-               struct vertex_header *vert = (struct vertex_header *)((char *)vinfo.verts + (p * vsize));
-               uint32_t *prim_idxs = (uint32_t *)&vert->data[prim_out_idx];
+               uint32_t *prim_idxs = (uint32_t *)(prim_ptr + p * psize + (prim_out_idx - first_per_prim_idx) * 4 * sizeof(float));
                for (unsigned elt = 0; elt < prim_len; elt++){
                   elts[elts_idx++] = prim_idxs[elt];
                }
@@ -2230,7 +2273,18 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             prim_info.count = prim_count;
             prim_info.primitive_count = prim_count;
             prim_info.primitive_lengths = prim_lengths;
-            draw_meshy(lp->draw, &vinfo, &prim_info);
+
+            struct draw_vertex_info vert_out = {};
+            struct draw_prim_info prim_out = {};
+            draw_mesh_prim_run(lp->draw,
+                               per_prim_count,
+                               prim_ptr,
+                               &prim_info,
+                               &vinfo,
+                               &prim_out,
+                               &vert_out);
+            draw_meshy(lp->draw, &vert_out, &prim_out);
+            free(vert_out.verts);
             free(elts);
             free(prim_lengths);
          }
