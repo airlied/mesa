@@ -2172,7 +2172,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          job_info.payload_stride = 0;
          num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         int task_vert_size = vsize * (shader->info.mesh.max_vertices_out + 8);
+         size_t task_vert_size = vsize * (shader->info.mesh.max_vertices_out + 8);
          void *vbuf = CALLOC(1, task_vert_size * num_tasks);
 
          job_info.draw_id = dr;
