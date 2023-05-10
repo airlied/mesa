@@ -2240,7 +2240,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          }
          nir_foreach_shader_out_variable(var, shader) {
             if (var->data.location == VARYING_SLOT_CULL_PRIMITIVE) {
-               cull_prim_idx = var->data.driver_location;
+               cull_prim_idx = var->data.driver_location - first_per_prim_idx;
                break;
             }
          }
@@ -2286,14 +2286,16 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             draw_mesh_prim_run(lp->draw,
                                per_prim_count,
                                prim_ptr,
-                               cull_prim_idx - first_per_prim_idx,
+                               cull_prim_idx,
                                &prim_info,
                                &vinfo,
                                &prim_out,
                                &vert_out);
             free(elts);
             free(prim_lengths);
+
             draw_meshy(lp->draw, &vert_out, &prim_out);
+
             free(vert_out.verts);
             free(prim_out.primitive_lengths);
          }
