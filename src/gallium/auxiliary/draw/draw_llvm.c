@@ -796,15 +796,18 @@ store_aos(struct gallivm_state *gallivm,
       num_indices = 3;
    } else {
       data_ptr = io_ptr;
-      data_type = lp_build_vec_type(gallivm, lp_float32_vec4_type());
-      num_indices = 2;
+      data_type = LLVMArrayType(lp_build_vec_type(gallivm, lp_float32_vec4_type()), 80);
+      num_indices = 3;
    }
 
    data_ptr = LLVMBuildGEP2(builder, data_type, data_ptr, indices, num_indices, "");
    data_ptr = LLVMBuildPointerCast(builder, data_ptr, data_ptr_type, "");
 
 #if DEBUG_STORE
-   lp_build_printf(gallivm, "    ---- %p storing attribute %d (io = %p)\n", data_ptr, index, io_ptr);
+   if (is_per_prim)
+      lp_build_printf(gallivm, "    ---- %p storing prim attribute %d (io = %p)\n", data_ptr, index, io_ptr);
+   else
+      lp_build_printf(gallivm, "    ---- %p storing attribute %d (io = %p)\n", data_ptr, index, io_ptr);
 #endif
 
    /* Unaligned store due to the vertex header */

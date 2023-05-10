@@ -2283,10 +2283,11 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
                                &vinfo,
                                &prim_out,
                                &vert_out);
-            draw_meshy(lp->draw, &vert_out, &prim_out);
-            free(vert_out.verts);
             free(elts);
             free(prim_lengths);
+            draw_meshy(lp->draw, &vert_out, &prim_out);
+            free(vert_out.verts);
+            free(prim_out.primitive_lengths);
          }
          free(vbuf);
       }

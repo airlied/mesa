@@ -84,7 +84,7 @@ copy_verts(struct draw_mesh_prim *asmblr,
              asmblr->input_verts->vertex_size);
 
       memcpy(output + output_offset + asmblr->input_verts->vertex_size,
-             asmblr->per_prim + asmblr->num_prims * asmblr->added_prim_size,
+             asmblr->per_prim + (asmblr->num_prims * asmblr->added_prim_size * 8),
              asmblr->added_prim_size);
       asmblr->output_verts->count += 1;
    }
@@ -162,8 +162,7 @@ draw_mesh_prim_run(struct draw_context *draw,
    struct draw_mesh_prim asmblr_mesh;
    struct draw_mesh_prim *asmblr = &asmblr_mesh;
    unsigned start, i;
-   unsigned max_primitives = u_decomposed_prims_for_vertices(
-      input_prims->prim, input_verts->count);
+   unsigned max_primitives = input_prims->primitive_count;
    unsigned max_verts = u_vertices_per_prim(input_prims->prim) * max_primitives;
 
    asmblr->output_prims = output_prims;
