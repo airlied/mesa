@@ -2256,7 +2256,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
             struct draw_vertex_info vinfo;
             vinfo.verts = (struct vertex_header *)ptr;
-            vinfo.vertex_size = vsize;
+            vinfo.vertex_size = vsize / 8;
             vinfo.stride = vsize;
             vinfo.count = vertex_count;
 
