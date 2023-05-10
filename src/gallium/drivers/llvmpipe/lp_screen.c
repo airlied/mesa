@@ -393,6 +393,11 @@ llvmpipe_get_shader_param(struct pipe_screen *screen,
                  (1 << PIPE_SHADER_IR_NIR) |
                  (1 << PIPE_SHADER_IR_NIR_SERIALIZED));
       FALLTHROUGH;
+   case PIPE_SHADER_MESH:
+   case PIPE_SHADER_TASK:
+      if (lscreen->use_tgsi)
+         return 0;
+      FALLTHROUGH;
    case PIPE_SHADER_FRAGMENT:
       if (param == PIPE_SHADER_CAP_PREFERRED_IR) {
          if (lscreen->use_tgsi)
