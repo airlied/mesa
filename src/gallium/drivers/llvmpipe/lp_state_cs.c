@@ -2229,7 +2229,7 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
          }
          if (!lp->queries_disabled)
-            lp->pipeline_statistics.ms_invocations += num_tasks * info->block[0] * info->block[1] * info->block[2];
+            lp->pipeline_statistics.ms_invocations += num_tasks * job_info.block_size[0] * job_info.block_size[1] * job_info.block_size[2];
 
          unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
          int prim_out_idx = -1;
