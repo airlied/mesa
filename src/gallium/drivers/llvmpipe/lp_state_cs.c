@@ -2183,6 +2183,8 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
             lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
          }
+         if (!lp->queries_disabled)
+            lp->pipeline_statistics.ts_invocations += num_tasks * info->block[0] * info->block[1] * info->block[2];
          num_mesh_invocs = num_tasks;
       }
       struct nir_shader *shader =  lp->mhs->base.ir.nir;
@@ -2226,6 +2228,8 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
 
             lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
          }
+         if (!lp->queries_disabled)
+            lp->pipeline_statistics.ms_invocations += num_tasks * info->block[0] * info->block[1] * info->block[2];
 
          unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
          int prim_out_idx = -1;
@@ -2299,6 +2303,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             free(elts);
             free(prim_lengths);
 
+            draw_collect_primitives_generated(lp->draw,
+                                              lp->active_primgen_queries &&
+                                              !lp->queries_disabled);
             draw_meshy(lp->draw, &vert_out, &prim_out);
 
             free(vert_out.verts);

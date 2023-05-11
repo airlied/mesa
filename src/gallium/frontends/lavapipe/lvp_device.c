@@ -539,7 +539,7 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .meshShader = true;
       .multiviewMeshShader = false;
       .primitiveFragmentShadingRateMeshShader = false;
-      .meshShaderQueries = false;
+      .meshShaderQueries = true;
    };
 }
 

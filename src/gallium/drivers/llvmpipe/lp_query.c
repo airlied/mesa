@@ -345,6 +345,12 @@ llvmpipe_get_query_result_resource(struct pipe_context *pipe,
          case PIPE_STAT_QUERY_CS_INVOCATIONS:
             value = pq->stats.cs_invocations;
             break;
+         case PIPE_STAT_QUERY_TS_INVOCATIONS:
+            value = pq->stats.ts_invocations;
+            break;
+         case PIPE_STAT_QUERY_MS_INVOCATIONS:
+            value = pq->stats.ms_invocations;
+            break;
          }
          break;
       default:
@@ -514,6 +520,10 @@ llvmpipe_end_query(struct pipe_context *pipe, struct pipe_query *q)
          llvmpipe->pipeline_statistics.hs_invocations - pq->stats.hs_invocations;
       pq->stats.ds_invocations =
          llvmpipe->pipeline_statistics.ds_invocations - pq->stats.ds_invocations;
+      pq->stats.ts_invocations =
+         llvmpipe->pipeline_statistics.ts_invocations - pq->stats.ts_invocations;
+      pq->stats.ms_invocations =
+         llvmpipe->pipeline_statistics.ms_invocations - pq->stats.ms_invocations;
       llvmpipe->active_statistics_queries--;
       break;
    case PIPE_QUERY_OCCLUSION_COUNTER:
