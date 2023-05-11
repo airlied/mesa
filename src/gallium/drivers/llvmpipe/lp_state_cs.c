@@ -255,59 +255,63 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
       if (!vert_only && !var->data.per_primitive)
          continue;
       int attrib = var->data.driver_location;
+      int slots = glsl_count_attribute_slots(glsl_get_array_element(var->type), false);
 
-      LLVMValueRef soa[TGSI_NUM_CHANNELS];
-      LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
-      for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
-         inds[0] = vertex_index;
-         inds[1] = lp_build_const_int32(gallivm, attrib);
-         inds[2] = lp_build_const_int32(gallivm, chan);
+      for (unsigned i = 0; i < slots; i++) {
+         LLVMValueRef soa[TGSI_NUM_CHANNELS];
+         LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
+         for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
+            inds[0] = vertex_index;
+            inds[1] = lp_build_const_int32(gallivm, attrib);
+            inds[2] = lp_build_const_int32(gallivm, chan);
 
-         LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
-         LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
-         LLVMValueRef out = LLVMBuildLoad2(builder, single_type, res, "");
-         lp_build_name(out, "output%u.%c", attrib, "xyzw"[chan]);
+            LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
+            LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
+            LLVMValueRef out = LLVMBuildLoad2(builder, single_type, res, "");
+            lp_build_name(out, "output%u.%c", attrib, "xyzw"[chan]);
 #if DEBUG_STORE
-         lp_build_printf(gallivm, "output %d : %d ",
-                         LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
-                                      attrib, 0),
-                         LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
-                                      chan, 0));
-         lp_build_print_value(gallivm, "val = ", out);
-         {
-            LLVMValueRef iv =
-               LLVMBuildBitCast(builder, out, lp_build_int_vec_type(gallivm, soa_type), "");
+            lp_build_printf(gallivm, "output %d : %d ",
+                            LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
+                                         attrib, 0),
+                            LLVMConstInt(LLVMInt32TypeInContext(gallivm->context),
+                                         chan, 0));
+            lp_build_print_value(gallivm, "val = ", out);
+            {
+               LLVMValueRef iv =
+                  LLVMBuildBitCast(builder, out, lp_build_int_vec_type(gallivm, soa_type), "");
 
-            lp_build_print_value(gallivm, "  ival = ", iv);
-         }
+               lp_build_print_value(gallivm, "  ival = ", iv);
+            }
 #endif
-         soa[chan] = out;
-      }
-
-      if (soa_type.length == TGSI_NUM_CHANNELS) {
-         lp_build_transpose_aos(gallivm, soa_type, soa, aos);
-      } else {
-         lp_build_transpose_aos(gallivm, soa_type, soa, soa);
-
-         for (unsigned i = 0; i < soa_type.length; ++i) {
-            aos[i] = lp_build_extract_range(gallivm,
-                                            soa[i % TGSI_NUM_CHANNELS],
-                                            (i / TGSI_NUM_CHANNELS) * TGSI_NUM_CHANNELS,
-                                            TGSI_NUM_CHANNELS);
+            soa[chan] = out;
          }
-      }
 
-      if (var->data.per_primitive)
-         attrib -= first_per_prim_attrib;
-      draw_store_aos_array(gallivm,
-                           soa_type,
-                           io_type,
-                           io,
-                           NULL,
-                           aos,
-                           attrib,
-                           clipmask,
-                           need_edgeflag, var->data.per_primitive);
+         if (soa_type.length == TGSI_NUM_CHANNELS) {
+            lp_build_transpose_aos(gallivm, soa_type, soa, aos);
+         } else {
+            lp_build_transpose_aos(gallivm, soa_type, soa, soa);
+
+            for (unsigned i = 0; i < soa_type.length; ++i) {
+               aos[i] = lp_build_extract_range(gallivm,
+                                               soa[i % TGSI_NUM_CHANNELS],
+                                               (i / TGSI_NUM_CHANNELS) * TGSI_NUM_CHANNELS,
+                                               TGSI_NUM_CHANNELS);
+            }
+         }
+
+         if (var->data.per_primitive)
+            attrib -= first_per_prim_attrib;
+         draw_store_aos_array(gallivm,
+                              soa_type,
+                              io_type,
+                              io,
+                              NULL,
+                              aos,
+                              attrib,
+                              clipmask,
+                              need_edgeflag, var->data.per_primitive);
+         attrib++;
+      }
    }
 #if DEBUG_STORE
 lp_build_printf(gallivm, "   # storing end\n");

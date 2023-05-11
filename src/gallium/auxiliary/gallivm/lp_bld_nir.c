@@ -1338,16 +1338,16 @@ get_deref_offset(struct lp_build_nir_context *bld_base, nir_deref_instr *instr,
       } else if (path.path[idx_lvl]->deref_type == nir_deref_type_array) {
          unsigned size = glsl_count_attribute_slots(path.path[idx_lvl]->type, vs_in);
          if (nir_src_is_const(path.path[idx_lvl]->arr.index)) {
-           const_offset += nir_src_comp_as_int(path.path[idx_lvl]->arr.index, 0) * size;
+            const_offset += nir_src_comp_as_int(path.path[idx_lvl]->arr.index, 0) * size;
          } else {
-           LLVMValueRef idx_src = get_src(bld_base, path.path[idx_lvl]->arr.index);
-           idx_src = cast_type(bld_base, idx_src, nir_type_uint, 32);
-           LLVMValueRef array_off = lp_build_mul(&bld_base->uint_bld, lp_build_const_int_vec(bld_base->base.gallivm, bld_base->base.type, size),
-                                               idx_src);
-           if (offset)
-             offset = lp_build_add(&bld_base->uint_bld, offset, array_off);
-           else
-             offset = array_off;
+            LLVMValueRef idx_src = get_src(bld_base, path.path[idx_lvl]->arr.index);
+            idx_src = cast_type(bld_base, idx_src, nir_type_uint, 32);
+            LLVMValueRef array_off = lp_build_mul(&bld_base->uint_bld, lp_build_const_int_vec(bld_base->base.gallivm, bld_base->base.type, size),
+                                                  idx_src);
+            if (offset)
+               offset = lp_build_add(&bld_base->uint_bld, offset, array_off);
+            else
+               offset = array_off;
          }
       } else
          unreachable("Uhandled deref type in get_deref_instr_offset");
@@ -1486,7 +1486,7 @@ visit_store_var(struct lp_build_nir_context *bld_base,
    nir_variable *var = nir_deref_instr_get_variable(deref);
    assert(util_bitcount(deref->modes) == 1);
    nir_variable_mode mode = deref->modes;
-   int writemask = instr->const_index[0];
+   int writemask = nir_intrinsic_write_mask(instr);
    unsigned bit_size = nir_src_bit_size(instr->src[1]);
    LLVMValueRef src = get_src(bld_base, instr->src[1]);
    unsigned const_index = 0;
