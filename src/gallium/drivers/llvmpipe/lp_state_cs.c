@@ -299,15 +299,16 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
             }
          }
 
+         int aos_attrib = attrib;
          if (var->data.per_primitive)
-            attrib -= first_per_prim_attrib;
+            aos_attrib -= first_per_prim_attrib;
          draw_store_aos_array(gallivm,
                               soa_type,
                               io_type,
                               io,
                               NULL,
                               aos,
-                              attrib,
+                              aos_attrib,
                               clipmask,
                               need_edgeflag, var->data.per_primitive);
          attrib++;
