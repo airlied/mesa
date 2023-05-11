@@ -61,6 +61,8 @@ draw_so_info(const struct draw_context *draw)
 {
    const struct pipe_stream_output_info *state = NULL;
 
+   if (draw->ms.mesh_shader)
+      return state;
    if (draw->gs.geometry_shader) {
       state = &draw->gs.geometry_shader->state.stream_output;
    } else if (draw->tes.tess_eval_shader) {
