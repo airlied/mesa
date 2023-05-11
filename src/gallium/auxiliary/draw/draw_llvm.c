@@ -796,7 +796,7 @@ store_aos(struct gallivm_state *gallivm,
       num_indices = 3;
    } else {
       data_ptr = io_ptr;
-      data_type = LLVMArrayType(lp_build_vec_type(gallivm, lp_float32_vec4_type()), 80);
+      data_type = io_type;
       num_indices = 3;
    }
 
