@@ -717,7 +717,7 @@ generate_compute(struct llvmpipe_context *lp,
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
             LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, cs_type.length);
-            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, nir->info.mesh.max_vertices_out), "outputs");
+            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, align(MAX2(nir->info.mesh.max_primitives_out, nir->info.mesh.max_vertices_out), 8)), "outputs");
          }
 
          LLVMValueRef vertex_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "vertex_count");
