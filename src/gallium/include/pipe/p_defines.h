@@ -627,6 +627,8 @@ enum pipe_statistics_query_index {
    PIPE_STAT_QUERY_HS_INVOCATIONS,
    PIPE_STAT_QUERY_DS_INVOCATIONS,
    PIPE_STAT_QUERY_CS_INVOCATIONS,
+   PIPE_STAT_QUERY_TS_INVOCATIONS,
+   PIPE_STAT_QUERY_MS_INVOCATIONS,
 };
 
 /**
@@ -1236,8 +1238,10 @@ struct pipe_query_data_pipeline_statistics
          uint64_t hs_invocations; /**< Num hull shader invocations. */
          uint64_t ds_invocations; /**< Num domain shader invocations. */
          uint64_t cs_invocations; /**< Num compute shader invocations. */
+         uint64_t ts_invocations; /**< Num task shader invocations. */
+         uint64_t ms_invocations; /**< Num mesh shader invocations. */
       };
-      uint64_t counters[11];
+      uint64_t counters[13];
    };
 };
 
