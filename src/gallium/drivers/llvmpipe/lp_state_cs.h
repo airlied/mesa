@@ -90,6 +90,7 @@ struct lp_compute_shader_variant
    /* for mesh shaders */
    LLVMTypeRef jit_vertex_header_type;
    LLVMTypeRef jit_vertex_header_ptr_type;
+   LLVMTypeRef jit_prim_type;
    LLVMValueRef function;
    lp_jit_cs_func jit_function;
 

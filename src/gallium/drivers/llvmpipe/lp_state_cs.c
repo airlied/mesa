@@ -813,7 +813,7 @@ generate_compute(struct llvmpipe_context *lp,
             prim_offset = LLVMBuildAdd(builder, prim_offset, lp_build_const_int32(gallivm, vsize * (nir->info.mesh.max_vertices_out + 8)), "");
             io = LLVMBuildAdd(builder, io, LLVMBuildZExt(builder, prim_offset, LLVMInt64TypeInContext(gallivm->context), ""), "");
             io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
-            mesh_convert_to_aos(gallivm, shader->base.ir.nir, false, variant->jit_vertex_header_type,
+            mesh_convert_to_aos(gallivm, shader->base.ir.nir, false, variant->jit_prim_type,
                                 io, output_array, clipmask,
                                 prim_loop_state.counter, cs_type, -1, FALSE);
             lp_build_loop_end_cond(&prim_loop_state,
@@ -1198,8 +1198,13 @@ generate_variant(struct llvmpipe_context *lp,
 
    if (sh_type == PIPE_SHADER_MESH) {
       const struct tgsi_shader_info *info = &shader->info.base;
-      variant->jit_vertex_header_type = lp_build_create_jit_vertex_header_type(variant->gallivm, info->num_outputs);
+      struct nir_shader *nir = shader->base.ir.nir;
+      int per_prim_count = util_bitcount64(nir->info.per_primitive_outputs);
+      int out_count = util_bitcount64(nir->info.outputs_written);
+      int per_vert_count = out_count - per_prim_count;
+      variant->jit_vertex_header_type = lp_build_create_jit_vertex_header_type(variant->gallivm, per_vert_count);
       variant->jit_vertex_header_ptr_type = LLVMPointerType(variant->jit_vertex_header_type, 0);
+      variant->jit_prim_type = LLVMArrayType(LLVMArrayType(LLVMFloatTypeInContext(variant->gallivm->context), 4), per_prim_count);
    }
 
    generate_compute(lp, shader, variant);
