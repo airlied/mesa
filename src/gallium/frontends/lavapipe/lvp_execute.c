@@ -162,7 +162,7 @@ struct rendering_state {
 
    uint8_t push_constants[128 * 4];
    uint16_t push_size[2]; //gfx, compute
-   uint16_t gfx_push_sizes[MESA_SHADER_COMPUTE];
+   uint16_t gfx_push_sizes[LVP_SHADER_STAGES];
    struct {
       void *block[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
       uint16_t size[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
@@ -527,7 +527,9 @@ static void emit_state(struct rendering_state *state)
    bool constbuf_dirty[LVP_SHADER_STAGES] = {false};
    bool pcbuf_dirty[LVP_SHADER_STAGES] = {false};
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       constbuf_dirty[sh] = state->constbuf_dirty[sh];
       if (state->constbuf_dirty[sh]) {
          for (unsigned idx = 0; idx < state->num_const_bufs[sh]; idx++)
@@ -537,18 +539,24 @@ static void emit_state(struct rendering_state *state)
       state->constbuf_dirty[sh] = false;
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       pcbuf_dirty[sh] = state->pcbuf_dirty[sh];
       if (state->pcbuf_dirty[sh])
          update_pcbuf(state, sh);
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (state->inlines_dirty[sh])
          update_inline_shader_state(state, sh, pcbuf_dirty[sh], constbuf_dirty[sh]);
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (state->sb_dirty[sh]) {
          state->pctx->set_shader_buffers(state->pctx, sh,
                                          0, state->num_shader_buffers[sh],
@@ -556,7 +564,9 @@ static void emit_state(struct rendering_state *state)
       }
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (state->iv_dirty[sh]) {
          state->pctx->set_shader_images(state->pctx, sh,
                                         0, state->num_shader_images[sh], 0,
@@ -564,7 +574,9 @@ static void emit_state(struct rendering_state *state)
       }
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (state->sv_dirty[sh]) {
          state->pctx->set_sampler_views(state->pctx, sh, 0, state->num_sampler_views[sh],
                                         0, false, state->sv[sh]);
@@ -572,7 +584,9 @@ static void emit_state(struct rendering_state *state)
       }
    }
 
-   for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (unsigned sh = 0; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (state->ss_dirty[sh]) {
          cso_set_samplers(state->cso, sh, state->num_sampler_states[sh], state->cso_ss_ptr[sh]);
          state->ss_dirty[sh] = false;
@@ -802,14 +816,19 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
    lvp_pipeline_shaders_compile(pipeline);
    bool dynamic_tess_origin = BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_TS_DOMAIN_ORIGIN);
    unbind_graphics_stages(state, (~pipeline->graphics_state.shader_stages) & VK_SHADER_STAGE_ALL_GRAPHICS);
-   for (enum pipe_shader_type sh = MESA_SHADER_VERTEX; sh < MESA_SHADER_COMPUTE; sh++) {
+   for (enum pipe_shader_type sh = MESA_SHADER_VERTEX; sh < LVP_SHADER_STAGES; sh++) {
+      if (sh == MESA_SHADER_COMPUTE)
+         continue;
       if (pipeline->graphics_state.shader_stages & mesa_to_vk_shader_stage(sh))
          state->shaders[sh] = &pipeline->shaders[sh];
    }
 
    handle_graphics_stages(state, pipeline->graphics_state.shader_stages, dynamic_tess_origin);
-   for (unsigned i = 0; i < MESA_SHADER_COMPUTE; i++)
+   for (unsigned i = 0; i < LVP_SHADER_STAGES; i++) {
+      if (i == MESA_SHADER_COMPUTE)
+         continue;
       handle_graphics_layout(state, i, pipeline->layout);
+   }
 
    /* rasterization state */
    if (ps->rs) {
@@ -1128,8 +1147,11 @@ static void handle_pipeline(struct vk_cmd_queue_entry *cmd,
       handle_pipeline_access(state, MESA_SHADER_COMPUTE);
    } else {
       handle_graphics_pipeline(cmd, state);
-      for (unsigned i = 0; i < MESA_SHADER_COMPUTE; i++)
+      for (unsigned i = 0; i < LVP_SHADER_STAGES; i++) {
+         if (i == MESA_SHADER_COMPUTE)
+            continue;
          handle_pipeline_access(state, i);
+      }
    }
    state->push_size[pipeline->is_compute_pipeline] = pipeline->layout->push_constant_size;
 }
