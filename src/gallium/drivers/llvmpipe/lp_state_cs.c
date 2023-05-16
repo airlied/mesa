@@ -1319,10 +1319,9 @@ lp_csctx_set_cs_images(struct lp_cs_context *csctx,
 
 
 static void
-update_csctx_consts(struct llvmpipe_context *llvmpipe)
+update_csctx_consts(struct llvmpipe_context *llvmpipe,
+                    struct lp_cs_context *csctx)
 {
-   struct lp_cs_context *csctx = llvmpipe->csctx;
-
    for (int i = 0; i < ARRAY_SIZE(csctx->constants); ++i) {
       struct pipe_resource *buffer = csctx->constants[i].current.buffer;
       const ubyte *current_data = NULL;
@@ -1351,10 +1350,9 @@ update_csctx_consts(struct llvmpipe_context *llvmpipe)
 
 
 static void
-update_csctx_ssbo(struct llvmpipe_context *llvmpipe)
+update_csctx_ssbo(struct llvmpipe_context *llvmpipe,
+                  struct lp_cs_context *csctx)
 {
-   struct lp_cs_context *csctx = llvmpipe->csctx;
-
    for (int i = 0; i < ARRAY_SIZE(csctx->ssbos); ++i) {
       struct pipe_resource *buffer = csctx->ssbos[i].current.buffer;
       const ubyte *current_data = NULL;
@@ -1382,14 +1380,14 @@ llvmpipe_cs_update_derived(struct llvmpipe_context *llvmpipe, const void *input)
       lp_csctx_set_cs_constants(llvmpipe->csctx,
                                 ARRAY_SIZE(llvmpipe->constants[PIPE_SHADER_COMPUTE]),
                                 llvmpipe->constants[PIPE_SHADER_COMPUTE]);
-      update_csctx_consts(llvmpipe);
+      update_csctx_consts(llvmpipe, llvmpipe->csctx);
    }
 
    if (llvmpipe->cs_dirty & LP_CSNEW_SSBOS) {
       lp_csctx_set_cs_ssbos(llvmpipe->csctx,
                             ARRAY_SIZE(llvmpipe->ssbos[PIPE_SHADER_COMPUTE]),
                             llvmpipe->ssbos[PIPE_SHADER_COMPUTE]);
-      update_csctx_ssbo(llvmpipe);
+      update_csctx_ssbo(llvmpipe, llvmpipe->csctx);
    }
 
    if (llvmpipe->cs_dirty & LP_CSNEW_SAMPLER_VIEW)
