@@ -102,6 +102,7 @@ enum {
    CS_ARG_CORO_BLOCK_Z_SIZE,
    CS_ARG_CORO_IDX,
    CS_ARG_CORO_MEM,
+   CS_ARG_CORO_OUTPUTS,
    CS_ARG_MAX,
 };
 
@@ -377,6 +378,7 @@ generate_compute(struct llvmpipe_context *lp,
    arg_types[CS_ARG_CORO_BLOCK_Z_SIZE] = int32_type;                   /* coro block_z_size */
    arg_types[CS_ARG_CORO_IDX] = int32_type;                            /* coro idx */
    arg_types[CS_ARG_CORO_MEM] = LLVMPointerType(LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0), 0);
+   arg_types[CS_ARG_CORO_OUTPUTS] = LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0); /* mesh shaders only */
 
    func_type = LLVMFunctionType(LLVMVoidTypeInContext(gallivm->context),
                                 arg_types, CS_ARG_OUTER_COUNT, 0);
@@ -444,6 +446,14 @@ generate_compute(struct llvmpipe_context *lp,
                                         MAX2(key->nr_samplers,
                                              key->nr_sampler_views));
    image = lp_bld_llvm_image_soa_create(lp_cs_variant_key_images(key), key->nr_images);
+
+   if (shader->base.type == PIPE_SHADER_IR_NIR) {
+      struct nir_shader *nir = shader->base.ir.nir;
+      if (nir->info.stage == MESA_SHADER_MESH) {
+         LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm);
+         output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, align(MAX2(nir->info.mesh.max_primitives_out, nir->info.mesh.max_vertices_out), 8)), "outputs");
+      }
+   }
 
    struct lp_build_loop_state loop_state[4];
    LLVMValueRef num_x_loop;
@@ -515,6 +525,8 @@ generate_compute(struct llvmpipe_context *lp,
 
       args[CS_ARG_CORO_MEM] = coro_mem;
 
+      args[CS_ARG_CORO_OUTPUTS] = output_array;
+
       LLVMValueRef coro_entry = LLVMBuildGEP2(gallivm->builder, hdl_ptr_type, coro_hdls, &coro_hdl_idx, 1, "");
 
       LLVMValueRef coro_hdl = LLVMBuildLoad2(gallivm->builder, hdl_ptr_type, coro_entry, "coro_hdl");
@@ -585,6 +597,7 @@ generate_compute(struct llvmpipe_context *lp,
    block_z_size_arg = LLVMGetParam(coro, CS_ARG_CORO_BLOCK_Z_SIZE);
    LLVMValueRef coro_idx = LLVMGetParam(coro, CS_ARG_CORO_IDX);
    coro_mem = LLVMGetParam(coro, CS_ARG_CORO_MEM);
+   output_array = LLVMGetParam(coro, CS_ARG_CORO_OUTPUTS);
    block = LLVMAppendBasicBlockInContext(gallivm->context, coro, "entry");
    LLVMPositionBuilderAtEnd(builder, block);
    {
@@ -711,17 +724,14 @@ generate_compute(struct llvmpipe_context *lp,
       if (shader->base.type == PIPE_SHADER_IR_NIR) {
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
-            LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm);
-            output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, align(MAX2(nir->info.mesh.max_primitives_out, nir->info.mesh.max_vertices_out), 8)), "outputs");
+            LLVMValueRef vertex_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "vertex_count");
+            LLVMValueRef primitive_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "prim_count");
+            mesh_iface.base.emit_store_output = lp_mesh_llvm_emit_store_output;
+            mesh_iface.base.emit_vertex_and_primitive_count = lp_mesh_emit_vertex_and_primitive_count;
+            mesh_iface.vertex_count = vertex_count;
+            mesh_iface.prim_count = primitive_count;
+            mesh_iface.outputs = output_array;
          }
-
-         LLVMValueRef vertex_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "vertex_count");
-         LLVMValueRef primitive_count = lp_build_alloca(gallivm, LLVMInt32TypeInContext(gallivm->context), "prim_count");
-         mesh_iface.base.emit_store_output = lp_mesh_llvm_emit_store_output;
-         mesh_iface.base.emit_vertex_and_primitive_count = lp_mesh_emit_vertex_and_primitive_count;
-         mesh_iface.vertex_count = vertex_count;
-         mesh_iface.prim_count = primitive_count;
-         mesh_iface.outputs = output_array;
       }
 
       struct lp_build_tgsi_params params;
@@ -767,17 +777,24 @@ generate_compute(struct llvmpipe_context *lp,
             LLVMValueRef vertex_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.vertex_count, "");
             LLVMValueRef prim_count = LLVMBuildLoad2(gallivm->builder, i32t, mesh_iface.prim_count, "");
 
-            lp_build_if(&iter0state, gallivm, is_iter0);
-
-            LLVMValueRef count_ptr;
+            LLVMValueRef vert_count_ptr, prim_count_ptr;
             LLVMValueRef indices = lp_build_const_int32(gallivm, 1);
-
-            count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
-            LLVMBuildStore(gallivm->builder, vertex_count, count_ptr);
+            vert_count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
             indices = lp_build_const_int32(gallivm, 2);
-            count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
-            LLVMBuildStore(gallivm->builder, prim_count, count_ptr);
+            prim_count_ptr = LLVMBuildGEP2(gallivm->builder, i32t, io_ptr, &indices, 1, "");
+
+            lp_build_if(&iter0state, gallivm, is_iter0);
+            LLVMBuildStore(gallivm->builder, vertex_count, vert_count_ptr);
+            LLVMBuildStore(gallivm->builder, prim_count, prim_count_ptr);
             lp_build_endif(&iter0state);
+
+            LLVMBasicBlockRef resume = lp_build_insert_new_block(gallivm, "resume");
+
+            lp_build_coro_suspend_switch(gallivm, params.coro, resume, false);
+            LLVMPositionBuilderAtEnd(gallivm->builder, resume);
+
+            vertex_count = LLVMBuildLoad2(gallivm->builder, i32t, vert_count_ptr, "");
+            prim_count = LLVMBuildLoad2(gallivm->builder, i32t, prim_count_ptr, "");
 
             nir_shader *nir = shader->base.ir.nir;
             int per_prim_count = util_bitcount64(nir->info.per_primitive_outputs);
