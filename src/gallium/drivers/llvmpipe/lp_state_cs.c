@@ -2144,25 +2144,22 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
 }
 
 static void
-llvmpipe_call_draw(struct llvmpipe_context *lp,
-                   enum pipe_prim_type prim,
-                   int first_per_prim_idx,
-                   int prim_out_idx,
-                   int cull_prim_idx,
-                   int task_idx,
-                   void *vbuf, size_t task_out_size,
-                   int vsize, int psize, int per_prim_count,
-                   size_t prim_offset)
+lp_mesh_call_draw(struct llvmpipe_context *lp,
+                  enum pipe_prim_type prim,
+                  int prim_out_idx,
+                  int cull_prim_idx,
+                  int task_idx,
+                  void *vbuf, size_t task_out_size,
+                  int vsize, int psize, int per_prim_count,
+                  size_t prim_offset)
 {
    unsigned prim_len = u_vertices_per_prim(prim);
    uint32_t *ptr = (uint32_t *)((char *)vbuf + task_out_size * task_idx);
    uint32_t vertex_count = ptr[1];
    uint32_t prim_count = ptr[2];
 
-   if (!vertex_count || !prim_count) {
-      fprintf(stderr, "no v %d or p %d iter %d\n", vertex_count, prim_count, task_idx);
+   if (!vertex_count || !prim_count)
       return;
-   }
 
    struct draw_vertex_info vinfo;
    vinfo.verts = (struct vertex_header *)ptr;
@@ -2176,7 +2173,7 @@ llvmpipe_call_draw(struct llvmpipe_context *lp,
    int elts_idx = 0;
    char *prim_ptr = (char *)ptr + prim_offset;
    for (unsigned p = 0; p < prim_count; p++) {
-      uint32_t *prim_idxs = (uint32_t *)(prim_ptr + p * psize + (prim_out_idx - first_per_prim_idx) * 4 * sizeof(float));
+      uint32_t *prim_idxs = (uint32_t *)(prim_ptr + p * psize + prim_out_idx * 4 * sizeof(float));
       for (unsigned elt = 0; elt < prim_len; elt++){
          elts[elts_idx++] = prim_idxs[elt];
       }
@@ -2378,11 +2375,11 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
                      lp->pipeline_statistics.ms_invocations += num_tasks * job_info.block_size[0] * job_info.block_size[1] * job_info.block_size[2];
 
                   for (unsigned t = 0; t < num_tasks; t++)
-                     llvmpipe_call_draw(lp,
-                                        mhs_shader->info.mesh.primitive_type,
-                                        first_per_prim_idx, prim_out_idx,
-                                        cull_prim_idx, t, vbuf, task_out_size,
-                                        vsize, psize, per_prim_count, prim_offset);
+                     lp_mesh_call_draw(lp,
+                                       mhs_shader->info.mesh.primitive_type,
+                                       prim_out_idx - first_per_prim_idx,
+                                       cull_prim_idx, t, vbuf, task_out_size,
+                                       vsize, psize, per_prim_count, prim_offset);
                   free(vbuf);
                }
             }
