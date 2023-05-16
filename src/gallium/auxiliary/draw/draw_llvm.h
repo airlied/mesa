@@ -78,7 +78,6 @@ enum {
 #define draw_jit_context_viewports(_variant, _ptr) \
    lp_build_struct_get2(_variant->gallivm, _variant->context_type, _ptr, DRAW_JIT_CTX_VIEWPORT, "viewports")
 
-
 #define draw_jit_vbuffer_stride(_gallivm, _type, _ptr)         \
    lp_build_struct_get2(_gallivm, _type, _ptr, 0, "stride")
 
