@@ -163,6 +163,24 @@ enum {
 LLVMTypeRef
 lp_build_jit_resources_type(struct gallivm_state *gallivm);
 
+enum {
+   LP_JIT_VERTEX_HEADER_VERTEX_ID = 0,
+   LP_JIT_VERTEX_HEADER_CLIP_POS,
+   LP_JIT_VERTEX_HEADER_DATA
+};
+
+#define lp_jit_vertex_header_id(_gallivm, _type, _ptr)              \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_VERTEX_HEADER_VERTEX_ID, "id")
+
+#define lp_jit_vertex_header_clip_pos(_gallivm, _type, _ptr) \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_VERTEX_HEADER_CLIP_POS, "clip_pos")
+
+#define lp_jit_vertex_header_data(_gallivm, _type, _ptr)            \
+   lp_build_struct_get_ptr2(_gallivm, _type, _ptr, LP_JIT_VERTEX_HEADER_DATA, "data")
+
+LLVMTypeRef
+lp_build_create_jit_vertex_header_type(struct gallivm_state *gallivm, int data_elems);
+
 void
 lp_build_jit_fill_sampler_dynamic_state(struct lp_sampler_dynamic_state *state);
 void

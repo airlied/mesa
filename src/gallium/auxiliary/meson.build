@@ -75,6 +75,7 @@ files_libgallium = files(
   'draw/draw_vbuf.h',
   'draw/draw_vertex.c',
   'draw/draw_vertex.h',
+  'draw/draw_vertex_header.h',
   'draw/draw_vs.c',
   'draw/draw_vs_exec.c',
   'draw/draw_vs.h',

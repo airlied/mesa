@@ -46,13 +46,12 @@
 
 #include "tgsi/tgsi_scan.h"
 
+#include "draw_vertex_header.h"
+
 #ifdef DRAW_LLVM_AVAILABLE
 struct gallivm_state;
 #endif
 
-
-/** Sum of frustum planes and user-defined planes */
-#define DRAW_TOTAL_CLIP_PLANES (6 + PIPE_MAX_CLIP_PLANES)
 
 /**
  * The largest possible index of a vertex that can be fetched.
@@ -109,20 +108,6 @@ struct lp_cached_code;
 struct draw_vertex_buffer {
    const void *map;
    uint32_t size;
-};
-
-/**
- * Basic vertex info.  Used to represent vertices after VS (through GS, TESS,
- * etc.) to vbuf output.
- */
-struct vertex_header {
-   unsigned clipmask:DRAW_TOTAL_CLIP_PLANES;
-   unsigned edgeflag:1;
-   unsigned pad:1;
-   unsigned vertex_id:16;
-
-   float clip_pos[4];
-   float data[][4]; // the vertex attributes
 };
 
 /* NOTE: It should match vertex_id size above */

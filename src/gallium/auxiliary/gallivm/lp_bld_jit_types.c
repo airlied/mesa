@@ -29,6 +29,7 @@
 #include "gallivm/lp_bld_const.h"
 #include "gallivm/lp_bld_debug.h"
 #include "gallivm/lp_bld_ir_common.h"
+#include "draw/draw_vertex_header.h"
 #include "lp_bld_jit_types.h"
 
 
@@ -601,4 +602,52 @@ lp_build_jit_fill_image_dynamic_state(struct lp_sampler_dynamic_state *state)
    state->img_stride = lp_build_llvm_image_img_stride;
    state->num_samples = lp_build_llvm_image_num_samples;
    state->sample_stride = lp_build_llvm_image_sample_stride;
+}
+
+/**
+ * Create LLVM type for struct vertex_header;
+ */
+LLVMTypeRef
+lp_build_create_jit_vertex_header_type(struct gallivm_state *gallivm, int data_elems)
+{
+   LLVMTargetDataRef target = gallivm->target;
+   LLVMTypeRef elem_types[3];
+   LLVMTypeRef vertex_header;
+   char struct_name[24];
+
+   snprintf(struct_name, 23, "vertex_header%d", data_elems);
+
+   elem_types[LP_JIT_VERTEX_HEADER_VERTEX_ID]  = LLVMIntTypeInContext(gallivm->context, 32);
+   elem_types[LP_JIT_VERTEX_HEADER_CLIP_POS]  = LLVMArrayType(LLVMFloatTypeInContext(gallivm->context), 4);
+   elem_types[LP_JIT_VERTEX_HEADER_DATA]  = LLVMArrayType(elem_types[1], data_elems);
+
+   vertex_header = LLVMStructTypeInContext(gallivm->context, elem_types,
+                                           ARRAY_SIZE(elem_types), 0);
+
+   /* these are bit-fields and we can't take address of them
+      LP_CHECK_MEMBER_OFFSET(struct vertex_header, clipmask,
+      target, vertex_header,
+      LP_JIT_VERTEX_HEADER_CLIPMASK);
+      LP_CHECK_MEMBER_OFFSET(struct vertex_header, edgeflag,
+      target, vertex_header,
+      LP_JIT_VERTEX_HEADER_EDGEFLAG);
+      LP_CHECK_MEMBER_OFFSET(struct vertex_header, pad,
+      target, vertex_header,
+      LP_JIT_VERTEX_HEADER_PAD);
+      LP_CHECK_MEMBER_OFFSET(struct vertex_header, vertex_id,
+      target, vertex_header,
+      LP_JIT_VERTEX_HEADER_VERTEX_ID);
+   */
+   (void) target; /* silence unused var warning for non-debug build */
+   LP_CHECK_MEMBER_OFFSET(struct vertex_header, clip_pos,
+                          target, vertex_header,
+                          LP_JIT_VERTEX_HEADER_CLIP_POS);
+   LP_CHECK_MEMBER_OFFSET(struct vertex_header, data,
+                          target, vertex_header,
+                          LP_JIT_VERTEX_HEADER_DATA);
+
+   assert(LLVMABISizeOfType(target, vertex_header) ==
+          offsetof(struct vertex_header, data[data_elems]));
+
+   return vertex_header;
 }
