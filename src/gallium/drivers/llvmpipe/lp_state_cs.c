@@ -65,12 +65,14 @@ static unsigned mesh_no = 0;
 
 struct lp_cs_job_info {
    unsigned grid_size[3];
+   unsigned iter_size[3];
    unsigned grid_base[3];
    unsigned block_size[3];
    unsigned req_local_mem;
    unsigned work_dim;
    unsigned draw_id;
    bool zero_initialize_shared_memory;
+   bool use_iters;
    struct lp_cs_exec *current;
    struct vertex_header *io;
    size_t io_stride;
@@ -1795,9 +1797,17 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 
    thread_data.payload = job_info->payload;
 
-   unsigned grid_z = iter_idx / (job_info->grid_size[0] * job_info->grid_size[1]);
-   unsigned grid_y = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1]))) / job_info->grid_size[0];
-   unsigned grid_x = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1])) - (grid_y * job_info->grid_size[0]));
+   unsigned grid_z, grid_y, grid_x;
+
+   if (job_info->use_iters) {
+      grid_z = iter_idx / (job_info->iter_size[0] * job_info->iter_size[1]);
+      grid_y = (iter_idx - (grid_z * (job_info->iter_size[0] * job_info->iter_size[1]))) / job_info->iter_size[0];
+      grid_x = (iter_idx - (grid_z * (job_info->iter_size[0] * job_info->iter_size[1])) - (grid_y * job_info->iter_size[0]));
+   } else {
+      grid_z = iter_idx / (job_info->grid_size[0] * job_info->grid_size[1]);
+      grid_y = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1]))) / job_info->grid_size[0];
+      grid_x = (iter_idx - (grid_z * (job_info->grid_size[0] * job_info->grid_size[1])) - (grid_y * job_info->grid_size[0]));
+   }
 
    grid_z += job_info->grid_base[2];
    grid_y += job_info->grid_base[1];
@@ -1817,7 +1827,8 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
                          &job_info->current->jit_resources,
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
                          grid_x, grid_y, grid_z,
-                         job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2], job_info->work_dim, job_info->draw_id,
+                         job_info->grid_size[0], job_info->grid_size[1], job_info->grid_size[2],
+                         job_info->work_dim, job_info->draw_id,
                          io_ptr,
                          &thread_data);
 }
@@ -2133,6 +2144,76 @@ llvmpipe_delete_mesh_state(struct pipe_context *pipe, void *_mesh)
 }
 
 static void
+llvmpipe_call_draw(struct llvmpipe_context *lp,
+                   enum pipe_prim_type prim,
+                   int first_per_prim_idx,
+                   int prim_out_idx,
+                   int cull_prim_idx,
+                   int task_idx,
+                   void *vbuf, size_t task_out_size,
+                   int vsize, int psize, int per_prim_count,
+                   size_t prim_offset)
+{
+   unsigned prim_len = u_vertices_per_prim(prim);
+   uint32_t *ptr = (uint32_t *)((char *)vbuf + task_out_size * task_idx);
+   uint32_t vertex_count = ptr[1];
+   uint32_t prim_count = ptr[2];
+
+   if (!vertex_count || !prim_count) {
+      fprintf(stderr, "no v %d or p %d iter %d\n", vertex_count, prim_count, task_idx);
+      return;
+   }
+
+   struct draw_vertex_info vinfo;
+   vinfo.verts = (struct vertex_header *)ptr;
+   vinfo.vertex_size = vsize / 8;
+   vinfo.stride = vsize;
+   vinfo.count = vertex_count;
+
+   unsigned elts_size = prim_len * prim_count;
+   unsigned short *elts = calloc(sizeof(uint16_t), elts_size);
+   uint32_t *prim_lengths = calloc(prim_count, sizeof(uint32_t));
+   int elts_idx = 0;
+   char *prim_ptr = (char *)ptr + prim_offset;
+   for (unsigned p = 0; p < prim_count; p++) {
+      uint32_t *prim_idxs = (uint32_t *)(prim_ptr + p * psize + (prim_out_idx - first_per_prim_idx) * 4 * sizeof(float));
+      for (unsigned elt = 0; elt < prim_len; elt++){
+         elts[elts_idx++] = prim_idxs[elt];
+      }
+      prim_lengths[p] = prim_len;
+   }
+
+   struct draw_prim_info prim_info = {};
+   prim_info.prim = prim;
+   prim_info.linear = false;
+   prim_info.elts = elts;
+   prim_info.count = prim_count;
+   prim_info.primitive_count = prim_count;
+   prim_info.primitive_lengths = prim_lengths;
+
+   struct draw_vertex_info vert_out = {};
+   struct draw_prim_info prim_out = {};
+   draw_mesh_prim_run(lp->draw,
+                      per_prim_count,
+                      prim_ptr,
+                      cull_prim_idx,
+                      &prim_info,
+                      &vinfo,
+                      &prim_out,
+                      &vert_out);
+   free(elts);
+   free(prim_lengths);
+
+   draw_collect_primitives_generated(lp->draw,
+                                     lp->active_primgen_queries &&
+                                     !lp->queries_disabled);
+   draw_meshy(lp->draw, &vert_out, &prim_out);
+
+   free(vert_out.verts);
+   free(prim_out.primitive_lengths);
+}
+
+static void
 llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
                          const struct pipe_grid_info *info)
 {
@@ -2163,6 +2244,36 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       pipe_buffer_unmap(pipe, dc_transfer);
    }
 
+   struct nir_shader *mhs_shader = lp->mhs->base.ir.nir;
+   int prim_out_idx = -1;
+   int first_per_prim_idx = -1;
+   int cull_prim_idx = -1;
+   nir_foreach_shader_out_variable(var, mhs_shader) {
+      if (var->data.per_primitive) {
+         first_per_prim_idx = var->data.driver_location;
+         break;
+      }
+   }
+   nir_foreach_shader_out_variable(var, mhs_shader) {
+      if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES) {
+         prim_out_idx = var->data.driver_location;
+         break;
+      }
+   }
+   nir_foreach_shader_out_variable(var, mhs_shader) {
+      if (var->data.location == VARYING_SLOT_CULL_PRIMITIVE) {
+         cull_prim_idx = var->data.driver_location - first_per_prim_idx;
+         break;
+      }
+   }
+   int per_prim_count = util_bitcount64(mhs_shader->info.per_primitive_outputs);
+   int out_count = util_bitcount64(mhs_shader->info.outputs_written);
+   int per_vert_count = out_count - per_prim_count;
+   int vsize = (sizeof(struct vertex_header) + per_vert_count * 4 * sizeof(float)) * 8;
+   int psize = (per_prim_count * 4 * sizeof(float)) * 8;
+   size_t prim_offset = vsize * (mhs_shader->info.mesh.max_vertices_out + 8);
+   size_t task_out_size = prim_offset + psize * (mhs_shader->info.mesh.max_primitives_out + 8);
+
    for (unsigned dr = 0; dr < draw_count; dr++) {
       fill_grid_size(pipe, dr, info, job_info.grid_size);
 
@@ -2172,17 +2283,18 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       job_info.block_size[0] = info->block[0];
       job_info.block_size[1] = info->block[1];
       job_info.block_size[2] = info->block[2];
-   
+
       void *payload = NULL;
       size_t payload_stride = 0;
       int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
       int num_mesh_invocs = 1;
       if (lp->tss) {
-         struct nir_shader *shader =  lp->tss->base.ir.nir;
-         payload_stride = shader->info.task_payload_size + 3 * sizeof(uint32_t);
+         struct nir_shader *tsk_shader = lp->tss->base.ir.nir;
+         payload_stride = tsk_shader->info.task_payload_size + 3 * sizeof(uint32_t);
 
          payload = calloc(num_tasks, payload_stride);
 
+         job_info.use_iters = false;
          job_info.payload = payload;
          job_info.payload_stride = payload_stride;
          job_info.work_dim = info->work_dim;
@@ -2202,14 +2314,6 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             lp->pipeline_statistics.ts_invocations += num_tasks * info->block[0] * info->block[1] * info->block[2];
          num_mesh_invocs = num_tasks;
       }
-      struct nir_shader *shader =  lp->mhs->base.ir.nir;
-      int per_prim_count = util_bitcount64(shader->info.per_primitive_outputs);
-      int out_count = util_bitcount64(shader->info.outputs_written);
-      int per_vert_count = out_count - per_prim_count;
-      int vsize = (sizeof(struct vertex_header) + per_vert_count * 4 * sizeof(float)) * 8;
-      int psize = (per_prim_count * 4 * sizeof(float)) * 8;
-      int prim_offset = vsize * (shader->info.mesh.max_vertices_out + 8);
-      size_t task_out_size = prim_offset + psize * (shader->info.mesh.max_primitives_out + 8);
 
       for (unsigned i = 0; i < num_mesh_invocs; i++) {
          if (payload) {
@@ -2220,115 +2324,69 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
             job_info.grid_size[1] = payload_grid[1];
             job_info.grid_size[2] = payload_grid[2];
             job_info.payload = this_payload;
-            job_info.block_size[0] = shader->info.workgroup_size[0];
-            job_info.block_size[1] = shader->info.workgroup_size[1];
-            job_info.block_size[2] = shader->info.workgroup_size[2];
+            job_info.block_size[0] = mhs_shader->info.workgroup_size[0];
+            job_info.block_size[1] = mhs_shader->info.workgroup_size[1];
+            job_info.block_size[2] = mhs_shader->info.workgroup_size[2];
          }
 
          job_info.req_local_mem = lp->mhs->req_local_mem + info->variable_shared_mem;
          job_info.current = &lp->mesh_ctx->cs.current;
          job_info.payload_stride = 0;
-         num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
-
-         void *vbuf = CALLOC(num_tasks, task_out_size);
-         if (!vbuf)
-            return;
-
          job_info.draw_id = dr;
-         job_info.io = vbuf;
          job_info.io_stride = task_out_size;
-         if (num_tasks) {
-            struct lp_cs_tpool_task *task;
-            mtx_lock(&screen->cs_mutex);
-            task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
-            mtx_unlock(&screen->cs_mutex);
 
-            lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
-         }
-         if (!lp->queries_disabled)
-            lp->pipeline_statistics.ms_invocations += num_tasks * job_info.block_size[0] * job_info.block_size[1] * job_info.block_size[2];
-
-         unsigned prim_len = u_vertices_per_prim(shader->info.mesh.primitive_type);
-         int prim_out_idx = -1;
-         int first_per_prim_idx = -1;
-         int cull_prim_idx = -1;
-         nir_foreach_shader_out_variable(var, shader) {
-            if (var->data.per_primitive) {
-               first_per_prim_idx = var->data.driver_location;
-               break;
-            }
-         }
-         nir_foreach_shader_out_variable(var, shader) {
-            if (var->data.location == VARYING_SLOT_PRIMITIVE_INDICES) {
-               prim_out_idx = var->data.driver_location;
-               break;
-            }
-         }
-         nir_foreach_shader_out_variable(var, shader) {
-            if (var->data.location == VARYING_SLOT_CULL_PRIMITIVE) {
-               cull_prim_idx = var->data.driver_location - first_per_prim_idx;
-               break;
+         uint32_t job_strides[3] = { job_info.grid_size[0], job_info.grid_size[1], job_info.grid_size[2] };
+         uint32_t total_grid[3] = { job_info.grid_size[0], job_info.grid_size[1], job_info.grid_size[2] };
+         const unsigned int max_tasks = 4096;
+         /* limit how large memory allocation can get for vbuf */
+         for (unsigned g = 0; g < 3; g++) {
+            if (job_strides[g] > max_tasks) {
+               job_strides[g] = max_tasks;
             }
          }
 
-         for (unsigned i = 0; i < num_tasks; i++)
-         {
-            uint32_t *ptr = (uint32_t *)((char *)vbuf + task_out_size * i);
-            uint32_t vertex_count = ptr[1];
-            uint32_t prim_count = ptr[2];
+         for (unsigned grid_z = 0; grid_z < total_grid[2]; grid_z += job_strides[2]) {
+            int this_z = MIN2(total_grid[2] - grid_z, max_tasks);
+            job_info.grid_base[2] = grid_z;
+            for (unsigned grid_y = 0; grid_y < total_grid[1]; grid_y += job_strides[1]) {
+               int this_y = MIN2(total_grid[1] - grid_y, max_tasks);
+               job_info.grid_base[1] = grid_y;
+               for (unsigned grid_x = 0; grid_x < total_grid[0]; grid_x += job_strides[0]) {
+                  int this_x = MIN2(total_grid[0] - grid_x, max_tasks);
+                  job_info.grid_base[0] = grid_x;
+                  num_tasks = this_x * this_y * this_z;
 
-            if (!vertex_count || !prim_count)
-               continue;
+                  job_info.iter_size[0] = this_x;
+                  job_info.iter_size[1] = this_y;
+                  job_info.iter_size[2] = this_z;
+                  job_info.use_iters = true;
 
-            struct draw_vertex_info vinfo;
-            vinfo.verts = (struct vertex_header *)ptr;
-            vinfo.vertex_size = vsize / 8;
-            vinfo.stride = vsize;
-            vinfo.count = vertex_count;
+                  void *vbuf = CALLOC(num_tasks, task_out_size);
+                  if (!vbuf)
+                     return;
 
-            unsigned elts_size = prim_len * prim_count;
-            unsigned short *elts = calloc(sizeof(uint16_t), elts_size);
-            uint32_t *prim_lengths = calloc(prim_count, sizeof(uint32_t));
-            int elts_idx = 0;
-            char *prim_ptr = (char *)ptr + prim_offset;
-            for (unsigned p = 0; p < prim_count; p++) {
-               uint32_t *prim_idxs = (uint32_t *)(prim_ptr + p * psize + (prim_out_idx - first_per_prim_idx) * 4 * sizeof(float));
-               for (unsigned elt = 0; elt < prim_len; elt++){
-                  elts[elts_idx++] = prim_idxs[elt];
+                  job_info.io = vbuf;
+                  if (num_tasks) {
+                     struct lp_cs_tpool_task *task;
+                     mtx_lock(&screen->cs_mutex);
+                     task = lp_cs_tpool_queue_task(screen->cs_tpool, cs_exec_fn, &job_info, num_tasks);
+                     mtx_unlock(&screen->cs_mutex);
+
+                     lp_cs_tpool_wait_for_task(screen->cs_tpool, &task);
+                  }
+                  if (!lp->queries_disabled)
+                     lp->pipeline_statistics.ms_invocations += num_tasks * job_info.block_size[0] * job_info.block_size[1] * job_info.block_size[2];
+
+                  for (unsigned t = 0; t < num_tasks; t++)
+                     llvmpipe_call_draw(lp,
+                                        mhs_shader->info.mesh.primitive_type,
+                                        first_per_prim_idx, prim_out_idx,
+                                        cull_prim_idx, t, vbuf, task_out_size,
+                                        vsize, psize, per_prim_count, prim_offset);
+                  free(vbuf);
                }
-               prim_lengths[p] = prim_len;
             }
-
-            struct draw_prim_info prim_info = {};
-            prim_info.prim = shader->info.mesh.primitive_type;
-            prim_info.linear = false;
-            prim_info.elts = elts;
-            prim_info.count = prim_count;
-            prim_info.primitive_count = prim_count;
-            prim_info.primitive_lengths = prim_lengths;
-
-            struct draw_vertex_info vert_out = {};
-            struct draw_prim_info prim_out = {};
-            draw_mesh_prim_run(lp->draw,
-                               per_prim_count,
-                               prim_ptr,
-                               cull_prim_idx,
-                               &prim_info,
-                               &vinfo,
-                               &prim_out,
-                               &vert_out);
-            free(elts);
-            free(prim_lengths);
-
-            draw_collect_primitives_generated(lp->draw,
-                                              lp->active_primgen_queries &&
-                                              !lp->queries_disabled);
-            draw_meshy(lp->draw, &vert_out, &prim_out);
-
-            free(vert_out.verts);
-            free(prim_out.primitive_lengths);
          }
-         free(vbuf);
       }
       free(payload);
    }
