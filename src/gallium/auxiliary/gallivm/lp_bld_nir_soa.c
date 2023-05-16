@@ -740,7 +740,7 @@ static void emit_store_mesh_chan(struct lp_build_nir_context *bld_base,
       } else
          attrib_index_val = lp_build_add(&bld_base->uint_bld, indir_index, lp_build_const_int_vec(gallivm, bld_base->uint_bld.type, location));
    } else
-      attrib_index_val = lp_build_const_int32(gallivm, location);
+      attrib_index_val = lp_build_const_int32(gallivm, location + const_index);
    LLVMValueRef exec_mask = mask_vec(bld_base);
    if (bit_size == 64) {
       LLVMValueRef split_vals[2];
