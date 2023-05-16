@@ -44,7 +44,7 @@ mesh_middle_end_prepare(struct draw_pt_middle_end *middle,
                            draw->clip_xy,
                            draw->clip_z,
                            draw->clip_user,
-                           point_clip ? draw->guard_band_points_xy :
+                           point_clip ? draw->guard_band_points_lines_xy :
                                         draw->guard_band_xy,
                            draw->bypass_viewport,
                            draw->rasterizer->clip_halfz,
