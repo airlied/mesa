@@ -36,20 +36,6 @@
 #include "lp_setup.h"
 #include "lp_state.h"
 
-static int
-mesh_find_shader_output(const struct llvmpipe_context *llvmpipe,
-                        uint32_t semantic_name, uint32_t semantic_index)
-{
-   const struct tgsi_shader_info *info = &llvmpipe->mhs->info.base;
-
-   for (unsigned i = 0; i < info->num_outputs; i++) {
-      if (info->output_semantic_name[i] == semantic_name &&
-          info->output_semantic_index[i] == semantic_index)
-         return i;
-   }
-   return -1;
-}
-
 /**
  * The vertex info describes how to convert the post-transformed vertices
  * (simple float[][4]) used by the 'draw' module into vertices for
