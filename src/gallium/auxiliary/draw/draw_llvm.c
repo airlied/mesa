@@ -943,8 +943,8 @@ draw_store_aos_array(struct gallivm_state *gallivm,
 }
 
 
-void
-draw_convert_to_aos(struct gallivm_state *gallivm,
+static void
+convert_to_aos(struct gallivm_state *gallivm,
                LLVMTypeRef io_type,
                LLVMValueRef io,
                LLVMValueRef *indices,
@@ -1480,7 +1480,7 @@ draw_gs_llvm_emit_vertex(const struct lp_build_gs_iface *gs_base,
       do_clamp_vertex_color(gallivm, gs_type,
                             gs_info, outputs);
    }
-   draw_convert_to_aos(gallivm, variant->vertex_header_type,
+   convert_to_aos(gallivm, variant->vertex_header_type,
                   io, indices,
                   outputs, clipmask,
                   gs_info->num_outputs, gs_type,
@@ -2004,7 +2004,7 @@ draw_llvm_generate(struct draw_llvm *llvm, struct draw_llvm_variant *variant)
        * original positions in clip
        * and transformed positions in data
        */
-      draw_convert_to_aos(gallivm, variant->vertex_header_type, io, NULL, outputs, clipmask,
+      convert_to_aos(gallivm, variant->vertex_header_type, io, NULL, outputs, clipmask,
                      vs_info->num_outputs, vs_type, -1,
                      enable_cliptest && key->need_edgeflags);
    }
@@ -3731,7 +3731,7 @@ draw_tes_llvm_generate(struct draw_llvm *llvm,
       LLVMValueRef clipmask = lp_build_const_int_vec(gallivm,
                                                      lp_int_type(tes_type), 0);
 
-      draw_convert_to_aos(gallivm, variant->vertex_header_type, io, NULL, outputs, clipmask,
+      convert_to_aos(gallivm, variant->vertex_header_type, io, NULL, outputs, clipmask,
                      draw_total_tes_outputs(llvm->draw), tes_type, primid_slot, FALSE);
    }
    lp_build_loop_end_cond(&lp_loop, num_tess_coord, step, LLVMIntUGE);

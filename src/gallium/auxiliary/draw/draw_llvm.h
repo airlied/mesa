@@ -691,15 +691,5 @@ draw_store_aos_array(struct gallivm_state *gallivm,
 		     LLVMValueRef clipmask,
 		     boolean need_edgeflag,
 		     bool per_prim);
-void
-draw_convert_to_aos(struct gallivm_state *gallivm,
-		    LLVMTypeRef io_type,
-		    LLVMValueRef io,
-		    LLVMValueRef *indices,
-		    LLVMValueRef (*outputs)[TGSI_NUM_CHANNELS],
-		    LLVMValueRef clipmask,
-		    int num_outputs,
-		    struct lp_type soa_type,
-		    int primid_slot,
-		    boolean need_edgeflag);
+
 #endif
