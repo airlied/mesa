@@ -73,9 +73,9 @@ struct lp_cs_job_info {
    bool zero_initialize_shared_memory;
    struct lp_cs_exec *current;
    struct vertex_header *io;
-   uint32_t io_stride;
+   size_t io_stride;
    void *payload;
-   uint32_t payload_stride;
+   size_t payload_stride;
 };
 
 enum {
@@ -1806,10 +1806,13 @@ cs_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 
    void *io_ptr = NULL;
    if (job_info->io) {
-      io_ptr = (char *)job_info->io + (iter_idx * (job_info->io_stride));
+      size_t io_offset = job_info->io_stride * iter_idx;
+      io_ptr = (char *)job_info->io + io_offset;
    }
-   if (thread_data.payload)
-      thread_data.payload = (char *)thread_data.payload + iter_idx * job_info->payload_stride;
+   if (thread_data.payload) {
+      size_t payload_offset = job_info->payload_stride * iter_idx;
+      thread_data.payload = (char *)thread_data.payload + payload_offset;
+   }
    variant->jit_function(&job_info->current->jit_context,
                          &job_info->current->jit_resources,
                          job_info->block_size[0], job_info->block_size[1], job_info->block_size[2],
@@ -2171,16 +2174,14 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
       job_info.block_size[2] = info->block[2];
    
       void *payload = NULL;
-      uint32_t payload_stride = 0, payload_size = 0;
+      size_t payload_stride = 0;
       int num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
       int num_mesh_invocs = 1;
       if (lp->tss) {
          struct nir_shader *shader =  lp->tss->base.ir.nir;
          payload_stride = shader->info.task_payload_size + 3 * sizeof(uint32_t);
-         payload_size = payload_stride * num_tasks;
-         
-         if (payload_size)
-            payload = calloc(1, payload_size);
+
+         payload = calloc(num_tasks, payload_stride);
 
          job_info.payload = payload;
          job_info.payload_stride = payload_stride;
@@ -2229,7 +2230,9 @@ llvmpipe_draw_mesh_tasks(struct pipe_context *pipe,
          job_info.payload_stride = 0;
          num_tasks = job_info.grid_size[2] * job_info.grid_size[1] * job_info.grid_size[0];
 
-         void *vbuf = CALLOC(1, task_out_size * num_tasks);
+         void *vbuf = CALLOC(num_tasks, task_out_size);
+         if (!vbuf)
+            return;
 
          job_info.draw_id = dr;
          job_info.io = vbuf;
