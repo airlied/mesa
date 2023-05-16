@@ -96,18 +96,25 @@ llvmpipe_bind_sampler_states(struct pipe_context *pipe,
       llvmpipe->num_samplers[shader] = j;
    }
 
-   if (shader == PIPE_SHADER_VERTEX ||
-       shader == PIPE_SHADER_GEOMETRY ||
-       shader == PIPE_SHADER_TESS_CTRL ||
-       shader == PIPE_SHADER_TESS_EVAL) {
+   switch (shader) {
+   case PIPE_SHADER_VERTEX:
+   case PIPE_SHADER_GEOMETRY:
+   case PIPE_SHADER_TESS_CTRL:
+   case PIPE_SHADER_TESS_EVAL:
       draw_set_samplers(llvmpipe->draw,
                         shader,
                         llvmpipe->samplers[shader],
                         llvmpipe->num_samplers[shader]);
-   } else if (shader == PIPE_SHADER_COMPUTE) {
+      break;
+   case PIPE_SHADER_COMPUTE:
       llvmpipe->cs_dirty |= LP_CSNEW_SAMPLER;
-   } else {
+      break;
+   case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_SAMPLER;
+      break;
+   default:
+      unreachable("Illegal shader type");
+      break;
    }
 }
 
@@ -174,21 +181,28 @@ llvmpipe_set_sampler_views(struct pipe_context *pipe,
       llvmpipe->num_sampler_views[shader] = j;
    }
 
-   if (shader == PIPE_SHADER_VERTEX ||
-       shader == PIPE_SHADER_GEOMETRY ||
-       shader == PIPE_SHADER_TESS_CTRL ||
-       shader == PIPE_SHADER_TESS_EVAL) {
+   switch (shader) {
+   case PIPE_SHADER_VERTEX:
+   case PIPE_SHADER_GEOMETRY:
+   case PIPE_SHADER_TESS_CTRL:
+   case PIPE_SHADER_TESS_EVAL:
       draw_set_sampler_views(llvmpipe->draw,
                              shader,
                              llvmpipe->sampler_views[shader],
                              llvmpipe->num_sampler_views[shader]);
-   } else if (shader == PIPE_SHADER_COMPUTE) {
+      break;
+   case PIPE_SHADER_COMPUTE:
       llvmpipe->cs_dirty |= LP_CSNEW_SAMPLER_VIEW;
-   } else if (shader == PIPE_SHADER_FRAGMENT) {
+      break;
+   case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_SAMPLER_VIEW;
       lp_setup_set_fragment_sampler_views(llvmpipe->setup,
                                           llvmpipe->num_sampler_views[PIPE_SHADER_FRAGMENT],
                                           llvmpipe->sampler_views[PIPE_SHADER_FRAGMENT]);
+      break;
+   default:
+      unreachable("Illegal shader type");
+      break;
    }
 }
 

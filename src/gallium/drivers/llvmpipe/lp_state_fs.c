@@ -4196,11 +4196,11 @@ llvmpipe_set_constant_buffer(struct pipe_context *pipe,
       }
    }
 
-   if (shader == PIPE_SHADER_VERTEX ||
-       shader == PIPE_SHADER_GEOMETRY ||
-       shader == PIPE_SHADER_TESS_CTRL ||
-       shader == PIPE_SHADER_TESS_EVAL) {
-      /* Pass the constants to the 'draw' module */
+   switch (shader) {
+   case PIPE_SHADER_VERTEX:
+   case PIPE_SHADER_GEOMETRY:
+   case PIPE_SHADER_TESS_CTRL:
+   case PIPE_SHADER_TESS_EVAL: {
       const unsigned size = cb ? cb->buffer_size : 0;
 
       const ubyte *data = NULL;
@@ -4211,10 +4211,17 @@ llvmpipe_set_constant_buffer(struct pipe_context *pipe,
 
       draw_set_mapped_constant_buffer(llvmpipe->draw, shader,
                                       index, data, size);
-   } else if (shader == PIPE_SHADER_COMPUTE) {
+      break;
+   }
+   case PIPE_SHADER_COMPUTE:
       llvmpipe->cs_dirty |= LP_CSNEW_CONSTANTS;
-   } else {
+      break;
+   case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_FS_CONSTANTS;
+      break;
+   default:
+      unreachable("Illegal shader type");
+      break;
    }
 }
 
@@ -4240,10 +4247,11 @@ llvmpipe_set_shader_buffers(struct pipe_context *pipe,
                                  false, "buffer");
       }
 
-      if (shader == PIPE_SHADER_VERTEX ||
-          shader == PIPE_SHADER_GEOMETRY ||
-          shader == PIPE_SHADER_TESS_CTRL ||
-          shader == PIPE_SHADER_TESS_EVAL) {
+      switch (shader) {
+      case PIPE_SHADER_VERTEX:
+      case PIPE_SHADER_GEOMETRY:
+      case PIPE_SHADER_TESS_CTRL:
+      case PIPE_SHADER_TESS_EVAL: {
          const unsigned size = buffer ? buffer->buffer_size : 0;
          const ubyte *data = NULL;
          if (buffer && buffer->buffer)
@@ -4252,12 +4260,19 @@ llvmpipe_set_shader_buffers(struct pipe_context *pipe,
             data += buffer->buffer_offset;
          draw_set_mapped_shader_buffer(llvmpipe->draw, shader,
                                        i, data, size);
-      } else if (shader == PIPE_SHADER_COMPUTE) {
+         break;
+      }
+      case PIPE_SHADER_COMPUTE:
          llvmpipe->cs_dirty |= LP_CSNEW_SSBOS;
-      } else if (shader == PIPE_SHADER_FRAGMENT) {
+         break;
+      case PIPE_SHADER_FRAGMENT:
          llvmpipe->fs_ssbo_write_mask &= ~(((1 << count) - 1) << start_slot);
          llvmpipe->fs_ssbo_write_mask |= writable_bitmask << start_slot;
          llvmpipe->dirty |= LP_NEW_FS_SSBOS;
+         break;
+      default:
+         unreachable("Illegal shader type");
+         break;
       }
    }
 }
@@ -4286,16 +4301,23 @@ llvmpipe_set_shader_images(struct pipe_context *pipe,
    }
 
    llvmpipe->num_images[shader] = start_slot + count;
-   if (shader == PIPE_SHADER_VERTEX ||
-       shader == PIPE_SHADER_GEOMETRY ||
-       shader == PIPE_SHADER_TESS_CTRL ||
-       shader == PIPE_SHADER_TESS_EVAL) {
+   switch (shader) {
+   case PIPE_SHADER_VERTEX:
+   case PIPE_SHADER_GEOMETRY:
+   case PIPE_SHADER_TESS_CTRL:
+   case PIPE_SHADER_TESS_EVAL:
       draw_set_images(llvmpipe->draw, shader, llvmpipe->images[shader],
                       start_slot + count);
-   } else if (shader == PIPE_SHADER_COMPUTE) {
+      break;
+   case PIPE_SHADER_COMPUTE:
       llvmpipe->cs_dirty |= LP_CSNEW_IMAGES;
-   } else {
+      break;
+   case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_FS_IMAGES;
+      break;
+   default:
+      unreachable("Illegal shader type");
+      break;
    }
 
    if (unbind_num_trailing_slots) {
