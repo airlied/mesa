@@ -65,6 +65,30 @@ struct lp_cs_job_info {
    struct lp_cs_exec *current;
 };
 
+enum {
+   CS_ARG_CONTEXT,
+   CS_ARG_RESOURCES,
+   CS_ARG_BLOCK_X_SIZE,
+   CS_ARG_BLOCK_Y_SIZE,
+   CS_ARG_BLOCK_Z_SIZE,
+   CS_ARG_GRID_X,
+   CS_ARG_GRID_Y,
+   CS_ARG_GRID_Z,
+   CS_ARG_GRID_SIZE_X,
+   CS_ARG_GRID_SIZE_Y,
+   CS_ARG_GRID_SIZE_Z,
+   CS_ARG_WORK_DIM,
+   CS_ARG_PER_THREAD_DATA,
+   CS_ARG_OUTER_COUNT,
+   CS_ARG_CORO_X_LOOPS = CS_ARG_OUTER_COUNT,
+   CS_ARG_CORO_PARTIALS,
+   CS_ARG_CORO_BLOCK_X_SIZE,
+   CS_ARG_CORO_BLOCK_Y_SIZE,
+   CS_ARG_CORO_BLOCK_Z_SIZE,
+   CS_ARG_CORO_IDX,
+   CS_ARG_CORO_MEM,
+   CS_ARG_MAX,
+};
 
 static void
 generate_compute(struct llvmpipe_context *lp,
@@ -74,7 +98,7 @@ generate_compute(struct llvmpipe_context *lp,
    struct gallivm_state *gallivm = variant->gallivm;
    const struct lp_compute_shader_variant_key *key = &variant->key;
    char func_name[64], func_name_coro[64];
-   LLVMTypeRef arg_types[20];
+   LLVMTypeRef arg_types[CS_ARG_MAX];
    LLVMTypeRef func_type, coro_func_type;
    LLVMTypeRef int32_type = LLVMInt32TypeInContext(gallivm->context);
    LLVMValueRef context_ptr, resources_ptr;
@@ -107,31 +131,31 @@ generate_compute(struct llvmpipe_context *lp,
 
    snprintf(func_name_coro, sizeof(func_name), "cs_co_variant");
 
-   arg_types[0] = variant->jit_cs_context_ptr_type;       /* context */
-   arg_types[1]=  variant->jit_resources_ptr_type;
-   arg_types[2] = int32_type;                          /* block_x_size */
-   arg_types[3] = int32_type;                          /* block_y_size */
-   arg_types[4] = int32_type;                          /* block_z_size */
-   arg_types[5] = int32_type;                          /* grid_x */
-   arg_types[6] = int32_type;                          /* grid_y */
-   arg_types[7] = int32_type;                          /* grid_z */
-   arg_types[8] = int32_type;                          /* grid_size_x */
-   arg_types[9] = int32_type;                          /* grid_size_y */
-   arg_types[10] = int32_type;                          /* grid_size_z */
-   arg_types[11] = int32_type;                         /* work dim */
-   arg_types[12] = variant->jit_cs_thread_data_ptr_type;  /* per thread data */
-   arg_types[13] = int32_type;                         /* coro only - num X loops */
-   arg_types[14] = int32_type;                         /* coro only - partials */
-   arg_types[15] = int32_type;                         /* coro block_x_size */
-   arg_types[16] = int32_type;                         /* coro block_y_size */
-   arg_types[17] = int32_type;                         /* coro block_z_size */
-   arg_types[18] = int32_type;                         /* coro idx */
-   arg_types[19] = LLVMPointerType(LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0), 0);
+   arg_types[CS_ARG_CONTEXT] = variant->jit_cs_context_ptr_type;       /* context */
+   arg_types[CS_ARG_RESOURCES]=  variant->jit_resources_ptr_type;
+   arg_types[CS_ARG_BLOCK_X_SIZE] = int32_type;                        /* block_x_size */
+   arg_types[CS_ARG_BLOCK_Y_SIZE] = int32_type;                        /* block_y_size */
+   arg_types[CS_ARG_BLOCK_Z_SIZE] = int32_type;                        /* block_z_size */
+   arg_types[CS_ARG_GRID_X] = int32_type;                              /* grid_x */
+   arg_types[CS_ARG_GRID_Y] = int32_type;                              /* grid_y */
+   arg_types[CS_ARG_GRID_Z] = int32_type;                              /* grid_z */
+   arg_types[CS_ARG_GRID_SIZE_X] = int32_type;                         /* grid_size_x */
+   arg_types[CS_ARG_GRID_SIZE_Y] = int32_type;                         /* grid_size_y */
+   arg_types[CS_ARG_GRID_SIZE_Z] = int32_type;                         /* grid_size_z */
+   arg_types[CS_ARG_WORK_DIM] = int32_type;                            /* work dim */
+   arg_types[CS_ARG_PER_THREAD_DATA] = variant->jit_cs_thread_data_ptr_type;  /* per thread data */
+   arg_types[CS_ARG_CORO_X_LOOPS] = int32_type;                        /* coro only - num X loops */
+   arg_types[CS_ARG_CORO_PARTIALS] = int32_type;                       /* coro only - partials */
+   arg_types[CS_ARG_CORO_BLOCK_X_SIZE] = int32_type;                   /* coro block_x_size */
+   arg_types[CS_ARG_CORO_BLOCK_Y_SIZE] = int32_type;                   /* coro block_y_size */
+   arg_types[CS_ARG_CORO_BLOCK_Z_SIZE] = int32_type;                   /* coro block_z_size */
+   arg_types[CS_ARG_CORO_IDX] = int32_type;                            /* coro idx */
+   arg_types[CS_ARG_CORO_MEM] = LLVMPointerType(LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0), 0);
    func_type = LLVMFunctionType(LLVMVoidTypeInContext(gallivm->context),
-                                arg_types, ARRAY_SIZE(arg_types) - 7, 0);
+                                arg_types, CS_ARG_OUTER_COUNT, 0);
 
    coro_func_type = LLVMFunctionType(LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0),
-                                     arg_types, ARRAY_SIZE(arg_types), 0);
+                                     arg_types, CS_ARG_MAX, 0);
 
    function = LLVMAddFunction(gallivm->module, func_name, func_type);
    LLVMSetFunctionCallConv(function, LLVMCCallConv);
@@ -142,10 +166,10 @@ generate_compute(struct llvmpipe_context *lp,
 
    variant->function = function;
 
-   for (i = 0; i < ARRAY_SIZE(arg_types); ++i) {
+   for (i = 0; i < CS_ARG_MAX; ++i) {
       if (LLVMGetTypeKind(arg_types[i]) == LLVMPointerTypeKind) {
          lp_add_function_attr(coro, i + 1, LP_FUNC_ATTR_NOALIAS);
-         if (i < ARRAY_SIZE(arg_types) - 7)
+         if (i < CS_ARG_OUTER_COUNT)
             lp_add_function_attr(function, i + 1, LP_FUNC_ATTR_NOALIAS);
       }
    }
@@ -153,19 +177,19 @@ generate_compute(struct llvmpipe_context *lp,
    if (variant->gallivm->cache->data_size)
       return;
 
-   context_ptr  = LLVMGetParam(function, 0);
-   resources_ptr  = LLVMGetParam(function, 1);
-   block_x_size_arg = LLVMGetParam(function, 2);
-   block_y_size_arg = LLVMGetParam(function, 3);
-   block_z_size_arg = LLVMGetParam(function, 4);
-   grid_x_arg = LLVMGetParam(function, 5);
-   grid_y_arg = LLVMGetParam(function, 6);
-   grid_z_arg = LLVMGetParam(function, 7);
-   grid_size_x_arg = LLVMGetParam(function, 8);
-   grid_size_y_arg = LLVMGetParam(function, 9);
-   grid_size_z_arg = LLVMGetParam(function, 10);
-   work_dim_arg = LLVMGetParam(function, 11);
-   thread_data_ptr  = LLVMGetParam(function, 12);
+   context_ptr  = LLVMGetParam(function, CS_ARG_CONTEXT);
+   resources_ptr  = LLVMGetParam(function, CS_ARG_RESOURCES);
+   block_x_size_arg = LLVMGetParam(function, CS_ARG_BLOCK_X_SIZE);
+   block_y_size_arg = LLVMGetParam(function, CS_ARG_BLOCK_Y_SIZE);
+   block_z_size_arg = LLVMGetParam(function, CS_ARG_BLOCK_Z_SIZE);
+   grid_x_arg = LLVMGetParam(function, CS_ARG_GRID_X);
+   grid_y_arg = LLVMGetParam(function, CS_ARG_GRID_Y);
+   grid_z_arg = LLVMGetParam(function, CS_ARG_GRID_Z);
+   grid_size_x_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_X);
+   grid_size_y_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Y);
+   grid_size_z_arg = LLVMGetParam(function, CS_ARG_GRID_SIZE_Z);
+   work_dim_arg = LLVMGetParam(function, CS_ARG_WORK_DIM);
+   thread_data_ptr = LLVMGetParam(function, CS_ARG_PER_THREAD_DATA);
 
    lp_build_name(context_ptr, "context");
    lp_build_name(resources_ptr, "resources");
@@ -225,25 +249,25 @@ generate_compute(struct llvmpipe_context *lp,
    lp_build_loop_begin(&loop_state[0], gallivm,
                        lp_build_const_int32(gallivm, 0)); /* x loop */
    {
-      LLVMValueRef args[20];
-      args[0] = context_ptr;
-      args[1] = resources_ptr;
-      args[2] = loop_state[0].counter;
-      args[3] = loop_state[1].counter;
-      args[4] = loop_state[2].counter;
-      args[5] = grid_x_arg;
-      args[6] = grid_y_arg;
-      args[7] = grid_z_arg;
-      args[8] = grid_size_x_arg;
-      args[9] = grid_size_y_arg;
-      args[10] = grid_size_z_arg;
-      args[11] = work_dim_arg;
-      args[12] = thread_data_ptr;
-      args[13] = num_x_loop;
-      args[14] = partials;
-      args[15] = block_x_size_arg;
-      args[16] = block_y_size_arg;
-      args[17] = block_z_size_arg;
+      LLVMValueRef args[CS_ARG_MAX];
+      args[CS_ARG_CONTEXT] = context_ptr;
+      args[CS_ARG_RESOURCES] = resources_ptr;
+      args[CS_ARG_BLOCK_X_SIZE] = loop_state[0].counter;
+      args[CS_ARG_BLOCK_Y_SIZE] = loop_state[1].counter;
+      args[CS_ARG_BLOCK_Z_SIZE] = loop_state[2].counter;
+      args[CS_ARG_GRID_X] = grid_x_arg;
+      args[CS_ARG_GRID_Y] = grid_y_arg;
+      args[CS_ARG_GRID_Z] = grid_z_arg;
+      args[CS_ARG_GRID_SIZE_X] = grid_size_x_arg;
+      args[CS_ARG_GRID_SIZE_Y] = grid_size_y_arg;
+      args[CS_ARG_GRID_SIZE_Z] = grid_size_z_arg;
+      args[CS_ARG_WORK_DIM] = work_dim_arg;
+      args[CS_ARG_PER_THREAD_DATA] = thread_data_ptr;
+      args[CS_ARG_CORO_X_LOOPS] = num_x_loop;
+      args[CS_ARG_CORO_PARTIALS] = partials;
+      args[CS_ARG_CORO_BLOCK_X_SIZE] = block_x_size_arg;
+      args[CS_ARG_CORO_BLOCK_Y_SIZE] = block_y_size_arg;
+      args[CS_ARG_CORO_BLOCK_Z_SIZE] = block_z_size_arg;
 
       /* idx = (z * (size_x * size_y) + y * size_x + x */
       LLVMValueRef coro_hdl_idx = LLVMBuildMul(gallivm->builder, loop_state[2].counter,
@@ -254,9 +278,9 @@ generate_compute(struct llvmpipe_context *lp,
       coro_hdl_idx = LLVMBuildAdd(gallivm->builder, coro_hdl_idx,
                                   loop_state[0].counter, "");
 
-      args[18] = coro_hdl_idx;
+      args[CS_ARG_CORO_IDX] = coro_hdl_idx;
 
-      args[19] = coro_mem;
+      args[CS_ARG_CORO_MEM] = coro_mem;
       LLVMValueRef coro_entry = LLVMBuildGEP2(gallivm->builder, hdl_ptr_type, coro_hdls, &coro_hdl_idx, 1, "");
 
       LLVMValueRef coro_hdl = LLVMBuildLoad2(gallivm->builder, hdl_ptr_type, coro_entry, "coro_hdl");
@@ -266,7 +290,7 @@ generate_compute(struct llvmpipe_context *lp,
                                        lp_build_const_int32(gallivm, 0), "");
       /* first time here - call the coroutine function entry point */
       lp_build_if(&ifstate, gallivm, cmp);
-      LLVMValueRef coro_ret = LLVMBuildCall2(gallivm->builder, coro_func_type, coro, args, 20, "");
+      LLVMValueRef coro_ret = LLVMBuildCall2(gallivm->builder, coro_func_type, coro, args, CS_ARG_MAX, "");
       LLVMBuildStore(gallivm->builder, coro_ret, coro_entry);
       lp_build_else(&ifstate);
       /* subsequent calls for this invocation - check if done. */
@@ -305,26 +329,26 @@ generate_compute(struct llvmpipe_context *lp,
 
    /* This is stage (b) - generate the compute shader code inside the coroutine. */
    LLVMValueRef x_size_arg, y_size_arg, z_size_arg;
-   context_ptr  = LLVMGetParam(coro, 0);
-   resources_ptr = LLVMGetParam(coro, 1);
-   x_size_arg = LLVMGetParam(coro, 2);
-   y_size_arg = LLVMGetParam(coro, 3);
-   z_size_arg = LLVMGetParam(coro, 4);
-   grid_x_arg = LLVMGetParam(coro, 5);
-   grid_y_arg = LLVMGetParam(coro, 6);
-   grid_z_arg = LLVMGetParam(coro, 7);
-   grid_size_x_arg = LLVMGetParam(coro, 8);
-   grid_size_y_arg = LLVMGetParam(coro, 9);
-   grid_size_z_arg = LLVMGetParam(coro, 10);
-   work_dim_arg = LLVMGetParam(coro, 11);
-   thread_data_ptr  = LLVMGetParam(coro, 12);
-   num_x_loop = LLVMGetParam(coro, 13);
-   partials = LLVMGetParam(coro, 14);
-   block_x_size_arg = LLVMGetParam(coro, 15);
-   block_y_size_arg = LLVMGetParam(coro, 16);
-   block_z_size_arg = LLVMGetParam(coro, 17);
-   LLVMValueRef coro_idx = LLVMGetParam(coro, 18);
-   coro_mem = LLVMGetParam(coro, 19);
+   context_ptr  = LLVMGetParam(coro, CS_ARG_CONTEXT);
+   resources_ptr = LLVMGetParam(coro, CS_ARG_RESOURCES);
+   x_size_arg = LLVMGetParam(coro, CS_ARG_BLOCK_X_SIZE);
+   y_size_arg = LLVMGetParam(coro, CS_ARG_BLOCK_Y_SIZE);
+   z_size_arg = LLVMGetParam(coro, CS_ARG_BLOCK_Z_SIZE);
+   grid_x_arg = LLVMGetParam(coro, CS_ARG_GRID_X);
+   grid_y_arg = LLVMGetParam(coro, CS_ARG_GRID_Y);
+   grid_z_arg = LLVMGetParam(coro, CS_ARG_GRID_Z);
+   grid_size_x_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_X);
+   grid_size_y_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Y);
+   grid_size_z_arg = LLVMGetParam(coro, CS_ARG_GRID_SIZE_Z);
+   work_dim_arg = LLVMGetParam(coro, CS_ARG_WORK_DIM);
+   thread_data_ptr  = LLVMGetParam(coro, CS_ARG_PER_THREAD_DATA);
+   num_x_loop = LLVMGetParam(coro, CS_ARG_CORO_X_LOOPS);
+   partials = LLVMGetParam(coro, CS_ARG_CORO_PARTIALS);
+   block_x_size_arg = LLVMGetParam(coro, CS_ARG_CORO_BLOCK_X_SIZE);
+   block_y_size_arg = LLVMGetParam(coro, CS_ARG_CORO_BLOCK_Y_SIZE);
+   block_z_size_arg = LLVMGetParam(coro, CS_ARG_CORO_BLOCK_Z_SIZE);
+   LLVMValueRef coro_idx = LLVMGetParam(coro, CS_ARG_CORO_IDX);
+   coro_mem = LLVMGetParam(coro, CS_ARG_CORO_MEM);
    block = LLVMAppendBasicBlockInContext(gallivm->context, coro, "entry");
    LLVMPositionBuilderAtEnd(builder, block);
    {
