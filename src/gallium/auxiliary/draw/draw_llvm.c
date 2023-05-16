@@ -870,13 +870,13 @@ adjust_mask(struct gallivm_state *gallivm,
 
 void
 draw_store_aos_array(struct gallivm_state *gallivm,
-                struct lp_type soa_type,
-                LLVMTypeRef io_type,
-                LLVMValueRef io_ptr,
-                LLVMValueRef *indices,
-                LLVMValueRef* aos,
-                int attrib,
-                LLVMValueRef clipmask,
+                     struct lp_type soa_type,
+                     LLVMTypeRef io_type,
+                     LLVMValueRef io_ptr,
+                     LLVMValueRef *indices,
+                     LLVMValueRef* aos,
+                     int attrib,
+                     LLVMValueRef clipmask,
                      boolean need_edgeflag, bool is_per_prim)
 {
    LLVMBuilderRef builder = gallivm->builder;
@@ -913,13 +913,20 @@ draw_store_aos_array(struct gallivm_state *gallivm,
       } else {
          vertex_id_pad_edgeflag = (0xffff << 16);
       }
-      val = lp_build_const_int_vec(gallivm, lp_int_type(soa_type),
-                                   vertex_id_pad_edgeflag);
+      if (soa_type.length == 1)
+         val = lp_build_const_int32(gallivm, vertex_id_pad_edgeflag);
+      else
+         val = lp_build_const_int_vec(gallivm, lp_int_type(soa_type),
+                                      vertex_id_pad_edgeflag);
+
       /* OR with the clipmask */
       cliptmp = LLVMBuildOr(builder, val, clipmask, "");
       for (unsigned i = 0; i < vector_length; i++) {
          LLVMValueRef id_ptr = lp_jit_vertex_header_id(gallivm, io_type, io_ptrs[i]);
-         val = LLVMBuildExtractElement(builder, cliptmp, linear_inds[i], "");
+         if (vector_length > 1)
+            val = LLVMBuildExtractElement(builder, cliptmp, linear_inds[i], "");
+         else
+            val = cliptmp;
          val = adjust_mask(gallivm, val);
 #if DEBUG_STORE
          lp_build_printf(gallivm, "io = %p, index %d, clipmask = %x\n",

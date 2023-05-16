@@ -121,12 +121,12 @@ lp_mesh_llvm_iface(const struct lp_build_mesh_iface *iface)
 
 
 static LLVMTypeRef
-create_mesh_jit_output_type_deref(struct gallivm_state *gallivm, int len)
+create_mesh_jit_output_type_deref(struct gallivm_state *gallivm)
 {
    LLVMTypeRef float_type = LLVMFloatTypeInContext(gallivm->context);
    LLVMTypeRef output_array;
 
-   output_array = LLVMArrayType(LLVMVectorType(float_type, len), TGSI_NUM_CHANNELS); /* num channels */
+   output_array = LLVMArrayType(float_type, TGSI_NUM_CHANNELS); /* num channels */
    output_array = LLVMArrayType(output_array, PIPE_MAX_SHADER_OUTPUTS); /* num attrs per vertex */
    return output_array;
 }
@@ -150,7 +150,7 @@ lp_mesh_llvm_emit_store_output(const struct lp_build_mesh_iface *mesh_iface,
    LLVMValueRef indices[3];
    LLVMValueRef res;
    struct lp_type type = bld->type;
-   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, type.length);
+   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm);
 
    if (is_vindex_indirect || is_aindex_indirect || is_sindex_indirect) {
       for (int i = 0; i < type.length; ++i) {
@@ -237,7 +237,7 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
 {
    LLVMBuilderRef builder = gallivm->builder;
    LLVMValueRef inds[3];
-   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, soa_type.length);
+   LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm);
 #if DEBUG_STORE
    lp_build_printf(gallivm, "   # storing begin\n");
 #endif
@@ -257,7 +257,7 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
       int attrib = var->data.driver_location;
       int slots = glsl_count_attribute_slots(glsl_get_array_element(var->type), false);
 
-      for (unsigned i = 0; i < slots; i++) {
+      for (unsigned s = 0; s < slots; s++) {
          LLVMValueRef soa[TGSI_NUM_CHANNELS];
          LLVMValueRef aos[LP_MAX_VECTOR_WIDTH / 32];
          for (unsigned chan = 0; chan < TGSI_NUM_CHANNELS; ++chan) {
@@ -266,7 +266,7 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
             inds[2] = lp_build_const_int32(gallivm, chan);
 
             LLVMValueRef res = LLVMBuildGEP2(builder, output_type, outputs, inds, 3, "");
-            LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_vec_type(gallivm, soa_type) : lp_build_vec_type(gallivm, soa_type);
+            LLVMTypeRef single_type = (attrib == primid_slot) ? lp_build_int_elem_type(gallivm, soa_type) : lp_build_elem_type(gallivm, soa_type);
             LLVMValueRef out = LLVMBuildLoad2(builder, single_type, res, "");
             lp_build_name(out, "output%u.%c", attrib, "xyzw"[chan]);
 #if DEBUG_STORE
@@ -278,27 +278,17 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
             lp_build_print_value(gallivm, "val = ", out);
             {
                LLVMValueRef iv =
-                  LLVMBuildBitCast(builder, out, lp_build_int_vec_type(gallivm, soa_type), "");
+                  LLVMBuildBitCast(builder, out, lp_build_int_elem_type(gallivm, soa_type), "");
 
                lp_build_print_value(gallivm, "  ival = ", iv);
             }
 #endif
             soa[chan] = out;
          }
-
-         if (soa_type.length == TGSI_NUM_CHANNELS) {
-            lp_build_transpose_aos(gallivm, soa_type, soa, aos);
-         } else {
-            lp_build_transpose_aos(gallivm, soa_type, soa, soa);
-
-            for (unsigned i = 0; i < soa_type.length; ++i) {
-               aos[i] = lp_build_extract_range(gallivm,
-                                               soa[i % TGSI_NUM_CHANNELS],
-                                               (i / TGSI_NUM_CHANNELS) * TGSI_NUM_CHANNELS,
-                                               TGSI_NUM_CHANNELS);
-            }
-         }
-
+         LLVMTypeRef float_type = LLVMFloatTypeInContext(gallivm->context);
+         aos[0] = LLVMGetUndef(LLVMVectorType(float_type, 4));
+         for (unsigned i = 0; i <  4; i++)
+            aos[0] = LLVMBuildInsertElement(builder, aos[0], soa[i], lp_build_const_int32(gallivm, i), "");
          int aos_attrib = attrib;
          if (var->data.per_primitive)
             aos_attrib -= first_per_prim_attrib;
@@ -315,7 +305,7 @@ mesh_convert_to_aos(struct gallivm_state *gallivm,
       }
    }
 #if DEBUG_STORE
-lp_build_printf(gallivm, "   # storing end\n");
+   lp_build_printf(gallivm, "   # storing end\n");
 #endif
 }
 
@@ -721,7 +711,7 @@ generate_compute(struct llvmpipe_context *lp,
       if (shader->base.type == PIPE_SHADER_IR_NIR) {
          struct nir_shader *nir = shader->base.ir.nir;
          if (nir->info.stage == MESA_SHADER_MESH) {
-            LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm, cs_type.length);
+            LLVMTypeRef output_type = create_mesh_jit_output_type_deref(gallivm);
             output_array = lp_build_array_alloca(gallivm, output_type, lp_build_const_int32(gallivm, align(MAX2(nir->info.mesh.max_primitives_out, nir->info.mesh.max_vertices_out), 8)), "outputs");
          }
 
@@ -805,7 +795,7 @@ generate_compute(struct llvmpipe_context *lp,
             io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
             mesh_convert_to_aos(gallivm, shader->base.ir.nir, true, variant->jit_vertex_header_type,
                                 io, output_array, clipmask,
-                                vertex_loop_state.counter, cs_type, -1, FALSE);
+                                vertex_loop_state.counter, lp_elem_type(cs_type), -1, FALSE);
             lp_build_loop_end_cond(&vertex_loop_state,
                                    vertex_count,
                                    NULL,  LLVMIntUGE);
@@ -820,7 +810,7 @@ generate_compute(struct llvmpipe_context *lp,
             io = LLVMBuildIntToPtr(gallivm->builder, io, LLVMPointerType(LLVMVoidTypeInContext(gallivm->context), 0), "");
             mesh_convert_to_aos(gallivm, shader->base.ir.nir, false, variant->jit_prim_type,
                                 io, output_array, clipmask,
-                                prim_loop_state.counter, cs_type, -1, FALSE);
+                                prim_loop_state.counter, lp_elem_type(cs_type), -1, FALSE);
             lp_build_loop_end_cond(&prim_loop_state,
                                    prim_count,
                                    NULL,  LLVMIntUGE);
