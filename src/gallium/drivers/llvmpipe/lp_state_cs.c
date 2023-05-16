@@ -2432,7 +2432,7 @@ llvmpipe_task_update_derived(struct llvmpipe_context *llvmpipe)
                               llvmpipe->images[PIPE_SHADER_TASK]);
 
    struct lp_cs_context *csctx = llvmpipe->task_ctx;
-   csctx->cs.current.jit_context.aniso_filter_table = lp_build_sample_aniso_filter_table();
+   csctx->cs.current.jit_resources.aniso_filter_table = lp_build_sample_aniso_filter_table();
 }
 
 void
@@ -2468,7 +2468,7 @@ llvmpipe_mesh_update_derived(struct llvmpipe_context *llvmpipe)
                               llvmpipe->images[PIPE_SHADER_MESH]);
 
    struct lp_cs_context *csctx = llvmpipe->mesh_ctx;
-   csctx->cs.current.jit_context.aniso_filter_table = lp_build_sample_aniso_filter_table();
+   csctx->cs.current.jit_resources.aniso_filter_table = lp_build_sample_aniso_filter_table();
 }
 
 

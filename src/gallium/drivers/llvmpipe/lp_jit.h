@@ -51,6 +51,7 @@ struct lp_task_shader_variant;
 struct lp_mesh_shader_variant;
 struct lp_rast_state;
 struct llvmpipe_screen;
+struct vertex_header;
 
 struct lp_jit_viewport
 {
