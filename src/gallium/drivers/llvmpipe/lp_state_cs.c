@@ -650,6 +650,7 @@ llvmpipe_delete_compute_state(struct pipe_context *pipe,
 static struct lp_compute_shader_variant_key *
 make_variant_key(struct llvmpipe_context *lp,
                  struct lp_compute_shader *shader,
+                 enum pipe_shader_type sh_type,
                  char *store)
 {
    struct lp_compute_shader_variant_key *key =
@@ -670,7 +671,7 @@ make_variant_key(struct llvmpipe_context *lp,
    for (unsigned i = 0; i < key->nr_samplers; ++i) {
       if (shader->info.base.file_mask[TGSI_FILE_SAMPLER] & (1 << i)) {
          lp_sampler_static_sampler_state(&cs_sampler[i].sampler_state,
-                                         lp->samplers[PIPE_SHADER_COMPUTE][i]);
+                                         lp->samplers[sh_type][i]);
       }
    }
 
@@ -688,7 +689,7 @@ make_variant_key(struct llvmpipe_context *lp,
           */
          if ((shader->info.base.file_mask[TGSI_FILE_SAMPLER_VIEW] & (1u << (i & 31))) || i > 31) {
             lp_sampler_static_texture_state(&cs_sampler[i].texture_state,
-                                            lp->sampler_views[PIPE_SHADER_COMPUTE][i]);
+                                            lp->sampler_views[sh_type][i]);
          }
       }
    } else {
@@ -696,7 +697,7 @@ make_variant_key(struct llvmpipe_context *lp,
       for (unsigned i = 0; i < key->nr_sampler_views; ++i) {
          if ((shader->info.base.file_mask[TGSI_FILE_SAMPLER] & (1 << i)) || i > 31) {
             lp_sampler_static_texture_state(&cs_sampler[i].texture_state,
-                                            lp->sampler_views[PIPE_SHADER_COMPUTE][i]);
+                                            lp->sampler_views[sh_type][i]);
          }
       }
    }
@@ -711,7 +712,7 @@ make_variant_key(struct llvmpipe_context *lp,
    for (unsigned i = 0; i < key->nr_images; ++i) {
       if ((shader->info.base.file_mask[TGSI_FILE_IMAGE] & (1 << i)) || i > 31) {
          lp_sampler_static_texture_state_image(&lp_image[i].image_state,
-                                               &lp->images[PIPE_SHADER_COMPUTE][i]);
+                                               &lp->images[sh_type][i]);
       }
    }
    return key;
@@ -820,6 +821,7 @@ lp_cs_get_ir_cache_key(struct lp_compute_shader_variant *variant,
 static struct lp_compute_shader_variant *
 generate_variant(struct llvmpipe_context *lp,
                  struct lp_compute_shader *shader,
+                 enum pipe_shader_type sh_type,
                  const struct lp_compute_shader_variant_key *key)
 {
    struct llvmpipe_screen *screen = llvmpipe_screen(lp->pipe.screen);
@@ -832,8 +834,9 @@ generate_variant(struct llvmpipe_context *lp,
    memset(variant, 0, sizeof(*variant));
 
    char module_name[64];
-   snprintf(module_name, sizeof(module_name), "cs%u_variant%u",
-            shader->no, shader->variants_created);
+   const char *shname = "cs";
+   snprintf(module_name, sizeof(module_name), "%s%u_variant%u",
+            shname, shader->no, shader->variants_created);
 
    variant->shader = shader;
    memcpy(&variant->key, key, shader->variant_key_size);
@@ -890,13 +893,14 @@ lp_cs_ctx_set_cs_variant(struct lp_cs_context *csctx,
 }
 
 
-static void
-llvmpipe_update_cs(struct llvmpipe_context *lp)
+static struct lp_compute_shader_variant *
+llvmpipe_update_cs_variant(struct llvmpipe_context *lp,
+                           enum pipe_shader_type sh_type,
+                           struct lp_compute_shader *shader)
 {
    char store[LP_CS_MAX_VARIANT_KEY_SIZE];
-   struct lp_compute_shader *shader = lp->cs;
    struct lp_compute_shader_variant_key *key =
-      make_variant_key(lp, shader, store);
+      make_variant_key(lp, shader, sh_type, store);
    struct lp_compute_shader_variant *variant = NULL;
    struct lp_cs_variant_list_item *li;
 
@@ -966,7 +970,7 @@ llvmpipe_update_cs(struct llvmpipe_context *lp)
        */
       int64_t t0, t1, dt;
       t0 = os_time_get();
-      variant = generate_variant(lp, shader, key);
+      variant = generate_variant(lp, shader, sh_type, key);
       t1 = os_time_get();
       dt = t1 - t0;
       LP_COUNT_ADD(llvm_compile_time, dt);
@@ -981,6 +985,14 @@ llvmpipe_update_cs(struct llvmpipe_context *lp)
          shader->variants_cached++;
       }
    }
+   return variant;
+}
+
+static void
+llvmpipe_update_cs(struct llvmpipe_context *lp)
+{
+   struct lp_compute_shader_variant *variant;
+   variant = llvmpipe_update_cs_variant(lp, PIPE_SHADER_COMPUTE, lp->cs);
    /* Bind this variant */
    lp_cs_ctx_set_cs_variant(lp->csctx, variant);
 }
