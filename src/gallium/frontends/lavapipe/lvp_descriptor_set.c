@@ -98,7 +98,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
       else
          set_layout->size += binding->descriptorCount;
 
-      for (gl_shader_stage stage = MESA_SHADER_VERTEX; stage < MESA_SHADER_STAGES; stage++) {
+      for (gl_shader_stage stage = MESA_SHADER_VERTEX; stage < LVP_SHADER_STAGES; stage++) {
          set_layout->binding[b].stage[stage].const_buffer_index = -1;
          set_layout->binding[b].stage[stage].shader_buffer_index = -1;
          set_layout->binding[b].stage[stage].sampler_index = -1;
@@ -237,7 +237,7 @@ lvp_pipeline_layout_create(struct lvp_device *device,
       const struct lvp_descriptor_set_layout *set_layout =
          vk_to_lvp_descriptor_set_layout(layout->vk.set_layouts[set]);
 
-      for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
+      for (unsigned i = 0; i < LVP_SHADER_STAGES; i++) {
          layout->stage[i].uniform_block_size += set_layout->stage[i].uniform_block_size;
          for (unsigned j = 0; j < set_layout->stage[i].uniform_block_count; j++) {
             assert(layout->stage[i].uniform_block_count + j < MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS);
@@ -291,7 +291,7 @@ lvp_pipeline_layout_create(struct lvp_device *device,
       const VkPushConstantRange *range = pCreateInfo->pPushConstantRanges + i;
       layout->push_constant_size = MAX2(layout->push_constant_size,
                                         range->offset + range->size);
-      layout->push_constant_stages |= (range->stageFlags & BITFIELD_MASK(MESA_SHADER_STAGES));
+      layout->push_constant_stages |= (range->stageFlags & BITFIELD_MASK(LVP_SHADER_STAGES));
    }
    layout->push_constant_size = align(layout->push_constant_size, 16);
    return layout;
@@ -318,7 +318,7 @@ lvp_descriptor_set_create(struct lvp_device *device,
    struct lvp_descriptor_set *set;
    size_t base_size = sizeof(*set) + layout->size * sizeof(set->descriptors[0]);
    size_t size = base_size;
-   for (unsigned i = 0; i < MESA_SHADER_STAGES; i++)
+   for (unsigned i = 0; i < LVP_SHADER_STAGES; i++)
       size += layout->stage[i].uniform_block_size;
    set = vk_alloc(&device->vk.alloc /* XXX: Use the pool */, size, 8,
                    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);

@@ -85,10 +85,10 @@ struct rendering_state {
    bool blend_color_dirty;
    bool ve_dirty;
    bool vb_dirty;
-   bool constbuf_dirty[MESA_SHADER_STAGES];
-   bool pcbuf_dirty[MESA_SHADER_STAGES];
-   bool has_pcbuf[MESA_SHADER_STAGES];
-   bool inlines_dirty[MESA_SHADER_STAGES];
+   bool constbuf_dirty[LVP_SHADER_STAGES];
+   bool pcbuf_dirty[LVP_SHADER_STAGES];
+   bool has_pcbuf[LVP_SHADER_STAGES];
+   bool inlines_dirty[LVP_SHADER_STAGES];
    bool vp_dirty;
    bool scissor_dirty;
    bool ib_dirty;
@@ -129,29 +129,29 @@ struct rendering_state {
    ubyte index_size;
    unsigned index_offset;
    struct pipe_resource *index_buffer;
-   struct pipe_constant_buffer const_buffer[MESA_SHADER_STAGES][16];
-   int num_const_bufs[MESA_SHADER_STAGES];
+   struct pipe_constant_buffer const_buffer[LVP_SHADER_STAGES][16];
+   int num_const_bufs[LVP_SHADER_STAGES];
    int num_vb;
    unsigned start_vb;
    struct pipe_vertex_buffer vb[PIPE_MAX_ATTRIBS];
    struct cso_velems_state velem;
 
-   struct lvp_access_info access[MESA_SHADER_STAGES];
-   struct pipe_sampler_view *sv[MESA_SHADER_STAGES][PIPE_MAX_SHADER_SAMPLER_VIEWS];
-   int num_sampler_views[MESA_SHADER_STAGES];
-   struct pipe_sampler_state ss[MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+   struct lvp_access_info access[LVP_SHADER_STAGES];
+   struct pipe_sampler_view *sv[LVP_SHADER_STAGES][PIPE_MAX_SHADER_SAMPLER_VIEWS];
+   int num_sampler_views[LVP_SHADER_STAGES];
+   struct pipe_sampler_state ss[LVP_SHADER_STAGES][PIPE_MAX_SAMPLERS];
    /* cso_context api is stupid */
-   const struct pipe_sampler_state *cso_ss_ptr[MESA_SHADER_STAGES][PIPE_MAX_SAMPLERS];
-   int num_sampler_states[MESA_SHADER_STAGES];
-   bool sv_dirty[MESA_SHADER_STAGES];
-   bool ss_dirty[MESA_SHADER_STAGES];
+   const struct pipe_sampler_state *cso_ss_ptr[LVP_SHADER_STAGES][PIPE_MAX_SAMPLERS];
+   int num_sampler_states[LVP_SHADER_STAGES];
+   bool sv_dirty[LVP_SHADER_STAGES];
+   bool ss_dirty[LVP_SHADER_STAGES];
 
-   struct pipe_image_view iv[MESA_SHADER_STAGES][PIPE_MAX_SHADER_IMAGES];
-   int num_shader_images[MESA_SHADER_STAGES];
-   struct pipe_shader_buffer sb[MESA_SHADER_STAGES][PIPE_MAX_SHADER_BUFFERS];
-   int num_shader_buffers[MESA_SHADER_STAGES];
-   bool iv_dirty[MESA_SHADER_STAGES];
-   bool sb_dirty[MESA_SHADER_STAGES];
+   struct pipe_image_view iv[LVP_SHADER_STAGES][PIPE_MAX_SHADER_IMAGES];
+   int num_shader_images[LVP_SHADER_STAGES];
+   struct pipe_shader_buffer sb[LVP_SHADER_STAGES][PIPE_MAX_SHADER_BUFFERS];
+   int num_shader_buffers[LVP_SHADER_STAGES];
+   bool iv_dirty[LVP_SHADER_STAGES];
+   bool sb_dirty[LVP_SHADER_STAGES];
    bool disable_multisample;
    enum gs_output gs_output_lines : 2;
 
@@ -167,7 +167,7 @@ struct rendering_state {
       void *block[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
       uint16_t size[MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS];
       uint16_t count;
-   } uniform_blocks[MESA_SHADER_STAGES];
+   } uniform_blocks[LVP_SHADER_STAGES];
 
    VkRect2D render_area;
    bool suspending;
@@ -194,7 +194,7 @@ struct rendering_state {
    struct pipe_stream_output_target *so_targets[PIPE_MAX_SO_BUFFERS];
    uint32_t so_offsets[PIPE_MAX_SO_BUFFERS];
 
-   struct lvp_shader *shaders[MESA_SHADER_STAGES];
+   struct lvp_shader *shaders[LVP_SHADER_STAGES];
 
    bool tess_ccw;
    void *tess_states[2];
@@ -524,8 +524,8 @@ static void emit_state(struct rendering_state *state)
       state->ve_dirty = false;
    }
 
-   bool constbuf_dirty[MESA_SHADER_STAGES] = {false};
-   bool pcbuf_dirty[MESA_SHADER_STAGES] = {false};
+   bool constbuf_dirty[LVP_SHADER_STAGES] = {false};
+   bool pcbuf_dirty[LVP_SHADER_STAGES] = {false};
 
    for (unsigned sh = 0; sh < MESA_SHADER_COMPUTE; sh++) {
       constbuf_dirty[sh] = state->constbuf_dirty[sh];
@@ -1165,7 +1165,7 @@ struct dyn_info {
       uint16_t sampler_view_count;
       uint16_t image_count;
       uint16_t uniform_block_count;
-   } stage[MESA_SHADER_STAGES];
+   } stage[LVP_SHADER_STAGES];
 
    uint32_t dyn_index;
    const uint32_t *dynamic_offsets;
@@ -1350,7 +1350,7 @@ static void increment_dyn_info(struct dyn_info *dyn_info,
    const struct lvp_descriptor_set_layout *layout =
       vk_to_lvp_descriptor_set_layout(vk_layout);
 
-   for (gl_shader_stage stage = MESA_SHADER_VERTEX; stage < MESA_SHADER_STAGES; stage++) {
+   for (gl_shader_stage stage = MESA_SHADER_VERTEX; stage < LVP_SHADER_STAGES; stage++) {
       dyn_info->stage[stage].const_buffer_count += layout->stage[stage].const_buffer_count;
       dyn_info->stage[stage].shader_buffer_count += layout->stage[stage].shader_buffer_count;
       dyn_info->stage[stage].sampler_count += layout->stage[stage].sampler_count;
@@ -4567,7 +4567,7 @@ VkResult lvp_execute_cmds(struct lvp_device *device,
    state->rs_state.scissor = true;
    state->rs_state.no_ms_sample_mask_out = true;
 
-   for (enum pipe_shader_type s = MESA_SHADER_VERTEX; s < MESA_SHADER_STAGES; s++) {
+   for (enum pipe_shader_type s = MESA_SHADER_VERTEX; s < LVP_SHADER_STAGES; s++) {
       for (unsigned i = 0; i < ARRAY_SIZE(state->cso_ss_ptr[s]); i++)
          state->cso_ss_ptr[s][i] = &state->ss[s][i];
    }

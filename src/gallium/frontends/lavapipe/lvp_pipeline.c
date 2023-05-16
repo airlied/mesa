@@ -74,7 +74,7 @@ shader_destroy(struct lvp_device *device, struct lvp_shader *shader)
 void
 lvp_pipeline_destroy(struct lvp_device *device, struct lvp_pipeline *pipeline)
 {
-   for (unsigned i = 0; i < MESA_SHADER_STAGES; i++)
+   for (unsigned i = 0; i < LVP_SHADER_STAGES; i++)
       shader_destroy(device, &pipeline->shaders[i]);
 
    if (pipeline->layout)
