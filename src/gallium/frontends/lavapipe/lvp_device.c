@@ -535,11 +535,11 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .sparseImageFloat32AtomicMinMax  = false,
 
       /* VK_EXT_mesh_shader */
-      .taskShader = true;
-      .meshShader = true;
-      .multiviewMeshShader = false;
-      .primitiveFragmentShadingRateMeshShader = false;
-      .meshShaderQueries = true;
+      .taskShader = true,
+      .meshShader = true,
+      .multiviewMeshShader = false,
+      .primitiveFragmentShadingRateMeshShader = false,
+      .meshShaderQueries = true,
    };
 }
 
