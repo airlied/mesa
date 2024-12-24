@@ -7,7 +7,8 @@ use crate::ir::IsUniform;
 use crate::ir::DstsAsSlice;
 use crate::ir::SrcsAsSlice;
 use crate::ir::RegFile;
-
+use crate::ir::HmmaSize;
+use crate::ir::FloatType;
 // This contains the register scheduling information provided by NVIDIA under NDA.
 // This file is for Turing only.
 
@@ -108,17 +109,16 @@ impl RegLatencySM75 {
 
             Op::HMnMx2(_) => RegLatencySM75::RedirectedFP16, // not in docs
             // let in for documentation purposes
-//            Op::Hmma(h) => {
-//              match h.mat_size {
-//                  HmmaSize::M16N8K4 => match h.dst_type {
-//                      FloatType::F16 => RegLatencySM75::RedirectedHMMA_884_F16,
-//                      _ => RegLatencySM75::RedirectedHMMA_884_F32
-//                  }
-//                  HmmaSize::M16N8K8 => RegLatencySM75::RedirectedHMMA_1688,
-//                  HmmaSize::M16N8K16 => RegLatencySM75::RedirectedHMMA_16816,
-//                }
-//           }
-
+            Op::Hmma(h) => {
+                match h.mat_size {
+                    HmmaSize::M16N8K4 => match h.dst_type {
+                        FloatType::F16 => RegLatencySM75::RedirectedHMMA_884_F16,
+                        _ => RegLatencySM75::RedirectedHMMA_884_F32
+                    }
+                    HmmaSize::M16N8K8 => RegLatencySM75::RedirectedHMMA_1688,
+                    HmmaSize::M16N8K16 => RegLatencySM75::RedirectedHMMA_16816,
+                }
+            }
             Op::Ipa(_) => RegLatencySM75::Decoupled,
             Op::MuFu(_) => RegLatencySM75::Decoupled,
 
@@ -154,7 +154,7 @@ impl RegLatencySM75 {
             // CSMTEST =>  RegLatencySM75::CoupledAlu,
             Op::Bar(_) => RegLatencySM75::Decoupled,
             // Remove when Imma added
-            //Op::Imma(_) => RegLatencySM75::IMMA,
+            Op::Imma(_) => RegLatencySM75::IMMA,
 
             Op::IDp4(_) => RegLatencySM75::CoupledFMA,
             Op::BClear(_) => RegLatencySM75::Decoupled,

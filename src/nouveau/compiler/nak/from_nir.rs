@@ -3214,6 +3214,68 @@ impl<'a> ShaderFromNir<'a> {
                 let dst = b.isetp(IntCmpType::I32, IntCmpOp::Ne, src, 0.into());
                 self.set_dst(&intrin.def, dst);
             }
+            nir_intrinsic_cmat_muladd_nv => {
+                let flags: u32 = intrin.flags();
+                let flags: nak_nir_cmat_mul_add_flags =
+                    unsafe { std::mem::transmute_copy(&flags) };
+                let cmat_a = self.get_src(&srcs[0]);
+                let cmat_b = self.get_src(&srcs[1]);
+                let cmat_c = self.get_src(&srcs[2]);
+                let dst_bit_size = usize::from(intrin.def.bit_size());
+                let dst_num_components =
+                    usize::from(intrin.def.num_components());
+                let comps: u8 =
+                    ((dst_bit_size * dst_num_components) / 32) as u8;
+                let dst = b.alloc_ssa(RegFile::GPR, comps);
+                match flags.cmat_type() {
+                    NAK_CMAT_TYPE_M16N8K8 => {
+                        assert!(flags.a_type() as u32 == GLSL_TYPE_FLOAT16);
+                        b.push_op(OpHmma {
+                            dst: dst.into(),
+                            dst_type: FloatType::from_bits(dst_bit_size),
+                            mat_size: HmmaSize::M16N8K8,
+                            srcs: [cmat_a.into(), cmat_b.into(), cmat_c.into()],
+                        });
+                    }
+                    NAK_CMAT_TYPE_M16N8K16 => {
+                        assert!(flags.a_type() as u32 == GLSL_TYPE_FLOAT16);
+                        b.push_op(OpHmma {
+                            dst: dst.into(),
+                            dst_type: FloatType::from_bits(dst_bit_size),
+                            mat_size: HmmaSize::M16N8K16,
+                            srcs: [cmat_a.into(), cmat_b.into(), cmat_c.into()],
+                        });
+                    }
+                    NAK_CMAT_TYPE_M8N8K16 | NAK_CMAT_TYPE_M16N8K32 => {
+                        let a_type = match flags.a_type() as u32 {
+                            GLSL_TYPE_UINT8 => IntType::U8,
+                            GLSL_TYPE_INT8 => IntType::I8,
+                            val => panic!("Invalid a_type: {val}"),
+                        };
+                        let b_type = match flags.b_type() as u32 {
+                            GLSL_TYPE_UINT8 => IntType::U8,
+                            GLSL_TYPE_INT8 => IntType::I8,
+                            val => panic!("Invalid b_type: {val}"),
+                        };
+
+                        let mat_size = if flags.cmat_type() == NAK_CMAT_TYPE_M8N8K16 {
+                            ImmaSize::M8N8K16
+                        } else {
+                            ImmaSize::M16N8K32
+                        };
+
+                        b.push_op(OpImma {
+                            dst: dst.into(),
+                            mat_size,
+                            srcs: [cmat_a.into(), cmat_b.into(), cmat_c.into()],
+                            src_types: [a_type, b_type],
+                        });
+                    }
+                    val => panic!("Unknown cmat_type {val}"),
+                }
+
+                self.set_dst(&intrin.def, dst);
+            }
             _ => panic!(
                 "Unsupported intrinsic instruction: {}",
                 intrin.info().name()

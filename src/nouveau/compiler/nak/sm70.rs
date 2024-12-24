@@ -1340,6 +1340,159 @@ impl SM70Op for OpHSetP2 {
     }
 }
 
+impl SM70Op for OpImma {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        let gpr = op_gpr(self);
+        let [src0, src1, src2] = &mut self.srcs;
+        b.copy_alu_src_if_not_reg(src0, gpr, SrcType::GPR);
+        b.copy_alu_src_if_not_reg(src1, gpr, SrcType::GPR);
+        b.copy_alu_src_if_not_reg(src2, gpr, SrcType::GPR);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        assert!(e.sm.sm >= 75);
+
+        assert!(
+            self.src_types[0] == IntType::U8
+                || self.src_types[0] == IntType::I8
+        );
+        assert!(
+            self.src_types[1] == IntType::U8
+                || self.src_types[1] == IntType::I8
+        );
+
+        e.set_opcode(0x237);
+        e.set_dst(self.dst);
+        e.set_reg_src(24..32, self.srcs[0]);
+        e.set_reg_src(32..40, self.srcs[1]);
+        e.set_reg_src(64..72, self.srcs[2]);
+
+        match self.mat_size {
+            ImmaSize::M8N8K16 => {
+                e.set_bit(75, false);
+                e.set_field(85..87, 0_u8);
+            }
+
+            ImmaSize::M8N8K32 => {
+                e.set_bit(75, false);
+                e.set_field(85..87, 1_u8);
+            }
+
+            ImmaSize::M16N8K16 => {
+                e.set_bit(75, false);
+                e.set_field(85..87, 2_u8);
+            }
+
+            ImmaSize::M16N8K32 => {
+                e.set_bit(75, true);
+                e.set_field(85..87, 2_u8);
+            }
+
+            ImmaSize::M16N8K64 => {
+                e.set_bit(75, false);
+                e.set_field(85..87, 3_u8);
+            }
+        }
+
+        e.set_bit(76, self.src_types[0].is_signed());
+        e.set_bit(78, self.src_types[1].is_signed());
+        e.set_bit(74, true); // SRC1.COL
+        e.set_bit(82, false); // .SAT
+        e.set_bit(83, false); // SRC0.{U|S}4
+        e.set_bit(84, false); // SRC1.{U|S}4
+    }
+}
+
+impl SM70Op for OpHmma {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        let gpr = op_gpr(self);
+        let [src0, src1, src2] = &mut self.srcs;
+        b.copy_alu_src_if_not_reg(src0, gpr, SrcType::GPR);
+        b.copy_alu_src_if_not_reg(src1, gpr, SrcType::GPR);
+        b.copy_alu_src_if_not_reg(src2, gpr, SrcType::GPR);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        assert!(e.sm.sm >= 75);
+
+        e.set_opcode(0x23c);
+        e.set_dst(self.dst);
+        e.set_reg_src(24..32, self.srcs[0]);
+        e.set_reg_src(32..40, self.srcs[1]);
+        e.set_reg_src(64..72, self.srcs[2]);
+
+        assert!(
+            self.dst_type == FloatType::F16 || self.dst_type == FloatType::F32
+        );
+
+        match self.mat_size {
+            HmmaSize::M16N8K16 => {
+                e.set_bit(75, true);
+                e.set_bit(78, false);
+            }
+            HmmaSize::M16N8K8 => {
+                e.set_bit(75, false);
+                e.set_bit(78, false);
+            }
+            HmmaSize::M16N8K4 => {
+                e.set_bit(75, false);
+                e.set_bit(78, true);
+            }
+        }
+
+        e.set_bit(76, self.dst_type == FloatType::F32); // .F32
+        e.set_bit(82, false); // .BF16 (SM86+)
+        e.set_bit(83, false); // .TF32 (SM86+)
+    }
+}
+
+impl SM70Op for OpMovm {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        let gpr = op_gpr(self);
+        b.copy_alu_src_if_not_reg(&mut self.src, gpr, SrcType::GPR);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        assert!(e.sm.sm >= 75);
+
+        e.encode_alu(0x03a, Some(&self.dst), Some(&self.src), None, None);
+
+        e.set_field(
+            78..80,
+            match self.mat_size {
+                MovmSize::MT8N8 => 0x00_u8,
+                MovmSize::M8N32 => 0x01_u8,
+                MovmSize::M8N64 => 0x02_u8,
+            },
+        );
+    }
+}
+
+impl SM70Op for OpLdsm {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        legalize_ext_instr(self, b);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        assert!(e.sm.sm >= 75);
+
+        e.set_opcode(0x83b);
+        e.set_dst(self.dst);
+        e.set_reg_src(24..32, self.addr);
+        e.set_field(40..64, self.offset);
+
+        e.set_field(
+            78..80,
+            match self.mat_size {
+                LdsmSize::M8N8 => 0x00_u8,
+                LdsmSize::MT8N8 => 0x01_u8,
+                LdsmSize::M8N16 => 0x02_u8,
+                LdsmSize::M8N32 => 0x03_u8,
+            },
+        );
+    }
+}
+
 impl SM70Op for OpHMnMx2 {
     fn legalize(&mut self, b: &mut LegalizeBuilder) {
         let gpr = op_gpr(self);
@@ -3621,6 +3774,10 @@ macro_rules! as_sm70_op_match {
             Op::HMul2(op) => op,
             Op::HSet2(op) => op,
             Op::HSetP2(op) => op,
+            Op::Imma(op) => op,
+            Op::Hmma(op) => op,
+            Op::Movm(op) => op,
+            Op::Ldsm(op) => op,
             Op::HMnMx2(op) => op,
             Op::MuFu(op) => op,
             Op::BMsk(op) => op,
