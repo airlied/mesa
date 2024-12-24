@@ -2419,6 +2419,11 @@ intrinsic("bar_sync_nv", src_comp=[1, 1])
 # Stall until the given SSA value is available
 intrinsic("ssa_bar_nv", src_comp=[1])
 
+# NVIDIA-specific muladd intrinsics.
+# src[] = { a, b, c}
+intrinsic("cmat_muladd_nv", src_comp=[-1, -1, -1], dest_comp=0, bit_sizes=src2,
+          indices=[FLAGS], flags=[CAN_ELIMINATE])
+
 # NVIDIA-specific system values
 system_value("warps_per_sm_nv", 1, bit_sizes=[32])
 system_value("sm_count_nv", 1, bit_sizes=[32])

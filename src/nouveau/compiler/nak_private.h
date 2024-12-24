@@ -231,6 +231,23 @@ struct nak_nir_ipa_flags {
    uint32_t pad:26;
 };
 
+enum nak_cmat_type {
+   NAK_CMAT_TYPE_UNKNOWN,
+   NAK_CMAT_TYPE_M16N8K8,
+   NAK_CMAT_TYPE_M16N8K16,
+   NAK_CMAT_TYPE_M16N16K16,
+   NAK_CMAT_TYPE_M8N8K16,
+   NAK_CMAT_TYPE_M16N8K32,
+   NAK_CMAT_TYPE_M16N16K32,
+};
+
+struct nak_nir_cmat_mul_add_flags {
+   enum nak_cmat_type cmat_type:3;
+   uint8_t a_type:5; /* enum glsl_base_type */
+   uint8_t b_type:5; /* enum glsl_base_type */
+   uint32_t pad:19;
+};
+
 bool nak_nir_lower_fs_inputs(nir_shader *nir,
                              const struct nak_compiler *nak,
                              const struct nak_fs_key *fs_key);
