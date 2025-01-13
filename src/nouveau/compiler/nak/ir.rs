@@ -423,39 +423,41 @@ impl fmt::Display for SSAValue {
 /// registers, with the base register aligned to the number of values, aligned
 /// to the next power of two.
 ///
-/// An SSA reference can reference between 1 and 4 SSA values.  It dereferences
+/// An SSA reference can reference between 1 and 16 SSA values.  It dereferences
 /// to a slice for easy access to individual SSA values.  The structure is
-/// designed so that is always 16B, regardless of how many SSA values are
+/// designed so that is always 64B, regardless of how many SSA values are
 /// referenced so it's easy and fairly cheap to copy around and embed in other
 /// structures.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct SSARef {
-    v: [SSAValue; 4],
+    v: [SSAValue; Self::MAX_VALUES_PER_REF],
 }
 
 impl SSARef {
+    pub const MAX_VALUES_PER_REF: usize = 16;
+
     /// Returns a new SSA reference
     #[inline]
     fn new(comps: &[SSAValue]) -> SSARef {
-        assert!(comps.len() > 0 && comps.len() <= 4);
+        assert!(comps.len() > 0 && comps.len() <= Self::MAX_VALUES_PER_REF);
         let mut r = SSARef {
-            v: [SSAValue::NONE; 4],
+            v: [SSAValue::NONE; Self::MAX_VALUES_PER_REF],
         };
         for i in 0..comps.len() {
             r.v[i] = comps[i];
         }
-        if comps.len() < 4 {
-            r.v[3].packed = (comps.len() as u32).wrapping_neg();
+        if comps.len() < Self::MAX_VALUES_PER_REF {
+            r.v[Self::MAX_VALUES_PER_REF - 1].packed = (comps.len() as u32).wrapping_neg();
         }
         r
     }
 
     /// Returns the number of components in this SSA reference
     pub fn comps(&self) -> u8 {
-        if self.v[3].packed >= u32::MAX - 2 {
-            self.v[3].packed.wrapping_neg() as u8
+        if self.v[Self::MAX_VALUES_PER_REF - 1].packed >= u32::MAX - Self::MAX_VALUES_PER_REF as u32 {
+            self.v[Self::MAX_VALUES_PER_REF - 1].packed.wrapping_neg() as u8
         } else {
-            4
+            Self::MAX_VALUES_PER_REF as u8
         }
     }
 
@@ -522,7 +524,7 @@ impl TryFrom<&[SSAValue]> for SSARef {
     fn try_from(comps: &[SSAValue]) -> Result<Self, Self::Error> {
         if comps.len() == 0 {
             Err("Empty vector")
-        } else if comps.len() > 4 {
+        } else if comps.len() > Self::MAX_VALUES_PER_REF {
             Err("Too many vector components")
         } else {
             Ok(SSARef::new(comps))
@@ -551,6 +553,7 @@ impl_ssa_ref_from_arr!(1);
 impl_ssa_ref_from_arr!(2);
 impl_ssa_ref_from_arr!(3);
 impl_ssa_ref_from_arr!(4);
+impl_ssa_ref_from_arr!(16);
 
 impl From<SSAValue> for SSARef {
     fn from(val: SSAValue) -> Self {
@@ -595,8 +598,8 @@ impl SSAValueAllocator {
     }
 
     pub fn alloc_vec(&mut self, file: RegFile, comps: u8) -> SSARef {
-        assert!(comps >= 1 && comps <= 4);
-        let mut vec = [SSAValue::NONE; 4];
+        assert!(comps >= 1 && comps <= SSARef::MAX_VALUES_PER_REF as u8);
+        let mut vec = [SSAValue::NONE; SSARef::MAX_VALUES_PER_REF];
         for c in 0..comps {
             vec[usize::from(c)] = self.alloc(file);
         }
