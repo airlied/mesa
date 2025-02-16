@@ -21,6 +21,8 @@ use std::iter::Zip;
 use std::ops::{BitAnd, BitOr, Deref, DerefMut, Index, IndexMut, Not, Range};
 use std::slice;
 
+use crate::sm75_instr_latencies::SM75Latency;
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Label {
     idx: u32,
@@ -801,6 +803,18 @@ impl SrcRef {
         }
     }
 
+    pub fn is_bindless_cbuf(&self) -> bool {
+        match self {
+            SrcRef::CBuf(cbuf) => {
+                match cbuf.buf {
+                    CBuf::BindlessSSA(_) | CBuf::BindlessUGPR(_) => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_predicate(&self) -> bool {
         match self {
             SrcRef::Zero | SrcRef::Imm32(_) | SrcRef::CBuf(_) => false,
@@ -1286,6 +1300,10 @@ impl Src {
             SrcRef::SSA(ssa) => ssa.is_uniform(),
             SrcRef::Reg(reg) => reg.is_uniform(),
         }
+    }
+
+    pub fn is_bindless_cbuf(&self)-> bool {
+        self.src_ref.is_bindless_cbuf()
     }
 
     pub fn is_predicate(&self) -> bool {
@@ -6637,6 +6655,17 @@ impl Op {
             | Op::RegOut(_)
             | Op::Annotate(_) => {
                 panic!("Not a hardware opcode")
+            }
+        }
+    }
+
+    pub fn needs_scoreboards(&self, sm: u8) -> bool {
+        if sm == 75 {
+            SM75Latency::needs_scoreboards(self)
+        } else {
+            match self.has_fixed_latency(sm) {
+                true => false,
+                false => true
             }
         }
     }

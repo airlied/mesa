@@ -4,6 +4,8 @@
 use crate::api::{GetDebugFlags, DEBUG};
 use crate::ir::*;
 
+use crate::sm75_instr_latencies::SM75Latency;
+
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Index, IndexMut, Range};
@@ -379,7 +381,8 @@ fn assign_barriers(f: &mut Function, sm: &dyn ShaderModel) {
                     waits.extend_from_slice(u.deps());
                 });
 
-                if instr.op.has_fixed_latency(sm.sm()) {
+                let use_delays = !instr.op.needs_scoreboards(sm.sm());
+                if use_delays {
                     // Delays will cover us here.  We just need to make sure
                     // that we wait on any uses that we consume.
                     uses.for_each_instr_src_mut(instr, |_, u| {
@@ -436,7 +439,7 @@ fn assign_barriers(f: &mut Function, sm: &dyn ShaderModel) {
                 instr.deps.set_yield(true);
             }
 
-            if instr.op.has_fixed_latency(sm.sm()) {
+            if !instr.op.needs_scoreboards(sm.sm()) || instr.op.is_branch() {
                 continue;
             }
 
@@ -545,41 +548,60 @@ fn raw_latency(
     sm: u8,
     write: &Op,
     dst_idx: usize,
-    _read: &Op,
-    _src_idx: usize,
+    read: &Op,
+    src_idx: usize,
 ) -> u32 {
-    instr_latency(sm, write, dst_idx)
+    if sm == 75 {
+        SM75Latency::raw(write, dst_idx, read, src_idx)
+    } else {
+        instr_latency(sm, write, dst_idx)
+    }
 }
 
 /// Write-after-read latency
 fn war_latency(
-    _sm: u8,
-    _read: &Op,
-    _src_idx: usize,
-    _write: &Op,
-    _dst_idx: usize,
+    sm: u8,
+    read: &Op,
+    src_idx: usize,
+    write: &Op,
+    dst_idx: usize,
 ) -> u32 {
-    // We assume the source gets read in the first 4 cycles.  We don't know how
-    // quickly the write will happen.  This is all a guess.
-    4
+    if sm == 75 {
+        SM75Latency::war(read, src_idx, write, dst_idx)
+    } else {
+        // We assume the source gets read in the first 4 cycles.  We don't know how
+        // quickly the write will happen.  This is all a guess.
+        4
+    }
 }
 
 /// Write-after-write latency
+/// For WAW it matters if the first op is predicated or not, to work out
+/// the delay until the second one.
 fn waw_latency(
     sm: u8,
     a: &Op,
     a_dst_idx: usize,
-    _b: &Op,
-    _b_dst_idx: usize,
+    b: &Op,
+    b_dst_idx: usize,
+    a_op_pred: bool,
 ) -> u32 {
-    // We know our latencies are wrong so assume the wrote could happen anywhere
-    // between 0 and instr_latency(a) cycles
-    instr_latency(sm, a, a_dst_idx)
+    if sm == 75 {
+        SM75Latency::waw(a, a_dst_idx, b, b_dst_idx, a_op_pred)
+    } else {
+        // We know our latencies are wrong so assume the wrote could happen anywhere
+        // between 0 and instr_latency(a) cycles
+        instr_latency(sm, a, a_dst_idx)
+    }
 }
 
 /// Predicate read-after-write latency
-fn paw_latency(_sm: u8, _write: &Op, _dst_idx: usize) -> u32 {
-    13
+fn paw_latency(sm: u8, write: &Op, dst_idx: usize) -> u32 {
+    if sm == 75 {
+        SM75Latency::paw(write, dst_idx)
+    } else {
+        13
+    }
 }
 
 fn calc_delays(f: &mut Function, sm: &dyn ShaderModel) {
@@ -623,6 +645,7 @@ fn calc_delays(f: &mut Function, sm: &dyn ShaderModel) {
                             i,
                             &b.instrs[*w_ip].op,
                             *w_dst_idx,
+                            !instr.pred.pred_ref.is_none(),
                         );
                     min_start = max(min_start, s);
                 }
