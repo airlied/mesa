@@ -379,7 +379,7 @@ fn assign_barriers(f: &mut Function, sm: &dyn ShaderModel) {
                     waits.extend_from_slice(u.deps());
                 });
 
-                if instr.has_fixed_latency(sm.sm()) {
+                if instr.op.has_fixed_latency(sm.sm()) {
                     // Delays will cover us here.  We just need to make sure
                     // that we wait on any uses that we consume.
                     uses.for_each_instr_src_mut(instr, |_, u| {
@@ -436,7 +436,7 @@ fn assign_barriers(f: &mut Function, sm: &dyn ShaderModel) {
                 instr.deps.set_yield(true);
             }
 
-            if instr.has_fixed_latency(sm.sm()) {
+            if instr.op.has_fixed_latency(sm.sm()) {
                 continue;
             }
 
