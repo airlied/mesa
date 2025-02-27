@@ -22,6 +22,7 @@ use std::ops::{BitAnd, BitOr, Deref, DerefMut, Index, IndexMut, Not, Range};
 use std::slice;
 
 use crate::sm75_instr_latencies::SM75Latency;
+use crate::sm80_instr_latencies::SM80Latency;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Label {
@@ -6660,7 +6661,9 @@ impl Op {
     }
 
     pub fn needs_scoreboards(&self, sm: u8) -> bool {
-        if sm == 75 {
+        if sm >= 80 && sm < 90 {
+            SM80Latency::needs_scoreboards(self)
+        } else if sm == 75 {
             SM75Latency::needs_scoreboards(self)
         } else {
             match self.has_fixed_latency(sm) {

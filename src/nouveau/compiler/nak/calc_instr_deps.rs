@@ -5,6 +5,7 @@ use crate::api::{GetDebugFlags, DEBUG};
 use crate::ir::*;
 
 use crate::sm75_instr_latencies::SM75Latency;
+use crate::sm80_instr_latencies::SM80Latency;
 
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
@@ -551,7 +552,9 @@ fn raw_latency(
     read: &Op,
     src_idx: usize,
 ) -> u32 {
-    if sm == 75 {
+    if sm >= 80 && sm < 90 {
+        SM80Latency::raw(write, dst_idx, read, src_idx)
+    } else if sm == 75 {
         SM75Latency::raw(write, dst_idx, read, src_idx)
     } else {
         instr_latency(sm, write, dst_idx)
@@ -566,7 +569,9 @@ fn war_latency(
     write: &Op,
     dst_idx: usize,
 ) -> u32 {
-    if sm == 75 {
+    if sm >= 80 && sm < 90 {
+        SM80Latency::war(read, src_idx, write, dst_idx)
+    } else if sm == 75 {
         SM75Latency::war(read, src_idx, write, dst_idx)
     } else {
         // We assume the source gets read in the first 4 cycles.  We don't know how
@@ -586,7 +591,9 @@ fn waw_latency(
     b_dst_idx: usize,
     a_op_pred: bool,
 ) -> u32 {
-    if sm == 75 {
+    if sm >= 80 && sm < 90 {
+        SM80Latency::waw(a, a_dst_idx, b, b_dst_idx, a_op_pred)
+    } else if sm == 75 {
         SM75Latency::waw(a, a_dst_idx, b, b_dst_idx, a_op_pred)
     } else {
         // We know our latencies are wrong so assume the wrote could happen anywhere
@@ -597,7 +604,9 @@ fn waw_latency(
 
 /// Predicate read-after-write latency
 fn paw_latency(sm: u8, write: &Op, dst_idx: usize) -> u32 {
-    if sm == 75 {
+    if sm >= 80 && sm < 90 {
+        SM80Latency::paw(write, dst_idx)
+    } else if sm == 75 {
         SM75Latency::paw(write, dst_idx)
     } else {
         13
