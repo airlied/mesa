@@ -7,6 +7,8 @@ use crate::ir::IsUniform;
 use crate::ir::DstsAsSlice;
 use crate::ir::SrcsAsSlice;
 use crate::ir::RegFile;
+use crate::ir::HmmaSize;
+use crate::ir::FloatType;
 
 // This contains the register scheduling information provided by NVIDIA.
 
@@ -147,16 +149,16 @@ impl RegLatencySM80 {
             | Op::HSetP2(_)
             | Op::HMnMx2(_) => RegLatencySM80::FP16_Alu,
             // let in for documentation purposes
-            //Op::Hmma(h) => {
-            //match h.mat_size {
-            //        HmmaSize::M16N8K4 => match h.dst_type {
-            //            FloatType::F16 => RegLatencySM80::MMA_1x_Collect,
-            //            _ => RegLatencySM80::MMA_2x_Collect,
-            //        }
-            //        HmmaSize::M16N8K8 => RegLatencySM80::MMA_1x_Collect,
-            //        HmmaSize::M16N8K16 => RegLatencySM80::MMA_2x_Collect,
-            //    }
-            //}
+            Op::Hmma(h) => {
+            match h.mat_size {
+                    HmmaSize::M16N8K4 => match h.dst_type {
+                        FloatType::F16 => RegLatencySM80::MMA_1x_collect,
+                        _ => RegLatencySM80::MMA_2x_collect,
+                    }
+                    HmmaSize::M16N8K8 => RegLatencySM80::MMA_1x_collect,
+                    HmmaSize::M16N8K16 => RegLatencySM80::MMA_2x_collect,
+                }
+            }
             Op::Ipa(_) => RegLatencySM80::DecoupledAgu,
             Op::MuFu(_) => RegLatencySM80::Decoupled,
 
