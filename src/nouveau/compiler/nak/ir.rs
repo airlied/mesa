@@ -6607,7 +6607,7 @@ impl Op {
             Op::Bra(_) | Op::Exit(_) => true,
             Op::WarpSync(_) => false,
 
-            // The barrier half is HW scoreboarded by the GPR isn't.  When
+            // The barrier half is HW scoreboarded but the GPR isn't.  When
             // moving from a GPR to a barrier, we still need a token for WaR
             // hazards.
             Op::BMov(_) => false,
