@@ -3348,10 +3348,10 @@ pub enum LdsmSize {
 impl fmt::Display for LdsmSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LdsmSize::M8N8 => write!(f, ".m8n8"),
-            LdsmSize::MT8N8 => write!(f, ".m8n8.trans"),
-            LdsmSize::M8N16 => write!(f, ".m8n16"),
-            LdsmSize::M8N32 => write!(f, ".m8n32"),
+            LdsmSize::M8N8 => write!(f, "m8n8"),
+            LdsmSize::MT8N8 => write!(f, "m8n8.trans"),
+            LdsmSize::M8N16 => write!(f, "m8n16"),
+            LdsmSize::M8N32 => write!(f, "m8n32"),
         }
     }
 }
@@ -3375,8 +3375,8 @@ impl DisplayOp for OpLdsm {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ldsm.16.{}.x{} {} [{}",
-            self.mat_size, self.mat_count, self.dst, self.addr,
+            "ldsm.16.{}.x{} [{}",
+            self.mat_size, self.mat_count, self.addr,
         )?;
 
         if self.offset > 0 {
