@@ -124,6 +124,11 @@ pub trait LegalizeBuildHelpers: SSABuilder {
         reg_file: RegFile,
         src_type: SrcType,
     ) {
+        let comps = match src.as_ssa() {
+            None => 1,
+            Some(x) => x.comps(),
+        };
+
         let val = match src_type {
             SrcType::GPR
             | SrcType::ALU
@@ -131,7 +136,7 @@ pub trait LegalizeBuildHelpers: SSABuilder {
             | SrcType::F16
             | SrcType::F16v2
             | SrcType::I32
-            | SrcType::B32 => self.alloc_ssa(reg_file, 1),
+            | SrcType::B32 => self.alloc_ssa(reg_file, comps),
             SrcType::F64 => self.alloc_ssa(reg_file, 2),
             SrcType::Pred => self.alloc_ssa(reg_file, 1),
             _ => panic!("Unknown source type"),
@@ -158,9 +163,19 @@ pub trait LegalizeBuildHelpers: SSABuilder {
                     self.copy_to(val[1].into(), cb.offset(4).into());
                 }
                 SrcRef::SSA(vec) => {
-                    assert!(vec.comps() == 2);
-                    self.copy_to(val[0].into(), vec[0].into());
-                    self.copy_to(val[1].into(), vec[1].into());
+                    match vec.comps() {
+                        2 => {
+                            self.copy_to(val[0].into(), vec[0].into());
+                            self.copy_to(val[1].into(), vec[1].into());
+                        },
+                        4 => {
+                            self.copy_to(val[0].into(), vec[0].into());
+                            self.copy_to(val[1].into(), vec[1].into());
+                            self.copy_to(val[2].into(), vec[2].into());
+                            self.copy_to(val[3].into(), vec[3].into());
+                        },
+                        _ => panic!("Invalid comps"),
+                    }
                 }
                 _ => panic!("Invalid 64-bit SrcRef"),
             }
