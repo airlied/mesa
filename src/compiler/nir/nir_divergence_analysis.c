@@ -919,6 +919,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_sample_mask:
    case nir_intrinsic_quad_ballot_agx:
    case nir_intrinsic_load_agx:
+   case nir_intrinsic_cmat_load_shared_nv:
       is_divergent = true;
       break;
 

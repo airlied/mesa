@@ -334,6 +334,10 @@ impl nir_intrinsic_instr {
     pub fn atomic_op(&self) -> nir_atomic_op {
         self.get_const_index(NIR_INTRINSIC_ATOMIC_OP) as nir_atomic_op
     }
+
+    pub fn matrix_layout(&self) -> glsl_matrix_layout {
+        self.get_const_index(NIR_INTRINSIC_MATRIX_LAYOUT) as glsl_matrix_layout
+    }
 }
 
 impl nir_intrinsic_info {

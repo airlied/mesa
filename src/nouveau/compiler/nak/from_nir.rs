@@ -3214,6 +3214,24 @@ impl<'a> ShaderFromNir<'a> {
                 let dst = b.isetp(IntCmpType::I32, IntCmpOp::Ne, src, 0.into());
                 self.set_dst(&intrin.def, dst);
             }
+            nir_intrinsic_cmat_load_shared_nv => {
+                let dst_bit_size = usize::from(intrin.def.bit_size());
+                let layout: glsl_matrix_layout = intrin.matrix_layout();
+                let dst_num_components =
+                    usize::from(intrin.def.num_components());
+                let comps: u8 =
+                    ((dst_bit_size * dst_num_components) / 32) as u8;
+                let mat_size = if layout == GLSL_MATRIX_LAYOUT_COLUMN_MAJOR { LdsmSize::MT8N8 } else { LdsmSize::M8N8 };
+                let dst = b.alloc_ssa(RegFile::GPR, comps);
+                b.push_op(OpLdsm {
+                    dst: dst.into(),
+                    mat_size,
+                    mat_count: 4,
+                    addr: self.get_src(&srcs[0]),
+                    offset: 0
+                });
+                self.set_dst(&intrin.def, dst);
+            }
             nir_intrinsic_cmat_muladd_nv => {
                 let flags: u32 = intrin.flags();
                 let flags: nak_nir_cmat_mul_add_flags =

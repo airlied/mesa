@@ -582,9 +582,41 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
 
             nir_deref_instr *deref =
                nir_instr_as_deref(intr->src[1].ssa->parent_instr);
-            nir_def *stride = intr->src[2].ssa;
 
+            nir_variable *src_var = nir_deref_instr_get_variable(deref);
+
+            nir_def *stride = intr->src[2].ssa;
             nir_def *vars[NIR_MAX_VEC_COMPONENTS];
+            unsigned num_nv_loads = 0;
+
+            if (src_var && src_var->data.mode == nir_var_mem_shared &&
+                glsl_base_type_bit_size(desc.element_type) == 16 &&
+                layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR) {
+               if (desc.rows == 8 && desc.cols == 8)
+                  num_nv_loads = 1;
+               if (desc.rows == 16 && desc.cols == 8)
+                  num_nv_loads = 2;
+               if (desc.rows == 16 && desc.cols == 16)
+                  num_nv_loads = 4;
+            }
+
+            if (num_nv_loads) {
+               if (desc.use == GLSL_CMAT_USE_B) {
+                  if (layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR)
+                     layout = GLSL_MATRIX_LAYOUT_COLUMN_MAJOR;
+                  else if (layout == GLSL_MATRIX_LAYOUT_COLUMN_MAJOR)
+                     layout = GLSL_MATRIX_LAYOUT_ROW_MAJOR;
+               }
+
+               nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, 16, intr->src[1].ssa, .num_matrices = num_nv_loads, .matrix_layout = layout);
+
+               nir_store_deref(&b, dst_deref, dst,
+                               nir_component_mask(dst->num_components));
+               nir_instr_remove(instr);
+               progress = true;
+               break;
+            }
+
             for (unsigned i = 0; i < length; ++i)
                vars[i] =
                   nir_undef(&b, 1, glsl_base_type_bit_size(desc.element_type));

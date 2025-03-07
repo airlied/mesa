@@ -332,6 +332,9 @@ index("unsigned", "repeat_count")
 # coordinates in compute.
 index("bool", "explicit_coord")
 
+# for NV coop matrix - num of matrix in load 1/2/4
+index("unsigned", "num_matrices")
+
 intrinsic("nop", flags=[CAN_ELIMINATE])
 
 # Uses a value and cannot be eliminated.
@@ -2423,6 +2426,8 @@ intrinsic("ssa_bar_nv", src_comp=[1])
 # src[] = { a, b, c}
 intrinsic("cmat_muladd_nv", src_comp=[-1, -1, -1], dest_comp=0, bit_sizes=src2,
           indices=[FLAGS], flags=[CAN_ELIMINATE])
+
+intrinsic("cmat_load_shared_nv", src_comp=[-1], dest_comp=0, indices=[NUM_MATRICES, MATRIX_LAYOUT])
 
 # NVIDIA-specific system values
 system_value("warps_per_sm_nv", 1, bit_sizes=[32])
