@@ -588,9 +588,10 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
             nir_def *stride = intr->src[2].ssa;
             nir_def *vars[NIR_MAX_VEC_COMPONENTS];
             unsigned num_nv_loads = 0;
+            int bit_size = glsl_base_type_bit_size(desc.element_type);
 
             if (src_var && src_var->data.mode == nir_var_mem_shared &&
-                glsl_base_type_bit_size(desc.element_type) == 16 &&
+                bit_size == 16 &&
                 layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR) {
                if (desc.rows == 8 && desc.cols == 8)
                   num_nv_loads = 1;
@@ -608,7 +609,30 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
                      layout = GLSL_MATRIX_LAYOUT_ROW_MAJOR;
                }
 
-               nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, 16, intr->src[1].ssa, .num_matrices = num_nv_loads, .matrix_layout = layout);
+               nir_def *col_offset;
+               nir_def *row_offset;
+               nir_def *lane_id = nir_load_subgroup_invocation(&b);
+
+//               compute_matrix_offsets(&b, desc, layout, lane_id, 0,
+//                                      &col_offset, &row_offset);
+
+//               col_offset = nir_imul(&b, col_offset, stride);
+               // grab the lower
+               nir_def *offset;
+
+               if (num_nv_loads == 4) {
+                  nir_def *lower = nir_iand(&b, lane_id, nir_imm_int(&b, 0xf));
+                  nir_def *upper = nir_iand(&b, lane_id, nir_imm_int(&b, 0x10));
+
+                  offset = nir_imul(&b, lower, nir_imm_int(&b, 32));
+                  offset = nir_iadd(&b, offset, upper);
+               } else {
+                  offset = nir_imul(&b, lane_id, nir_imm_int(&b, 16));
+               }
+
+
+               nir_def *off = nir_iadd(&b, intr->src[1].ssa, offset);
+               nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, bit_size, off, .num_matrices = num_nv_loads, .matrix_layout = layout);
 
                nir_store_deref(&b, dst_deref, dst,
                                nir_component_mask(dst->num_components));
