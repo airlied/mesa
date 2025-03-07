@@ -338,6 +338,10 @@ impl nir_intrinsic_instr {
     pub fn matrix_layout(&self) -> glsl_matrix_layout {
         self.get_const_index(NIR_INTRINSIC_MATRIX_LAYOUT) as glsl_matrix_layout
     }
+
+    pub fn num_matrices(&self) -> u8 {
+        self.get_const_index(NIR_INTRINSIC_NUM_MATRICES) as u8
+    }
 }
 
 impl nir_intrinsic_info {

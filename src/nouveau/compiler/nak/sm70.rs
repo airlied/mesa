@@ -1482,6 +1482,15 @@ impl SM70Op for OpLdsm {
         e.set_field(40..64, self.offset);
 
         e.set_field(
+            72..74,
+            match self.mat_count {
+                1 => 0x00_u8,
+                2 => 0x01_u8,
+                4 => 0x02_u8,
+                _ => panic!("Invalid LDSM mat count"),
+            },
+        );
+        e.set_field(
             78..80,
             match self.mat_size {
                 LdsmSize::M8N8 => 0x00_u8,

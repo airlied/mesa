@@ -3217,6 +3217,7 @@ impl<'a> ShaderFromNir<'a> {
             nir_intrinsic_cmat_load_shared_nv => {
                 let dst_bit_size = usize::from(intrin.def.bit_size());
                 let layout: glsl_matrix_layout = intrin.matrix_layout();
+                let mat_count = intrin.num_matrices();
                 let dst_num_components =
                     usize::from(intrin.def.num_components());
                 let comps: u8 =
@@ -3226,7 +3227,7 @@ impl<'a> ShaderFromNir<'a> {
                 b.push_op(OpLdsm {
                     dst: dst.into(),
                     mat_size,
-                    mat_count: 4,
+                    mat_count,
                     addr: self.get_src(&srcs[0]),
                     offset: 0
                 });
