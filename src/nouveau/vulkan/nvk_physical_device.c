@@ -1777,7 +1777,7 @@ nvk_GetPhysicalDeviceCooperativeMatrixPropertiesKHR(VkPhysicalDevice physicalDev
 
    for (unsigned is_signed = 0; is_signed < 2; is_signed++) {
       const VkComponentTypeKHR input_type = is_signed ? VK_COMPONENT_TYPE_SINT8_KHR : VK_COMPONENT_TYPE_UINT8_KHR;
-      const VkComponentTypeKHR result_type = is_signed ? VK_COMPONENT_TYPE_SINT32_KHR : VK_COMPONENT_TYPE_UINT32_KHR;
+      const VkComponentTypeKHR result_type = VK_COMPONENT_TYPE_SINT32_KHR;
 
       vk_outarray_append_typed(VkCooperativeMatrixPropertiesKHR, &out, p)
       {
