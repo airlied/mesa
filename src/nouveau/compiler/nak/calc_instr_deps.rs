@@ -631,7 +631,8 @@ fn calc_delays(f: &mut Function, sm: &dyn ShaderModel) {
 
         for ip in (0..b.instrs.len()).rev() {
             let instr = &b.instrs[ip];
-            let mut min_start = cycle + exec_latency(sm.sm(), &instr.op);
+            let exec_latency = exec_latency(sm.sm(), &instr.op);
+            let mut min_start = cycle + exec_latency;
             if let Some(bar) = instr.deps.rd_bar() {
                 min_start = max(min_start, bars[usize::from(bar)] + 2);
             }
@@ -695,11 +696,31 @@ fn calc_delays(f: &mut Function, sm: &dyn ShaderModel) {
             let instr = &mut b.instrs[ip];
 
             let delay = min_start - cycle;
+            let nop_delay = if delay > 15 {
+                // If the delay exceeds 15 then NOPs need to be inserted to add new delays.
+                delay - 15
+            } else if exec_latency > 1 {
+                // It's unclear exactly why but the blob inserts a Nop with a delay of 2
+                // after every instruction which has an exec latency.  Perhaps it has
+                // something to do with .yld?  In any case, the extra 2 cycles aren't worth
+                // the chance of weird bugs.
+                2
+            } else {
+                0
+            };
             let delay = delay
                 .clamp(MIN_INSTR_DELAY.into(), MAX_INSTR_DELAY.into())
                 .try_into()
                 .unwrap();
             instr.deps.set_delay(delay);
+
+            if nop_delay != 0 {
+                let nop_delay = nop_delay
+                    .clamp(MIN_INSTR_DELAY.into(), MAX_INSTR_DELAY.into())
+                    .try_into()
+                    .unwrap();
+                instr.deps.set_nop_delay(nop_delay);
+            }
 
             instr_cycle[ip] = min_start;
             uses.for_each_instr_pred_mut(instr, |c| {
@@ -722,18 +743,14 @@ fn calc_delays(f: &mut Function, sm: &dyn ShaderModel) {
         }
     }
 
-    // It's unclear exactly why but the blob inserts a Nop with a delay of 2
-    // after every instruction which has an exec latency.  Perhaps it has
-    // something to do with .yld?  In any case, the extra 2 cycles aren't worth
-    // the chance of weird bugs.
     f.map_instrs(|mut instr, _| {
-        if matches!(instr.op, Op::SrcBar(_)) {
+        if (instr.deps.nop_delay != 0) {
+            let mut nop = Instr::new_boxed(OpNop { label: None });
+            nop.deps.set_delay(instr.deps.nop_delay);
+            MappedInstrs::Many(vec![instr, nop])
+        } else if matches!(instr.op, Op::SrcBar(_)) {
             instr.op = Op::Nop(OpNop { label: None });
             MappedInstrs::One(instr)
-        } else if exec_latency(sm.sm(), &instr.op) > 1 {
-            let mut nop = Instr::new_boxed(OpNop { label: None });
-            nop.deps.set_delay(2);
-            MappedInstrs::Many(vec![instr, nop])
         } else {
             MappedInstrs::One(instr)
         }

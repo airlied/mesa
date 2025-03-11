@@ -7003,6 +7003,7 @@ pub const MAX_INSTR_DELAY: u8 = 15;
 
 pub struct InstrDeps {
     pub delay: u8,
+    pub nop_delay: u8,
     pub yld: bool,
     wr_bar: i8,
     rd_bar: i8,
@@ -7014,6 +7015,7 @@ impl InstrDeps {
     pub fn new() -> InstrDeps {
         InstrDeps {
             delay: 0,
+            nop_delay: 0,
             yld: false,
             wr_bar: -1,
             rd_bar: -1,
@@ -7041,6 +7043,11 @@ impl InstrDeps {
     pub fn set_delay(&mut self, delay: u8) {
         assert!(delay <= MAX_INSTR_DELAY);
         self.delay = delay;
+    }
+
+    pub fn set_nop_delay(&mut self, delay: u8) {
+        assert!(delay <= MAX_INSTR_DELAY);
+        self.nop_delay = delay;
     }
 
     pub fn set_yield(&mut self, yld: bool) {
