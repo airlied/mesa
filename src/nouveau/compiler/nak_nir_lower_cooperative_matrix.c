@@ -199,7 +199,7 @@ compute_matrix_16x8x16_target(struct nir_builder *b,
                               nir_def **row_ptr)
 {
    nir_def *group_id = nir_udiv_imm(b, lane_id, 4);
-   nir_def *thread_id_in_group = nir_imod_imm(b, lane_id, 4);
+   nir_def *thread_id_in_group = nir_iand_imm(b, lane_id, 0x3);
    nir_def *col;
    nir_def *row;
 
@@ -589,18 +589,31 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
             nir_def *vars[NIR_MAX_VEC_COMPONENTS];
             unsigned num_nv_loads = 0;
             int bit_size = glsl_base_type_bit_size(desc.element_type);
+            int sh_size = glsl_get_std430_size(deref->type, false);
 
-            if (src_var && src_var->data.mode == nir_var_mem_shared &&
-                bit_size == 16 &&
-                layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR) {
-               if (desc.rows == 8 && desc.cols == 8)
-                  num_nv_loads = 1;
-               if (desc.rows == 16 && desc.cols == 8)
-                  num_nv_loads = 2;
-               if (desc.rows == 16 && desc.cols == 16)
-                  num_nv_loads = 4;
+            if (nir_src_is_const(intr->src[2]) &&
+		src_var && src_var->data.mode == nir_var_mem_shared) {
+               uint64_t stride = nir_src_comp_as_uint(intr->src[2], 0);
+
+               fprintf(stderr, "stride %ld desc %d %d bit_size %d %d\n", stride, desc.rows, desc.cols, bit_size, sh_size);
+               if (sh_size * stride % 16 == 0) {
+                  fprintf(stderr, "stride/bit_side is ldsm compatible %d %ld\n", bit_size, stride);
+
+                  if (desc.rows == 16 && desc.cols == 16)
+                     num_nv_loads = 4;
+                  if (desc.rows == 16 && desc.cols == 8)
+                     num_nv_loads = 2;
+                  if (desc.rows == 8 && desc.cols == 16)
+                     num_nv_loads = 2;
+                  if (desc.rows == 8 && desc.cols == 8)
+                     num_nv_loads = 1;
+               }
             }
 
+            // Doing an transpose on a 16x16 needs to move a bunch of things between lanes
+            // after LDSM, doesn't seem worth it
+            if (num_nv_loads == 4 && layout == GLSL_MATRIX_LAYOUT_COLUMN_MAJOR)
+               num_nv_loads = 0;
             if (num_nv_loads) {
                if (desc.use == GLSL_CMAT_USE_B) {
                   if (layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR)
@@ -613,23 +626,19 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
                nir_def *row_offset;
                nir_def *lane_id = nir_load_subgroup_invocation(&b);
 
-//               compute_matrix_offsets(&b, desc, layout, lane_id, 0,
-//                                      &col_offset, &row_offset);
-
-//               col_offset = nir_imul(&b, col_offset, stride);
-               // grab the lower
+               // ldsm will put the first row of 16bytes into first warp
                nir_def *offset;
 
                if (num_nv_loads == 4) {
                   nir_def *lower = nir_iand(&b, lane_id, nir_imm_int(&b, 0xf));
                   nir_def *upper = nir_iand(&b, lane_id, nir_imm_int(&b, 0x10));
 
-                  offset = nir_imul(&b, lower, nir_imm_int(&b, 32));
+                  offset = nir_imul(&b, lower, nir_imul_imm(&b, stride, sh_size));
                   offset = nir_iadd(&b, offset, upper);
                } else {
-                  offset = nir_imul(&b, lane_id, nir_imm_int(&b, 16));
+                  offset = nir_imul(&b, lane_id, nir_imul_imm(&b, stride, sh_size));
                }
-
+               offset = nir_u2uN(&b, offset, dst_deref->def.bit_size);
 
                nir_def *off = nir_iadd(&b, intr->src[1].ssa, offset);
                nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, bit_size, off, .num_matrices = num_nv_loads, .matrix_layout = layout);
