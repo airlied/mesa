@@ -147,6 +147,8 @@ should_lower_phi(nir_phi_instr *phi, struct lower_phis_to_scalar_state *state)
    if (state->lower_all)
       return true;
 
+   if (phi->def.bit_size == 16 && phi->def.num_components == 8)
+      return false;
    struct hash_entry *entry = _mesa_hash_table_search(state->phi_table, phi);
    if (entry)
       return entry->data != NULL;
