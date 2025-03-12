@@ -655,29 +655,59 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
                   nir_undef(&b, 1, glsl_base_type_bit_size(desc.element_type));
 
             nir_def *lane_id = nir_load_subgroup_invocation(&b);
+               lane_id = nir_u2uN(&b, lane_id, deref->def.bit_size);
 
-            for (unsigned idx = 0; idx < length; idx++) {
-               nir_def *col_offset;
-               nir_def *row_offset;
+            if (glsl_base_type_bit_size(desc.element_type) / 8 == 2 &&
+                desc.use != GLSL_CMAT_USE_B && layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR) {
+               for (unsigned idx = 0; idx < length; idx += 2) {
+                  nir_def *col_offset;
+                  nir_def *row_offset;
 
-               compute_matrix_offsets(&b, desc, layout, lane_id, idx,
-                                      &col_offset, &row_offset);
+                  compute_matrix_offsets(&b, desc, layout, lane_id, idx,
+                                         &col_offset, &row_offset);
 
-               col_offset = nir_imul(&b, col_offset, stride);
+                  col_offset = nir_imul(&b, col_offset, nir_u2uN(&b, stride, deref->def.bit_size));
 
-               col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
-               row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
+                  col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
+                  row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
 
-               nir_deref_instr *iter_deref =
-                  nir_build_deref_ptr_as_array(&b, deref, col_offset);
-               iter_deref = nir_build_deref_cast(
-                  &b, &iter_deref->def, deref->modes,
-                  glsl_scalar_type(desc.element_type),
-                  glsl_base_type_bit_size(desc.element_type) / 8);
-               iter_deref =
-                  nir_build_deref_ptr_as_array(&b, iter_deref, row_offset);
+                  nir_deref_instr *iter_deref =
+                     nir_build_deref_ptr_as_array(&b, deref, col_offset);
+                  iter_deref = nir_build_deref_cast(
+                     &b, &iter_deref->def, deref->modes,
+                     glsl_scalar_type(GLSL_TYPE_UINT),
+                     glsl_base_type_bit_size(desc.element_type) / 4);
+                  iter_deref->cast.align_mul = 4;
+                  iter_deref =
+                     nir_build_deref_ptr_as_array(&b, iter_deref, nir_ishr_imm(&b, row_offset, 1));
 
-               vars[idx] = nir_load_deref(&b, iter_deref);
+                  nir_def *this_var = nir_unpack_32_2x16(&b, nir_load_deref(&b, iter_deref));
+                  vars[idx] = nir_channel(&b, this_var, 0);
+                  vars[idx + 1] = nir_channel(&b, this_var, 1);
+               }
+            } else {
+               for (unsigned idx = 0; idx < length; idx++) {
+                  nir_def *col_offset;
+                  nir_def *row_offset;
+
+                  compute_matrix_offsets(&b, desc, layout, lane_id, idx,
+                                         &col_offset, &row_offset);
+
+                  col_offset = nir_imul(&b, col_offset, nir_u2uN(&b, stride, deref->def.bit_size));
+
+                  col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
+                  row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
+
+                  nir_deref_instr *iter_deref =
+                     nir_build_deref_ptr_as_array(&b, deref, col_offset);
+                  iter_deref = nir_build_deref_cast(
+                     &b, &iter_deref->def, deref->modes,
+                     glsl_scalar_type(desc.element_type),
+                     glsl_base_type_bit_size(desc.element_type) / 8);
+                  iter_deref =
+                     nir_build_deref_ptr_as_array(&b, iter_deref, row_offset);
+                  vars[idx] = nir_load_deref(&b, iter_deref);
+               }
             }
 
             nir_def *mat = nir_vec(&b, vars, length);
@@ -706,29 +736,61 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
                vars[i] = nir_channel(&b, src, i);
 
             nir_def *lane_id = nir_load_subgroup_invocation(&b);
+            lane_id = nir_u2uN(&b, lane_id, deref->def.bit_size);
 
-            for (unsigned idx = 0; idx < length; idx++) {
-               nir_def *col_offset;
-               nir_def *row_offset;
+            // for 16-bit row major stores, we can do one 32-bit write per lane
+            if (glsl_base_type_bit_size(desc.element_type) / 8 == 2 &&
+                layout == GLSL_MATRIX_LAYOUT_ROW_MAJOR) {
+               for (unsigned idx = 0; idx < length; idx += 2) {
+                  nir_def *col_offset;
+                  nir_def *row_offset;
 
-               compute_matrix_offsets(&b, desc, layout, lane_id, idx,
-                                      &col_offset, &row_offset);
+                  nir_def *this_var = nir_vec(&b, &vars[idx], 2);
+                  compute_matrix_offsets(&b, desc, layout, lane_id, idx,
+                                         &col_offset, &row_offset);
 
-               col_offset = nir_imul(&b, col_offset, stride);
+                  col_offset = nir_imul(&b, col_offset, nir_u2uN(&b, stride, deref->def.bit_size));
 
-               col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
-               row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
+                  col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
+                  row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
 
-               nir_deref_instr *iter_deref =
-                  nir_build_deref_ptr_as_array(&b, deref, col_offset);
-               iter_deref = nir_build_deref_cast(
-                  &b, &iter_deref->def, deref->modes,
-                  glsl_scalar_type(desc.element_type),
-                  glsl_base_type_bit_size(desc.element_type) / 8);
-               iter_deref =
-                  nir_build_deref_ptr_as_array(&b, iter_deref, row_offset);
+                  nir_def *bits = nir_pack_32_2x16(&b, nir_channels(&b, this_var, 0x3));
+                  nir_deref_instr *iter_deref =
+                     nir_build_deref_ptr_as_array(&b, deref, col_offset);
+                  iter_deref = nir_build_deref_cast(
+                     &b, &iter_deref->def, deref->modes,
+                     glsl_scalar_type(GLSL_TYPE_UINT),
+                     glsl_base_type_bit_size(desc.element_type) / 4);
+                  iter_deref->cast.align_mul = 4;
+                  iter_deref =
+                     nir_build_deref_ptr_as_array(&b, iter_deref, nir_ishr_imm(&b, row_offset, 1));
 
-               nir_store_deref(&b, iter_deref, vars[idx], 1);
+                  nir_store_deref(&b, iter_deref, bits, 0x1);
+               }
+            } else {
+               for (unsigned idx = 0; idx < length; idx++) {
+                  nir_def *col_offset;
+                  nir_def *row_offset;
+
+                  compute_matrix_offsets(&b, desc, layout, lane_id, idx,
+                                         &col_offset, &row_offset);
+
+                  col_offset = nir_imul(&b, col_offset, nir_u2uN(&b, stride, deref->def.bit_size));
+
+                  col_offset = nir_u2uN(&b, col_offset, deref->def.bit_size);
+                  row_offset = nir_u2uN(&b, row_offset, deref->def.bit_size);
+
+                  nir_deref_instr *iter_deref =
+                     nir_build_deref_ptr_as_array(&b, deref, col_offset);
+                  iter_deref = nir_build_deref_cast(
+                     &b, &iter_deref->def, deref->modes,
+                     glsl_scalar_type(desc.element_type),
+                     glsl_base_type_bit_size(desc.element_type) / 8);
+                  iter_deref =
+                     nir_build_deref_ptr_as_array(&b, iter_deref, row_offset);
+
+                  nir_store_deref(&b, iter_deref, vars[idx], 1);
+               }
             }
 
             nir_instr_remove(instr);
