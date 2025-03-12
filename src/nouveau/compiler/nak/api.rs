@@ -111,6 +111,7 @@ fn nir_options(dev: &nv_device_info) -> nir_shader_compiler_options {
     op.lower_pack_snorm_2x16 = true;
     op.lower_pack_unorm_4x8 = true;
     op.lower_pack_snorm_4x8 = true;
+    op.lower_pack_64_4x16 = true;
     op.lower_unpack_half_2x16 = true;
     op.lower_unpack_unorm_2x16 = true;
     op.lower_unpack_snorm_2x16 = true;
