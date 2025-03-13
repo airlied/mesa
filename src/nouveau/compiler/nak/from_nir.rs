@@ -2824,6 +2824,29 @@ impl<'a> ShaderFromNir<'a> {
                 }
                 self.set_dst(&intrin.def, dst);
             }
+            nir_intrinsic_load_sysval_nv_con => {
+                let idx = u8::try_from(intrin.base()).unwrap();
+                debug_assert!(intrin.def.num_components == 1);
+                debug_assert!(
+                    intrin.def.bit_size == 32 || intrin.def.bit_size == 64
+                );
+                let comps = intrin.def.bit_size / 32;
+                let dst = b.alloc_ssa(RegFile::UGPR, comps);
+                if idx == NAK_SV_CLOCK || idx == NAK_SV_CLOCK + 1 {
+                    debug_assert!(idx + comps <= NAK_SV_CLOCK + 2);
+                    b.push_op(OpCS2R {
+                        dst: dst.into(),
+                        idx: idx,
+                    });
+                } else {
+                    debug_assert!(intrin.def.bit_size == 32);
+                    b.push_op(OpS2R {
+                        dst: dst.into(),
+                        idx: idx,
+                    });
+                }
+                self.set_dst(&intrin.def, dst);
+            }
             nir_intrinsic_ldc_nv => {
                 let size_B =
                     (intrin.def.bit_size() / 8) * intrin.def.num_components();

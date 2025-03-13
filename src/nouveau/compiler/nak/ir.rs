@@ -6071,7 +6071,7 @@ pub struct OpS2R {
 
 impl DisplayOp for OpS2R {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "s2r sr[{:#x}]", self.idx)
+        write!(f, "s2{}r sr[{:#x}]", if self.is_uniform() { "u" } else { "" }, self.idx)
     }
 }
 impl_display_for_op!(OpS2R);

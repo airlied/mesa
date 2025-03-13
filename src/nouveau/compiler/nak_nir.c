@@ -409,6 +409,14 @@ nak_sysval_attr_addr(const struct nak_compiler *nak, gl_system_value sysval)
    }
 }
 
+static bool
+nak_sysval_is_uniform(uint8_t base)
+{
+   if (base == NAK_SV_CTAID)
+      return true;
+   return false;
+}
+
 static uint8_t
 nak_sysval_sysval_idx(gl_system_value sysval)
 {
@@ -490,8 +498,14 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       const gl_system_value sysval =
          nir_system_value_from_intrinsic(intrin->intrinsic);
       const uint32_t idx = nak_sysval_sysval_idx(sysval);
-      val = nir_load_sysval_nv(b, 32, .base = idx,
-                               .access = ACCESS_CAN_REORDER);
+
+      if (nak_sysval_is_uniform(idx)) {
+         val = nir_load_sysval_nv_con(b, 32, .base = idx,
+                                      .access = ACCESS_CAN_REORDER);
+      } else {
+         val = nir_load_sysval_nv(b, 32, .base = idx,
+                                  .access = ACCESS_CAN_REORDER);
+      }
 
       /* Pad with 0 because all invocations above 31 are off */
       if (intrin->def.bit_size == 64) {
@@ -513,8 +527,13 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       nir_def *comps[3];
       assert(intrin->def.num_components <= 3);
       for (unsigned c = 0; c < intrin->def.num_components; c++) {
-         comps[c] = nir_load_sysval_nv(b, 32, .base = idx + c,
-                                       .access = ACCESS_CAN_REORDER);
+         if (nak_sysval_is_uniform(idx)) {
+            comps[c] = nir_load_sysval_nv_con(b, 32, .base = idx + c,
+                                              .access = ACCESS_CAN_REORDER);
+         } else {
+            comps[c] = nir_load_sysval_nv(b, 32, .base = idx + c,
+                                          .access = ACCESS_CAN_REORDER);
+         }
       }
       val = nir_vec(b, comps, intrin->def.num_components);
       break;

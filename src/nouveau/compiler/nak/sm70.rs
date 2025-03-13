@@ -3685,9 +3685,13 @@ impl SM70Op for OpS2R {
     }
 
     fn encode(&self, e: &mut SM70Encoder<'_>) {
-        assert!(!self.is_uniform());
-        e.set_opcode(if self.is_uniform() { 0x9c3 } else { 0x919 });
-        e.set_dst(self.dst);
+        if self.is_uniform() {
+            e.set_opcode(0x9c3);
+            e.set_udst(self.dst);
+        } else {
+            e.set_opcode(0x919);
+            e.set_dst(self.dst);
+        }
         e.set_field(72..80, self.idx);
     }
 }

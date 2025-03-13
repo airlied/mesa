@@ -1073,6 +1073,7 @@ impl URegLatencySM75 {
             Op::F2I(_) => vdecoupled,
             Op::F2F(_) => vdecoupled,
             Op::R2UR(_) => if !reader { URegLatencySM75::R2UR } else { panic!("Illegal R2UR in ureg"); }
+            Op::S2R(_) => if !reader { URegLatencySM75::R2UR } else { panic!("Illegal R2UR in ureg"); }
             Op::Vote(_) => URegLatencySM75::VoteU,
 
             Op::FRnd(_) => vdecoupled,
