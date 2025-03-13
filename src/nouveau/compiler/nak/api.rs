@@ -432,6 +432,7 @@ fn nak_compile_shader_internal(
     pass!(s, assign_regs);
     pass!(s, lower_par_copies);
     pass!(s, lower_copy_swap);
+    pass!(s, opt_zero);
     if nak.sm >= 70 {
         pass!(s, opt_jump_thread);
     } else {

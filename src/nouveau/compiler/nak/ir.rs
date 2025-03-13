@@ -5973,7 +5973,10 @@ pub struct OpCS2R {
 
 impl DisplayOp for OpCS2R {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "cs2r sr[{:#x}]", self.idx)
+        match self.idx {
+            255 => write!(f, "cs2r srz"),
+            _ => write!(f, "cs2r sr[{:#x}]", self.idx)
+        }
     }
 }
 impl_display_for_op!(OpCS2R);
