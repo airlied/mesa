@@ -1199,7 +1199,7 @@ impl SM70Op for OpHFma2 {
         let [src0, src1, src2] = &mut self.srcs;
         swap_srcs_if_not_reg(src0, src1, gpr);
         b.copy_alu_src_if_not_reg(src0, gpr, SrcType::F16v2);
-        b.copy_alu_src_if_not_reg(src1, gpr, SrcType::F16v2);
+//        b.copy_alu_src_if_not_reg(src1, gpr, SrcType::F16v2);
         b.copy_alu_src_if_both_not_reg(src1, src2, gpr, SrcType::F16v2);
 
         // HFMA2 doesn't have fabs or fneg on SRC2.
