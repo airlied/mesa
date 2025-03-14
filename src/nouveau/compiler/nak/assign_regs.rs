@@ -10,6 +10,8 @@ use compiler::bitset::BitSet;
 use std::cmp::{max, min, Ordering};
 use std::collections::{HashMap, HashSet};
 
+const VEC_USE_NOT_IN_BLOCK: usize = usize::MAX;
+
 struct KillSet {
     set: HashSet<SSAValue>,
     vec: Vec<SSAValue>,
@@ -105,9 +107,15 @@ impl SSAUseMap {
 
     fn find_vec_use_after(&self, ssa: SSAValue, ip: usize) -> Option<&SSAUse> {
         if let Some(v) = self.ssa_map.get(&ssa) {
-            let p = v.partition_point(|(uip, _)| *uip <= ip);
+            let p = v.partition_point(|(uip, _)| *uip != VEC_USE_NOT_IN_BLOCK);
             if p == v.len() {
-                None
+                let p = v.partition_point(|(uip, _)| *uip <= ip);
+                if p == v.len() {
+                    None
+                } else {
+                    let (_, u) = &v[p];
+                    Some(u)
+                }
             } else {
                 let (_, u) = &v[p];
                 Some(u)
@@ -141,11 +149,18 @@ impl SSAUseMap {
         }
     }
 
-    pub fn for_block(b: &BasicBlock) -> SSAUseMap {
+    pub fn add64(&mut self, ssavec: &FindVecUse) {
+        for vec in &ssavec.vals {
+            self.add_vec_use(VEC_USE_NOT_IN_BLOCK, *vec);
+        }
+    }
+
+    pub fn for_block(b: &BasicBlock, ssavec: &FindVecUse) -> SSAUseMap {
         let mut am = SSAUseMap {
             ssa_map: HashMap::new(),
         };
         am.add_block(b);
+        am.add64(ssavec);
         am
     }
 }
@@ -415,15 +430,27 @@ impl RegAllocator {
         ssa: SSAValue,
     ) -> u32 {
         // Bias register assignment using the phi coalescing
+        let u = sum.find_vec_use_after(ssa, ip);
+
+        let use_phi_webs = match u {
+            None => true,
+            Some(u) => {
+                match u {
+                    SSAUse::Vec(_) => false,
+                    _ => true
+                }
+            }
+        };
+
         if let Some(reg) = phi_webs.get(ssa) {
-            if !self.reg_is_used(reg) {
+            if !self.reg_is_used(reg) && use_phi_webs {
                 self.assign_reg(ssa, reg);
                 return reg;
             }
         }
 
         // Otherwise, use SSAUseMap heuristics
-        if let Some(u) = sum.find_vec_use_after(ssa, ip) {
+        if let Some(u) = u {
             match u {
                 SSAUse::FixedReg(reg) => {
                     if !self.reg_is_used(*reg) {
@@ -1269,6 +1296,7 @@ impl AssignRegsBlock {
         bl: &BL,
         pred_ra: Option<&PerRegFile<RegAllocator>>,
         phi_webs: &mut PhiWebs,
+        ssavec: &FindVecUse,
     ) {
         // Populate live in from the register file we're handed.  We'll add more
         // live in when we process the OpPhiDst, if any.
@@ -1289,7 +1317,7 @@ impl AssignRegsBlock {
             }
         }
 
-        let sum = SSAUseMap::for_block(b);
+        let sum = SSAUseMap::for_block(b, ssavec);
 
         let mut instrs = Vec::new();
         let mut srcs_killed = KillSet::new();
@@ -1400,6 +1428,26 @@ impl AssignRegsBlock {
     }
 }
 
+struct FindVecUse { vals: Vec<SSARef> }
+
+impl FindVecUse {
+    fn new() -> FindVecUse {
+        FindVecUse { vals: Vec::new() }
+    }
+
+    fn add_block(&mut self, b: &BasicBlock) {
+        for (ip, instr) in b.instrs.iter().enumerate() {
+            for src in instr.srcs() {
+                if let Some(ssa) = src_ssa_ref(src) {
+                    if ssa.comps() > 1 {
+                        self.vals.push(*ssa);
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl Shader<'_> {
     pub fn assign_regs(&mut self) {
         assert!(self.functions.len() == 1);
@@ -1410,6 +1458,11 @@ impl Shader<'_> {
 
         let mut live = SimpleLiveness::for_function(f);
         let mut max_live = live.calc_max_live(f);
+
+        let mut ssavec: FindVecUse = FindVecUse::new();
+        for b_idx in 0..f.blocks.len() {
+            ssavec.add_block(&f.blocks[b_idx]);
+        }
 
         // We want at least one temporary GPR reserved for parallel copies.
         let mut tmp_gprs = 1_u8;
@@ -1511,7 +1564,7 @@ impl Shader<'_> {
             let bl = live.block_live(b_idx);
 
             let mut arb = AssignRegsBlock::new(&limit, tmp_gprs);
-            arb.first_pass(&mut f.blocks[b_idx], bl, pred_ra, &mut phi_webs);
+            arb.first_pass(&mut f.blocks[b_idx], bl, pred_ra, &mut phi_webs, &ssavec);
 
             assert!(blocks.len() == b_idx);
             blocks.push(arb);
