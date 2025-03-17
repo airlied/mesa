@@ -640,8 +640,7 @@ nak_nir_lower_cooperative_matrix_impl(struct hash_table *type_mapping,
                }
                offset = nir_u2uN(&b, offset, dst_deref->def.bit_size);
 
-               nir_def *off = nir_iadd(&b, intr->src[1].ssa, offset);
-               nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, bit_size, off, .num_matrices = num_nv_loads, .matrix_layout = layout);
+               nir_def *dst = nir_cmat_load_shared_nv(&b, num_nv_loads * 2, bit_size, intr->src[1].ssa, offset, .num_matrices = num_nv_loads, .matrix_layout = layout);
 
                nir_store_deref(&b, dst_deref, dst,
                                nir_component_mask(dst->num_components));

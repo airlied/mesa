@@ -644,6 +644,9 @@ optimizations.extend([
    (('ishl', ('iadd(is_used_once)', ('iadd', a, '#b'), c), '#d'),
     ('iadd', ('ishl', ('iadd', a, c), d), ('ishl', b, d))),
 
+   (('ushr', ('iadd', a, '#b'), '#c'), ('iadd', ('ushr', a, c), ('ushr', b, c))),
+   (('ushr', ('iadd(is_used_once)', ('iadd', a, '#b'), c), '#d'),
+    ('iadd', ('ushr', ('iadd', a, c), d), ('ushr', b, d))),
    # (a + #b) * #c => (a * #c) + (#b * #c)
    (('imul', ('iadd(is_used_once)', a, '#b'), '#c'), ('iadd', ('imul', a, c), ('imul', b, c))),
 

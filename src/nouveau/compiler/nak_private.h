@@ -274,7 +274,7 @@ bool nak_nir_lower_non_uniform_ldcx(nir_shader *nir);
 bool nak_nir_add_barriers(nir_shader *nir, const struct nak_compiler *nak);
 bool nak_nir_lower_cf(nir_shader *nir);
 bool nak_nir_lower_cooperative_matrix(nir_shader *shader, const struct nak_compiler *nak);
-
+bool nak_nir_opt_ld_shared(nir_shader *nir);
 void nak_optimize_nir(nir_shader *nir, const struct nak_compiler *nak);
 
 #ifdef __cplusplus

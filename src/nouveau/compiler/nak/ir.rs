@@ -3368,20 +3368,17 @@ pub struct OpLdsm {
     #[src_type(SSA)]
     pub addr: Src,
 
-    pub offset: i32,
+    #[src_type(I32)]
+    pub offset: Src,
 }
 
 impl DisplayOp for OpLdsm {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ldsm.16.{}.x{} [{}",
-            self.mat_size, self.mat_count, self.addr,
+            "ldsm.16.{}.x{} [{}+{}",
+            self.mat_size, self.mat_count, self.addr, self.offset,
         )?;
-
-        if self.offset > 0 {
-            write!(f, "+{:#x}", self.offset)?;
-        }
         write!(f, "]")
     }
 }

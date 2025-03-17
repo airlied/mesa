@@ -47,7 +47,7 @@ pub fn swap_srcs_if_not_reg(
     }
 }
 
-fn src_is_imm(src: &Src) -> bool {
+pub fn src_is_imm(src: &Src) -> bool {
     matches!(src.src_ref, SrcRef::Imm32(_))
 }
 
@@ -215,6 +215,17 @@ pub trait LegalizeBuildHelpers: SSABuilder {
         src_type: SrcType,
     ) {
         if src_is_imm(src) {
+            self.copy_alu_src(src, reg_file, src_type);
+        }
+    }
+
+    fn copy_alu_src_if_not_imm(
+        &mut self,
+        src: &mut Src,
+        reg_file: RegFile,
+        src_type: SrcType,
+    ) {
+        if !src_is_imm(src) {
             self.copy_alu_src(src, reg_file, src_type);
         }
     }

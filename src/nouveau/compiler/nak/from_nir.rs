@@ -3252,7 +3252,7 @@ impl<'a> ShaderFromNir<'a> {
                     mat_size,
                     mat_count,
                     addr: self.get_src(&srcs[0]),
-                    offset: 0
+                    offset: self.get_src(&srcs[1]),
                 });
                 self.set_dst(&intrin.def, dst);
             }

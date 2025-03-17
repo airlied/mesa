@@ -1063,6 +1063,7 @@ nak_postprocess_nir(nir_shader *nir,
    OPT(nir, nir_lower_doubles, NULL, nak->nir_options.lower_doubles_options);
    OPT(nir, nir_lower_int64);
 
+   OPT(nir, nak_nir_opt_ld_shared);
    nak_optimize_nir(nir, nak);
 
    do {

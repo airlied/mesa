@@ -3,7 +3,7 @@
 
 use crate::ir::*;
 use crate::legalize::{
-    src_is_reg, src_is_upred_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers,
+    src_is_reg, src_is_imm, src_is_upred_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers,
     LegalizeBuilder,
 };
 use bitview::*;
@@ -1470,7 +1470,20 @@ impl SM70Op for OpMovm {
 
 impl SM70Op for OpLdsm {
     fn legalize(&mut self, b: &mut LegalizeBuilder) {
-        legalize_ext_instr(self, b);
+        let gpr = op_gpr(self);
+        let src0 = &mut self.addr;
+        let src1 = &mut self.offset;
+        b.copy_alu_src_if_not_imm(src1, gpr, SrcType::I32);
+        if !src_is_imm(src1) {
+            let val = b.alloc_ssa(gpr, 1);
+            b.push_op(OpIAdd3 {
+                srcs: [*src0, *src1, Src::new_zero()],
+                overflow: [Dst::None; 2],
+                dst: val.into(),
+            });
+            *src0 = val.into();
+            *src1 = Src::new_zero();
+        }
     }
 
     fn encode(&self, e: &mut SM70Encoder<'_>) {
@@ -1479,7 +1492,7 @@ impl SM70Op for OpLdsm {
         e.set_opcode(0x83b);
         e.set_dst(self.dst);
         e.set_reg_src(24..32, self.addr);
-        e.set_field(40..64, self.offset);
+        e.set_field(40..64, self.offset.as_u32().unwrap());
 
         e.set_field(
             72..74,
